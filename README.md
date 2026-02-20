@@ -25,7 +25,7 @@ This project aims to modernize and streamline attendance tracking by utilizing a
 * `*.md` files - Documentation and guides for specific features (like Face Recognition setup).
 
 ## 🛠️ Getting Started
-*(Instructions for your professor or other developers to run the project locally)*
+*(Instructions to run the project locally)*
 
 1. **Clone the repository:**
    ```bash
