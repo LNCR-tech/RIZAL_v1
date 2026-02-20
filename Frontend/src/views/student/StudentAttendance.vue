@@ -262,26 +262,26 @@ const goBack = () => {
     <template v-else-if="step === 'events'">
 
       <!-- Progress Steps Indicator -->
-      <div class="glass-card p-4">
+      <div class="glass-card p-3 sm:p-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-brand-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">1</div>
-            Select Event
+            <div class="w-6 h-6 shrink-0 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">1</div>
+            <span class="block whitespace-nowrap">Select Event</span>
           </div>
-          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-3"></div>
+          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-gray-400">
-            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">2</div>
-            Location
+            <div class="w-6 h-6 shrink-0 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">2</div>
+            <span class="hidden sm:block whitespace-nowrap">Location</span>
           </div>
-          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-3"></div>
+          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-gray-400">
-            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">3</div>
-            Face Scan
+            <div class="w-6 h-6 shrink-0 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">3</div>
+            <span class="hidden sm:block whitespace-nowrap">Face Scan</span>
           </div>
-          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-3"></div>
+          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-gray-400">
-            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">4</div>
-            Done
+            <div class="w-6 h-6 shrink-0 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">4</div>
+            <span class="hidden sm:block whitespace-nowrap">Done</span>
           </div>
         </div>
       </div>
@@ -365,26 +365,26 @@ const goBack = () => {
     <template v-else-if="step === 'location'">
 
       <!-- Progress (step 2 active) -->
-      <div class="glass-card p-4">
+      <div class="glass-card p-3 sm:p-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Event
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="hidden sm:block whitespace-nowrap">Event</span>
           </div>
-          <div class="flex-1 h-px bg-emerald-500 mx-3"></div>
+          <div class="flex-1 h-px bg-emerald-500 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-brand-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">2</div>
-            Location
+            <div class="w-6 h-6 shrink-0 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">2</div>
+            <span class="block whitespace-nowrap">Location</span>
           </div>
-          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-3"></div>
+          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-gray-400">
-            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">3</div>
-            Face Scan
+            <div class="w-6 h-6 shrink-0 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">3</div>
+            <span class="hidden sm:block whitespace-nowrap">Face Scan</span>
           </div>
-          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-3"></div>
+          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-gray-400">
-            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">4</div>
-            Done
+            <div class="w-6 h-6 shrink-0 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">4</div>
+            <span class="hidden sm:block whitespace-nowrap">Done</span>
           </div>
         </div>
       </div>
@@ -476,26 +476,26 @@ const goBack = () => {
     <template v-else-if="step === 'facescan'">
 
       <!-- Progress (step 3 active) -->
-      <div class="glass-card p-4">
+      <div class="glass-card p-3 sm:p-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Event
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="hidden sm:block whitespace-nowrap">Event</span>
           </div>
-          <div class="flex-1 h-px bg-emerald-500 mx-3"></div>
+          <div class="flex-1 h-px bg-emerald-500 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Location
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="hidden sm:block whitespace-nowrap">Location</span>
           </div>
-          <div class="flex-1 h-px bg-emerald-500 mx-3"></div>
+          <div class="flex-1 h-px bg-emerald-500 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-brand-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">3</div>
-            Face Scan
+            <div class="w-6 h-6 shrink-0 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">3</div>
+            <span class="block whitespace-nowrap">Face Scan</span>
           </div>
-          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-3"></div>
+          <div class="flex-1 h-px bg-gray-200 dark:bg-white/10 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-gray-400">
-            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">4</div>
-            Done
+            <div class="w-6 h-6 shrink-0 rounded-full bg-gray-200 dark:bg-white/10 text-gray-400 flex items-center justify-center text-[0.65rem] font-bold">4</div>
+            <span class="hidden sm:block whitespace-nowrap">Done</span>
           </div>
         </div>
       </div>
@@ -559,26 +559,26 @@ const goBack = () => {
     <template v-else-if="step === 'success'">
 
       <!-- Progress (all done) -->
-      <div class="glass-card p-4">
+      <div class="glass-card p-3 sm:p-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Event
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="hidden sm:block whitespace-nowrap">Event</span>
           </div>
-          <div class="flex-1 h-px bg-emerald-500 mx-3"></div>
+          <div class="flex-1 h-px bg-emerald-500 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Location
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="hidden sm:block whitespace-nowrap">Location</span>
           </div>
-          <div class="flex-1 h-px bg-emerald-500 mx-3"></div>
+          <div class="flex-1 h-px bg-emerald-500 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Face Scan
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="hidden sm:block whitespace-nowrap">Face Scan</span>
           </div>
-          <div class="flex-1 h-px bg-emerald-500 mx-3"></div>
+          <div class="flex-1 h-px bg-emerald-500 mx-2 sm:mx-3"></div>
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
-            <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
-            Done
+            <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
+            <span class="block whitespace-nowrap">Done</span>
           </div>
         </div>
       </div>

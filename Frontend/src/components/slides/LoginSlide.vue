@@ -170,6 +170,13 @@ const validateLogin = async () => {
         detectedRole.value = authResult.user.role;
 
         isLoading.value = false;
+
+        // SKIP FACE SCAN IF UNREGISTERED STUDENT
+        if (authResult.user.role === 'student' && authResult.user.faceScanRegistered === false) {
+             router.push('/student/pending');
+             return; // Stop here, no camera needed
+        }
+
         loginStep.value = 'facescan';
         faceScanState.value = 'scanning';
         scanProgress.value = 0;
@@ -233,6 +240,13 @@ onMounted(async () => {
     if (rememberedUser && localStorage.getItem('auth_token')) {
         isAutoLogin.value = true;
         detectedRole.value = rememberedUser.role;
+
+        // SKIP FACE SCAN IF UNREGISTERED STUDENT
+        if (rememberedUser.role === 'student' && rememberedUser.faceScanRegistered === false) {
+            router.push('/student/pending');
+            return;
+        }
+
         loginStep.value = 'facescan';
         faceScanState.value = 'scanning';
         scanProgress.value = 0;

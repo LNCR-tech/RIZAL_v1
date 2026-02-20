@@ -252,7 +252,7 @@ export const events = [
         description: 'Campus-wide celebration opening with a parade and program.',
         college: null, status: 'Ongoing', attendees: 412,
         attendanceOpen: true,
-        latitude: 8.6560, longitude: 123.3830, radiusMeters: 200
+        latitude: 8.652718, longitude: 123.421833, radiusMeters: 200
     },
     {
         id: 3, name: 'Tech Talk: AI in Education',

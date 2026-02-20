@@ -53,6 +53,7 @@ export async function loginUser(email, password, rememberMe = false) {
             email: user.email,
             role: user.role,
             college: user.college,
+            faceScanRegistered: user.faceScanRegistered,
             rememberMe: rememberMe
         }
     };
