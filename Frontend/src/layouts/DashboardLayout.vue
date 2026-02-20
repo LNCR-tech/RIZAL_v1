@@ -2,6 +2,8 @@
 import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTheme } from '../composables/useTheme';
+import { getCurrentUser } from '../services/api.js';
+import * as mockDb from '../mock/db.js';
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +19,7 @@ import {
   Calendar,
   Building2,
   ClipboardList,
+  ClipboardCheck,
   Activity,
   UserPlus,
   ChevronDown
@@ -28,6 +31,9 @@ const { isDark, toggleTheme } = useTheme();
 const isSidebarOpen = ref(false);
 const isProfileOpen = ref(false);
 
+// Get actual logged-in user info for the header
+const loggedInUser = getCurrentUser();
+
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
 };
@@ -37,6 +43,16 @@ const userRole = computed(() => {
   if (route.path.includes('/admin')) return 'Admin';
   if (route.path.includes('/sg')) return 'SG';
   return 'Student';
+});
+
+// Check if student has completed face scan registration
+const isStudentRegistered = computed(() => {
+  const currentUser = getCurrentUser();
+  if (currentUser) {
+    const dbUser = mockDb.users.find(u => u.id === currentUser.id);
+    return dbUser ? dbUser.faceScanRegistered : false;
+  }
+  return false;
 });
 
 const menuItems = computed(() => {
@@ -56,9 +72,17 @@ const menuItems = computed(() => {
       { name: 'Account Approvals', path: '/sg/approvals', icon: ScanLine },
       { name: 'Registered Lists', path: '/sg/list', icon: Users },
     ];
-  } else {
+  } else if (isStudentRegistered.value) {
+    // Registered student → full dashboard
     return [
       { name: 'My Profile', path: '/student/profile', icon: UserCircle },
+      { name: 'Events', path: '/student/events', icon: Calendar },
+      { name: 'Attendance', path: '/student/attendance', icon: ClipboardCheck },
+      { name: 'Announcements', path: '/student/announcements', icon: Bell },
+    ];
+  } else {
+    // Unregistered student → QR pending only
+    return [
       { name: 'ID Status', path: '/student/pending', icon: ScanLine },
     ];
   }
@@ -191,8 +215,11 @@ const isActive = (path) => route.path === path;
             <Sun v-else class="w-5 h-5 text-amber-400" />
           </button>
 
-          <!-- Notifications -->
-          <button class="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white relative transition-colors">
+          <!-- Notifications / Announcements -->
+          <button
+            @click="userRole === 'Student' ? router.push('/student/announcements') : null"
+            class="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white relative transition-colors"
+          >
             <Bell class="w-5 h-5" />
             <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 dark:bg-[#ffc107] rounded-full ring-2 ring-white dark:ring-[#0a1230]"></span>
           </button>
@@ -204,14 +231,76 @@ const isActive = (path) => route.path === path;
               class="flex items-center gap-2.5 p-1.5 pr-3 rounded-xl hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors"
             >
               <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-600 dark:from-[#1a237e] to-brand-500 dark:to-[#304ffe] flex items-center justify-center text-white font-bold text-xs shadow-md">
-                {{ userRole[0] }}
+                {{ loggedInUser?.name?.charAt(0) || userRole[0] }}
               </div>
               <div class="hidden sm:block text-left">
-                <p class="text-xs font-semibold text-gray-800 dark:text-gray-200 leading-tight">{{ userRole }} User</p>
-                <p class="text-[0.65rem] text-gray-500 dark:text-gray-400">admin@rizal.edu</p>
+                <p class="text-xs font-semibold text-gray-800 dark:text-gray-200 leading-tight">{{ loggedInUser?.name || (userRole + ' User') }}</p>
+                <p class="text-[0.65rem] text-gray-500 dark:text-gray-400">{{ loggedInUser?.email || 'user@rizal.edu' }}</p>
               </div>
-              <ChevronDown class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 hidden sm:block" />
+              <ChevronDown :class="['w-3.5 h-3.5 text-gray-400 dark:text-gray-500 hidden sm:block transition-transform duration-200', isProfileOpen ? 'rotate-180' : '']" />
             </button>
+
+            <!-- Profile Dropdown -->
+            <Transition name="dropdown">
+              <div
+                v-if="isProfileOpen"
+                class="absolute right-0 mt-2 w-56 bg-white dark:bg-[#111836] border border-gray-200 dark:border-white/[0.08] rounded-xl shadow-xl shadow-black/10 dark:shadow-black/30 overflow-hidden z-50"
+              >
+                <!-- User Info -->
+                <div class="px-4 py-3 border-b border-gray-100 dark:border-white/[0.06]">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ loggedInUser?.name || 'User' }}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ loggedInUser?.email || 'user@rizal.edu' }}</p>
+                  <span class="inline-block mt-1.5 text-[0.6rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-brand-500/10 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400">
+                    {{ userRole }}
+                  </span>
+                </div>
+
+                <!-- Menu Items -->
+                <div class="py-1">
+                  <router-link
+                    v-if="userRole === 'Student'"
+                    to="/student/profile"
+                    @click="isProfileOpen = false"
+                    class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors"
+                  >
+                    <UserCircle class="w-4 h-4 text-gray-400" />
+                    My Profile
+                  </router-link>
+                  <router-link
+                    v-if="userRole === 'Admin'"
+                    to="/admin/profile"
+                    @click="isProfileOpen = false"
+                    class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors"
+                  >
+                    <UserCircle class="w-4 h-4 text-gray-400" />
+                    My Profile
+                  </router-link>
+                  <router-link
+                    v-if="userRole === 'Student' && isStudentRegistered"
+                    to="/student/profile"
+                    @click="isProfileOpen = false"
+                    class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors"
+                  >
+                    <ScanLine class="w-4 h-4 text-gray-400" />
+                    Offline QR Code
+                  </router-link>
+                </div>
+
+                <!-- Sign Out -->
+                <div class="border-t border-gray-100 dark:border-white/[0.06] py-1">
+                  <button
+                    @click="handleLogout"
+                    class="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/[0.06] transition-colors"
+                  >
+                    <LogOut class="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </Transition>
+
+            <!-- Click outside to close -->
+            <div v-if="isProfileOpen" class="fixed inset-0 z-40" @click="isProfileOpen = false"></div>
           </div>
         </div>
       </header>
@@ -253,5 +342,21 @@ const isActive = (path) => route.path === path;
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Dropdown transition */
+.dropdown-enter-active {
+  transition: all 0.15s ease-out;
+}
+.dropdown-leave-active {
+  transition: all 0.1s ease-in;
+}
+.dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.95);
+}
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.95);
 }
 </style>

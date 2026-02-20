@@ -267,6 +267,126 @@ export async function getAttendanceRecords() {
 }
 
 // -----------------------------------------------------------
+// 📍 LOCATION VERIFICATION — POST /api/attendance/verify-location
+// -----------------------------------------------------------
+/**
+ * Verify student is within the event's geofence radius.
+ * Uses the Haversine formula to calculate distance between two GPS points.
+ *
+ * 🔴 BACKEND: POST /api/attendance/verify-location
+ *    Request:  { eventId, latitude, longitude }
+ *    Response: { verified: boolean, distance: number, maxRadius: number }
+ */
+export async function verifyEventLocation(eventId, userLat, userLng) {
+    await delay(500);
+
+    const event = mockDb.events.find(e => e.id === eventId);
+    if (!event) throw new Error('Event not found.');
+
+    // Haversine formula — calculates distance in meters between two GPS points
+    const R = 6371000; // Earth radius in meters
+    const dLat = (event.latitude - userLat) * Math.PI / 180;
+    const dLng = (event.longitude - userLng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(userLat * Math.PI / 180) * Math.cos(event.latitude * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+    const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return {
+        verified: distance <= event.radiusMeters,
+        distance: Math.round(distance),
+        maxRadius: event.radiusMeters,
+        eventLocation: event.location
+    };
+
+    // 🔴 BACKEND REPLACEMENT:
+    // const res = await fetch('/api/attendance/verify-location', {
+    //   method: 'POST',
+    //   headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ eventId, latitude: userLat, longitude: userLng })
+    // });
+    // return res.json();
+}
+
+// -----------------------------------------------------------
+// 📋 STUDENT ATTENDANCE STATUS — GET /api/attendance/status/:eventId/:studentId
+// -----------------------------------------------------------
+/**
+ * Check if a student already has attendance for an event.
+ *
+ * 🔴 BACKEND: GET /api/attendance/status/:eventId/:studentId
+ *    Response: { hasAttendance: boolean, record: { ... } | null }
+ */
+export async function getStudentAttendanceForEvent(eventId, studentId) {
+    await delay(200);
+    const event = mockDb.events.find(e => e.id === eventId);
+    const record = mockDb.attendanceRecords.find(
+        r => r.event === event?.name && r.studentId === studentId && r.status !== 'Absent'
+    );
+    return {
+        hasAttendance: !!record,
+        record: record || null
+    };
+
+    // 🔴 BACKEND REPLACEMENT:
+    // const res = await fetch(`/api/attendance/status/${eventId}/${studentId}`, {
+    //   headers: { 'Authorization': `Bearer ${getToken()}` }
+    // });
+    // return res.json();
+}
+
+// -----------------------------------------------------------
+// ✅ MARK ATTENDANCE — POST /api/attendance/mark
+// -----------------------------------------------------------
+/**
+ * Mark student attendance after face verification.
+ *
+ * 🔴 BACKEND: POST /api/attendance/mark
+ *    Request:  { eventId, studentId, faceVerified: true, latitude, longitude }
+ *    Response: { success: true, checkIn: "08:05 AM", record: { ... } }
+ */
+export async function markAttendance(eventId, studentId, faceVerified = false) {
+    await delay(600);
+
+    if (!faceVerified) throw new Error('Face verification required.');
+
+    const event = mockDb.events.find(e => e.id === eventId);
+    if (!event) throw new Error('Event not found.');
+
+    const now = new Date();
+    const checkInTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const user = mockDb.users.find(u => u.studentId === studentId || u.id === studentId);
+
+    const newRecord = {
+        id: mockDb.attendanceRecords.length + 1,
+        studentId: studentId,
+        student: user?.name || 'Unknown',
+        event: event.name,
+        date: now.toISOString().split('T')[0],
+        checkIn: checkInTime,
+        checkOut: '-',
+        status: 'Present'
+    };
+
+    // ⬇️ MOCK: Push to in-memory array (won't persist on refresh)
+    mockDb.attendanceRecords.push(newRecord);
+
+    return {
+        success: true,
+        checkIn: checkInTime,
+        record: newRecord
+    };
+
+    // 🔴 BACKEND REPLACEMENT:
+    // const res = await fetch('/api/attendance/mark', {
+    //   method: 'POST',
+    //   headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ eventId, studentId, faceVerified, latitude, longitude })
+    // });
+    // return res.json();
+}
+
+// -----------------------------------------------------------
 // 📊 LOGIN RECORDS — GET /api/logs
 // -----------------------------------------------------------
 /**
@@ -386,6 +506,57 @@ export async function getMetadata() {
 }
 
 // -----------------------------------------------------------
+// 📢 ANNOUNCEMENTS — GET /api/announcements
+// -----------------------------------------------------------
+/**
+ * Get announcements, optionally filtered by college.
+ * Returns campus-wide (college=null) + college-specific announcements.
+ *
+ * 🔴 BACKEND: GET /api/announcements?college=...
+ *    Response: [ { id, title, content, date, college, type, priority } ]
+ */
+export async function getAnnouncements(college = null) {
+    // ⬇️ MOCK: Return announcements from db.js
+    await delay(300);
+    if (college) {
+        return mockDb.announcements.filter(a => a.college === null || a.college === college);
+    }
+    return [...mockDb.announcements];
+
+    // 🔴 BACKEND REPLACEMENT:
+    // const params = college ? `?college=${encodeURIComponent(college)}` : '';
+    // const res = await fetch(`/api/announcements${params}`, {
+    //   headers: { 'Authorization': `Bearer ${getToken()}` }
+    // });
+    // return res.json();
+}
+
+// -----------------------------------------------------------
+// 📅 STUDENT EVENTS — GET /api/events?college=...
+// -----------------------------------------------------------
+/**
+ * Get events relevant to a student (their college events + campus-wide).
+ *
+ * 🔴 BACKEND: GET /api/events?college=...
+ *    Response: [ { id, name, date, time, location, college, status, attendees } ]
+ */
+export async function getStudentEvents(college = null) {
+    // ⬇️ MOCK: Return events from db.js filtered by student's college
+    await delay(300);
+    if (college) {
+        return mockDb.events.filter(e => e.college === null || e.college === college);
+    }
+    return [...mockDb.events];
+
+    // 🔴 BACKEND REPLACEMENT:
+    // const params = college ? `?college=${encodeURIComponent(college)}` : '';
+    // const res = await fetch(`/api/events${params}`, {
+    //   headers: { 'Authorization': `Bearer ${getToken()}` }
+    // });
+    // return res.json();
+}
+
+// -----------------------------------------------------------
 // HELPERS
 // -----------------------------------------------------------
 /** Simulate network delay for mock data */
@@ -429,6 +600,48 @@ export function clearAuth() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_user');
     localStorage.removeItem('auth_storage');
+    localStorage.removeItem('offline_qr');
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('current_user');
+}
+
+// -----------------------------------------------------------
+// 📱 OFFLINE QR CODE CACHE
+// -----------------------------------------------------------
+// These functions manage the cached QR code data for offline access.
+// The QR is only cached when Remember Me is ON (localStorage auth).
+// When the app opens without internet, the cached QR is shown immediately.
+// 🔴 BACKEND: When real API is ready, the QR payload could be a signed JWT
+//    from GET /api/student/qr-token, cached here for offline use.
+
+/**
+ * Cache QR code data to localStorage for offline access.
+ * Only works if Remember Me was enabled (auth_storage === 'local').
+ * The QR data is fixed to the user — it won't change until re-login.
+ */
+export function cacheOfflineQR(qrData) {
+    const authStorage = localStorage.getItem('auth_storage');
+    if (authStorage !== 'local') return false; // Remember Me is off
+
+    localStorage.setItem('offline_qr', JSON.stringify({
+        ...qrData,
+        cachedAt: new Date().toISOString()
+    }));
+    return true;
+}
+
+/**
+ * Get cached QR data for offline display.
+ * Returns null if no cached data or Remember Me was off.
+ */
+export function getOfflineQR() {
+    const data = localStorage.getItem('offline_qr');
+    return data ? JSON.parse(data) : null;
+}
+
+/**
+ * Check if the user is using Remember Me (persistent session).
+ */
+export function isRememberMe() {
+    return localStorage.getItem('auth_storage') === 'local';
 }
