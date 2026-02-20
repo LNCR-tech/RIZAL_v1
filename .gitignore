@@ -1,0 +1,10 @@
+# Build logs
+*.log
+
+# Temp files
+temp_*.json
+tmp_*.json
+
+# OS files
+Thumbs.db
+.DS_Store
