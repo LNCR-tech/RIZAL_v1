@@ -145,9 +145,9 @@ const eventDotColor = (status) => {
 <template>
   <div class="space-y-6 animate-fade-in">
     <!-- Header -->
-    <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Welcome back, Admin 👋</p>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+    <div class="mb-2">
+      <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Welcome back, Admin 👋</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight mt-1">Dashboard Overview</h1>
     </div>
 
     <!-- Loading State -->
@@ -171,11 +171,11 @@ const eventDotColor = (status) => {
 
       <!-- Charts + Activity Row -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Weekly Attendance Chart — Improved -->
-        <div class="lg:col-span-2 glass-card p-6">
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="font-semibold text-gray-900 dark:text-white">Weekly Attendance</h3>
-            <span class="text-xs text-gray-400 font-medium bg-gray-100 dark:bg-white/[0.06] px-2.5 py-1 rounded-full">This Week</span>
+        <!-- Weekly Attendance Chart -->
+        <div class="lg:col-span-2 glass-card p-6 lg:p-8">
+          <div class="flex items-center justify-between mb-8">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Weekly Attendance</h3>
+            <span class="text-xs text-gray-500 font-semibold bg-white/80 dark:bg-white/[0.06] shadow-sm px-3 py-1.5 rounded-full border border-gray-100 dark:border-white/[0.05]">This Week</span>
           </div>
           <div class="flex items-end gap-3 h-48">
             <div v-for="(bar, i) in chartData" :key="bar.day" class="flex-1 flex flex-col items-center gap-2 h-full group">
@@ -199,8 +199,8 @@ const eventDotColor = (status) => {
         </div>
 
         <!-- Recent Activity -->
-        <div class="glass-card p-6">
-          <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
+        <div class="glass-card p-6 lg:p-8">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-6">Recent Activity</h3>
           <div class="space-y-4">
             <div v-for="(item, i) in recentActivity" :key="i" class="flex gap-3">
               <div class="w-8 h-8 rounded-lg bg-brand-500/10 dark:bg-brand-500/20 flex items-center justify-center shrink-0">
@@ -220,11 +220,11 @@ const eventDotColor = (status) => {
 
       <!-- Calendar Widget + Upcoming Events Row -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Mini Calendar Widget (compact square) -->
-        <div class="glass-card p-4">
+        <!-- Mini Calendar Widget -->
+        <div class="glass-card p-5 lg:p-6">
           <!-- Header -->
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Calendar</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-gray-900 dark:text-white">Calendar</h3>
             <div class="flex items-center gap-1">
               <button @click="prevMonth" class="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-400 transition-colors">
                 <ChevronLeft class="w-3.5 h-3.5" />
@@ -291,14 +291,14 @@ const eventDotColor = (status) => {
         </div>
 
         <!-- Upcoming Events (takes 2 columns) -->
-        <div class="lg:col-span-2 glass-card p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-900 dark:text-white">Upcoming Events</h3>
-            <router-link to="/admin/events" class="text-xs text-brand-500 hover:text-brand-600 font-semibold">View All →</router-link>
+        <div class="lg:col-span-2 glass-card p-6 lg:p-8">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Upcoming Events</h3>
+            <router-link to="/admin/events" class="text-sm text-brand-500 hover:text-brand-600 font-bold transition-colors">View All &rarr;</router-link>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div v-for="event in upcomingEvents" :key="event.name"
-              class="p-4 rounded-xl bg-gray-50 dark:bg-white/[0.04] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/30 dark:hover:border-[#304ffe]/30 transition-colors">
+              class="p-5 rounded-2xl bg-white/50 dark:bg-[#111836]/50 border border-white/60 dark:border-white/[0.05] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:dark:shadow-black/30 transition-all duration-300">
               <div class="flex items-start justify-between gap-2 mb-2.5">
                 <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-tight">{{ event.name }}</p>
                 <span :class="['badge text-[0.6rem] shrink-0', event.status === 'Upcoming' ? 'badge-blue' : 'badge-amber']">{{ event.status }}</span>

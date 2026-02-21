@@ -143,11 +143,11 @@ const statusBadge = computed(() => {
     </div>
 
     <!-- Page Header -->
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+    <div class="mb-2">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
         {{ isOffline ? 'Offline QR Code' : 'My Profile' }}
       </h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400">
+      <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
         {{ isOffline ? 'Present this QR to SG officers for attendance' : 'Your account information & QR code' }}
       </p>
     </div>
@@ -214,8 +214,8 @@ const statusBadge = computed(() => {
             </div>
 
             <div class="text-center sm:text-left flex-1">
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ profile.name }}</h2>
-              <p class="text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-1.5 mt-1">
+              <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ profile.name }}</h2>
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-1.5 mt-1.5">
                 <Mail class="w-4 h-4" /> {{ profile.email }}
               </p>
               <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
@@ -234,14 +234,14 @@ const statusBadge = computed(() => {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           <!-- QR Code Card -->
-          <div class="glass-card p-6 flex flex-col items-center">
-            <div class="flex items-center gap-2 mb-4">
+          <div class="glass-card p-8 flex flex-col items-center">
+            <div class="flex items-center gap-2 mb-6">
               <QrCode class="w-5 h-5 text-brand-500" />
-              <h3 class="font-semibold text-gray-900 dark:text-white">My QR Code</h3>
+              <h3 class="text-lg font-bold text-gray-900 dark:text-white">My QR Code</h3>
             </div>
 
             <!-- Real QR Code via qrcode.vue -->
-            <div id="student-qr-container" class="bg-white p-4 rounded-xl shadow-inner">
+            <div id="student-qr-container" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
               <QrcodeVue
                 v-if="qrValue"
                 :value="qrValue"
@@ -274,9 +274,9 @@ const statusBadge = computed(() => {
           </div>
 
           <!-- Account Details -->
-          <div class="lg:col-span-2 glass-card p-8">
-            <h3 class="font-semibold text-gray-900 dark:text-white mb-6">Account Details</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="lg:col-span-2 glass-card p-8 lg:p-10">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-6">Account Details</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label class="form-label">Full Name</label>
                 <input :value="profile.name" disabled class="form-input opacity-70 cursor-default" />

@@ -7,7 +7,7 @@ import LoginSlide from '../components/slides/LoginSlide.vue';
 import FaceScanSlide from '../components/slides/FaceScanSlide.vue';
 import DeveloperPage from '../components/DeveloperPage.vue';
 import PdfViewer from '../components/PdfViewer.vue';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getCurrentUser } from '../services/api.js';
 
 const currentSlide = ref(1);
@@ -16,6 +16,9 @@ const showDevPage = ref(false);
 
 // Auto-skip to login slide if a remembered user exists
 onMounted(() => {
+  document.documentElement.classList.add('force-dark-bg');
+  document.body.classList.add('force-dark-bg');
+
   const rememberedUser = getCurrentUser();
   // Only auto-skip if saved in localStorage (rememberMe was true)
   if (rememberedUser && localStorage.getItem('auth_token')) {
@@ -42,13 +45,18 @@ const openDevPage = () => {
 const closeDevPage = () => {
   showDevPage.value = false;
 };
+
+onUnmounted(() => {
+  document.documentElement.classList.remove('force-dark-bg');
+  document.body.classList.remove('force-dark-bg');
+});
 </script>
 
 <template>
-  <div class="relative w-full h-screen bg-black text-white overflow-hidden flex justify-center">
+  <div class="relative w-full h-[100dvh] bg-black text-white overflow-hidden flex justify-center">
     <Background />
     
-    <div class="app-container relative w-full max-w-[480px] h-screen flex flex-col z-10 overflow-hidden" v-show="!showDevPage">
+    <div class="app-container relative w-full max-w-[480px] h-[100dvh] flex flex-col z-10 overflow-hidden" v-show="!showDevPage">
       
       <!-- Scrollable Content Area -->
       <div class="flex-1 w-full overflow-y-auto h-full flex flex-col p-4 sm:p-[1.5rem_2rem] scrollbar-hide">

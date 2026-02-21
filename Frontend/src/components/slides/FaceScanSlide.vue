@@ -10,6 +10,9 @@ let noFaceTimer = null;
 
 const startCamera = async () => {
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Camera API not available. Secure context (HTTPS) required.");
+    }
     const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
     if (videoRef.value) {
       videoRef.value.srcObject = stream;
@@ -20,7 +23,9 @@ const startCamera = async () => {
     }
   } catch (err) {
     console.error(err);
-    statusText.value = "Error accessing camera.";
+    statusText.value = err.message.includes('Secure context')
+        ? "Camera access requires a secure connection (HTTPS)."
+        : "Error accessing camera.";
     scanState.value = 'error';
   }
 };
