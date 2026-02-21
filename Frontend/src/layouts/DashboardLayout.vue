@@ -105,7 +105,15 @@ const isActive = (path) => {
 </script>
 
 <template>
-  <div class="min-h-[100dvh] gradient-bg font-poppins flex p-4 lg:p-5 transition-colors duration-300">
+  <div class="min-h-[100dvh] gradient-bg font-poppins flex p-4 lg:p-5 transition-colors duration-300 relative">
+    
+    <!-- Background Image -->
+    <img 
+      src="../assets/bg.png" 
+      alt="Background" 
+      class="fixed inset-0 w-full h-full object-cover object-top sm:object-center z-0 pointer-events-none transition-opacity duration-300 opacity-90 dark:opacity-30" 
+    />
+
     <!-- Main glass container wrapping the entire application -->
     <div class="glass-panel w-full max-w-[1800px] mx-auto h-[calc(100dvh-2rem)] lg:h-[calc(100dvh-2.5rem)] flex flex-row relative z-10">
 

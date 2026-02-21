@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 @layer base {
     html {
@@ -23,17 +23,17 @@
 
     /* ===== PREMIUM GLASS PANEL (Main Wrapper) ===== */
     .glass-panel {
-        @apply bg-white/30 dark:bg-[#03091e]/40 backdrop-blur-3xl border border-white/50 dark:border-white/[0.08] rounded-[2.5rem] shadow-[0_8px_32px_#0000000f] dark:shadow-[0_8px_32px_#00000066];
+        @apply bg-white/10 dark:bg-[#03091e]/20 backdrop-blur-xl border border-white/30 dark:border-white/[0.08] rounded-[2.5rem] shadow-[0_8px_32px_#00000015] dark:shadow-[0_8px_32px_#00000066];
     }
 
     /* ===== FLOATING PILL (Top Nav / Utilities) ===== */
     .glass-pill {
-        @apply bg-white/50 dark:bg-[#0a1230]/60 backdrop-blur-2xl border border-white/50 dark:border-white/10 rounded-full shadow-[0_8px_24px_#0000000a] dark:shadow-black/20 transition-colors duration-300;
+        @apply bg-white/30 dark:bg-[#0a1230]/40 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-full shadow-[0_8px_24px_#0000000a] dark:shadow-black/20 transition-colors duration-300;
     }
 
     /* ===== GLASS CARD (Inner components) ===== */
     .glass-card {
-        @apply bg-white/95 dark:bg-[#111836]/90 backdrop-blur-lg border border-white/80 dark:border-white/[0.05] rounded-[1.5rem] shadow-[0_4px_20px_#00000008] dark:shadow-black/20 hover:shadow-[0_8px_24px_#0000000f] hover:dark:shadow-black/30 transition-all duration-300;
+        @apply bg-white/70 dark:bg-[#111836]/70 backdrop-blur-xl border border-white/60 dark:border-white/[0.05] rounded-[1.5rem] shadow-[0_4px_20px_#00000008] dark:shadow-black/20 hover:shadow-[0_8px_24px_#0000000f] hover:dark:shadow-black/30 transition-all duration-300;
     }
 
     /* ===== GLASS SIDEBAR ===== */
