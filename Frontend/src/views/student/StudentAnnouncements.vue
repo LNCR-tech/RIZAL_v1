@@ -73,10 +73,10 @@ const timeAgo = (dateStr) => {
 <template>
   <div class="space-y-6 animate-fade-in">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Announcements</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400">Stay updated with campus & college news</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Announcements</h1>
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">Stay updated with campus & college news</p>
       </div>
       <!-- Urgent Badge -->
       <div v-if="urgentCount > 0" class="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20">
@@ -92,12 +92,13 @@ const timeAgo = (dateStr) => {
 
     <template v-else>
       <!-- Search & Filter -->
-      <div class="glass-card p-4 flex flex-col md:flex-row gap-3">
+      <div class="glass-pill px-5 py-3 flex flex-col md:flex-row gap-4 w-full max-w-2xl mb-2 mt-4 shadow-sm border border-gray-100 dark:border-white/[0.05]">
         <div class="relative flex-1">
-          <Search class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-          <input v-model="searchQuery" type="text" placeholder="Search announcements..." class="form-input pl-10" />
+          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input v-model="searchQuery" type="text" placeholder="Search announcements..." class="w-full bg-transparent border-none outline-none pl-11 pr-4 py-2 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-500 font-medium" />
         </div>
-        <select v-model="filterType" class="form-input w-full md:w-44">
+        <div class="w-px h-6 bg-gray-200 dark:bg-white/10 hidden md:block self-center"></div>
+        <select v-model="filterType" class="bg-transparent border-none outline-none text-sm font-medium text-gray-700 dark:text-gray-300 w-full md:w-44 py-2 cursor-pointer appearance-none">
           <option value="All">All Types</option>
           <option value="Academic">Academic</option>
           <option value="Event">Event</option>
@@ -106,12 +107,12 @@ const timeAgo = (dateStr) => {
       </div>
 
       <!-- Announcements List -->
-      <div class="space-y-4">
+      <div class="space-y-5">
         <div
           v-for="item in filteredAnnouncements"
           :key="item.id"
           :class="[
-            'glass-card overflow-hidden transition-all duration-300 hover:ring-2 hover:ring-brand-500/30',
+            'glass-card overflow-hidden transition-all duration-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:dark:shadow-black/30 hover:-translate-y-0.5',
             item.priority === 'urgent' ? 'ring-1 ring-red-300 dark:ring-red-500/30' : ''
           ]"
         >

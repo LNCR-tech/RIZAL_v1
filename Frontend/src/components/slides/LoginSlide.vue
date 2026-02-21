@@ -37,6 +37,9 @@ const closeError = () => { errorState.value.show = false; };
 // ===== CAMERA =====
 const startCamera = async () => {
     try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Camera API not available. Secure context (HTTPS) required.");
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: 640, height: 480 }
         });
@@ -49,7 +52,9 @@ const startCamera = async () => {
         resetNoFaceTimer();
     } catch (err) {
         console.error('Camera error:', err);
-        statusText.value = 'Camera access denied.';
+        statusText.value = err.message.includes('Secure context') 
+            ? 'Camera access requires a secure connection (HTTPS).' 
+            : 'Camera access denied or unavailable.';
         faceScanState.value = 'error';
     }
 };

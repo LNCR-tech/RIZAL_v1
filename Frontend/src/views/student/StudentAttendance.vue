@@ -114,6 +114,9 @@ const proceedToFaceScan = () => {
 
 const startCamera = async () => {
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Camera API not available. Secure context (HTTPS) required.");
+    }
     const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
     if (videoRef.value) {
       videoRef.value.srcObject = stream;
@@ -122,7 +125,9 @@ const startCamera = async () => {
     }
   } catch (err) {
     console.error(err);
-    statusText.value = 'Error accessing camera.';
+    statusText.value = err.message.includes('Secure context')
+        ? 'Camera access requires a secure connection (HTTPS).'
+        : 'Error accessing camera.';
     scanState.value = 'error';
   }
 };
@@ -233,7 +238,7 @@ const goBack = () => {
   <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
 
     <!-- Page Header -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-4 mb-2">
       <button
         v-if="step !== 'events'"
         @click="goBack"
@@ -242,10 +247,10 @@ const goBack = () => {
         <ChevronLeft class="w-5 h-5" />
       </button>
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
           {{ step === 'events' ? 'Mark Attendance' : step === 'location' ? 'Location Check' : step === 'facescan' ? 'Face Verification' : 'Attendance Confirmed' }}
         </h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
           {{ step === 'events' ? 'Select an event to check in' : step === 'location' ? 'Verifying your location' : step === 'facescan' ? 'Look at the camera' : 'You\'re all set!' }}
         </p>
       </div>
@@ -262,7 +267,7 @@ const goBack = () => {
     <template v-else-if="step === 'events'">
 
       <!-- Progress Steps Indicator -->
-      <div class="glass-card p-3 sm:p-4">
+      <div class="glass-pill px-6 py-4 mb-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-brand-500 font-semibold">
             <div class="w-6 h-6 shrink-0 rounded-full bg-brand-500 text-white flex items-center justify-center text-[0.65rem] font-bold">1</div>
@@ -365,7 +370,7 @@ const goBack = () => {
     <template v-else-if="step === 'location'">
 
       <!-- Progress (step 2 active) -->
-      <div class="glass-card p-3 sm:p-4">
+      <div class="glass-pill px-6 py-4 mb-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
             <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
@@ -398,7 +403,7 @@ const goBack = () => {
       </div>
 
       <!-- Location Status -->
-      <div class="glass-card p-8 flex flex-col items-center text-center">
+      <div class="glass-card p-10 lg:p-12 flex flex-col items-center text-center">
 
         <!-- Checking -->
         <template v-if="locationStatus === 'checking'">
@@ -476,7 +481,7 @@ const goBack = () => {
     <template v-else-if="step === 'facescan'">
 
       <!-- Progress (step 3 active) -->
-      <div class="glass-card p-3 sm:p-4">
+      <div class="glass-pill px-6 py-4 mb-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
             <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
@@ -501,7 +506,7 @@ const goBack = () => {
       </div>
 
       <!-- Face Scan Card -->
-      <div class="glass-card p-8 flex flex-col items-center">
+      <div class="glass-card p-10 lg:p-12 flex flex-col items-center">
 
         <!-- Animation -->
         <FaceScanAnimation :state="scanState" />
@@ -559,7 +564,7 @@ const goBack = () => {
     <template v-else-if="step === 'success'">
 
       <!-- Progress (all done) -->
-      <div class="glass-card p-3 sm:p-4">
+      <div class="glass-pill px-6 py-4 mb-4">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 text-emerald-500 font-semibold">
             <div class="w-6 h-6 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[0.65rem] font-bold">✓</div>
@@ -584,7 +589,7 @@ const goBack = () => {
       </div>
 
       <!-- Success Card -->
-      <div class="glass-card p-10 flex flex-col items-center text-center">
+      <div class="glass-card p-12 lg:p-16 flex flex-col items-center text-center">
         <div class="w-24 h-24 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center mb-5 animate-bounce-once">
           <CheckCircle2 class="w-14 h-14 text-emerald-500" />
         </div>

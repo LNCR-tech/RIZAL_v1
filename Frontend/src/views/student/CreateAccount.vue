@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { User, CreditCard, Mail, BookOpen, GraduationCap, ArrowRight } from 'lucide-vue-next';
 
@@ -59,10 +59,20 @@ const handleSubmit = async () => {
   // Redirect to QR Page
   router.push('/student/pending');
 };
+
+onMounted(() => {
+  document.documentElement.classList.add('force-dark-bg');
+  document.body.classList.add('force-dark-bg');
+});
+
+onUnmounted(() => {
+  document.documentElement.classList.remove('force-dark-bg');
+  document.body.classList.remove('force-dark-bg');
+});
 </script>
 
 <template>
-  <div class="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+  <div class="min-h-[100dvh] bg-black flex items-center justify-center p-4 relative overflow-hidden">
     <!-- Background Elements -->
     <div class="absolute inset-0 z-0">
       <div class="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/30 rounded-full blur-[120px]"></div>

@@ -33,7 +33,7 @@ onMounted(() => {
   <div class="max-w-4xl mx-auto space-y-6">
     
     <!-- Header Card -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+    <div class="glass-card p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
       <div class="text-center md:text-left">
         <h1 class="text-2xl font-bold text-gray-900">Registration Pending</h1>
         <p class="text-gray-500 mt-1 max-w-lg">
@@ -49,11 +49,11 @@ onMounted(() => {
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       
       <!-- QR Code Card -->
-      <div class="col-span-1 md:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center justify-center min-h-[400px]">
+      <div class="col-span-1 md:col-span-1 glass-card p-8 flex flex-col items-center justify-center min-h-[400px]">
         <div class="relative group">
           
           <!-- REAL QR CODE -->
-          <div class="bg-white p-4 rounded-xl shadow-inner border border-gray-100 mb-6 relative overflow-hidden">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6 relative overflow-hidden">
              <!-- 
                 value: The string to encode
                 size: Size in pixels
@@ -86,8 +86,8 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Instructions & Details (Unchanged) -->
-      <div class="col-span-1 md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+      <!-- Instructions & Details -->
+      <div class="col-span-1 md:col-span-2 glass-card p-8">
         <h3 class="text-lg font-bold text-gray-900 mb-6">Next Steps</h3>
         
         <div class="space-y-6">

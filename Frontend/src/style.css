@@ -7,6 +7,7 @@
 @layer base {
     html {
         font-family: 'Poppins', sans-serif;
+        @apply bg-[#e8eaf6] dark:bg-[#050a18];
     }
 
     html.dark {
@@ -14,34 +15,44 @@
     }
 
     body {
-        @apply transition-colors duration-300;
+        @apply transition-colors duration-300 bg-[#e8eaf6] dark:bg-[#050a18] m-0 min-h-[100dvh];
     }
 }
 
 @layer components {
 
-    /* ===== GLASS CARD ===== */
+    /* ===== PREMIUM GLASS PANEL (Main Wrapper) ===== */
+    .glass-panel {
+        @apply bg-white/30 dark:bg-[#03091e]/40 backdrop-blur-3xl border border-white/50 dark:border-white/[0.08] rounded-[2.5rem] shadow-[0_8px_32px_#0000000f] dark:shadow-[0_8px_32px_#00000066];
+    }
+
+    /* ===== FLOATING PILL (Top Nav / Utilities) ===== */
+    .glass-pill {
+        @apply bg-white/50 dark:bg-[#0a1230]/60 backdrop-blur-2xl border border-white/50 dark:border-white/10 rounded-full shadow-[0_8px_24px_#0000000a] dark:shadow-black/20 transition-colors duration-300;
+    }
+
+    /* ===== GLASS CARD (Inner components) ===== */
     .glass-card {
-        @apply bg-white/80 dark:bg-white/[0.06] backdrop-blur-xl border border-gray-200/50 dark:border-white/[0.08] rounded-2xl shadow-lg shadow-black/[0.04] dark:shadow-black/20;
+        @apply bg-white/95 dark:bg-[#111836]/90 backdrop-blur-lg border border-white/80 dark:border-white/[0.05] rounded-[1.5rem] shadow-[0_4px_20px_#00000008] dark:shadow-black/20 hover:shadow-[0_8px_24px_#0000000f] hover:dark:shadow-black/30 transition-all duration-300;
     }
 
     /* ===== GLASS SIDEBAR ===== */
     .glass-sidebar {
-        @apply bg-white/90 dark:bg-[#0a1230]/90 backdrop-blur-2xl border-r border-gray-200 dark:border-white/[0.06] transition-colors duration-300;
+        @apply bg-transparent dark:bg-transparent transition-colors duration-300;
     }
 
     /* ===== GLASS TOP BAR ===== */
     .glass-topbar {
-        @apply bg-white/70 dark:bg-[#0a1230]/70 backdrop-blur-xl border-b border-gray-200/50 dark:border-white/[0.06] transition-colors duration-300;
+        @apply bg-transparent dark:bg-transparent transition-colors duration-300;
     }
 
     /* ===== STAT CARD ===== */
     .stat-card {
-        @apply glass-card p-5 flex items-center gap-4 hover:scale-[1.02] transition-all duration-200 cursor-default;
+        @apply glass-card p-5 lg:p-6 flex flex-col justify-between hover:-translate-y-1 transition-all duration-300 cursor-default min-h-[140px];
     }
 
     .stat-icon {
-        @apply w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg;
+        @apply w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm;
     }
 
     /* ===== DATA TABLE ===== */
@@ -62,7 +73,7 @@
     }
 
     .data-table tbody tr {
-        @apply border-b border-gray-100 dark:border-white/[0.05] hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors;
+        @apply border-b border-gray-100/50 dark:border-white/[0.02] hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors;
     }
 
     /* ===== STATUS BADGES ===== */
@@ -129,6 +140,11 @@
     /* Dark mode: deep navy like welcome page */
     .dark .gradient-bg {
         background: #050a18;
+    }
+
+    /* Force black background on html/body for Landing Pages */
+    .force-dark-bg {
+        background-color: #000000 !important;
     }
 }
 
