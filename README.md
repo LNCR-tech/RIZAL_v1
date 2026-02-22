@@ -29,4 +29,43 @@ This project aims to modernize and streamline attendance tracking by utilizing a
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/LadyGags/RIZAL_v1.git](https://github.com/LadyGags/RIZAL_v1.git)
+   git clone https://github.com/LadyGags/RIZAL_v1.git
+
+   ⚠ If you see Repository not found, ensure:
+      The repository name is correct
+      The GitHub username is correct
+      You have access permissions
+
+2. **Prerequisites**
+   Make sure the following are installed:
+   - Git
+   - Node.js (LTS version recommended)
+
+   To verify installation:
+   ```bash
+   git --version
+   node -v
+   npm -v
+
+   If npm is not recognized, install Node.js from:
+   https://nodejs.org(LTS version)
+
+   After installation, restart your terminal.
+
+3. **Navigate to the Frontend Directory**
+   ```bash
+   cd RIZAL_v1
+   cd Frontend
+4. **Install Dependencies**
+   ```bash
+   npm install
+5. **Run the Development Server**
+   ```bash
+   npm run dev
+
+   You should see output similar to:
+   Local: http://localhost:5173/
+
+   Open your browser and go to:
+   http://localhost:5173
+
