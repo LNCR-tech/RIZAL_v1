@@ -8,3 +8,9 @@ tmp_*.json
 # OS files
 Thumbs.db
 .DS_Store
+
+.vscode/
+Frontend/.vscode/
+Backend/.vscode/
+Backend/facial_recognition/.db
+Backend/facial_recognition/encodings.pkl
