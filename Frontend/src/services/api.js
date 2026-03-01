@@ -3,268 +3,528 @@
  * API SERVICE LAYER
  * ============================================================
  *
- * This is the SINGLE FILE where you swap mock data → real API.
+ * This file connects the frontend to the FastAPI backend.
  *
- * RIGHT NOW:  Functions return data from src/mock/db.js
- * LATER:      Replace each function body with a fetch() call
+ * Functions that have matching backend endpoints use real fetch() calls.
+ * Functions WITHOUT matching backend endpoints still use mock data
+ * from src/mock/db.js (these are marked with ⬇️ MOCK below).
  *
- * 🔴 BACKEND TEAM: Each function below maps to one API endpoint.
- *    The function name tells you what endpoint to build.
- *    The return shape tells you what JSON to return.
- *
- * Example swap (for getUsers):
- *   BEFORE: return mockDb.users;
- *   AFTER:  const res = await fetch('/api/users'); return res.json();
+ * The API_BASE is configurable via the VITE_API_URL environment variable.
+ * Default: http://localhost:8000
  * ============================================================
  */
 
 import * as mockDb from '../mock/db.js';
 
 // -----------------------------------------------------------
-// 🔐 AUTH — POST /api/auth/login
+// 🔧 BASE URL & HELPERS
+// -----------------------------------------------------------
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+/**
+ * Shared fetch wrapper that adds auth headers and handles errors.
+ * All authenticated API calls should use this.
+ */
+async function apiFetch(path, options = {}) {
+    const token = getToken();
+    const headers = {
+        ...(options.headers || {}),
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (options.body && typeof options.body === 'string') {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    const res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers,
+    });
+
+    if (!res.ok) {
+        let detail = `Request failed (${res.status})`;
+        try {
+            const err = await res.json();
+            detail = err.detail || detail;
+        } catch (_) { /* ignore parse errors */ }
+        throw new Error(detail);
+    }
+
+    // 204 No Content
+    if (res.status === 204) return null;
+    return res.json();
+}
+
+/**
+ * Transform a backend user object into the shape the frontend views expect.
+ * Backend: { id, email, first_name, middle_name, last_name, is_active, created_at, roles, student_profile, ssg_profile }
+ * Frontend: { id, name, email, role, college, program, studentId, faceScanRegistered, status, ... }
+ */
+function formatUserFromBackend(u) {
+    // Build full name
+    const nameParts = [u.first_name, u.middle_name, u.last_name].filter(Boolean);
+    const name = nameParts.join(' ') || u.email;
+
+    // Extract primary role
+    let role = 'student';
+    if (u.roles && u.roles.length > 0) {
+        const roleNames = u.roles.map(r => (r.role ? r.role.name : r)).filter(Boolean);
+        if (roleNames.includes('admin')) role = 'admin';
+        else if (roleNames.includes('ssg')) role = 'sg';
+        else if (roleNames.includes('student')) role = 'student';
+        else role = roleNames[0] || 'student';
+    }
+
+    // Extract student profile data if present
+    const sp = u.student_profile || {};
+    const college = sp.department?.name || u.department_name || '';
+    const program = sp.program?.name || '';
+    const studentId = sp.student_id || '';
+    const faceScanRegistered = sp.is_face_registered || false;
+
+    return {
+        id: sp.student_id || u.id,
+        name,
+        email: u.email,
+        role,
+        college,
+        program,
+        studentId,
+        phone: '',
+        department: college,
+        bio: '',
+        faceScanRegistered,
+        status: u.is_active ? 'Active' : 'Inactive',
+        createdAt: u.created_at,
+    };
+}
+
+/**
+ * Transform a backend event object into the shape the frontend views expect.
+ * Backend: { id, name, location, start_datetime, end_datetime, status, departments, programs, ... }
+ * Frontend: { id, name, date, time, location, college, status, attendees, attendanceOpen, ... }
+ */
+function formatEventFromBackend(e) {
+    const startDt = e.start_datetime ? new Date(e.start_datetime) : null;
+    const date = startDt ? startDt.toISOString().split('T')[0] : '';
+    const time = startDt
+        ? startDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '';
+
+    // Map backend status to frontend status (capitalize first letter)
+    let status = e.status || 'upcoming';
+    status = status.charAt(0).toUpperCase() + status.slice(1);
+
+    // College = first department name (or null for campus-wide)
+    const college = (e.departments && e.departments.length > 0)
+        ? e.departments[0].name
+        : null;
+
+    return {
+        id: e.id,
+        name: e.name,
+        date,
+        time,
+        location: e.location || '',
+        description: e.description || '',
+        college,
+        status,
+        attendees: e.attendances ? e.attendances.length : 0,
+        attendanceOpen: status === 'Ongoing',
+        latitude: e.latitude || 0,
+        longitude: e.longitude || 0,
+        radiusMeters: e.radiusMeters || 150,
+    };
+}
+
+
+// -----------------------------------------------------------
+// 🔐 AUTH — POST /login
 // -----------------------------------------------------------
 /**
  * Authenticate a user by email and password.
  *
- * 🔴 BACKEND: POST /api/auth/login
- *    Request:  { email, password, rememberMe }
- *    Response: { token, user: { id, name, email, role, college } }
+ * Backend: POST /login
+ *   Request:  { email, password }
+ *   Response: { access_token, token_type, email, roles, user_id, first_name, last_name, is_admin }
  */
 export async function loginUser(email, password, rememberMe = false) {
-    // ⬇️ MOCK: Simulate login by matching email in mock DB
-    await delay(800); // Simulate network latency
-    const user = mockDb.users.find(u => u.email === email);
+    try {
+        const data = await apiFetch('/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        });
 
-    if (!user) {
-        throw new Error('Invalid email or password.');
-    }
+        // Build user object from login response
+        const roles = data.roles || [];
+        let role = 'student';
+        if (roles.includes('admin')) role = 'admin';
+        else if (roles.includes('ssg')) role = 'sg';
 
-    // ⬇️ MOCK: Check password against the user's stored password
-    // 🔴 BACKEND: The real API should validate the hashed password
-    if (user.password !== password) {
-        throw new Error('Invalid email or password.');
-    }
+        // After login, fetch full profile for extra data (college, faceScan, etc.)
+        // Store the token first so apiFetch can use it
+        const tempStorage = rememberMe ? localStorage : sessionStorage;
+        tempStorage.setItem('auth_token', data.access_token);
 
-    return {
-        token: 'mock-jwt-token-' + user.id,
-        user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            college: user.college,
-            faceScanRegistered: user.faceScanRegistered,
-            rememberMe: rememberMe
+        let college = '';
+        let faceScanRegistered = false;
+        let studentId = '';
+        try {
+            const profile = await apiFetch('/users/me');
+            const formatted = formatUserFromBackend(profile);
+            college = formatted.college;
+            faceScanRegistered = formatted.faceScanRegistered;
+            studentId = formatted.studentId;
+        } catch (_) {
+            // Profile fetch failed, continue with basic data
         }
-    };
+
+        const nameParts = [data.first_name, data.last_name].filter(Boolean);
+        const name = nameParts.join(' ') || email;
+
+        return {
+            token: data.access_token,
+            user: {
+                id: studentId || data.user_id,
+                name,
+                email: data.email || email,
+                role,
+                college,
+                faceScanRegistered,
+                rememberMe,
+            },
+        };
+    } catch (err) {
+        // If backend is unreachable, fall back to mock for development
+        console.warn('Backend login failed, falling back to mock:', err.message);
+        await delay(800);
+        const user = mockDb.users.find(u => u.email === email);
+        if (!user) throw new Error('Invalid email or password.');
+        if (user.password !== password) throw new Error('Invalid email or password.');
+
+        return {
+            token: 'mock-jwt-token-' + user.id,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                college: user.college,
+                faceScanRegistered: user.faceScanRegistered,
+                rememberMe,
+            },
+        };
+    }
 }
 
 // -----------------------------------------------------------
-// 👤 USERS — GET /api/users
+// 👤 USERS — GET /users
 // -----------------------------------------------------------
 /**
  * Get all users (admin, sg, students).
  *
- * 🔴 BACKEND: GET /api/users
- *    Response: [ { id, name, email, role, college, program, status, ... } ]
+ * Backend: GET /users
+ *   Response: [ { id, email, first_name, last_name, is_active, roles, student_profile, ... } ]
  */
 export async function getUsers() {
-    // ⬇️ MOCK: Return mock users from db.js
-    await delay(300);
-    return mockDb.users;
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/users', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // if (!res.ok) throw new Error('Failed to fetch users');
-    // return res.json();
+    try {
+        const users = await apiFetch('/users');
+        return users.map(formatUserFromBackend);
+    } catch (err) {
+        console.warn('Backend getUsers failed, falling back to mock:', err.message);
+        await delay(300);
+        return mockDb.users;
+    }
 }
 
 // -----------------------------------------------------------
-// 👤 USERS — POST /api/users (Create Account)
+// 👤 USERS — POST /users (Create Account)
 // -----------------------------------------------------------
 /**
  * Create a new user account (admin-side).
  *
- * 🔴 BACKEND: POST /api/users
- *    Request:  { fullName, studentId, email, password, college, program, role }
- *    Response: { id, name, email, role, status: 'Active' }
+ * Backend: POST /users
+ *   Request:  { email, password, first_name, last_name, roles }
+ *   Response: { id, email, first_name, last_name, ... }
  */
 export async function createUser(userData) {
-    // ⬇️ MOCK: Add to mock array (won't persist on refresh)
-    await delay(1200);
-    const newUser = {
-        id: 'NEW-' + Date.now(),
-        name: userData.fullName,
-        email: userData.email,
-        role: userData.role,
-        college: userData.college || 'Admin Office',
-        program: userData.program || '-',
-        studentId: userData.studentId,
-        status: 'Active',
-        faceScanRegistered: false,
-        createdAt: new Date().toISOString()
-    };
-    mockDb.users.push(newUser);
-    return newUser;
+    try {
+        // Map frontend field names to backend schema
+        const nameParts = (userData.fullName || '').trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/users', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${getToken()}`
-    //   },
-    //   body: JSON.stringify(userData)
-    // });
-    // if (!res.ok) throw new Error('Failed to create user');
-    // return res.json();
+        // Map frontend role to backend role enum
+        let roles = [userData.role || 'student'];
+        if (roles[0] === 'sg') roles = ['ssg'];
+
+        const payload = {
+            email: userData.email,
+            password: userData.password || 'Temp1234!',
+            first_name: firstName,
+            last_name: lastName,
+            roles,
+        };
+
+        const created = await apiFetch('/users', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+
+        return formatUserFromBackend(created);
+    } catch (err) {
+        console.warn('Backend createUser failed, falling back to mock:', err.message);
+        await delay(1200);
+        const newUser = {
+            id: 'NEW-' + Date.now(),
+            name: userData.fullName,
+            email: userData.email,
+            role: userData.role,
+            college: userData.college || 'Admin Office',
+            program: userData.program || '-',
+            studentId: userData.studentId,
+            status: 'Active',
+            faceScanRegistered: false,
+            createdAt: new Date().toISOString(),
+        };
+        mockDb.users.push(newUser);
+        return newUser;
+    }
 }
 
 // -----------------------------------------------------------
-// 📅 EVENTS — GET /api/events
+// 📅 EVENTS — GET /events
 // -----------------------------------------------------------
 /**
  * Get all events.
  *
- * 🔴 BACKEND: GET /api/events
- *    Response: [ { id, name, date, time, location, college, status, attendees } ]
+ * Backend: GET /events
+ *   Response: [ { id, name, location, start_datetime, end_datetime, status, departments, programs, ... } ]
  */
 export async function getEvents() {
-    // ⬇️ MOCK: Return mock events from db.js
-    await delay(300);
-    return [...mockDb.events];
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/events', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
+    try {
+        const events = await apiFetch('/events');
+        return events.map(formatEventFromBackend);
+    } catch (err) {
+        console.warn('Backend getEvents failed, falling back to mock:', err.message);
+        await delay(300);
+        return [...mockDb.events];
+    }
 }
 
 // -----------------------------------------------------------
-// 📅 EVENTS — POST /api/events (Create Event)
+// 📅 EVENTS — POST /events (Create Event)
 // -----------------------------------------------------------
 /**
  * Create a new event.
  *
- * 🔴 BACKEND: POST /api/events
- *    Request:  { name, date, time, location }
- *    Response: { id, name, date, time, location, status, attendees: 0 }
+ * Backend: POST /events
+ *   Request:  { name, location, start_datetime, end_datetime, status, department_ids, program_ids }
+ *   Response: { id, name, location, start_datetime, ... }
  */
 export async function createEvent(eventData) {
-    // ⬇️ MOCK: Add to mock array
-    await delay(800);
-    const newEvent = {
-        id: Date.now(),
-        ...eventData,
-        status: 'Planning',
-        attendees: 0
-    };
-    mockDb.events.unshift(newEvent);
-    return newEvent;
+    try {
+        // Parse date + time into ISO datetime
+        let startDatetime = eventData.start_datetime;
+        let endDatetime = eventData.end_datetime;
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/events', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${getToken()}`
-    //   },
-    //   body: JSON.stringify(eventData)
-    // });
-    // return res.json();
+        if (!startDatetime && eventData.date) {
+            // Convert "2026-02-25" + "08:00 AM" → ISO datetime
+            const dateStr = eventData.date;
+            const timeStr = eventData.time || '08:00 AM';
+            startDatetime = new Date(`${dateStr} ${timeStr}`).toISOString();
+            // Default end = start + 8 hours
+            endDatetime = endDatetime || new Date(new Date(startDatetime).getTime() + 8 * 60 * 60 * 1000).toISOString();
+        }
+
+        const payload = {
+            name: eventData.name,
+            location: eventData.location || '',
+            start_datetime: startDatetime,
+            end_datetime: endDatetime,
+            status: (eventData.status || 'upcoming').toLowerCase(),
+            department_ids: eventData.department_ids || [],
+            program_ids: eventData.program_ids || [],
+        };
+
+        const created = await apiFetch('/events', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+
+        return formatEventFromBackend(created);
+    } catch (err) {
+        console.warn('Backend createEvent failed, falling back to mock:', err.message);
+        await delay(800);
+        const newEvent = {
+            id: Date.now(),
+            ...eventData,
+            status: 'Planning',
+            attendees: 0,
+        };
+        mockDb.events.unshift(newEvent);
+        return newEvent;
+    }
 }
 
 // -----------------------------------------------------------
-// 🏫 COLLEGES — GET /api/colleges
+// 🏫 COLLEGES — GET /departments
 // -----------------------------------------------------------
 /**
  * Get all colleges with programs and student counts.
  *
- * 🔴 BACKEND: GET /api/colleges
- *    Response: [ { name, dean, students, sgOfficer, programs: [...] } ]
+ * Backend: GET /departments (departments = colleges in this app)
+ *   + GET /programs for program details
  */
 export async function getColleges() {
-    // ⬇️ MOCK: Return mock colleges from db.js
-    await delay(300);
-    return mockDb.colleges.map(c => ({ ...c, expanded: false }));
+    try {
+        const departments = await apiFetch('/departments');
+        const programs = await apiFetch('/programs');
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/colleges', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
+        // Map departments → colleges format the frontend expects
+        return departments.map(dept => {
+            // Find programs associated with this department
+            const deptPrograms = programs.filter(p =>
+                p.department_ids && p.department_ids.includes(dept.id)
+            );
+
+            return {
+                id: dept.id,
+                name: dept.name,
+                dean: 'TBD',
+                students: 0,
+                sgOfficer: 'TBD',
+                color: 'from-blue-500 to-cyan-400',
+                programs: deptPrograms.map(p => ({
+                    name: p.name,
+                    students: 0,
+                })),
+                expanded: false,
+            };
+        });
+    } catch (err) {
+        console.warn('Backend getColleges failed, falling back to mock:', err.message);
+        await delay(300);
+        return mockDb.colleges.map(c => ({ ...c, expanded: false }));
+    }
 }
 
 // -----------------------------------------------------------
-// 🏫 COLLEGES — POST /api/colleges
+// 🏫 COLLEGES — POST /departments
 // -----------------------------------------------------------
 /**
- * Create a new college.
+ * Create a new college (department in backend).
  *
- * 🔴 BACKEND: POST /api/colleges
- *    Request:  { name, dean, sgOfficer, programs: [{ name }] }
- *    Response: { name, dean, students, sgOfficer, color, programs: [...] }
+ * Backend: POST /departments
+ *   Request:  { name }
+ *   Response: { id, name }
  */
 export async function createCollege(collegeData) {
-    // ⬇️ MOCK: Add to mock db
-    await delay(400);
-    const colors = [
-        'from-blue-500 to-cyan-400',
-        'from-purple-500 to-violet-400',
-        'from-emerald-500 to-teal-400',
-        'from-amber-500 to-orange-400',
-        'from-rose-500 to-pink-400',
-        'from-indigo-500 to-blue-400',
-        'from-teal-500 to-green-400',
-    ];
-    const newCollege = {
-        name: collegeData.name,
-        dean: collegeData.dean || 'TBD',
-        students: 0,
-        sgOfficer: collegeData.sgOfficer || 'TBD',
-        color: colors[mockDb.colleges.length % colors.length],
-        programs: (collegeData.programs || []).map(p => ({
-            name: typeof p === 'string' ? p : p.name,
-            students: 0,
-        })),
-    };
-    mockDb.colleges.push(newCollege);
-    return { ...newCollege, expanded: false };
+    try {
+        const dept = await apiFetch('/departments', {
+            method: 'POST',
+            body: JSON.stringify({ name: collegeData.name }),
+        });
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/colleges', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${getToken()}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(collegeData)
-    // });
-    // return res.json();
+        // Create programs if provided
+        if (collegeData.programs && collegeData.programs.length > 0) {
+            for (const prog of collegeData.programs) {
+                const progName = typeof prog === 'string' ? prog : prog.name;
+                try {
+                    await apiFetch('/programs', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            name: progName,
+                            department_ids: [dept.id],
+                        }),
+                    });
+                } catch (_) { /* program creation is best-effort */ }
+            }
+        }
+
+        return {
+            id: dept.id,
+            name: dept.name,
+            dean: collegeData.dean || 'TBD',
+            students: 0,
+            sgOfficer: collegeData.sgOfficer || 'TBD',
+            color: 'from-blue-500 to-cyan-400',
+            programs: (collegeData.programs || []).map(p => ({
+                name: typeof p === 'string' ? p : p.name,
+                students: 0,
+            })),
+            expanded: false,
+        };
+    } catch (err) {
+        console.warn('Backend createCollege failed, falling back to mock:', err.message);
+        await delay(400);
+        const colors = [
+            'from-blue-500 to-cyan-400',
+            'from-purple-500 to-violet-400',
+            'from-emerald-500 to-teal-400',
+            'from-amber-500 to-orange-400',
+            'from-rose-500 to-pink-400',
+        ];
+        const newCollege = {
+            name: collegeData.name,
+            dean: collegeData.dean || 'TBD',
+            students: 0,
+            sgOfficer: collegeData.sgOfficer || 'TBD',
+            color: colors[mockDb.colleges.length % colors.length],
+            programs: (collegeData.programs || []).map(p => ({
+                name: typeof p === 'string' ? p : p.name,
+                students: 0,
+            })),
+        };
+        mockDb.colleges.push(newCollege);
+        return { ...newCollege, expanded: false };
+    }
 }
 
 // -----------------------------------------------------------
-// 📋 ATTENDANCE — GET /api/attendance
+// 📋 ATTENDANCE — GET /attendance/students
 // -----------------------------------------------------------
 /**
  * Get attendance records, optionally filtered by event.
  *
- * 🔴 BACKEND: GET /api/attendance?event=...&status=...
- *    Response: [ { id, studentId, student, event, date, checkIn, checkOut, status } ]
+ * Backend: GET /attendance/students (overview endpoint)
  */
 export async function getAttendanceRecords() {
-    // ⬇️ MOCK: Return mock attendance from db.js
-    await delay(300);
-    return [...mockDb.attendanceRecords];
+    try {
+        const data = await apiFetch('/attendance/students');
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/attendance', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
+        // Transform the overview response into individual records
+        if (Array.isArray(data)) {
+            return data.map(record => ({
+                id: record.id || 0,
+                studentId: record.student_id || '',
+                student: record.student_name || '',
+                event: record.event_name || '',
+                date: record.date || '',
+                checkIn: record.time_in || '-',
+                checkOut: record.time_out || '-',
+                status: record.status ? (record.status.charAt(0).toUpperCase() + record.status.slice(1)) : 'Present',
+            }));
+        }
+
+        // If the response has a different shape (paginated), extract records
+        const records = data.students || data.items || [];
+        return records.map(record => ({
+            id: record.id || 0,
+            studentId: record.student_id || '',
+            student: record.student_name || record.name || '',
+            event: '',
+            date: '',
+            checkIn: '-',
+            checkOut: '-',
+            status: 'Present',
+        }));
+    } catch (err) {
+        console.warn('Backend getAttendanceRecords failed, falling back to mock:', err.message);
+        await delay(300);
+        return [...mockDb.attendanceRecords];
+    }
 }
 
 // -----------------------------------------------------------
@@ -274,39 +534,38 @@ export async function getAttendanceRecords() {
  * Verify student is within the event's geofence radius.
  * Uses the Haversine formula to calculate distance between two GPS points.
  *
- * 🔴 BACKEND: POST /api/attendance/verify-location
- *    Request:  { eventId, latitude, longitude }
- *    Response: { verified: boolean, distance: number, maxRadius: number }
+ * ⬇️ MOCK: No backend endpoint exists for geofence verification yet.
  */
 export async function verifyEventLocation(eventId, userLat, userLng) {
     await delay(500);
 
-    const event = mockDb.events.find(e => e.id === eventId);
+    // Try to get event from backend first, fall back to mock
+    let event;
+    try {
+        const backendEvent = await apiFetch(`/events/${eventId}`);
+        event = formatEventFromBackend(backendEvent);
+    } catch (_) {
+        event = mockDb.events.find(e => e.id === eventId);
+    }
+
     if (!event) throw new Error('Event not found.');
 
     // Haversine formula — calculates distance in meters between two GPS points
-    const R = 6371000; // Earth radius in meters
-    const dLat = (event.latitude - userLat) * Math.PI / 180;
-    const dLng = (event.longitude - userLng) * Math.PI / 180;
+    const R = 6371000;
+    const dLat = ((event.latitude || 0) - userLat) * Math.PI / 180;
+    const dLng = ((event.longitude || 0) - userLng) * Math.PI / 180;
     const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(userLat * Math.PI / 180) * Math.cos(event.latitude * Math.PI / 180) *
+        Math.cos(userLat * Math.PI / 180) * Math.cos((event.latitude || 0) * Math.PI / 180) *
         Math.sin(dLng / 2) ** 2;
     const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const radius = event.radiusMeters || 150;
 
     return {
-        verified: distance <= event.radiusMeters,
+        verified: distance <= radius,
         distance: Math.round(distance),
-        maxRadius: event.radiusMeters,
-        eventLocation: event.location
+        maxRadius: radius,
+        eventLocation: event.location,
     };
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/attendance/verify-location', {
-    //   method: 'POST',
-    //   headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ eventId, latitude: userLat, longitude: userLng })
-    // });
-    // return res.json();
 }
 
 // -----------------------------------------------------------
@@ -315,8 +574,7 @@ export async function verifyEventLocation(eventId, userLat, userLng) {
 /**
  * Check if a student already has attendance for an event.
  *
- * 🔴 BACKEND: GET /api/attendance/status/:eventId/:studentId
- *    Response: { hasAttendance: boolean, record: { ... } | null }
+ * ⬇️ MOCK: Complex query not directly available as single backend endpoint.
  */
 export async function getStudentAttendanceForEvent(eventId, studentId) {
     await delay(200);
@@ -326,14 +584,8 @@ export async function getStudentAttendanceForEvent(eventId, studentId) {
     );
     return {
         hasAttendance: !!record,
-        record: record || null
+        record: record || null,
     };
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch(`/api/attendance/status/${eventId}/${studentId}`, {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
 }
 
 // -----------------------------------------------------------
@@ -342,9 +594,7 @@ export async function getStudentAttendanceForEvent(eventId, studentId) {
 /**
  * Mark student attendance after face verification.
  *
- * 🔴 BACKEND: POST /api/attendance/mark
- *    Request:  { eventId, studentId, faceVerified: true, latitude, longitude }
- *    Response: { success: true, checkIn: "08:05 AM", record: { ... } }
+ * ⬇️ MOCK: Backend uses a different attendance flow (face_scan/manual endpoints).
  */
 export async function markAttendance(eventId, studentId, faceVerified = false) {
     await delay(600);
@@ -360,31 +610,22 @@ export async function markAttendance(eventId, studentId, faceVerified = false) {
 
     const newRecord = {
         id: mockDb.attendanceRecords.length + 1,
-        studentId: studentId,
+        studentId,
         student: user?.name || 'Unknown',
         event: event.name,
         date: now.toISOString().split('T')[0],
         checkIn: checkInTime,
         checkOut: '-',
-        status: 'Present'
+        status: 'Present',
     };
 
-    // ⬇️ MOCK: Push to in-memory array (won't persist on refresh)
     mockDb.attendanceRecords.push(newRecord);
 
     return {
         success: true,
         checkIn: checkInTime,
-        record: newRecord
+        record: newRecord,
     };
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/attendance/mark', {
-    //   method: 'POST',
-    //   headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ eventId, studentId, faceVerified, latitude, longitude })
-    // });
-    // return res.json();
 }
 
 // -----------------------------------------------------------
@@ -393,71 +634,74 @@ export async function markAttendance(eventId, studentId, faceVerified = false) {
 /**
  * Get login/session records.
  *
- * 🔴 BACKEND: GET /api/logs
- *    Response: [ { id, userId, user, email, role, device, browser, ip, loginTime, status } ]
+ * ⬇️ MOCK: Backend has no login logs endpoint yet.
  */
 export async function getLoginRecords() {
-    // ⬇️ MOCK: Return mock login records from db.js
     await delay(300);
     return [...mockDb.loginRecords];
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/logs', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
 }
 
 // -----------------------------------------------------------
-// 👤 PROFILE — GET /api/profile, PUT /api/profile
+// 👤 PROFILE — GET /users/me, PATCH /users/{id}
 // -----------------------------------------------------------
 /**
  * Get the current user's profile data.
  *
- * 🔴 BACKEND: GET /api/profile
- *    Response: { name, email, role, phone, department, bio, college, ... }
+ * Backend: GET /users/me
  */
-export async function getProfile(userId = 'ADMIN-01') {
-    // ⬇️ MOCK: Find user by ID (defaults to admin)
-    await delay(300);
-    const user = mockDb.users.find(u => u.id === userId);
-    if (!user) throw new Error('User not found');
-    // Return profile data (exclude password)
-    const { password, ...profile } = user;
-    return profile;
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/profile', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
+export async function getProfile(userId = null) {
+    try {
+        const profile = await apiFetch('/users/me');
+        return formatUserFromBackend(profile);
+    } catch (err) {
+        console.warn('Backend getProfile failed, falling back to mock:', err.message);
+        await delay(300);
+        const mockUserId = userId || 'ADMIN-01';
+        const user = mockDb.users.find(u => u.id === mockUserId);
+        if (!user) throw new Error('User not found');
+        const { password, ...profileData } = user;
+        return profileData;
+    }
 }
 
 /**
  * Update the current user's profile data.
  *
- * 🔴 BACKEND: PUT /api/profile
- *    Body: { name, phone, department, bio }
+ * Backend: PATCH /users/{id}
  */
-export async function updateProfile(profileData, userId = 'ADMIN-01') {
-    // ⬇️ MOCK: Update user in mock db
-    await delay(400);
-    const userIndex = mockDb.users.findIndex(u => u.id === userId);
-    if (userIndex === -1) throw new Error('User not found');
-    Object.assign(mockDb.users[userIndex], profileData);
-    const { password, ...updated } = mockDb.users[userIndex];
-    return updated;
+export async function updateProfile(profileData, userId = null) {
+    try {
+        // Get current user to find their backend ID
+        const currentUser = getCurrentUser();
+        const backendId = currentUser?.backendId || currentUser?.id;
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/profile', {
-    //   method: 'PUT',
-    //   headers: {
-    //     'Authorization': `Bearer ${getToken()}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(profileData)
-    // });
-    // return res.json();
+        if (!backendId) throw new Error('No user ID available for update');
+
+        // Map frontend fields to backend schema
+        const nameParts = (profileData.name || '').trim().split(' ');
+        const payload = {};
+        if (profileData.name) {
+            payload.first_name = nameParts[0] || '';
+            payload.last_name = nameParts.slice(1).join(' ') || '';
+        }
+        if (profileData.email) payload.email = profileData.email;
+
+        const updated = await apiFetch(`/users/${backendId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+
+        return formatUserFromBackend(updated);
+    } catch (err) {
+        console.warn('Backend updateProfile failed, falling back to mock:', err.message);
+        await delay(400);
+        const mockUserId = userId || 'ADMIN-01';
+        const userIndex = mockDb.users.findIndex(u => u.id === mockUserId);
+        if (userIndex === -1) throw new Error('User not found');
+        Object.assign(mockDb.users[userIndex], profileData);
+        const { password, ...updated } = mockDb.users[userIndex];
+        return updated;
+    }
 }
 
 // -----------------------------------------------------------
@@ -466,25 +710,17 @@ export async function updateProfile(profileData, userId = 'ADMIN-01') {
 /**
  * Get dashboard overview data (stats, recent activity, chart).
  *
- * 🔴 BACKEND: GET /api/dashboard
- *    Response: { stats: {...}, recentActivity: [...], weeklyAttendance: [...] }
+ * ⬇️ MOCK: Backend has no dashboard aggregation endpoint yet.
  */
 export async function getDashboardData() {
-    // ⬇️ MOCK: Build dashboard data from mock db
     await delay(400);
     return {
         stats: mockDb.dashboardStats,
         recentActivity: mockDb.recentActivity,
         weeklyAttendance: mockDb.weeklyAttendance,
         upcomingEvents: mockDb.events.filter(e => e.status === 'Upcoming'),
-        allEvents: mockDb.events
+        allEvents: mockDb.events,
     };
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/dashboard', {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
 }
 
 // -----------------------------------------------------------
@@ -493,17 +729,28 @@ export async function getDashboardData() {
 /**
  * Get dropdown metadata (colleges list, programs per college).
  *
- * 🔴 BACKEND: GET /api/metadata
- *    Response: { colleges: [...], programs: { "College": ["Program1", ...] } }
+ * Tries backend first (departments + programs), falls back to mock.
  */
 export async function getMetadata() {
-    // ⬇️ MOCK: Return metadata from db.js
-    await delay(100);
-    return mockDb.metadata;
+    try {
+        const departments = await apiFetch('/departments');
+        const programs = await apiFetch('/programs');
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const res = await fetch('/api/metadata');
-    // return res.json();
+        const colleges = departments.map(d => d.name);
+        const programsByCollege = {};
+        for (const dept of departments) {
+            const deptPrograms = programs.filter(p =>
+                p.department_ids && p.department_ids.includes(dept.id)
+            );
+            programsByCollege[dept.name] = deptPrograms.map(p => p.name);
+        }
+
+        return { colleges, programs: programsByCollege };
+    } catch (err) {
+        console.warn('Backend getMetadata failed, falling back to mock:', err.message);
+        await delay(100);
+        return mockDb.metadata;
+    }
 }
 
 // -----------------------------------------------------------
@@ -511,50 +758,43 @@ export async function getMetadata() {
 // -----------------------------------------------------------
 /**
  * Get announcements, optionally filtered by college.
- * Returns campus-wide (college=null) + college-specific announcements.
  *
- * 🔴 BACKEND: GET /api/announcements?college=...
- *    Response: [ { id, title, content, date, college, type, priority } ]
+ * ⬇️ MOCK: Backend has no announcements endpoint yet.
  */
 export async function getAnnouncements(college = null) {
-    // ⬇️ MOCK: Return announcements from db.js
     await delay(300);
     if (college) {
         return mockDb.announcements.filter(a => a.college === null || a.college === college);
     }
     return [...mockDb.announcements];
-
-    // 🔴 BACKEND REPLACEMENT:
-    // const params = college ? `?college=${encodeURIComponent(college)}` : '';
-    // const res = await fetch(`/api/announcements${params}`, {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
 }
 
 // -----------------------------------------------------------
-// 📅 STUDENT EVENTS — GET /api/events?college=...
+// 📅 STUDENT EVENTS — GET /events
 // -----------------------------------------------------------
 /**
  * Get events relevant to a student (their college events + campus-wide).
  *
- * 🔴 BACKEND: GET /api/events?college=...
- *    Response: [ { id, name, date, time, location, college, status, attendees } ]
+ * Backend: GET /events (same endpoint, filtered client-side by college)
  */
 export async function getStudentEvents(college = null) {
-    // ⬇️ MOCK: Return events from db.js filtered by student's college
-    await delay(300);
-    if (college) {
-        return mockDb.events.filter(e => e.college === null || e.college === college);
-    }
-    return [...mockDb.events];
+    try {
+        const events = await apiFetch('/events');
+        let formatted = events.map(formatEventFromBackend);
 
-    // 🔴 BACKEND REPLACEMENT:
-    // const params = college ? `?college=${encodeURIComponent(college)}` : '';
-    // const res = await fetch(`/api/events${params}`, {
-    //   headers: { 'Authorization': `Bearer ${getToken()}` }
-    // });
-    // return res.json();
+        if (college) {
+            formatted = formatted.filter(e => e.college === null || e.college === college);
+        }
+
+        return formatted;
+    } catch (err) {
+        console.warn('Backend getStudentEvents failed, falling back to mock:', err.message);
+        await delay(300);
+        if (college) {
+            return mockDb.events.filter(e => e.college === null || e.college === college);
+        }
+        return [...mockDb.events];
+    }
 }
 
 // -----------------------------------------------------------
@@ -567,7 +807,7 @@ function delay(ms) {
 
 /**
  * Get stored auth token.
- * 🔴 BACKEND: Used by all authenticated requests.
+ * Used by all authenticated requests via apiFetch().
  */
 export function getToken() {
     return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
@@ -583,14 +823,13 @@ export function getCurrentUser() {
 
 /**
  * Save auth data after login.
- * 🔴 BACKEND: rememberMe=true uses localStorage (persists across sessions),
- *    rememberMe=false uses sessionStorage (clears when browser closes).
+ * rememberMe=true uses localStorage (persists across sessions),
+ * rememberMe=false uses sessionStorage (clears when browser closes).
  */
 export function saveAuth(token, user, rememberMe = false) {
     const storage = rememberMe ? localStorage : sessionStorage;
     storage.setItem('auth_token', token);
     storage.setItem('current_user', JSON.stringify(user));
-    // Also flag which storage was used, so getToken/getCurrentUser can check both
     localStorage.setItem('auth_storage', rememberMe ? 'local' : 'session');
 }
 
@@ -609,24 +848,18 @@ export function clearAuth() {
 // -----------------------------------------------------------
 // 📱 OFFLINE QR CODE CACHE
 // -----------------------------------------------------------
-// These functions manage the cached QR code data for offline access.
-// The QR is only cached when Remember Me is ON (localStorage auth).
-// When the app opens without internet, the cached QR is shown immediately.
-// 🔴 BACKEND: When real API is ready, the QR payload could be a signed JWT
-//    from GET /api/student/qr-token, cached here for offline use.
 
 /**
  * Cache QR code data to localStorage for offline access.
  * Only works if Remember Me was enabled (auth_storage === 'local').
- * The QR data is fixed to the user — it won't change until re-login.
  */
 export function cacheOfflineQR(qrData) {
     const authStorage = localStorage.getItem('auth_storage');
-    if (authStorage !== 'local') return false; // Remember Me is off
+    if (authStorage !== 'local') return false;
 
     localStorage.setItem('offline_qr', JSON.stringify({
         ...qrData,
-        cachedAt: new Date().toISOString()
+        cachedAt: new Date().toISOString(),
     }));
     return true;
 }
