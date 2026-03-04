@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y \
 # Copy the requirements.txt file into the container
 COPY requirements.txt .
 
-# Install the Python dependencies
+# Install the Python dependencies (Restricting CMake to 1 core to prevent Render OOM on dlib)
+ENV CMAKE_BUILD_PARALLEL_LEVEL=1
 RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
 # Copy all backend source code into the container
