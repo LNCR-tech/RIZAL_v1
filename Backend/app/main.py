@@ -30,14 +30,20 @@ try:
 except Exception:
     pass  # File may not exist yet, that's OK
 
-# Auto-seed database on startup (creates tables, roles, admin user)
-@app.on_event("startup")
-def seed_database():
+# Auto-seed database endpoint to bypass Render free-tier shell limitations
+@app.get("/seed")
+async def force_seed():
+    import traceback
     try:
         from app.seeder import run_seeder
         run_seeder()
+        return {"status": "success", "message": "Database tables and admin user created successfully!"}
     except Exception as e:
-        print(f"⚠️ Seeder warning: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 @app.get("/")
 async def root():
