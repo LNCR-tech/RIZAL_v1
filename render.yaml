@@ -16,6 +16,5 @@ services:
 databases:
   - name: rizal-db
     databaseName: fastapi_db
-    user: postgres
     region: singapore
     plan: free
