@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #162F65;
+  --secondary-color: #2C5F9E;
+  --accent-color: #4A90E2;
+  --page-background: #f5f7fa;
+}
+
+body {
+  background-color: var(--page-background);
+}

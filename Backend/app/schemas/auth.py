@@ -1,0 +1,61 @@
+from datetime import datetime
+from typing import List, Optional
+from enum import Enum
+from pydantic import BaseModel, EmailStr
+
+class Token(BaseModel):
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    email: Optional[str] = None
+    roles: Optional[List[str]] = None
+    user_id: Optional[int] = None
+    is_admin: Optional[bool] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    school_id: Optional[int] = None
+    school_name: Optional[str] = None
+    school_code: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
+    accent_color: Optional[str] = None
+    must_change_password: Optional[bool] = None
+    change_password_endpoint: Optional[str] = None
+    session_id: Optional[str] = None
+    mfa_required: Optional[bool] = None
+    mfa_challenge_id: Optional[str] = None
+    mfa_expires_at: Optional[datetime] = None
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    roles: Optional[List[str]] = None  # Added roles for better access control
+    school_id: Optional[int] = None
+    must_change_password: Optional[bool] = None
+    jti: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr  # More strict validation
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class RoleEnum(str, Enum):
+    admin = "admin"
+    school_IT = "school_IT"
+    student = "student"
+    ssg = "ssg"
+    event_organizer = "event-organizer"  # Added missing role
+    
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    roles: List[RoleEnum]  # Now includes all possible roles

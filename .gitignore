@@ -1,0 +1,43 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+
+# Node / frontend builds
+node_modules/
+Frontend/node_modules/
+Frontend/dist/
+Frontend/dist-ssr/
+Frontend/.vite/
+Frontend/.pnp.*
+Frontend/.yarn/
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+!.env.smtp.example
+Frontend/.env.local
+Backend/.env
+
+# Database / local artifacts
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# Project-specific generated files
+Backend/face_encodings.pkl
+Backend/.alembic.ini.swp
