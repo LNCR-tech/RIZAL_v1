@@ -1,0 +1,42 @@
+{
+  "post": {
+    "tags": [
+      "users"
+    ],
+    "summary": "Create Student Profile",
+    "operationId": "create_student_profile_users_admin_students__post",
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/StudentProfileCreate"
+          }
+        }
+      },
+      "required": true
+    },
+    "responses": {
+      "200": {
+        "description": "Successful Response",
+        "content": {
+          "application/json": {
+            "schema": "@{$ref=#/components/schemas/UserWithRelations}"
+          }
+        }
+      },
+      "422": {
+        "description": "Validation Error",
+        "content": {
+          "application/json": {
+            "schema": "@{$ref=#/components/schemas/HTTPValidationError}"
+          }
+        }
+      }
+    },
+    "security": [
+      {
+        "OAuth2PasswordBearer": []
+      }
+    ]
+  }
+}

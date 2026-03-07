@@ -1,0 +1,68 @@
+{
+  "properties": {
+    "student_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 20,
+          "minLength": 3,
+          "pattern": "^[A-Za-z0-9-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Student Id",
+      "description": "Official student ID following format: [DepartmentCode]-[Year]-[SequenceNumber]",
+      "example": "CS-2023-001"
+    },
+    "department_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Department Id",
+      "description": "ID of the department the student belongs to"
+    },
+    "program_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Program Id",
+      "description": "ID of the academic program the student is enrolled in"
+    },
+    "year_level": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "maximum": 5.0,
+          "minimum": 1.0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Year Level",
+      "description": "Year level must be between 1 and 5"
+    },
+    "user_id": {
+      "type": "integer",
+      "title": "User Id",
+      "description": "The ID of the user to be assigned as a student"
+    }
+  },
+  "type": "object",
+  "required": [
+    "user_id"
+  ],
+  "title": "StudentProfileCreate"
+}

@@ -193,7 +193,8 @@ onMounted(() => {
             uNoise: { value: props.noise }
         },
         premultipliedAlpha: true,
-        transparent: true
+        transparent: true,
+        precision: 'mediump'
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -206,7 +207,10 @@ onMounted(() => {
     });
     
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    
+    // Performance optimization for mobile devices (cap pixel ratio to save GPU)
+    const isMobile = window.innerWidth < 768;
+    renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio || 1, 1) : Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setClearColor(0x000000, props.transparent ? 0 : 1);
     
     renderer.domElement.style.width = '100%';

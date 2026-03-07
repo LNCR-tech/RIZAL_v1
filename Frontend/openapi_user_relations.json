@@ -1,0 +1,79 @@
+{
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email"
+    },
+    "first_name": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "middle_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Middle Name"
+    },
+    "last_name": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "id": {
+      "type": "integer",
+      "title": "Id"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Is Active"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+    },
+    "roles": {
+      "items": {
+        "$ref": "#/components/schemas/UserRoleResponse"
+      },
+      "type": "array",
+      "title": "Roles",
+      "default": []
+    },
+    "student_profile": {
+      "anyOf": [
+        {
+          "$ref": "#/components/schemas/StudentProfile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ssg_profile": {
+      "anyOf": [
+        {
+          "$ref": "#/components/schemas/SSGProfile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "type": "object",
+  "required": [
+    "email",
+    "first_name",
+    "last_name",
+    "id",
+    "is_active",
+    "created_at"
+  ],
+  "title": "UserWithRelations"
+}

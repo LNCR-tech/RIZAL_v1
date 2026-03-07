@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { User, CreditCard, Mail, BookOpen, GraduationCap, Shield, ArrowRight, CheckCircle } from 'lucide-vue-next';
+import { User, CreditCard, Mail, BookOpen, GraduationCap, Shield, ArrowRight, CheckCircle, AlertCircle } from 'lucide-vue-next';
 // ⬇️ MOCK DATA: imported from API service
 // 🔴 BACKEND: see src/services/api.js → createUser(), getMetadata()
 import { createUser, getMetadata } from '../../services/api.js';
@@ -9,6 +9,7 @@ import { createUser, getMetadata } from '../../services/api.js';
 const router = useRouter();
 const isSubmitting = ref(false);
 const showSuccess = ref(false);
+const errorMessage = ref('');
 
 const form = ref({
   fullName: '',
@@ -44,6 +45,7 @@ const handleCollegeChange = () => {
 
 const handleSubmit = async () => {
   isSubmitting.value = true;
+  errorMessage.value = '';
 
   try {
     // 🔴 BACKEND: Replace createUser() body in services/api.js with POST /api/users
@@ -59,6 +61,7 @@ const handleSubmit = async () => {
     }, 2000);
   } catch (err) {
     console.error('Create account error:', err);
+    errorMessage.value = err.message || 'Failed to create account. Please check the details and try again.';
     isSubmitting.value = false;
   }
 };
@@ -76,6 +79,14 @@ const handleSubmit = async () => {
       <div v-if="showSuccess" class="glass-card p-4 border-l-4 border-emerald-500 flex items-center gap-3">
         <CheckCircle class="w-5 h-5 text-emerald-500 shrink-0" />
         <p class="text-sm font-medium text-emerald-700 dark:text-emerald-400">Account created successfully!</p>
+      </div>
+    </Transition>
+
+    <!-- Error Toast -->
+    <Transition name="fade">
+      <div v-if="errorMessage" class="glass-card p-4 border-l-4 border-red-500 flex items-center gap-3">
+        <AlertCircle class="w-5 h-5 text-red-500 shrink-0" />
+        <p class="text-sm font-medium text-red-700 dark:text-red-400">{{ errorMessage }}</p>
       </div>
     </Transition>
 
@@ -118,7 +129,7 @@ const handleSubmit = async () => {
           <label class="form-label">ID Number</label>
           <div class="relative">
             <CreditCard class="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-            <input v-model="form.studentId" type="text" placeholder="2023-0001" class="form-input pl-10" required />
+            <input v-model="form.studentId" type="text" placeholder="CS-2023-0001" class="form-input pl-10" required pattern=".*[a-zA-Z].*" title="Student ID must contain at least one letter (e.g., CS-2023-0001)" />
           </div>
         </div>
         <div>
@@ -144,8 +155,8 @@ const handleSubmit = async () => {
             <BookOpen class="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
             <!-- 🔴 BACKEND: colleges dropdown populated from GET /api/metadata -->
             <select v-model="form.college" @change="handleCollegeChange" class="form-input pl-10 appearance-none" required>
-              <option value="" disabled>Select College</option>
-              <option v-for="c in colleges" :key="c" :value="c">{{ c }}</option>
+              <option value="" disabled class="bg-white dark:bg-[#111836] text-gray-900 dark:text-white">Select College</option>
+              <option v-for="c in colleges" :key="c" :value="c" class="bg-white dark:bg-[#111836] text-gray-900 dark:text-white">{{ c }}</option>
             </select>
           </div>
         </div>
@@ -155,8 +166,8 @@ const handleSubmit = async () => {
             <GraduationCap class="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
             <!-- 🔴 BACKEND: programs dropdown populated from GET /api/metadata -->
             <select v-model="form.program" class="form-input pl-10 appearance-none" required :disabled="!form.college">
-              <option value="" disabled>Select Program</option>
-              <option v-for="p in availablePrograms" :key="p" :value="p">{{ p }}</option>
+              <option value="" disabled class="bg-white dark:bg-[#111836] text-gray-900 dark:text-white">Select Program</option>
+              <option v-for="p in availablePrograms" :key="p" :value="p" class="bg-white dark:bg-[#111836] text-gray-900 dark:text-white">{{ p }}</option>
             </select>
           </div>
         </div>

@@ -1,8 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import LandingPage from '../views/LandingPage.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
-import { getCurrentUser } from '../services/api.js'
-import * as mockDb from '../mock/db.js'
 
 const router = createRouter({
     history: createWebHashHistory(),
@@ -19,29 +17,31 @@ const router = createRouter({
         {
             path: '/student',
             component: DashboardLayout,
+            redirect: '/student/dashboard',
             children: [
+                {
+                    path: 'dashboard',
+                    name: 'student-dashboard',
+                    component: () => import('../views/student/StudentDashboard.vue')
+                },
                 {
                     path: 'profile',
                     name: 'student-profile',
-                    meta: { requiresFaceScan: true },
                     component: () => import('../views/student/StudentProfile.vue')
                 },
                 {
                     path: 'events',
                     name: 'student-events',
-                    meta: { requiresFaceScan: true },
                     component: () => import('../views/student/StudentEvents.vue')
                 },
                 {
                     path: 'attendance',
                     name: 'student-attendance',
-                    meta: { requiresFaceScan: true },
                     component: () => import('../views/student/StudentAttendance.vue')
                 },
                 {
                     path: 'announcements',
                     name: 'student-announcements',
-                    meta: { requiresFaceScan: true },
                     component: () => import('../views/student/StudentAnnouncements.vue')
                 },
 
@@ -116,5 +116,29 @@ const router = createRouter({
     ]
 })
 
+// Recover once from stale/lost lazy chunks (common after app update in installed WebViews).
+const CHUNK_RETRY_KEY = 'aura_chunk_retry_once'
+router.onError((error, to) => {
+    const message = error?.message || ''
+    const isChunkError = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(message)
+    if (!isChunkError) return
+
+    const hasRetried = sessionStorage.getItem(CHUNK_RETRY_KEY) === '1'
+    if (hasRetried) {
+        sessionStorage.removeItem(CHUNK_RETRY_KEY)
+        console.error('Chunk load failed after retry:', error)
+        return
+    }
+
+    sessionStorage.setItem(CHUNK_RETRY_KEY, '1')
+    if (to?.fullPath) {
+        window.location.hash = `#${to.fullPath}`
+    }
+    window.location.reload()
+})
+
+router.afterEach(() => {
+    sessionStorage.removeItem(CHUNK_RETRY_KEY)
+})
 
 export default router

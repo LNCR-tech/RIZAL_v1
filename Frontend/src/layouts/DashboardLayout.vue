@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTheme } from '../composables/useTheme';
 import { getCurrentUser } from '../services/api.js';
-import * as mockDb from '../mock/db.js';
 import {
   LayoutDashboard,
   Users,
@@ -45,16 +44,6 @@ const userRole = computed(() => {
   return 'Student';
 });
 
-// Check if student has completed face scan registration
-const isStudentRegistered = computed(() => {
-  const currentUser = getCurrentUser();
-  if (currentUser) {
-    const dbUser = mockDb.users.find(u => u.id === currentUser.id);
-    return dbUser ? dbUser.faceScanRegistered : false;
-  }
-  return false;
-});
-
 const menuItems = computed(() => {
   if (userRole.value === 'Admin') {
     return [
@@ -72,18 +61,13 @@ const menuItems = computed(() => {
       { name: 'Account Approvals', path: '/sg/approvals', icon: ScanLine },
       { name: 'Registered Lists', path: '/sg/list', icon: Users },
     ];
-  } else if (isStudentRegistered.value) {
-    // Registered student → full dashboard
+  } else {
+    // Student users always get full dashboard/views.
     return [
       { name: 'My Profile', path: '/student/profile', icon: UserCircle },
       { name: 'Events', path: '/student/events', icon: Calendar },
       { name: 'Attendance', path: '/student/attendance', icon: ClipboardCheck },
       { name: 'Announcements', path: '/student/announcements', icon: Bell },
-    ];
-  } else {
-    // Unregistered student → QR pending only
-    return [
-      { name: 'ID Status', path: '/student/pending', icon: ScanLine },
     ];
   }
 });
@@ -276,7 +260,7 @@ const isActive = (path) => {
                       My Profile
                     </router-link>
                     <router-link
-                      v-if="userRole === 'Student' && isStudentRegistered"
+                      v-if="userRole === 'Student'"
                       to="/student/profile"
                       @click="isProfileOpen = false"
                       class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-white/[0.04] hover:text-brand-600 dark:hover:text-brand-400 rounded-xl transition-colors"

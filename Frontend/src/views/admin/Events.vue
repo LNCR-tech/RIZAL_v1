@@ -9,6 +9,7 @@ const searchQuery = ref('');
 const filterStatus = ref('All');
 const showCreateModal = ref(false);
 const isLoading = ref(true);
+const loadWarning = ref('');
 
 // ⬇️ MOCK DATA: loaded from API service on mount
 // 🔴 BACKEND: this will be populated by GET /api/events and GET /api/colleges
@@ -22,15 +23,25 @@ const newEvent = ref({ name: '', date: '', time: '', location: '', status: 'Plan
 
 onMounted(async () => {
   try {
-    // 🔴 BACKEND: Replace with fetch('/api/events') and fetch('/api/colleges')
-    const [eventsData, collegesData] = await Promise.all([
+    // Load each source independently so one failed API doesn't blank the whole page.
+    const [eventsResult, collegesResult] = await Promise.allSettled([
       getEvents(),
       getColleges()
     ]);
-    events.value = eventsData;
-    colleges.value = collegesData;
-  } catch (err) {
-    console.error('Failed to load data:', err);
+
+    if (eventsResult.status === 'fulfilled') {
+      events.value = eventsResult.value;
+    } else {
+      console.error('Failed to load events:', eventsResult.reason);
+      loadWarning.value = 'Some data could not be loaded. Please check your connection and refresh.';
+    }
+
+    if (collegesResult.status === 'fulfilled') {
+      colleges.value = collegesResult.value;
+    } else {
+      console.error('Failed to load colleges:', collegesResult.reason);
+      loadWarning.value = 'Some data could not be loaded. Please check your connection and refresh.';
+    }
   } finally {
     isLoading.value = false;
   }
@@ -100,6 +111,12 @@ const createEvent = async () => {
 
 <template>
   <div class="space-y-6 animate-fade-in">
+    <div
+      v-if="loadWarning"
+      class="glass-card border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300"
+    >
+      {{ loadWarning }}
+    </div>
 
     <!-- ===== VIEW 1: COLLEGE SELECTION ===== -->
     <template v-if="!selectedCollege">

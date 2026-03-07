@@ -1,0 +1,75 @@
+{
+  "properties": {
+    "student_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 20,
+          "minLength": 3,
+          "pattern": "^[A-Za-z0-9-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Student Id",
+      "description": "Official student ID following format: [DepartmentCode]-[Year]-[SequenceNumber]",
+      "example": "CS-2023-001"
+    },
+    "department_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Department Id",
+      "description": "ID of the department the student belongs to"
+    },
+    "program_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Program Id",
+      "description": "ID of the academic program the student is enrolled in"
+    },
+    "year_level": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "maximum": 5.0,
+          "minimum": 1.0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Year Level",
+      "description": "Year level must be between 1 and 5"
+    },
+    "id": {
+      "type": "integer",
+      "title": "Id"
+    },
+    "attendances": {
+      "items": {
+        "$ref": "#/components/schemas/Attendance"
+      },
+      "type": "array",
+      "title": "Attendances",
+      "default": []
+    }
+  },
+  "type": "object",
+  "required": [
+    "id"
+  ],
+  "title": "StudentProfile"
+}

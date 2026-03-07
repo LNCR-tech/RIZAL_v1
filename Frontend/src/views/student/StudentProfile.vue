@@ -204,7 +204,7 @@ const statusBadge = computed(() => {
       <!-- ONLINE MODE: Full profile view -->
       <template v-else>
         <!-- Profile Header Card -->
-        <div class="glass-card p-8">
+        <div class="glass-card p-5 sm:p-8">
           <div class="flex flex-col sm:flex-row items-center gap-6">
             <!-- Avatar -->
             <div class="relative">
@@ -213,10 +213,10 @@ const statusBadge = computed(() => {
               </div>
             </div>
 
-            <div class="text-center sm:text-left flex-1">
-              <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ profile.name }}</h2>
-              <p class="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-1.5 mt-1.5">
-                <Mail class="w-4 h-4" /> {{ profile.email }}
+            <div class="text-center sm:text-left flex-1 min-w-0 w-full">
+              <h2 class="text-2xl font-bold text-gray-900 dark:text-white truncate">{{ profile.name }}</h2>
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-1.5 mt-1.5 break-all">
+                <Mail class="w-4 h-4 shrink-0" /> {{ profile.email }}
               </p>
               <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
                 <span class="badge badge-blue">
@@ -234,7 +234,7 @@ const statusBadge = computed(() => {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           <!-- QR Code Card -->
-          <div class="glass-card p-8 flex flex-col items-center">
+          <div class="glass-card p-5 sm:p-8 flex flex-col items-center">
             <div class="flex items-center gap-2 mb-6">
               <QrCode class="w-5 h-5 text-brand-500" />
               <h3 class="text-lg font-bold text-gray-900 dark:text-white">My QR Code</h3>
@@ -274,7 +274,7 @@ const statusBadge = computed(() => {
           </div>
 
           <!-- Account Details -->
-          <div class="lg:col-span-2 glass-card p-8 lg:p-10">
+          <div class="lg:col-span-2 glass-card p-5 sm:p-8 lg:p-10">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-6">Account Details</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>

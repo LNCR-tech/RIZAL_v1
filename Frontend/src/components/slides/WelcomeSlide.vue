@@ -8,7 +8,7 @@ const emit = defineEmits(['next']);
   <div class="flex flex-col animate-fadeIn w-full">
     <div class="flex flex-col">
       <h1 class="text-[2.5rem] leading-[1.1] mb-[1.5rem] font-bold mt-4">
-        Welcome to <br> <span class="text-[#02046e]">Aura</span>
+        Welcome to <br> <span class="text-[#1906c7]">Aura</span>
       </h1>
       
       <p class="text-[0.9rem] text-[#b0b0b0] leading-[1.5] mb-[1rem]">

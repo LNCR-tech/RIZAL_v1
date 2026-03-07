@@ -47,8 +47,17 @@ async function apiFetch(path, options = {}) {
         let detail = `Request failed (${res.status})`;
         try {
             const err = await res.json();
-            detail = err.detail || detail;
+            if (err.detail && Array.isArray(err.detail)) {
+                // Handle FastAPI validation errors (e.g., missing fields)
+                detail = err.detail.map(e => {
+                    const loc = e.loc ? e.loc.join('.') : 'Field';
+                    return `${loc}: ${e.msg}`;
+                }).join(' | ');
+            } else {
+                detail = err.detail || err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err)) || detail;
+            }
         } catch (_) { /* ignore parse errors */ }
+        console.error(`[apiFetch Error] ${options.method || 'GET'} ${path} -> ${res.status}: ${detail}`);
         throw new Error(detail);
     }
 
@@ -62,7 +71,7 @@ async function apiFetch(path, options = {}) {
  * Backend: { id, email, first_name, middle_name, last_name, is_active, created_at, roles, student_profile, ssg_profile }
  * Frontend: { id, name, email, role, college, program, studentId, faceScanRegistered, status, ... }
  */
-function formatUserFromBackend(u) {
+function formatUserFromBackend(u, allDepartments = [], allPrograms = []) {
     // Build full name
     const nameParts = [u.first_name, u.middle_name, u.last_name].filter(Boolean);
     const name = nameParts.join(' ') || u.email;
@@ -79,16 +88,32 @@ function formatUserFromBackend(u) {
 
     // Extract student profile data if present
     const sp = u.student_profile || {};
-    const college = sp.department?.name || u.department_name || '';
-    const program = sp.program?.name || '';
+    // Safely extract nested department/program objects
+    let college = sp.department?.name || u.department_name || sp.department || '';
+    if (!college && sp.department_id && allDepartments.length) {
+        const found = allDepartments.find(d => d.id === sp.department_id);
+        if (found) college = found.name;
+    }
+
+    let program = sp.program?.name || sp.program || '';
+    if (!program && sp.program_id && allPrograms.length) {
+        const found = allPrograms.find(p => p.id === sp.program_id);
+        if (found) program = found.name;
+    }
+
     const studentId = sp.student_id || '';
     const faceScanRegistered = sp.is_face_registered || false;
 
+    // Check SSG profile if not a student
+    const ssg = u.ssg_profile || {};
+    const position = ssg.position?.name || ssg.position || '';
+
     return {
         id: sp.student_id || u.id,
+        backendId: u.id, // Ensure we have the actual DB id for operations like delete
         name,
         email: u.email,
-        role,
+        role: role === 'sg' ? (position ? `SG - ${position}` : 'SG') : role,
         college,
         program,
         studentId,
@@ -197,25 +222,9 @@ export async function loginUser(email, password, rememberMe = false) {
             },
         };
     } catch (err) {
-        // If backend is unreachable, fall back to mock for development
-        console.warn('Backend login failed, falling back to mock:', err.message);
-        await delay(800);
-        const user = mockDb.users.find(u => u.email === email);
-        if (!user) throw new Error('Invalid email or password.');
-        if (user.password !== password) throw new Error('Invalid email or password.');
-
-        return {
-            token: 'mock-jwt-token-' + user.id,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                college: user.college,
-                faceScanRegistered: user.faceScanRegistered,
-                rememberMe,
-            },
-        };
+        // Bubble up actual backend errors instead of faking offline logins
+        console.error('Backend login failed:', err.message);
+        throw err;
     }
 }
 
@@ -230,12 +239,15 @@ export async function loginUser(email, password, rememberMe = false) {
  */
 export async function getUsers() {
     try {
-        const users = await apiFetch('/users');
-        return users.map(formatUserFromBackend);
+        const [users, departments, programs] = await Promise.all([
+            apiFetch('/users'),
+            apiFetch('/departments').catch(() => []),
+            apiFetch('/programs').catch(() => [])
+        ]);
+        return users.map(u => formatUserFromBackend(u, departments, programs));
     } catch (err) {
-        console.warn('Backend getUsers failed, falling back to mock:', err.message);
-        await delay(300);
-        return mockDb.users;
+        console.error('Backend getUsers failed:', err.message);
+        throw err;
     }
 }
 
@@ -254,11 +266,15 @@ export async function getProfile(userId) {
         // If the requested userId matches the current user, use /users/me for convenience
         // Otherwise try to fetch by ID (requires admin/sg usually, or the user's own ID)
         const endpoint = (!userId || (currentUser && (currentUser.id === userId || currentUser.studentId === userId)))
-            ? '/users/me/'
+            ? '/users/me'
             : `/users/${userId}`;
 
         const profile = await apiFetch(endpoint);
-        return formatUserFromBackend(profile);
+        const [departments, programs] = await Promise.all([
+            apiFetch('/departments').catch(() => []),
+            apiFetch('/programs').catch(() => [])
+        ]);
+        return formatUserFromBackend(profile, departments, programs);
     } catch (err) {
         console.warn(`Backend getProfile(${userId}) failed, falling back to mock:`, err.message);
         await delay(300);
@@ -294,9 +310,10 @@ export async function createUser(userData) {
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
 
-        // Map frontend role to backend role enum
-        let roles = [userData.role || 'student'];
-        if (roles[0] === 'sg') roles = ['ssg'];
+        // Map frontend role to backend role enum (lowercase)
+        let backendRole = (userData.role || 'student').toLowerCase();
+        if (backendRole === 'sg') backendRole = 'ssg';
+        const roles = [backendRole];
 
         const payload = {
             email: userData.email,
@@ -311,29 +328,84 @@ export async function createUser(userData) {
             body: JSON.stringify(payload),
         });
 
+        // 2. If it's a student, we must also create their StudentProfile to link college/program/studentId
+        if (backendRole === 'student') {
+            try {
+                // We only have the names of the college/program from the form, so we must look up their backend IDs
+                let departmentId = null;
+                let programId = null;
+
+                if (userData.college || userData.program) {
+                    const departments = await apiFetch('/departments').catch(() => []);
+                    const programs = await apiFetch('/programs').catch(() => []);
+
+                    if (userData.college) {
+                        const dept = departments.find(d => d.name === userData.college);
+                        if (dept) departmentId = dept.id;
+                    }
+                    if (userData.program) {
+                        const prog = programs.find(p => p.name === userData.program);
+                        if (prog) programId = prog.id;
+                    }
+                }
+
+                const profilePayload = {
+                    user_id: created.id,
+                    student_id: userData.studentId || null,
+                    department_id: departmentId,
+                    program_id: programId,
+                };
+
+                await apiFetch('/users/admin/students/', {
+                    method: 'POST',
+                    body: JSON.stringify(profilePayload)
+                });
+
+                // Attach for immediate UI rendering without refetching
+                created.student_profile = {
+                    student_id: userData.studentId,
+                    department: { name: userData.college },
+                    program: { name: userData.program }
+                };
+            } catch (profileErr) {
+                // Rollback user creation to prevent orphaned accounts with missing colleges
+                await apiFetch(`/users/${created.id}`, { method: 'DELETE' }).catch(rollErr => {
+                    console.error('Failed to rollback orphaned user:', rollErr.message);
+                });
+                console.error('Failed to attach Student Profile:', profileErr.message);
+                throw new Error('Profile validation failed: ' + profileErr.message + '. Account creation rolled back.');
+            }
+        }
+
         return formatUserFromBackend(created);
     } catch (err) {
-        console.warn('Backend createUser failed, falling back to mock:', err.message);
-        await delay(1200);
-        const newUser = {
-            id: 'NEW-' + Date.now(),
-            name: userData.fullName,
-            email: userData.email,
-            role: userData.role,
-            college: userData.college || 'Admin Office',
-            program: userData.program || '-',
-            studentId: userData.studentId,
-            status: 'Active',
-            faceScanRegistered: false,
-            createdAt: new Date().toISOString(),
-        };
-        mockDb.users.push(newUser);
-        return newUser;
+        console.error('Backend createUser failed:', err.message);
+        throw err; // Throw error to prevent UI from showing fake success
     }
 }
 
 // -----------------------------------------------------------
-// 📅 EVENTS — GET /events
+// � USERS — DELETE /users/{id}
+// -----------------------------------------------------------
+/**
+ * Delete a user account (admin-side).
+ *
+ * Backend: DELETE /users/{id}
+ */
+export async function deleteUser(userId) {
+    try {
+        await apiFetch(`/users/${userId}`, {
+            method: 'DELETE',
+        });
+        return true;
+    } catch (err) {
+        console.error(`Backend deleteUser failed for ${userId}:`, err.message);
+        throw err;
+    }
+}
+
+// -----------------------------------------------------------
+// �📅 EVENTS — GET /events
 // -----------------------------------------------------------
 /**
  * Get all events.
@@ -348,7 +420,12 @@ export async function getEvents() {
     } catch (err) {
         console.warn('Backend getEvents failed, falling back to mock:', err.message);
         await delay(300);
-        return [...mockDb.events];
+        return (mockDb.events || []).map(e => {
+            if (e && typeof e === 'object' && ('start_datetime' in e || 'departments' in e)) {
+                return formatEventFromBackend(e);
+            }
+            return e;
+        });
     }
 }
 
@@ -418,8 +495,11 @@ export async function createEvent(eventData) {
  */
 export async function getColleges() {
     try {
-        const departments = await apiFetch('/departments');
-        const programs = await apiFetch('/programs');
+        const [departments, programs, users] = await Promise.all([
+            apiFetch('/departments'),
+            apiFetch('/programs'),
+            apiFetch('/users').catch(() => [])
+        ]);
 
         // Map departments → colleges format the frontend expects
         return departments.map(dept => {
@@ -428,16 +508,21 @@ export async function getColleges() {
                 p.department_ids && p.department_ids.includes(dept.id)
             );
 
+            // Find all users belonging to this department
+            const deptUsers = users.filter(u =>
+                u.student_profile && u.student_profile.department_id === dept.id
+            );
+
             return {
                 id: dept.id,
                 name: dept.name,
                 dean: 'TBD',
-                students: 0,
+                students: deptUsers.length,
                 sgOfficer: 'TBD',
                 color: 'from-blue-500 to-cyan-400',
                 programs: deptPrograms.map(p => ({
                     name: p.name,
-                    students: 0,
+                    students: deptUsers.filter(u => u.student_profile.program_id === p.id).length,
                 })),
                 expanded: false,
             };
@@ -531,7 +616,13 @@ export async function createCollege(collegeData) {
  */
 export async function getAttendanceRecords() {
     try {
-        const data = await apiFetch('/attendance/students');
+        // Try the current backend route first, then older route for compatibility.
+        let data;
+        try {
+            data = await apiFetch('/attendance/students/overview');
+        } catch (_) {
+            data = await apiFetch('/attendance/students');
+        }
 
         // Transform the overview response into individual records
         if (Array.isArray(data)) {
@@ -677,7 +768,7 @@ export async function markAttendance(eventId, studentId, faceVerified = false) {
  */
 export async function getLoginRecords() {
     await delay(300);
-    return [...mockDb.loginRecords];
+    return Array.isArray(mockDb.loginRecords) ? [...mockDb.loginRecords] : [];
 }
 
 // -----------------------------------------------------------
@@ -734,12 +825,22 @@ export async function updateProfile(profileData, userId = null) {
  */
 export async function getDashboardData() {
     await delay(400);
+    const stats = mockDb.dashboardStats || {};
+    const allEvents = Array.isArray(mockDb.events) ? mockDb.events : [];
+    const recentActivity = Array.isArray(mockDb.recentActivity) ? mockDb.recentActivity : [];
+    const weeklyAttendance = Array.isArray(mockDb.weeklyAttendance) ? mockDb.weeklyAttendance : [];
+
     return {
-        stats: mockDb.dashboardStats,
-        recentActivity: mockDb.recentActivity,
-        weeklyAttendance: mockDb.weeklyAttendance,
-        upcomingEvents: mockDb.events.filter(e => e.status === 'Upcoming'),
-        allEvents: mockDb.events,
+        stats: {
+            totalStudents: Number(stats.totalStudents ?? 0),
+            activeEvents: Number(stats.activeEvents ?? stats.totalEvents ?? 0),
+            totalColleges: Number(stats.totalColleges ?? stats.activeColleges ?? 0),
+            attendanceRate: Number(stats.attendanceRate ?? 0),
+        },
+        recentActivity,
+        weeklyAttendance,
+        upcomingEvents: allEvents.filter(e => (e?.status || '').toLowerCase() === 'upcoming'),
+        allEvents,
     };
 }
 
@@ -767,9 +868,8 @@ export async function getMetadata() {
 
         return { colleges, programs: programsByCollege };
     } catch (err) {
-        console.warn('Backend getMetadata failed, falling back to mock:', err.message);
-        await delay(100);
-        return mockDb.metadata;
+        console.error('Backend getMetadata failed:', err.message);
+        throw err;
     }
 }
 
@@ -800,7 +900,7 @@ export async function getAnnouncements(college = null) {
 export async function getStudentEvents(college = null) {
     try {
         const events = await apiFetch('/events');
-        let formatted = events.map(formatEventFromBackend);
+        let formatted = (events || []).map(formatEventFromBackend).filter(e => e && e.name && e.name.trim() !== '');
 
         if (college) {
             formatted = formatted.filter(e => e.college === null || e.college === college);
@@ -810,10 +910,11 @@ export async function getStudentEvents(college = null) {
     } catch (err) {
         console.warn('Backend getStudentEvents failed, falling back to mock:', err.message);
         await delay(300);
+        let validMock = mockDb.events.filter(e => e && e.name && e.name.trim() !== '');
         if (college) {
-            return mockDb.events.filter(e => e.college === null || e.college === college);
+            return validMock.filter(e => e.college === null || e.college === college);
         }
-        return [...mockDb.events];
+        return validMock;
     }
 }
 

@@ -1,0 +1,49 @@
+{
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email"
+    },
+    "first_name": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "middle_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Middle Name"
+    },
+    "last_name": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "password": {
+      "type": "string",
+      "minLength": 8,
+      "title": "Password"
+    },
+    "roles": {
+      "items": {
+        "$ref": "#/components/schemas/RoleEnum"
+      },
+      "type": "array",
+      "title": "Roles"
+    }
+  },
+  "type": "object",
+  "required": [
+    "email",
+    "first_name",
+    "last_name",
+    "password",
+    "roles"
+  ],
+  "title": "UserCreate"
+}

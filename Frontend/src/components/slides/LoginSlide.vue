@@ -4,6 +4,7 @@ import FaceScanAnimation from '../FaceScanAnimation.vue';
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import ErrorModal from '../ErrorModal.vue';
+import Loader from '../Loader.vue';
 // ⬇️ MOCK DATA: imported from API service
 // 🔴 BACKEND: see src/services/api.js → loginUser(), saveAuth()
 import { loginUser, saveAuth, getCurrentUser, clearAuth } from '../../services/api.js';
@@ -201,7 +202,7 @@ const onFaceScanSuccess = () => {
         loginStep.value = 'done';
         if (detectedRole.value === 'admin') { router.push('/admin/dashboard'); }
         else if (detectedRole.value === 'sg') { router.push('/sg/approvals'); }
-        else { router.push('/student/profile'); }
+        else { router.push('/student/dashboard'); }
     }, 1500);
 };
 
@@ -262,7 +263,7 @@ onBeforeUnmount(() => { stopCamera(); });
     <!-- ===== STEP 1: EMAIL + PASSWORD ===== -->
     <div v-if="loginStep === 'credentials'" class="flex flex-col">
       <h1 class="text-[2rem] sm:text-[2.5rem] leading-[1.1] mb-[1rem] sm:mb-[1.5rem] font-bold">
-        Log <span class="text-[#02046e]">In.</span>
+        Log <span class="text-[#1906c7]">In.</span>
       </h1>
 
       <form @submit.prevent="validateLogin">
@@ -308,7 +309,7 @@ onBeforeUnmount(() => { stopCamera(); });
         <Pagination :currentSlide="3" class="mb-2" />
         <button type="button" @click="validateLogin" :disabled="isLoading"
           class="w-full p-[0.8rem] sm:p-[0.9rem] rounded-[20px] text-[0.9rem] sm:text-[1rem] font-semibold cursor-pointer shadow-[0_4px_15px_rgba(48,79,254,0.4)] z-[200] shrink-0 text-white bg-gradient-to-r from-[#1a237e] to-[#304ffe] disabled:opacity-70 disabled:cursor-not-allowed">
-          {{ isLoading ? 'Verifying...' : 'Log In' }}
+          Log In
         </button>
 
       </form>
@@ -429,6 +430,7 @@ onBeforeUnmount(() => { stopCamera(); });
     </div>
 
     <Teleport to="body">
+      <Loader v-if="isLoading" />
       <ErrorModal v-if="errorState.show" :message="errorState.message" @close="closeError" />
     </Teleport>
   </div>
