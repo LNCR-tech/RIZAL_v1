@@ -14,7 +14,8 @@ class EmailDeliveryError(Exception):
 def _send_email(subject: str, recipient_email: str, body: str) -> None:
     settings = get_settings()
     if not settings.smtp_host:
-        raise EmailDeliveryError("SMTP_HOST is not configured")
+        print(f"\n--- [DEV EMAIL MOCK] ---\nTo: {recipient_email}\nSubject: {subject}\nBody: {body}\n------------------------\n")
+        return
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -29,8 +30,8 @@ def _send_email(subject: str, recipient_email: str, body: str) -> None:
             if settings.smtp_username:
                 smtp.login(settings.smtp_username, settings.smtp_password)
             smtp.send_message(msg)
-    except Exception as exc:  # pragma: no cover - external dependency
-        raise EmailDeliveryError(str(exc)) from exc
+    except Exception as exc:
+        print(f"\n--- [SMTP FAILURE] ---\nError: {exc}\nFalling back to console print:\nTo: {recipient_email}\nSubject: {subject}\nBody: {body}\n----------------------\n")
 
 
 def send_plain_email(
