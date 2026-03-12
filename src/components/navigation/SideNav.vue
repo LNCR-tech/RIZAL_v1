@@ -136,18 +136,59 @@
         </div>
       </div>
     </div>
+
   </aside>
+
+  <!-- Premium Logout Confirmation Modal -->
+  <Transition name="fade">
+    <div v-show="showLogoutConfirm" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="showLogoutConfirm = false"></div>
+      <div 
+        class="w-full max-w-md p-8 rounded-[40px] relative z-10 shadow-2xl border transition-all duration-300 transform scale-100"
+        style="background: var(--color-card-bg); border-color: var(--color-border);"
+      >
+        <div class="flex flex-col items-center text-center gap-8">
+          <div class="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+            <LogOut :size="48" stroke-width="2.5" />
+          </div>
+          
+          <div>
+            <h3 class="text-3xl font-black mb-3" style="color: var(--color-text-primary);">Sign Out</h3>
+            <p class="font-bold leading-relaxed text-[15px]" style="color: var(--color-text-muted);">Are you sure you want to end your session? You'll need to sign in again to access the Aura dashboard.</p>
+          </div>
+          
+          <div class="flex w-full gap-4">
+            <button 
+              @click="showLogoutConfirm = false"
+              class="flex-1 py-4.5 rounded-full font-bold transition-all hover:scale-105 active:scale-95"
+              style="background: var(--color-input-bg); color: var(--color-text-primary);"
+            >
+              Go Back
+            </button>
+            <button 
+              @click="confirmLogout"
+              class="flex-1 py-4.5 rounded-full font-black bg-red-500 text-white hover:scale-105 active:scale-95 transition-all shadow-xl shadow-red-500/20"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Home, User, Calendar, BarChart2, Maximize2, Send } from 'lucide-vue-next'
+import { Home, User, Calendar, BarChart2, Maximize2, Send, Building2, LayoutDashboard, LogOut, Users } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
+import { useAuth } from '@/composables/useAuth.js'
 
 const isChatExpanded = ref(false)
 const chatInput = ref('')
 const isAiTyping = ref(false)
+const showLogoutConfirm = ref(false)
 const chatMessages = ref([
   { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }
 ])
@@ -176,7 +217,20 @@ const handleSendMessage = () => {
   }, 1500)
 }
 
-const navItems = [
+const rolesJSON = localStorage.getItem('aura_user_roles')
+let roles = []
+try {
+  roles = rolesJSON ? JSON.parse(rolesJSON) : []
+} catch (e) {
+  roles = []
+}
+const isSuperAdmin = (roles || []).some(r => r?.role?.name === 'super_admin' || r?.role?.name === 'superadmin')
+
+const navItems = isSuperAdmin ? [
+  { name: 'Dashboard',   route: '/super-admin',          icon: LayoutDashboard },
+  { name: 'Campuses',    route: '/super-admin/campuses', icon: Building2 },
+  { name: 'Profile',     route: '/dashboard/profile',    icon: User },
+] : [
   { name: 'Home',      route: '/dashboard',            icon: Home },
   { name: 'Profile',   route: '/dashboard/profile',    icon: User },
   { name: 'Schedule',  route: '/dashboard/schedule',   icon: Calendar },
@@ -187,12 +241,23 @@ const router = useRouter()
 const route  = useRoute()
 
 function isActive(path) {
-  if (path === '/dashboard') return route.path === '/dashboard' || route.path === '/dashboard/'
+  if (path === '/dashboard' || path === '/super-admin') {
+    return route.path === path || route.path === path + '/'
+  }
   return route.path.startsWith(path)
 }
 
 function navigate(path) {
   router.push(path)
+}
+
+const { logout } = useAuth()
+function handleLogout() {
+  showLogoutConfirm.value = true
+}
+
+function confirmLogout() {
+  logout()
 }
 </script>
 

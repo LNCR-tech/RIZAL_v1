@@ -37,6 +37,25 @@ const routes = [
             },
         ],
     },
+
+    // Super Admin routes (wrapped in AppLayout)
+    {
+        path: '/super-admin',
+        component: () => import('@/layouts/AppLayout.vue'),
+        meta: { requiresAuth: true, role: 'super_admin' },
+        children: [
+            {
+                path: '',
+                name: 'SuperAdminDashboard',
+                component: () => import('@/views/super-admin/DashboardView.vue'),
+            },
+            {
+                path: 'campuses',
+                name: 'CampusManagement',
+                component: () => import('@/views/super-admin/CampusManagementView.vue'),
+            },
+        ],
+    },
 ]
 
 const router = createRouter({
@@ -47,10 +66,27 @@ const router = createRouter({
 // Navigation guard
 router.beforeEach((to, _from, next) => {
     const isAuthenticated = !!localStorage.getItem('aura_token')
+    const rolesJSON = localStorage.getItem('aura_user_roles')
+    let roles = []
+    try {
+        roles = rolesJSON ? JSON.parse(rolesJSON) : []
+    } catch (e) {
+        roles = []
+    }
+
+    const isSuperAdmin = (roles || []).some(r => r?.role?.name === 'super_admin' || r?.role?.name === 'superadmin')
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         next({ name: 'Login' })
     } else if (to.meta.requiresGuest && isAuthenticated) {
+        // Redirect based on role
+        if (isSuperAdmin) {
+            next({ name: 'SuperAdminDashboard' })
+        } else {
+            next({ name: 'Home' })
+        }
+    } else if (to.meta.role === 'super_admin' && !isSuperAdmin) {
+        // Accessing super admin page but not a super admin
         next({ name: 'Home' })
     } else {
         next()

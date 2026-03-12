@@ -7,10 +7,8 @@ import './assets/css/main.css'
 import { loadTheme, applyTheme } from '@/config/theme.js'
 import { mockCurrentUser, mockRtuSettings, mockJrmsuSettings } from '@/data/mockData.js'
 
-// Automatically select the theme based on the mock user's configured school_id
-const activeSettings = (mockCurrentUser.school_id === 2) ? mockJrmsuSettings : mockRtuSettings
-
-const currentTheme = loadTheme(activeSettings)
+// Automatically apply the theme (handles normal users, super admin, and impersonation)
+const currentTheme = loadTheme()
 applyTheme(currentTheme)
 
 const app = createApp(App)

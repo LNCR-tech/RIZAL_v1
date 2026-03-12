@@ -86,6 +86,44 @@
         </button>
       </div>
     </div>
+
+    <!-- Premium Logout Confirmation Modal -->
+    <Transition name="fade">
+      <div v-show="showLogoutConfirm" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="showLogoutConfirm = false"></div>
+        <div 
+          class="w-full max-w-md p-8 rounded-[40px] relative z-10 shadow-2xl border transition-all duration-300 transform scale-100"
+          style="background: var(--color-card-bg); border-color: var(--color-border);"
+        >
+          <div class="flex flex-col items-center text-center gap-8">
+            <div class="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+              <LogOut :size="48" stroke-width="2.5" />
+            </div>
+            
+            <div>
+              <h3 class="text-3xl font-black mb-3" style="color: var(--color-text-primary);">Sign Out</h3>
+              <p class="font-bold leading-relaxed text-[15px]" style="color: var(--color-text-muted);">Are you sure you want to end your session? You'll need to sign in again to access the Aura dashboard.</p>
+            </div>
+            
+            <div class="flex w-full gap-4">
+              <button 
+                @click="showLogoutConfirm = false"
+                class="flex-1 py-4.5 rounded-full font-bold transition-all hover:scale-105 active:scale-95"
+                style="background: var(--color-input-bg); color: var(--color-text-primary);"
+              >
+                Go Back
+              </button>
+              <button 
+                @click="confirmLogout"
+                class="flex-1 py-4.5 rounded-full font-black bg-red-500 text-white hover:scale-105 active:scale-95 transition-all shadow-xl shadow-red-500/20"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </header>
 </template>
 
@@ -94,6 +132,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Moon, LogOut } from 'lucide-vue-next'
 import { isDarkMode, toggleDarkMode } from '@/config/theme.js'
+import { useAuth } from '@/composables/useAuth.js'
 
 const props = defineProps({
   user: {
@@ -109,15 +148,15 @@ const props = defineProps({
 defineEmits(['toggle-notifications'])
 
 const isProfileExpanded = ref(false)
-const router = useRouter()
+const showLogoutConfirm = ref(false)
+const { logout } = useAuth()
 
 function handleLogout() {
-  // Clear the actual token used by the router's beforeEach guard
-  localStorage.removeItem('aura_token')
-  localStorage.removeItem('aura_user_roles')
-  
-  // Navigate back to the Login view
-  router.push({ name: 'Login' })
+  showLogoutConfirm.value = true
+}
+
+function confirmLogout() {
+  logout()
 }
 
 const displayName = computed(() => {

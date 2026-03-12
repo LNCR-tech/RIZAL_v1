@@ -60,8 +60,26 @@ export const mockJrmsuUser = {
     },
 }
 
-// 👉 To test the other school's login, change 'mockRtuUser' below to 'mockJrmsuUser'
-export const mockCurrentUser = mockRtuUser
+// Super Admin User
+export const mockSuperAdminUser = {
+    id: 1,
+    email: 'superadmin@aura.edu',
+    first_name: 'Super',
+    last_name: 'Admin',
+    middle_name: null,
+    is_active: true,
+    created_at: '2026-03-11T08:00:00Z',
+    school_id: null, // Global
+    roles: [
+        { role: { id: 1, name: 'super_admin' } },
+    ],
+    ssg_profile: null,
+    student_profile: null,
+}
+
+// 👉 To test different roles, change 'mockCurrentUser' below:
+// mockRtuUser, mockJrmsuUser, or mockSuperAdminUser
+export const mockCurrentUser = mockSuperAdminUser
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 // Matches: Event schema
@@ -124,9 +142,9 @@ export const mockEvents = [
 export const mockRtuSettings = {
     school_id: 1,
     school_name: 'Rizal Technological University',
-    primary_color: '#AAFF00', // Lime Green
+    primary_color: '#6366F1', // Indigo
     secondary_color: '#0A0A0A',
-    accent_color: '#88CC00',
+    accent_color: '#4F46E5',
     logo_url: '/src/data/jrmsu_icon.png',
 }
 
@@ -162,4 +180,60 @@ export const mockAnnouncements = [
         is_read: true,
         type: 'announcement',
     },
+]
+// ─── Campuses (Super Admin View) ───────────────────────────────────────────
+export const mockCampuses = [
+    { 
+        id: 1, 
+        name: 'Rizal Technological University', 
+        location: 'Mandaluyong, PH', 
+        students: 28450, 
+        staff: 1100,
+        logo: '/src/data/jrmsu_icon.png',
+        status: 'Active',
+        plan: 'Enterprise Elite',
+        admin: { name: 'Dr. Ricardo Garcia', email: 'r.garcia@rtu.edu.ph' }
+    },
+    { 
+        id: 2, 
+        name: 'Jose Rizal Memorial State University', 
+        location: 'Dapitan City, PH', 
+        students: 12100, 
+        staff: 650,
+        logo: '/src/data/jrmsu_icon.png',
+        status: 'Active',
+        plan: 'Advanced',
+        admin: { name: 'Engr. Maria Santos', email: 'm.santos@jrmsu.edu.ph' }
+    },
+    { 
+        id: 3, 
+        name: 'Philippine Normal University', 
+        location: 'Manila, PH', 
+        students: 8400, 
+        staff: 400,
+        logo: '/src/data/jrmsu_icon.png',
+        status: 'Active',
+        plan: 'Standard',
+        admin: { name: 'Prof. John Doe', email: 'j.doe@pnu.edu.ph' }
+    },
+    { 
+        id: 4, 
+        name: 'Bulacan State University', 
+        location: 'Malolos, PH', 
+        students: 35000, 
+        staff: 1500,
+        logo: '/src/data/jrmsu_icon.png',
+        status: 'Active',
+        plan: 'Enterprise Elite'
+    },
+    { 
+        id: 5, 
+        name: 'Mindanao State University', 
+        location: 'Marawi, PH', 
+        students: 18000, 
+        staff: 900,
+        logo: '/src/data/jrmsu_icon.png',
+        status: 'Inactive',
+        plan: 'Advanced'
+    }
 ]

@@ -8,8 +8,24 @@
     />
 
     <!-- Page Title -->
-    <div class="mt-1 px-1">
+    <div class="mt-1 px-1 flex items-center justify-between">
       <h1 class="text-[26px] font-extrabold" style="color: var(--color-text-primary);">Home</h1>
+      
+      <!-- Impersonation Indicator -->
+      <button 
+        v-if="isImpersonating" 
+        @click="stopImpersonating"
+        class="flex items-center gap-3 bg-red-500 text-white px-5 py-2.5 rounded-full shadow-xl animate-pulse hover:bg-red-600 hover:scale-105 active:scale-95 transition-all outline-none border-none cursor-pointer group"
+        title="Exit Inspection Mode"
+      >
+        <div class="flex flex-col items-start leading-none">
+          <span class="text-[9px] font-black uppercase tracking-tighter opacity-70">Super Admin Mode</span>
+          <span class="text-[12px] font-black uppercase tracking-widest font-black">Inspecting Campus</span>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+          <X :size="18" stroke-width="3" />
+        </div>
+      </button>
     </div>
 
     <!-- Search bar + Talk to Aura AI row -->
@@ -124,26 +140,62 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Search } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import { Search, X } from 'lucide-vue-next'
 import TopBar from '@/components/dashboard/TopBar.vue'
 import UniversityBanner from '@/components/dashboard/UniversityBanner.vue'
 import EventsCard from '@/components/dashboard/EventsCard.vue'
 
 import { mockCurrentUser, mockEvents, mockSchoolSettings, mockAnnouncements } from '@/data/mockData.js'
 import { loadTheme, applyTheme, activeAuraLogo } from '@/config/theme.js'
+import { userService } from '@/services/userService.js'
+import { eventService } from '@/services/eventService.js'
 
 // --- State ---
 const searchQuery = ref('')
 const showNotifications = ref(false)
+const isLoading = ref(true)
 
-// --- Data (swap with API calls in production) ---
+// --- Data ---
 const currentUser = ref(mockCurrentUser)
 const events = ref(mockEvents)
-const schoolSettings = ref(mockSchoolSettings)
 const announcements = ref(mockAnnouncements)
+const schoolSettings = ref({
+  ...mockSchoolSettings,
+  school_name: localStorage.getItem('aura_impersonate_school_name') || mockSchoolSettings.school_name,
+  logo_url: localStorage.getItem('aura_impersonate_school_logo') || mockSchoolSettings.logo_url
+})
+
+// --- Fetch Data ---
+onMounted(async () => {
+  // Apply theme (handles both normal and impersonated school themes)
+  applyTheme(loadTheme())
+
+  try {
+    isLoading.value = true
+    
+    // Fetch user profile
+    const user = await userService.getMe()
+    if (user) currentUser.value = user
+    
+    // Update theme if school settings are available in user profile
+    // (This depends on the API shape, adjusting to user.school_id logic if needed)
+    
+    // Fetch events
+    const realEvents = await eventService.getEvents({ limit: 10 })
+    if (realEvents && realEvents.length > 0) {
+      events.value = realEvents
+    }
+  } catch (error) {
+    console.error('Error fetching home data:', error)
+  } finally {
+    isLoading.value = false
+  }
+})
 
 // --- Computed ---
+const isImpersonating = computed(() => !!localStorage.getItem('aura_impersonate_school_id'))
+
 const upcomingEvents = computed(() =>
   events.value.filter((e) => e.status === 'upcoming' || e.status === 'ongoing')
 )
@@ -154,10 +206,12 @@ const unreadAnnouncements = computed(() =>
 
 // --- Formatters ---
 function formatMonth(dt) {
+  if (!dt) return ''
   return new Date(dt).toLocaleString('en', { month: 'short' }).toUpperCase()
 }
 
 function formatDay(dt) {
+  if (!dt) return ''
   return new Date(dt).getDate()
 }
 
@@ -180,6 +234,13 @@ function handleAnnouncementClick() {
 function handleSeeEvent(event) {
   // TODO: navigate to event detail page
   console.log('See event:', event)
+}
+
+function stopImpersonating() {
+  localStorage.removeItem('aura_impersonate_school_id')
+  localStorage.removeItem('aura_impersonate_school_name')
+  localStorage.removeItem('aura_impersonate_school_logo')
+  window.location.href = '/super-admin/campuses'
 }
 </script>
 

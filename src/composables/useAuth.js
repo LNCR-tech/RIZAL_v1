@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import api from '@/services/api.js'
 
 export function useAuth() {
     const router = useRouter()
@@ -10,19 +11,68 @@ export function useAuth() {
         isLoading.value = true
         error.value = null
 
-        try {
-            // TODO: Replace with real API call
-            await new Promise((resolve) => setTimeout(resolve, 800))
+        // 🟢 DEVELOPMENT BYPASS: Support for Super Admin mock login
+        if (email === 'superadmin@aura.edu' && password === 'admin123') {
+            const mockToken = 'aura_dev_token_superadmin'
+            const mockRoles = [{ role: { id: 1, name: 'super_admin' } }]
+            localStorage.setItem('aura_token', mockToken)
+            localStorage.setItem('aura_user_roles', JSON.stringify(mockRoles))
+            router.push({ name: 'SuperAdminDashboard' })
+            isLoading.value = false
+            return
+        }
 
-            if (email && password) {
-                localStorage.setItem('aura_token', 'mock_token')
-                localStorage.setItem('mock_logged_in_email', email) // Store email to pick right mock user
-                router.push({ name: 'Home' })
+        // 🟡 DEVELOPMENT BYPASS: Allow new campus admins to login
+        const savedCampuses = localStorage.getItem('aura_campuses')
+        if (savedCampuses) {
+            try {
+                const campuses = JSON.parse(savedCampuses)
+                const targetCampus = campuses.find(c => c.admin?.email === email && c.admin?.password === password)
+                
+                if (targetCampus) {
+                    const mockToken = `aura_dev_token_${targetCampus.id}`
+                    const mockRoles = [{ role: { id: 2, name: 'admin' } }]
+                    
+                    // Set impersonation data so they see their own campus
+                    localStorage.setItem('aura_token', mockToken)
+                    localStorage.setItem('aura_user_roles', JSON.stringify(mockRoles))
+                    localStorage.setItem('aura_impersonate_school_id', targetCampus.id)
+                    localStorage.setItem('aura_impersonate_school_name', targetCampus.name)
+                    localStorage.setItem('aura_impersonate_school_logo', targetCampus.logo)
+                    
+                    router.push({ name: 'Home' })
+                    isLoading.value = false
+                    return
+                }
+            } catch (e) {
+                console.error('Bypass check error:', e)
+            }
+        }
+
+        try {
+            const response = await api.post('/login', { email, password })
+            
+            if (response.data && response.data.access_token) {
+                localStorage.setItem('aura_token', response.data.access_token)
+                
+                // Store useful user info
+                if (response.data.roles) {
+                    localStorage.setItem('aura_user_roles', JSON.stringify(response.data.roles))
+                }
+                
+                // Redirect based on role
+                const roles = response.data.roles || []
+                if (roles.some(r => r?.role?.name === 'super_admin' || r?.role?.name === 'superadmin')) {
+                    router.push({ name: 'SuperAdminDashboard' })
+                } else {
+                    router.push({ name: 'Home' })
+                }
             } else {
-                throw new Error('Please enter your email and password.')
+                throw new Error('Login failed. No token received.')
             }
         } catch (err) {
-            error.value = err.message || 'Login failed. Please try again.'
+            console.error('Login error:', err)
+            error.value = err.response?.data?.detail || err.message || 'Login failed. Please check your credentials.'
         } finally {
             isLoading.value = false
         }
@@ -30,6 +80,7 @@ export function useAuth() {
 
     function logout() {
         localStorage.removeItem('aura_token')
+        localStorage.removeItem('aura_user_roles')
         router.push({ name: 'Login' })
     }
 
