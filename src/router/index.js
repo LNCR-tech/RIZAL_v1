@@ -1,12 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
-    // Auth routes (no layout)
+    // Redirect root to Super Admin
     {
         path: '/',
-        name: 'Login',
-        component: () => import('@/views/auth/LoginView.vue'),
-        meta: { requiresGuest: true },
+        redirect: '/super-admin'
     },
 
     // Student dashboard routes (wrapped in AppLayout)
@@ -63,34 +61,15 @@ const router = createRouter({
     routes,
 })
 
-// Navigation guard
+// Simplified Navigation guard for direct access
 router.beforeEach((to, _from, next) => {
-    const isAuthenticated = !!localStorage.getItem('aura_token')
-    const rolesJSON = localStorage.getItem('aura_user_roles')
-    let roles = []
-    try {
-        roles = rolesJSON ? JSON.parse(rolesJSON) : []
-    } catch (e) {
-        roles = []
+    // Ensure we have a mock token for development if login is removed
+    if (!localStorage.getItem('aura_token')) {
+        localStorage.setItem('aura_token', 'aura_dev_bypass_token')
+        localStorage.setItem('aura_user_roles', JSON.stringify([{ role: { id: 1, name: 'super_admin' } }]))
     }
-
-    const isSuperAdmin = (roles || []).some(r => r?.role?.name === 'super_admin' || r?.role?.name === 'superadmin')
-
-    if (to.meta.requiresAuth && !isAuthenticated) {
-        next({ name: 'Login' })
-    } else if (to.meta.requiresGuest && isAuthenticated) {
-        // Redirect based on role
-        if (isSuperAdmin) {
-            next({ name: 'SuperAdminDashboard' })
-        } else {
-            next({ name: 'Home' })
-        }
-    } else if (to.meta.role === 'super_admin' && !isSuperAdmin) {
-        // Accessing super admin page but not a super admin
-        next({ name: 'Home' })
-    } else {
-        next()
-    }
+    
+    next()
 })
 
 export default router
