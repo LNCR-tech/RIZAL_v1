@@ -11,10 +11,34 @@ class EmailDeliveryError(Exception):
     pass
 
 
-def _send_email(subject: str, recipient_email: str, body: str) -> None:
+def validate_email_delivery_settings() -> None:
+    _validate_smtp_settings()
+
+
+def _validate_smtp_settings() -> None:
     settings = get_settings()
+    smtp_host = settings.smtp_host.strip().lower()
+    smtp_from_email = settings.smtp_from_email.strip().lower()
+
     if not settings.smtp_host:
         raise EmailDeliveryError("SMTP_HOST is not configured")
+
+    if smtp_host == "smtp.gmail.com":
+        if not settings.smtp_username or not settings.smtp_password:
+            raise EmailDeliveryError(
+                "Gmail SMTP requires SMTP_USERNAME and SMTP_PASSWORD. "
+                "Use a Gmail App Password or switch the Docker stack to a local SMTP server."
+            )
+        if smtp_from_email == "noreply@valid8.local":
+            raise EmailDeliveryError(
+                "SMTP_FROM_EMAIL is still using the placeholder noreply@valid8.local. "
+                "Set it to the authenticated Gmail sender address."
+            )
+
+
+def _send_email(subject: str, recipient_email: str, body: str) -> None:
+    settings = get_settings()
+    validate_email_delivery_settings()
 
     msg = EmailMessage()
     msg["Subject"] = subject

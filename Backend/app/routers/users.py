@@ -33,7 +33,6 @@ from app.schemas.event import Event as EventSchema  # Pydantic schema for respon
 from app.models.user import User as UserModel, UserRole, StudentProfile, SSGProfile
 from app.models.role import Role
 from app.models.attendance import Attendance
-from app.services.face_recognition import FaceRecognitionService
 from app.services.email_service import EmailDeliveryError, send_welcome_email
 from app.utils.passwords import generate_secure_password
 from app.database import get_db
@@ -44,7 +43,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi import Body
 
 router = APIRouter(prefix="/users", tags=["users"])
-face_service = FaceRecognitionService()
 logger = logging.getLogger(__name__)
 
 # Helper function to check if user has any of the required roles

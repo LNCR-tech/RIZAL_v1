@@ -18,6 +18,15 @@ from app.models.program import Program  # This imports your Event model
 from app.models.associations import event_program_association  # This imports your Event model
 from app.models.department import Department 
 from app.models.associations import event_program_association, event_department_association
+from app.services.attendance_status import (
+    ATTENDED_STATUS_VALUES,
+    empty_attendance_status_counts,
+    is_attended_status,
+    normalize_attendance_status,
+    resolve_time_in_status,
+)
+from app.services.event_time_status import get_attendance_decision
+from app.services.event_workflow_status import sync_event_workflow_status
 
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -27,7 +36,25 @@ def _get_event_in_school_or_404(db: Session, event_id: int, school_id: int) -> E
     event = db.query(Event).filter(Event.id == event_id, Event.school_id == school_id).first()
     if not event:
         raise HTTPException(404, "Event not found")
+    result = sync_event_workflow_status(db, event)
+    if result.changed:
+        db.commit()
+        db.refresh(event)
     return event
+
+
+def _get_event_attendance_decision(event: Event) -> dict[str, Any]:
+    decision = get_attendance_decision(
+        start_time=event.start_datetime,
+        end_time=event.end_datetime,
+        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+    )
+    payload = decision.to_dict()
+    for key in ("current_time", "start_time", "end_time", "late_threshold_time"):
+        value = payload.get(key)
+        if isinstance(value, datetime):
+            payload[key] = value.isoformat()
+    return payload
 
 # Request models
 class ManualAttendanceRequest(BaseModel):
@@ -73,6 +100,10 @@ def get_event_attendance_report(
 
     if not event:
         raise HTTPException(404, "Event not found")
+    sync_result = sync_event_workflow_status(db, event)
+    if sync_result.changed:
+        db.commit()
+        db.refresh(event)
     school_id = event.school_id
     if school_id is None:
         raise HTTPException(400, "Event is not linked to a school")
@@ -95,6 +126,7 @@ def get_event_attendance_report(
         participant_query = participant_query.filter(StudentProfile.department_id.in_(department_ids))
 
     participant_subquery = participant_query.subquery()
+    normalized_status = func.lower(AttendanceModel.status.cast(String))
 
     total_participants = (
         db.query(func.count())
@@ -111,7 +143,7 @@ def get_event_attendance_report(
         )
         .filter(
             AttendanceModel.event_id == event.id,
-            func.lower(AttendanceModel.status.cast(String)) == AttendanceStatus.PRESENT.value,
+            normalized_status.in_(ATTENDED_STATUS_VALUES),
         )
         .scalar()
         or 0
@@ -141,12 +173,44 @@ def get_event_attendance_report(
             )
             .filter(
                 AttendanceModel.event_id == event.id,
-                func.lower(AttendanceModel.status.cast(String)) == AttendanceStatus.PRESENT.value,
+                normalized_status == AttendanceStatus.PRESENT.value,
             )
             .group_by(participant_subquery.c.program_id)
             .all()
         )
     }
+    late_by_program = {
+        program_id: late_count
+        for program_id, late_count in (
+            db.query(
+                participant_subquery.c.program_id,
+                func.count(func.distinct(AttendanceModel.student_id)).label("late_count"),
+            )
+            .join(
+                AttendanceModel,
+                AttendanceModel.student_id == participant_subquery.c.student_id,
+            )
+            .filter(
+                AttendanceModel.event_id == event.id,
+                normalized_status == AttendanceStatus.LATE.value,
+            )
+            .group_by(participant_subquery.c.program_id)
+            .all()
+        )
+    }
+    late_attendees = (
+        db.query(func.count(func.distinct(AttendanceModel.student_id)))
+        .join(
+            participant_subquery,
+            AttendanceModel.student_id == participant_subquery.c.student_id,
+        )
+        .filter(
+            AttendanceModel.event_id == event.id,
+            normalized_status == AttendanceStatus.LATE.value,
+        )
+        .scalar()
+        or 0
+    )
 
     program_ids_from_participants = {
         program_id
@@ -170,12 +234,14 @@ def get_event_attendance_report(
     for program in program_models:
         total = int(totals_by_program.get(program.id, 0) or 0)
         present = int(present_by_program.get(program.id, 0) or 0)
-        absent = max(total - present, 0)
+        late = int(late_by_program.get(program.id, 0) or 0)
+        absent = max(total - present - late, 0)
         breakdown_payload.append(
             {
                 "program": program.name,
                 "total": total,
                 "present": present,
+                "late": late,
                 "absent": absent,
             }
         )
@@ -183,12 +249,14 @@ def get_event_attendance_report(
     unknown_program_total = int(totals_by_program.get(None, 0) or 0)
     if unknown_program_total > 0:
         unknown_present = int(present_by_program.get(None, 0) or 0)
+        unknown_late = int(late_by_program.get(None, 0) or 0)
         breakdown_payload.append(
             {
                 "program": "Unassigned",
                 "total": unknown_program_total,
                 "present": unknown_present,
-                "absent": max(unknown_program_total - unknown_present, 0),
+                "late": unknown_late,
+                "absent": max(unknown_program_total - unknown_present - unknown_late, 0),
             }
         )
 
@@ -201,6 +269,7 @@ def get_event_attendance_report(
         event_location=event.location or "N/A",
         total_participants=int(total_participants),
         attendees=int(attendees),
+        late_attendees=int(late_attendees),
         absentees=absentees,
         attendance_rate=attendance_rate,
         programs=programs_payload,
@@ -292,7 +361,14 @@ async def get_students_attendance_overview(
             # Build attendance query with date range filtering
             attendance_query = db.query(
                 AttendanceModel.student_id,
-                func.count(case((AttendanceModel.status == 'present', 1))).label('total_attended'),
+                func.count(
+                    case(
+                        (
+                            func.lower(AttendanceModel.status.cast(String)).in_(ATTENDED_STATUS_VALUES),
+                            1,
+                        )
+                    )
+                ).label('total_attended'),
                 func.count(func.distinct(AttendanceModel.event_id)).label('total_events'),
                 func.max(AttendanceModel.time_in).label('last_attendance')
             ).join(Event, AttendanceModel.event_id == Event.id).filter(
@@ -442,9 +518,16 @@ def get_student_attendance_report(
     attendances = attendance_query.order_by(Event.start_datetime.desc()).all()
     
     # Calculate summary statistics
-    total_attended = len([a for a in attendances if a.status == "present"])
-    total_absent = len([a for a in attendances if a.status == "absent"])
-    total_excused = len([a for a in attendances if a.status == "excused"])
+    total_attended = len([a for a in attendances if is_attended_status(a.status)])
+    total_late = len(
+        [a for a in attendances if normalize_attendance_status(a.status) == AttendanceStatus.LATE.value]
+    )
+    total_absent = len(
+        [a for a in attendances if normalize_attendance_status(a.status) == AttendanceStatus.ABSENT.value]
+    )
+    total_excused = len(
+        [a for a in attendances if normalize_attendance_status(a.status) == AttendanceStatus.EXCUSED.value]
+    )
     total_events = len(attendances)
     
     attendance_rate = (total_attended / total_events * 100) if total_events > 0 else 0
@@ -460,6 +543,7 @@ def get_student_attendance_report(
         student_name=full_name,
         total_events=total_events,
         attended_events=total_attended,
+        late_events=total_late,
         absent_events=total_absent,
         excused_events=total_excused,
         attendance_rate=round(attendance_rate, 2),
@@ -493,8 +577,9 @@ def get_student_attendance_report(
         if attendance.event and attendance.event.start_datetime:
             month_key = attendance.event.start_datetime.strftime("%Y-%m")
             if month_key not in monthly_stats:
-                monthly_stats[month_key] = {"present": 0, "absent": 0, "excused": 0}
-            monthly_stats[month_key][attendance.status] += 1
+                monthly_stats[month_key] = empty_attendance_status_counts()
+            status_value = normalize_attendance_status(attendance.status)
+            monthly_stats[month_key][status_value] = monthly_stats[month_key].get(status_value, 0) + 1
     
     # Generate event type statistics (customize based on your event types)
     event_type_stats = {}
@@ -596,12 +681,16 @@ def get_student_attendance_stats(
     ).group_by(Event.event_type, AttendanceModel.status).all()
     
     # Format data for frontend charts
+    status_distribution = empty_attendance_status_counts()
+    for row in status_counts:
+        status_distribution[normalize_attendance_status(row.status)] = int(row.count)
+
     return {
-        "status_distribution": {row.status: row.count for row in status_counts},
+        "status_distribution": status_distribution,
         "trend_data": [
             {
                 "period": row.period.strftime(f"%Y-%m-%d" if group_by == "day" else "%Y-%m" if group_by == "month" else "%Y-%U" if group_by == "week" else "%Y") if row.period else None,
-                "status": row.status,
+                "status": normalize_attendance_status(row.status),
                 "count": row.count
             }
             for row in trend_results
@@ -609,7 +698,7 @@ def get_student_attendance_stats(
         "event_type_breakdown": [
             {
                 "event_type": row.type or "Unknown",
-                "status": row.status,
+                "status": normalize_attendance_status(row.status),
                 "count": row.count
             }
             for row in event_type_query
@@ -662,8 +751,10 @@ def get_attendance_summary(
     # Get summary statistics
     total_records = query.count()
     present_count = query.filter(AttendanceModel.status == "present").count()
+    late_count = query.filter(AttendanceModel.status == "late").count()
     absent_count = query.filter(AttendanceModel.status == "absent").count()
     excused_count = query.filter(AttendanceModel.status == "excused").count()
+    attended_count = present_count + late_count
     
     # Get unique students and events count
     unique_students = query.with_entities(AttendanceModel.student_id).distinct().count()
@@ -673,9 +764,11 @@ def get_attendance_summary(
         "summary": {
             "total_attendance_records": total_records,
             "present_count": present_count,
+            "late_count": late_count,
+            "attended_count": attended_count,
             "absent_count": absent_count,
             "excused_count": excused_count,
-            "attendance_rate": round((present_count / total_records * 100) if total_records > 0 else 0, 2),
+            "attendance_rate": round((attended_count / total_records * 100) if total_records > 0 else 0, 2),
             "unique_students": unique_students,
             "unique_events": unique_events
         },
@@ -728,7 +821,10 @@ def record_face_scan_attendance(
     if not has_any_role(current_user, ["ssg"]):
         raise HTTPException(403, "Requires SSG role")
     school_id = get_school_id_or_403(current_user)
-    _get_event_in_school_or_404(db, event_id, school_id)
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    attendance_decision = _get_event_attendance_decision(event)
+    if not attendance_decision["attendance_allowed"]:
+        raise HTTPException(409, attendance_decision)
 
     student = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
@@ -751,14 +847,21 @@ def record_face_scan_attendance(
         time_diff = (datetime.utcnow() - existing.time_in).total_seconds()
         if time_diff < 300:  # 5-minute cooldown
             raise HTTPException(400, f"Duplicate scan detected. Last scan was {int(time_diff/60)} minutes ago.")
+
+    scanned_at = datetime.utcnow()
+    status_value = attendance_decision["attendance_status"] or resolve_time_in_status(
+        event_start=event.start_datetime,
+        time_in=scanned_at,
+        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+    )
     
     # Create attendance record
     attendance = AttendanceModel(
         student_id=student.id,
         event_id=event_id,
-        time_in=datetime.utcnow(),
+        time_in=scanned_at,
         method="face_scan",
-        status=AttendanceStatus.PRESENT,
+        status=status_value,
         verified_by=current_user.id
     )
     
@@ -785,7 +888,10 @@ def record_manual_attendance(
     if not has_any_role(current_user, ["ssg"]):
         raise HTTPException(403, "Requires SSG role")
     school_id = get_school_id_or_403(current_user)
-    _get_event_in_school_or_404(db, data.event_id, school_id)
+    event = _get_event_in_school_or_404(db, data.event_id, school_id)
+    attendance_decision = _get_event_attendance_decision(event)
+    if not attendance_decision["attendance_allowed"]:
+        raise HTTPException(409, attendance_decision)
 
     student = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
@@ -805,14 +911,21 @@ def record_manual_attendance(
     
     if existing:
         raise HTTPException(400, f"Attendance already exists for student {data.student_id}")
+
+    recorded_at = datetime.utcnow()
+    status_value = attendance_decision["attendance_status"] or resolve_time_in_status(
+        event_start=event.start_datetime,
+        time_in=recorded_at,
+        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+    )
     
     # Create attendance record
     attendance = AttendanceModel(
         student_id=student.id,
         event_id=data.event_id,
-        time_in=datetime.now(timezone.utc),
+        time_in=recorded_at,
         method="manual",
-        status="present",  # Use direct string
+        status=status_value,
         verified_by=current_user.id,
         notes=data.notes
     )
@@ -838,17 +951,34 @@ def record_bulk_attendance(
     school_id = get_school_id_or_403(current_user)
 
     requested_event_ids = {record.event_id for record in data.records}
-    allowed_event_ids = {
-        event_id for (event_id,) in db.query(Event.id).filter(
+    allowed_events = {
+        event.id: event
+        for event in db.query(Event).filter(
             Event.id.in_(requested_event_ids),
             Event.school_id == school_id,
         ).all()
     }
+    event_sync_changed = False
+    for event in allowed_events.values():
+        sync_result = sync_event_workflow_status(db, event)
+        event_sync_changed = event_sync_changed or sync_result.changed
+    if event_sync_changed:
+        db.commit()
 
     results = []
     for record in data.records:
-        if record.event_id not in allowed_event_ids:
+        event = allowed_events.get(record.event_id)
+        if event is None:
             results.append({"student_id": record.student_id, "status": "event_not_in_school"})
+            continue
+        attendance_decision = _get_event_attendance_decision(event)
+        if not attendance_decision["attendance_allowed"]:
+            results.append(
+                {
+                    "student_id": record.student_id,
+                    "status": attendance_decision["reason_code"] or "attendance_not_allowed",
+                }
+            )
             continue
 
         student = db.query(StudentProfile).join(
@@ -871,12 +1001,17 @@ def record_bulk_attendance(
             results.append({"student_id": record.student_id, "status": "exists"})
             continue
             
+        recorded_at = datetime.utcnow()
         attendance = AttendanceModel(
             student_id=student.id,
             event_id=record.event_id,
-            time_in=datetime.utcnow(),
+            time_in=recorded_at,
             method="manual",
-            status=AttendanceStatus.PRESENT,
+            status=attendance_decision["attendance_status"] or resolve_time_in_status(
+                event_start=event.start_datetime,
+                time_in=recorded_at,
+                late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+            ),
             verified_by=current_user.id,
             notes=record.notes
         )
@@ -1409,7 +1544,7 @@ def mark_absent_no_timeout(
         AttendanceModel.event_id == event_id,
         AttendanceModel.time_in.isnot(None),
         AttendanceModel.time_out.is_(None),
-        AttendanceModel.status == "present"
+        AttendanceModel.status.in_(["present", "late", "absent"]),
     ).all()
     
     updated_count = 0

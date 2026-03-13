@@ -14,13 +14,16 @@ import {
   FaThList,
   FaPlus,
 } from "react-icons/fa";
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 import userprofile from "../assets/images/userprofile.png";
+import { useRoleSidebarLayout } from "../hooks/useRoleSidebarLayout";
 import "../css/NavbarStudentSSGEventOrganizer.css";
 
 export const NavbarStudentSSGEventOrganizer = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  useRoleSidebarLayout({ isExpanded, sidebarOpen });
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -45,6 +48,11 @@ export const NavbarStudentSSGEventOrganizer = () => {
       path: "/student_ssg_eventorganizer_events_attended",
       icon: <FaClipboardCheck />,
       text: "Events Attended",
+    },
+    {
+      path: "/student_event_checkin",
+      icon: <FaCheckCircle />,
+      text: "Event Sign In",
     },
     {
       path: "/student_ssg_eventorganizer_events",

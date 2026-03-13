@@ -8,13 +8,16 @@ import {
   FaTimes,
   FaThList,
 } from "react-icons/fa";
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 import userprofile from "../assets/images/userprofile.png";
+import { useRoleSidebarLayout } from "../hooks/useRoleSidebarLayout";
 import "../css/NavbarEventOrganizer.css";
 
 export const NavbarEventOrganizer = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  useRoleSidebarLayout({ isExpanded, sidebarOpen });
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);

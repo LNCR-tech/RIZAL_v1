@@ -52,7 +52,7 @@ interface AttendanceDetail {
   event_date: string;
   time_in: string | null;
   time_out: string | null;
-  status: "present" | "absent";
+  status: "present" | "late" | "absent" | "excused";
   method: string;
   notes: string | null;
   duration_minutes: number | null;
@@ -64,12 +64,17 @@ interface StudentAttendanceReport {
     student_name: string;
     total_events: number;
     attended_events: number;
+    late_events: number;
     absent_events: number;
+    excused_events: number;
     attendance_rate: number;
     last_attendance: string | null;
   };
   attendance_records: AttendanceDetail[];
-  monthly_stats: Record<string, { present: number; absent: number }>;
+  monthly_stats: Record<
+    string,
+    { present: number; late: number; absent: number; excused: number }
+  >;
   event_type_stats: Record<string, number>;
 }
 
@@ -95,7 +100,7 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "present" | "absent"
+    "all" | "present" | "late" | "absent" | "excused"
   >("all");
 
   const fetchOverviewData = async () => {
@@ -211,8 +216,12 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     switch (status) {
       case "present":
         return <span className="badge present">Present</span>;
+      case "late":
+        return <span className="badge late">Late</span>;
       case "absent":
         return <span className="badge absent">Absent</span>;
+      case "excused":
+        return <span className="badge excused">Excused</span>;
       default:
         return <span className="badge unknown">Unknown</span>;
     }
@@ -244,12 +253,21 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
             <select
               value={statusFilter}
               onChange={(e) =>
-                setStatusFilter(e.target.value as "all" | "present" | "absent")
+                setStatusFilter(
+                  e.target.value as
+                    | "all"
+                    | "present"
+                    | "late"
+                    | "absent"
+                    | "excused"
+                )
               }
             >
               <option value="all">All Statuses</option>
               <option value="present">Present Only</option>
+              <option value="late">Late Only</option>
               <option value="absent">Absent Only</option>
+              <option value="excused">Excused Only</option>
             </select>
           </div>
         )}
@@ -336,25 +354,38 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     if (!reportData)
       return <div className="loading">Loading student report...</div>;
 
+    const presentEvents =
+      statusFilter === "all"
+        ? Math.max(0, reportData.student.attended_events - reportData.student.late_events)
+        : filteredAttendanceRecords.filter((r) => r.status === "present").length;
     const attendedEvents =
       statusFilter === "all"
         ? reportData.student.attended_events
-        : filteredAttendanceRecords.filter((r) => r.status === "present")
-            .length;
+        : filteredAttendanceRecords.filter(
+            (r) => r.status === "present" || r.status === "late"
+          ).length;
+    const lateEvents =
+      statusFilter === "all"
+        ? reportData.student.late_events
+        : filteredAttendanceRecords.filter((r) => r.status === "late").length;
 
     const absentEvents =
       statusFilter === "all"
         ? reportData.student.absent_events
         : filteredAttendanceRecords.filter((r) => r.status === "absent").length;
+    const excusedEvents =
+      statusFilter === "all"
+        ? reportData.student.excused_events
+        : filteredAttendanceRecords.filter((r) => r.status === "excused").length;
 
     // Prepare data for charts
     const statusDistributionData = {
-      labels: ["Present", "Absent"],
+      labels: ["Present", "Late", "Absent", "Excused"],
       datasets: [
         {
-          data: [attendedEvents, absentEvents],
-          backgroundColor: ["#4CAF50", "#F44336"],
-          borderColor: ["#388E3C", "#D32F2F"],
+          data: [presentEvents, lateEvents, absentEvents, excusedEvents],
+          backgroundColor: ["#4CAF50", "#FFB74D", "#F44336", "#42A5F5"],
+          borderColor: ["#388E3C", "#F57C00", "#D32F2F", "#1E88E5"],
           borderWidth: 1,
         },
       ],
@@ -377,6 +408,17 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
           backgroundColor: "#4CAF50",
         },
         {
+          label: "Late",
+          data: monthlyLabels.map((month) => {
+            if (statusFilter === "all")
+              return reportData.monthly_stats[month]?.late || 0;
+            if (statusFilter === "late")
+              return reportData.monthly_stats[month]?.late || 0;
+            return 0;
+          }),
+          backgroundColor: "#FFB74D",
+        },
+        {
           label: "Absent",
           data: monthlyLabels.map((month) => {
             if (statusFilter === "all")
@@ -386,6 +428,17 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
             return 0;
           }),
           backgroundColor: "#F44336",
+        },
+        {
+          label: "Excused",
+          data: monthlyLabels.map((month) => {
+            if (statusFilter === "all")
+              return reportData.monthly_stats[month]?.excused || 0;
+            if (statusFilter === "excused")
+              return reportData.monthly_stats[month]?.excused || 0;
+            return 0;
+          }),
+          backgroundColor: "#42A5F5",
         },
       ],
     };
@@ -411,8 +464,16 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
               <p>{attendedEvents}</p>
             </div>
             <div className="stat-card">
+              <h3>Late</h3>
+              <p>{lateEvents}</p>
+            </div>
+            <div className="stat-card">
               <h3>Absent</h3>
               <p>{absentEvents}</p>
+            </div>
+            <div className="stat-card">
+              <h3>Excused</h3>
+              <p>{excusedEvents}</p>
             </div>
             <div className="stat-card">
               <h3>Attendance Rate</h3>
@@ -773,6 +834,16 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
         .badge.absent {
           background: #ffebee;
           color: #c62828;
+        }
+
+        .badge.late {
+          background: #fff4e5;
+          color: #9a6700;
+        }
+
+        .badge.excused {
+          background: #e3f2fd;
+          color: #1565c0;
         }
 
         .date {

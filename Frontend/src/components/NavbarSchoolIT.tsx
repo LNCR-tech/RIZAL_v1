@@ -10,10 +10,11 @@ import {
   FaRegListAlt,
   FaShieldAlt,
   FaSitemap,
+  FaUserShield,
   FaUserCircle,
   FaUsers,
 } from "react-icons/fa";
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 import { useUser } from "../context/UserContext";
 import { normalizeLogoUrl } from "../api/schoolSettingsApi";
 
@@ -109,6 +110,12 @@ const NavbarSchoolIT = () => {
               <NavLink to="/school_it_security" className="nav-link">
                 <FaShieldAlt className="me-2" />
                 Security
+              </NavLink>
+            </li>
+            <li className="nav-item">
+              <NavLink to="/school_it_face_verification" className="nav-link">
+                <FaUserShield className="me-2" />
+                Facial Verification
               </NavLink>
             </li>
             <li className="nav-item">

@@ -21,6 +21,16 @@ class Settings:
     secret_key: str
     jwt_algorithm: str
     access_token_expire_minutes: int
+    auth_enable_mfa: bool
+    face_match_threshold: float
+    liveness_min_score: float
+    allow_liveness_bypass_when_model_missing: bool
+    anti_spoof_scale: float
+    anti_spoof_model_path: str
+    geo_max_allowed_accuracy_m: float
+    geo_max_travel_speed_mps: float
+    event_status_sync_enabled: bool
+    event_status_sync_interval_seconds: int
 
     import_max_file_size_mb: int
     import_chunk_size: int
@@ -54,6 +64,22 @@ def get_settings() -> Settings:
         secret_key=os.getenv("SECRET_KEY", "change-this-secret-in-production"),
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
         access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
+        auth_enable_mfa=_as_bool(os.getenv("AUTH_ENABLE_MFA"), True),
+        face_match_threshold=float(os.getenv("FACE_MATCH_THRESHOLD", "0.5")),
+        liveness_min_score=float(os.getenv("LIVENESS_MIN_SCORE", "0.85")),
+        allow_liveness_bypass_when_model_missing=_as_bool(
+            os.getenv("ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING"),
+            False,
+        ),
+        anti_spoof_scale=float(os.getenv("ANTI_SPOOF_SCALE", "2.7")),
+        anti_spoof_model_path=os.getenv("ANTI_SPOOF_MODEL_PATH", "").strip(),
+        geo_max_allowed_accuracy_m=float(os.getenv("GEO_MAX_ALLOWED_ACCURACY_M", "30")),
+        geo_max_travel_speed_mps=float(os.getenv("GEO_MAX_TRAVEL_SPEED_MPS", "60")),
+        event_status_sync_enabled=_as_bool(os.getenv("EVENT_STATUS_SYNC_ENABLED"), True),
+        event_status_sync_interval_seconds=max(
+            30,
+            int(os.getenv("EVENT_STATUS_SYNC_INTERVAL_SECONDS", "60")),
+        ),
         import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "50")),
         import_chunk_size=max(1, int(os.getenv("IMPORT_CHUNK_SIZE", "5000"))),
         import_storage_dir=os.getenv("IMPORT_STORAGE_DIR", "/tmp/valid8_imports"),

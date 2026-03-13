@@ -1,5 +1,5 @@
 # app/models/attendance.py
-from sqlalchemy import Column, Integer, String, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 
 class AttendanceStatus(PyEnum):
     PRESENT = "present"  # Must match database exactly
+    LATE = "late"
     ABSENT = "absent"
     EXCUSED = "excused"
 
@@ -27,7 +28,7 @@ class Attendance(Base):
     method = Column(String(50))  # "face_scan", "manual", etc.
     status = Column(
         PG_ENUM(
-            'present', 'absent', 'excused',  # Explicit lowercase values
+            'present', 'late', 'absent', 'excused',  # Explicit lowercase values
             name='attendancestatus',
             create_type=False  # Use existing type
         ),
@@ -36,6 +37,13 @@ class Attendance(Base):
     )
     verified_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))  # Who verified (SSG/admin)
     notes = Column(String(500))  # Reason for excused absence, etc.
+    geo_distance_m = Column(Float, nullable=True)
+    geo_effective_distance_m = Column(Float, nullable=True)
+    geo_latitude = Column(Float, nullable=True)
+    geo_longitude = Column(Float, nullable=True)
+    geo_accuracy_m = Column(Float, nullable=True)
+    liveness_label = Column(String(32), nullable=True)
+    liveness_score = Column(Float, nullable=True)
 
     # Relationships
     student = relationship("StudentProfile", back_populates="attendances")

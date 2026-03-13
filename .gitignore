@@ -37,7 +37,10 @@ Backend/.env
 *.sqlite
 *.sqlite3
 postgres_data/
+Backend/smoke.db
 
 # Project-specific generated files
 Backend/face_encodings.pkl
 Backend/.alembic.ini.swp
+Backend/.venv/
+GITHUB/

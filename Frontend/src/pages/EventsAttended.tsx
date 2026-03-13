@@ -1,58 +1,40 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { FaSearch } from "react-icons/fa";
+import { fetchMyAttendanceRecords, type AttendanceRecord } from "../api/eventsApi";
 import { NavbarStudent } from "../components/NavbarStudent";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
 import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
-import { FaSearch } from "react-icons/fa";
 
 interface EventsAttendedProps {
   role: string;
 }
 
-interface AttendanceRecord {
-  id: number;
-  event_id: number;
-  event_name: string;
-  time_in: string;
-  time_out: string | null;
-  status: "present" | "absent" | "excused";
-  method: "face_scan" | "manual";
-  duration_minutes: number | null;
-}
-
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const getStatusLabel = (status: AttendanceRecord["status"]) => {
+  switch (status) {
+    case "present":
+      return "Present";
+    case "late":
+      return "Late";
+    case "absent":
+      return "Absent";
+    case "excused":
+      return "Excused";
+    default:
+      return status;
+  }
+};
 
 export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const getAuthToken = () =>
-    localStorage.getItem("authToken") ||
-    localStorage.getItem("token") ||
-    localStorage.getItem("access_token");
 
   useEffect(() => {
     const fetchMyAttendance = async () => {
       setIsLoading(true);
       try {
-        const token = getAuthToken();
-        if (!token) {
-          throw new Error("Authentication required");
-        }
-        const response = await fetch(`${BASE_URL}/attendance/me/records`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        // Extract the attendances from the first (and only) student record
-        if (data.length > 0 && data[0].attendances) {
-          setRecords(data[0].attendances);
-        }
+        const data = await fetchMyAttendanceRecords();
+        setRecords(data);
       } catch (error) {
         console.error("Error fetching attendance records:", error);
       } finally {
@@ -132,18 +114,10 @@ export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
                     <td>{record.event_name}</td>
                     <td>{formatDate(record.time_in)}</td>
                     <td>{formatTime(record.time_in)}</td>
-                    <td>
-                      {record.time_out ? formatTime(record.time_out) : "-"}
-                    </td>
+                    <td>{record.time_out ? formatTime(record.time_out) : "-"}</td>
                     <td>
                       <span className={`status ${record.status}`}>
-                        {record.status.charAt(0).toUpperCase() +
-                          record.status.slice(1)}
-                        {record.status === "present"
-                          ? " ✅"
-                          : record.status === "absent"
-                          ? " ❌"
-                          : " ⚠️"}
+                        {getStatusLabel(record.status)}
                       </span>
                     </td>
                   </tr>
@@ -246,6 +220,11 @@ export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
         .status.present {
           background-color: #eef6ff;
           color: var(--primary-color, #162F65);
+        }
+
+        .status.late {
+          background-color: #fff4e5;
+          color: #9a6700;
         }
 
         .status.absent {

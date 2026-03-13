@@ -1,29 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { login, requestForgotPassword, verifyMfaChallenge } from "../api/authApi";
-import { normalizeLogoUrl } from "../api/schoolSettingsApi";
+import {
+  clearPendingFaceAuthSession,
+  login,
+  persistAuthSession,
+  requestForgotPassword,
+  storePendingFaceAuthSession,
+  verifyMfaChallenge,
+  type AuthSession,
+} from "../api/authApi";
+import {
+  buildBrandingFromAuthSession,
+  getRequiredFaceVerificationRole,
+  resolvePostAuthenticationPath,
+  syncRememberedEmail,
+} from "../authFlow";
 import { useUser } from "../context/UserContext";
 import { FaUser, FaLock, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
-import { motion } from "framer-motion";
-
-const resolveDashboardPath = (roles: string[]): string | null => {
-  const normalizedRoles = new Set(roles.map((role) => role.toLowerCase()));
-  const hasRole = (...roleNames: string[]) =>
-    roleNames.some((roleName) => normalizedRoles.has(roleName.toLowerCase()));
-
-  const isStudent = hasRole("student");
-  const isSsg = hasRole("ssg");
-  const isEventOrganizer = hasRole("event-organizer", "event_organizer");
-
-  if (hasRole("admin")) return "/admin_dashboard";
-  if (hasRole("school_it", "school-it")) return "/school_it_dashboard";
-  if (isStudent && isSsg && isEventOrganizer) return "/student_ssg_eventorganizer_dashboard";
-  if (isStudent && isSsg) return "/student_ssg_dashboard";
-  if (isStudent) return "/student_dashboard";
-  if (isSsg) return "/ssg_dashboard";
-  if (isEventOrganizer) return "/event_organizer_dashboard";
-  return null;
-};
 
 const LoginForm = () => {
   const [email, setEmail] = useState<string>("");
@@ -53,49 +46,45 @@ const LoginForm = () => {
     }
   }, []);
 
-  const finalizeLogin = (userData: any) => {
-    if (!userData.token || !userData.roles) {
+  const completeLogin = (session: AuthSession) => {
+    if (!session.token || !session.roles) {
       throw new Error("Invalid response from server.");
     }
 
-    localStorage.setItem("user", JSON.stringify(userData));
-    localStorage.setItem("token", userData.token);
+    persistAuthSession(session);
+    setBranding(buildBrandingFromAuthSession(session));
+    syncRememberedEmail(session.email || email, rememberMe);
 
-    if (userData.schoolId) {
-      setBranding({
-        school_id: userData.schoolId,
-        school_name: userData.schoolName || "School",
-        school_code: userData.schoolCode || null,
-        logo_url: normalizeLogoUrl(userData.logoUrl),
-        primary_color: userData.primaryColor || "#162F65",
-        secondary_color: userData.secondaryColor || "#2C5F9E",
-        subscription_status: "trial",
-        active_status: true,
-      });
-    }
+    navigate(
+      resolvePostAuthenticationPath({
+        roles: session.roles || [],
+        mustChangePassword: session.mustChangePassword,
+      })
+    );
+  };
 
-    if (rememberMe) {
-      localStorage.setItem("rememberedEmail", email);
-    } else {
-      localStorage.removeItem("rememberedEmail");
-    }
+  const continueLoginFlow = (session: AuthSession) => {
+    const faceRole = getRequiredFaceVerificationRole(session.roles || []);
+    const requiresFaceVerification =
+      session.faceVerificationRequired || faceRole !== null;
 
-    if (userData.mustChangePassword) {
-      navigate("/change-password");
+    if (!requiresFaceVerification || !faceRole) {
+      completeLogin(session);
       return;
     }
 
-    const targetPath = resolveDashboardPath(userData.roles || []);
-    if (targetPath) {
-      navigate(targetPath);
-      return;
-    }
-    alert("No valid role found!");
+    storePendingFaceAuthSession({
+      session,
+      rememberMe,
+      faceRole,
+    });
+    navigate("/auth/face-verification", { replace: true });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
+    clearPendingFaceAuthSession();
 
     try {
       const userData = await login(email, password);
@@ -107,7 +96,7 @@ const LoginForm = () => {
         setMfaCode("");
         return;
       }
-      finalizeLogin(userData);
+      continueLoginFlow(userData);
     } catch (error: any) {
       alert(error.message || "Login failed! Please check your credentials.");
     } finally {
@@ -132,7 +121,7 @@ const LoginForm = () => {
       setMfaChallengeId(null);
       setMfaEmail(null);
       setMfaCode("");
-      finalizeLogin(userData);
+      continueLoginFlow(userData);
     } catch (error: any) {
       alert(error.message || "Failed to verify MFA code.");
     } finally {
@@ -281,15 +270,13 @@ const LoginForm = () => {
           </div>
         )}
 
-        <motion.button
+        <button
           type="submit"
           className="login-button"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
           disabled={isLoading}
         >
           {isLoading ? <span className="spinner"></span> : "Login"}
-        </motion.button>
+        </button>
       </form>
     </div>
   );

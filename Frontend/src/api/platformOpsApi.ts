@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { buildApiUrl } from "./apiUrl";
 
 const getAuthToken = () =>
   localStorage.getItem("authToken") ||
@@ -56,7 +56,7 @@ export const fetchAuditLogs = async (params: {
   offset?: number;
 }): Promise<AuditLogSearchResponse> => {
   const query = toQuery(params);
-  const response = await fetch(`${BASE_URL}/api/audit-logs${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/audit-logs${query ? `?${query}` : ""}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -99,7 +99,7 @@ export interface NotificationDispatchSummary {
 }
 
 export const fetchNotificationPreferences = async (): Promise<NotificationPreference> => {
-  const response = await fetch(`${BASE_URL}/api/notifications/preferences/me`, {
+  const response = await fetch(buildApiUrl("/api/notifications/preferences/me"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -110,7 +110,7 @@ export const fetchNotificationPreferences = async (): Promise<NotificationPrefer
 export const updateNotificationPreferences = async (
   payload: Partial<NotificationPreference>
 ): Promise<NotificationPreference> => {
-  const response = await fetch(`${BASE_URL}/api/notifications/preferences/me`, {
+  const response = await fetch(buildApiUrl("/api/notifications/preferences/me"), {
     method: "PUT",
     headers: {
       ...withAuthHeaders(),
@@ -130,7 +130,7 @@ export const fetchNotificationLogs = async (params: {
   limit?: number;
 }): Promise<NotificationLogItem[]> => {
   const query = toQuery(params);
-  const response = await fetch(`${BASE_URL}/api/notifications/logs${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/notifications/logs${query ? `?${query}` : ""}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -139,7 +139,7 @@ export const fetchNotificationLogs = async (params: {
 };
 
 export const sendTestNotification = async (message?: string): Promise<NotificationDispatchSummary> => {
-  const response = await fetch(`${BASE_URL}/api/notifications/test`, {
+  const response = await fetch(buildApiUrl("/api/notifications/test"), {
     method: "POST",
     headers: {
       ...withAuthHeaders(),
@@ -156,7 +156,7 @@ export const dispatchMissedEventsNotifications = async (
 ): Promise<NotificationDispatchSummary> => {
   const query = toQuery(params);
   const response = await fetch(
-    `${BASE_URL}/api/notifications/dispatch/missed-events${query ? `?${query}` : ""}`,
+    buildApiUrl(`/api/notifications/dispatch/missed-events${query ? `?${query}` : ""}`),
     {
       method: "POST",
       headers: withAuthHeaders(),
@@ -171,7 +171,7 @@ export const dispatchLowAttendanceNotifications = async (
 ): Promise<NotificationDispatchSummary> => {
   const query = toQuery(params);
   const response = await fetch(
-    `${BASE_URL}/api/notifications/dispatch/low-attendance${query ? `?${query}` : ""}`,
+    buildApiUrl(`/api/notifications/dispatch/low-attendance${query ? `?${query}` : ""}`),
     {
       method: "POST",
       headers: withAuthHeaders(),
@@ -214,7 +214,7 @@ export interface LoginHistoryItem {
 }
 
 export const fetchMfaStatus = async (): Promise<MfaStatus> => {
-  const response = await fetch(`${BASE_URL}/auth/security/mfa-status`, {
+  const response = await fetch(buildApiUrl("/auth/security/mfa-status"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -225,7 +225,7 @@ export const fetchMfaStatus = async (): Promise<MfaStatus> => {
 export const updateMfaStatus = async (
   payload: { mfa_enabled: boolean; trusted_device_days?: number }
 ): Promise<MfaStatus> => {
-  const response = await fetch(`${BASE_URL}/auth/security/mfa-status`, {
+  const response = await fetch(buildApiUrl("/auth/security/mfa-status"), {
     method: "PUT",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -235,7 +235,7 @@ export const updateMfaStatus = async (
 };
 
 export const fetchUserSessions = async (): Promise<UserSessionItem[]> => {
-  const response = await fetch(`${BASE_URL}/auth/security/sessions`, {
+  const response = await fetch(buildApiUrl("/auth/security/sessions"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -244,7 +244,7 @@ export const fetchUserSessions = async (): Promise<UserSessionItem[]> => {
 };
 
 export const revokeUserSession = async (sessionId: string): Promise<void> => {
-  const response = await fetch(`${BASE_URL}/auth/security/sessions/${sessionId}/revoke`, {
+  const response = await fetch(buildApiUrl(`/auth/security/sessions/${sessionId}/revoke`), {
     method: "POST",
     headers: withAuthHeaders(),
   });
@@ -252,7 +252,7 @@ export const revokeUserSession = async (sessionId: string): Promise<void> => {
 };
 
 export const revokeOtherSessions = async (): Promise<number> => {
-  const response = await fetch(`${BASE_URL}/auth/security/sessions/revoke-others`, {
+  const response = await fetch(buildApiUrl("/auth/security/sessions/revoke-others"), {
     method: "POST",
     headers: withAuthHeaders(),
   });
@@ -262,7 +262,7 @@ export const revokeOtherSessions = async (): Promise<number> => {
 };
 
 export const fetchLoginHistory = async (limit = 100): Promise<LoginHistoryItem[]> => {
-  const response = await fetch(`${BASE_URL}/auth/security/login-history?limit=${limit}`, {
+  const response = await fetch(buildApiUrl(`/auth/security/login-history?limit=${limit}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -297,7 +297,7 @@ export interface SubscriptionSettings {
 
 export const fetchSubscription = async (schoolId?: number): Promise<SubscriptionSettings> => {
   const query = toQuery({ school_id: schoolId });
-  const response = await fetch(`${BASE_URL}/api/subscription/me${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/subscription/me${query ? `?${query}` : ""}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -310,7 +310,7 @@ export const updateSubscription = async (
   schoolId?: number
 ): Promise<SubscriptionSettings> => {
   const query = toQuery({ school_id: schoolId });
-  const response = await fetch(`${BASE_URL}/api/subscription/me${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/subscription/me${query ? `?${query}` : ""}`), {
     method: "PUT",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -326,7 +326,7 @@ export const runSubscriptionReminders = async (schoolId?: number): Promise<{
   reminders_failed: number;
 }> => {
   const query = toQuery({ school_id: schoolId });
-  const response = await fetch(`${BASE_URL}/api/subscription/run-reminders${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/subscription/run-reminders${query ? `?${query}` : ""}`), {
     method: "POST",
     headers: withAuthHeaders(),
   });
@@ -377,7 +377,7 @@ export interface DataRequestItem {
 
 export const fetchGovernanceSettings = async (schoolId?: number): Promise<GovernanceSettings> => {
   const query = toQuery({ school_id: schoolId });
-  const response = await fetch(`${BASE_URL}/api/governance/settings/me${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/governance/settings/me${query ? `?${query}` : ""}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -390,7 +390,7 @@ export const updateGovernanceSettings = async (
   schoolId?: number
 ): Promise<GovernanceSettings> => {
   const query = toQuery({ school_id: schoolId });
-  const response = await fetch(`${BASE_URL}/api/governance/settings/me${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/governance/settings/me${query ? `?${query}` : ""}`), {
     method: "PUT",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -405,7 +405,7 @@ export const createConsent = async (payload: {
   consent_version?: string;
   source?: string;
 }): Promise<ConsentItem> => {
-  const response = await fetch(`${BASE_URL}/api/governance/consents/me`, {
+  const response = await fetch(buildApiUrl("/api/governance/consents/me"), {
     method: "POST",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -415,7 +415,7 @@ export const createConsent = async (payload: {
 };
 
 export const fetchMyConsents = async (): Promise<ConsentItem[]> => {
-  const response = await fetch(`${BASE_URL}/api/governance/consents/me`, {
+  const response = await fetch(buildApiUrl("/api/governance/consents/me"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -429,7 +429,7 @@ export const createDataRequest = async (payload: {
   target_user_id?: number;
   details_json?: Record<string, unknown>;
 }): Promise<DataRequestItem> => {
-  const response = await fetch(`${BASE_URL}/api/governance/requests`, {
+  const response = await fetch(buildApiUrl("/api/governance/requests"), {
     method: "POST",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -445,7 +445,7 @@ export const fetchDataRequests = async (params: {
   limit?: number;
 } = {}): Promise<DataRequestItem[]> => {
   const query = toQuery(params);
-  const response = await fetch(`${BASE_URL}/api/governance/requests${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/governance/requests${query ? `?${query}` : ""}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -457,7 +457,7 @@ export const updateDataRequestStatus = async (
   requestId: number,
   payload: { status: "approved" | "rejected" | "completed"; note?: string }
 ): Promise<DataRequestItem> => {
-  const response = await fetch(`${BASE_URL}/api/governance/requests/${requestId}`, {
+  const response = await fetch(buildApiUrl(`/api/governance/requests/${requestId}`), {
     method: "PATCH",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -478,7 +478,7 @@ export const runRetentionCleanup = async (
   summary: string;
 }> => {
   const query = toQuery({ school_id: schoolId });
-  const response = await fetch(`${BASE_URL}/api/governance/run-retention${query ? `?${query}` : ""}`, {
+  const response = await fetch(buildApiUrl(`/api/governance/run-retention${query ? `?${query}` : ""}`), {
     method: "POST",
     headers: { ...withAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),

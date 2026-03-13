@@ -12,6 +12,7 @@ import {
   SchoolITAccountSummary,
   SchoolSummary,
 } from "../api/schoolSettingsApi";
+import "../css/AdminSchoolManagement.css";
 
 const defaultForm: AdminSchoolItCreatePayload = {
   school_name: "",
@@ -122,10 +123,10 @@ const AdminSchoolManagement = () => {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f7fa" }}>
+    <div className="admin-school-management-page">
       <NavbarAdmin />
 
-      <main className="container py-4">
+      <main className="admin-school-management-main container py-4">
         <div className="row g-3">
           <div className="col-lg-6">
             <div className="card border-0 shadow-sm">

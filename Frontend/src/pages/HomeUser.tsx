@@ -1,11 +1,13 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import { NavbarStudent } from "../components/NavbarStudent";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
 import { NavbarEventOrganizer } from "../components/NavbarEventOrganizer";
 import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
 import { NavbarSSG } from "../components/NavbarSSG";
 import NavbarAdmin from "../components/NavbarAdmin";
+import DashboardHomeLayout, {
+  DashboardCardItem,
+} from "../components/DashboardHomeLayout";
 
 // Import colorful icons
 import {
@@ -17,22 +19,16 @@ import {
   FaCogs,
   FaChartBar,
   FaSchool,
+  FaUserShield,
+  FaCamera,
 } from "react-icons/fa";
 
 interface HomeUserProps {
   role: string;
 }
 
-interface DashboardCard {
-  title: string;
-  description: string;
-  icon: React.ReactElement;
-  link: string;
-}
-
 export const HomeUser: React.FC<HomeUserProps> = ({ role }) => {
-  // Define card data with colorful icons
-  const cardData: Record<string, DashboardCard[]> = {
+  const cardData: Record<string, DashboardCardItem[]> = {
     student: [
       {
         title: "Upcoming Events",
@@ -45,6 +41,12 @@ export const HomeUser: React.FC<HomeUserProps> = ({ role }) => {
         description: "Check and review the events you've attended.",
         icon: <FaCheckCircle style={{ color: "#28a745" }} />, // Green color
         link: "/student_events_attended",
+      },
+      {
+        title: "Event Sign In",
+        description: "Verify your live face and location before attendance.",
+        icon: <FaCamera style={{ color: "#162f65" }} />,
+        link: "/student_event_checkin",
       },
     ],
     ssg: [
@@ -88,6 +90,12 @@ export const HomeUser: React.FC<HomeUserProps> = ({ role }) => {
         icon: <FaSchool style={{ color: "#dc3545" }} />, // Red color
         link: "/admin_manage_users",
       },
+      {
+        title: "Facial Verification",
+        description: "Manage live face enrollment and anti-spoof verification for privileged accounts.",
+        icon: <FaUserShield style={{ color: "#162f65" }} />,
+        link: "/admin_face_verification",
+      },
     ],
     "student-ssg": [
       {
@@ -101,6 +109,12 @@ export const HomeUser: React.FC<HomeUserProps> = ({ role }) => {
         description: "Check and review the events you've attended.",
         icon: <FaCheckCircle style={{ color: "#28a745" }} />, // Green color
         link: "/studentssg_events_attended",
+      },
+      {
+        title: "Event Sign In",
+        description: "Verify your live face and location before attendance.",
+        icon: <FaCamera style={{ color: "#162f65" }} />,
+        link: "/student_event_checkin",
       },
       {
         title: "Events",
@@ -135,6 +149,12 @@ export const HomeUser: React.FC<HomeUserProps> = ({ role }) => {
         link: "/student_ssg_eventorganizer_events_attended",
       },
       {
+        title: "Event Sign In",
+        description: "Verify your live face and location before attendance.",
+        icon: <FaCamera style={{ color: "#162f65" }} />,
+        link: "/student_event_checkin",
+      },
+      {
         title: "Events",
         description: "View and manage currently ongoing events.",
         icon: <FaClipboardList style={{ color: "#ffc107" }} />,
@@ -167,136 +187,38 @@ export const HomeUser: React.FC<HomeUserProps> = ({ role }) => {
     ],
   };
 
-  // Choose appropriate card set based on role
   const cards = cardData[role] || cardData.student;
+  const titles: Record<string, string> = {
+    admin: "Welcome Admin!",
+    student: "Welcome Student!",
+    ssg: "Welcome SSG!",
+    "event-organizer": "Welcome Event Organizer!",
+    "student-ssg": "Welcome Student SSG!",
+    "student-ssg-eventorganizer": "Welcome Student SSG Event Organizer!",
+  };
+  const title = titles[role] || "Welcome!";
+  const navbar =
+    role === "student-ssg-eventorganizer" ? (
+      <NavbarStudentSSGEventOrganizer />
+    ) : role === "student-ssg" ? (
+      <NavbarStudentSSG />
+    ) : role === "event-organizer" ? (
+      <NavbarEventOrganizer />
+    ) : role === "ssg" ? (
+      <NavbarSSG />
+    ) : role === "student" ? (
+      <NavbarStudent />
+    ) : role === "admin" ? (
+      <NavbarAdmin />
+    ) : null;
 
   return (
-    <div
-      className="home-user-container"
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      {/* Dynamically select the navbar based on the role */}
-      {role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
-      ) : role === "student-ssg" ? (
-        <NavbarStudentSSG />
-      ) : role === "event-organizer" ? (
-        <NavbarEventOrganizer />
-      ) : role === "ssg" ? (
-        <NavbarSSG />
-      ) : role === "student" ? (
-        <NavbarStudent />
-      ) : role === "admin" ? (
-        <NavbarAdmin />
-      ) : null}
-
-      <main
-        className="flex-grow-1"
-        style={{
-          padding: "2rem 1rem 2rem 3rem",
-          backgroundColor: "var(--page-background, #f5f7fa)",
-        }} // Changed right padding from 1rem to 3rem
-      >
-        {/* Welcoming Description */}
-        <div
-          className="welcome-section text-center mb-5"
-          style={{ marginRight: "2rem" }}
-        >
-          {" "}
-          {/* Added marginRight */}
-          <h2
-            className="mb-3"
-            style={{ color: "var(--primary-color, #162F65)", fontWeight: "600" }}
-          >
-            Welcome{" "}
-            {role.charAt(0).toUpperCase() + role.slice(1).replace("-", " ")}!
-          </h2>
-          <p
-            className="text-muted"
-            style={{ maxWidth: "600px", margin: "0 auto" }}
-          >
-            Your central hub for managing events, tracking attendance, and
-            staying organized.
-          </p>
-        </div>
-
-        {/* Dashboard Cards Section */}
-        <div className="container" style={{ paddingRight: "2rem" }}>
-          {" "}
-          {/* Added paddingRight */}
-          <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4 justify-content-center">
-            {cards.map((card: DashboardCard, index: number) => (
-              <div className="col" key={index}>
-                <Link to={card.link} className="text-decoration-none">
-                  <div className="card h-100 shadow-sm border-0 hover-effect">
-                    <div className="card-body text-center p-4 d-flex flex-column align-items-center">
-                      <div
-                        className="icon-wrapper mb-3"
-                        style={{ fontSize: "2rem" }}
-                      >
-                        {card.icon}
-                      </div>
-                      <h5
-                        className="card-title mb-2"
-                        style={{ color: "var(--primary-color, #162F65)" }}
-                      >
-                        {card.title}
-                      </h5>
-                      <p
-                        className="card-text text-muted"
-                        style={{ fontSize: "0.9rem" }}
-                      >
-                        {card.description}
-                      </p>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      </main>
-
-      <footer
-        className="mt-auto py-3"
-        style={{
-          backgroundColor: "var(--page-background, #f8f9fa)",
-          borderTop: "1px solid #dee2e6",
-          paddingRight: "0rem",
-          paddingLeft: "1rem",
-        }} // Added paddingRight
-      >
-        <div className="container text-center">
-          <p className="mb-0 text-muted" style={{ fontSize: "0.875rem" }}>
-            Developed by: A.B.C.C
-          </p>
-        </div>
-      </footer>
-
-      {/* Add some custom styles */}
-      <style>{`
-    .hover-effect {
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      border-radius: 0.5rem;
-    }
-    .hover-effect:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-    }
-    .icon-wrapper {
-      transition: transform 0.3s ease;
-    }
-    .hover-effect:hover .icon-wrapper {
-      transform: scale(1.1);
-    }
-    
-    @media (min-width: 992px) {
-      .home-user-container {
-        margin-left: 5rem; /* Changed from 1.5rem to 4rem (approx 2 inches) */
-      }
-    }
-  `}</style>
-    </div>
+    <DashboardHomeLayout
+      navbar={navbar}
+      title={title}
+      description="Your central hub for managing events, tracking attendance, and staying organized."
+      cards={cards}
+    />
   );
 };
 

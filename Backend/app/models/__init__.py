@@ -2,6 +2,7 @@
 # The order of imports is important here - import base first
 from app.models.base import Base
 from app.models.department import Department
+from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.program import Program
 from app.models.event import Event
 from app.models.school import School, SchoolSetting, SchoolAuditLog
@@ -11,6 +12,7 @@ from app.models.platform_features import (
     UserNotificationPreference,
     NotificationLog,
     UserSecuritySetting,
+    UserFaceProfile,
     MfaChallenge,
     UserSession,
     LoginHistory,
@@ -44,6 +46,8 @@ __all__ = [
     "UserNotificationPreference",
     "NotificationLog",
     "UserSecuritySetting",
+    "UserFaceProfile",
+    "UserFaceRecognitionProfile",
     "MfaChallenge",
     "UserSession",
     "LoginHistory",

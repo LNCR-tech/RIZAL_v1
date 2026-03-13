@@ -3,7 +3,7 @@
 Valid8 Attendance Recognition System (Dockerized full stack).
 
 ## Stack
-- Backend: FastAPI, SQLAlchemy, Alembic, Celery, Redis
+- Backend: FastAPI, SQLAlchemy, Alembic, Celery, Celery Beat, Redis
 - Frontend: React + TypeScript + Vite
 - Database: PostgreSQL
 - Tools: Docker Compose, pgAdmin
@@ -13,6 +13,13 @@ Valid8 Attendance Recognition System (Dockerized full stack).
 - `Frontend/` - React frontend
 - `Databse/` - project database-related assets
 - `docker-compose.yml` - local multi-service orchestration
+
+## Backend Documentation
+- Main backend merge guide: `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+- Backend change log: `Backend/docs/BACKEND_CHANGELOG.md`
+- Attendance status guide: `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- Event time status guide: `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- Event auto status guide: `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
 
 ## Quick Start
 1. Install Docker Desktop.
@@ -31,3 +38,4 @@ docker compose up --build
 - SMTP example values are in `.env.smtp.example`.
 - Frontend API URL is configured in `Frontend/.env` (`VITE_API_URL`).
 - Compose defaults backend DB/Celery settings for local Docker networking.
+- Event auto-status scheduler can be configured with `EVENT_STATUS_SYNC_ENABLED` and `EVENT_STATUS_SYNC_INTERVAL_SECONDS`.

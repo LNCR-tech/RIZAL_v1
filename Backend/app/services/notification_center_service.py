@@ -10,6 +10,7 @@ from app.models.attendance import Attendance
 from app.models.event import Event
 from app.models.platform_features import NotificationLog, UserNotificationPreference
 from app.models.user import StudentProfile, User
+from app.services.attendance_status import ATTENDED_STATUS_VALUES
 from app.services.email_service import EmailDeliveryError, send_plain_email
 
 
@@ -322,12 +323,12 @@ def dispatch_low_attendance_notifications(
     threshold_percent: float = 75.0,
     min_records: int = 3,
 ) -> dict[str, int]:
-    present_case = case((Attendance.status == "present", 1), else_=0)
+    attended_case = case((Attendance.status.in_(ATTENDED_STATUS_VALUES), 1), else_=0)
     rows = (
         db.query(
             User,
             func.count(Attendance.id).label("total_count"),
-            func.sum(present_case).label("present_count"),
+            func.sum(attended_case).label("attended_count"),
         )
         .join(StudentProfile, StudentProfile.user_id == User.id)
         .join(Attendance, Attendance.student_id == StudentProfile.id)
@@ -341,12 +342,12 @@ def dispatch_low_attendance_notifications(
     statuses: list[str] = []
     processed = 0
 
-    for user, total_count, present_count in rows:
+    for user, total_count, attended_count in rows:
         total = int(total_count or 0)
-        present = int(present_count or 0)
+        attended = int(attended_count or 0)
         if total <= 0:
             continue
-        attendance_percent = (present / total) * 100
+        attendance_percent = (attended / total) * 100
         if attendance_percent >= threshold_percent:
             continue
 
@@ -360,7 +361,7 @@ def dispatch_low_attendance_notifications(
         message = (
             f"Hi {user.first_name or 'Student'},\n\n"
             f"Your attendance rate is currently {attendance_percent:.1f}% "
-            f"({present}/{total}) which is below the threshold of {threshold_percent:.1f}%.\n"
+            f"({attended}/{total}) which is below the threshold of {threshold_percent:.1f}%.\n"
             "Please review your recent attendance records.\n\n"
             "Valid8 Attendance System"
         )
@@ -374,7 +375,7 @@ def dispatch_low_attendance_notifications(
                 message=message,
                 metadata_json={
                     "total_count": total,
-                    "present_count": present,
+                    "attended_count": attended,
                     "threshold_percent": threshold_percent,
                     "attendance_percent": round(attendance_percent, 2),
                 },

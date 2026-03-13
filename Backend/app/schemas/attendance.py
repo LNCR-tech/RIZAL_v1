@@ -12,6 +12,7 @@ class AttendanceMethod(str, Enum):
 
 class AttendanceStatus(str, Enum):
     PRESENT = "present"
+    LATE = "late"
     ABSENT = "absent"
     EXCUSED = "excused"
 
@@ -86,6 +87,7 @@ class ProgramBreakdownItem(BaseModel):
     program: str
     total: int
     present: int
+    late: int = 0
     absent: int
 
 
@@ -95,6 +97,7 @@ class AttendanceReportResponse(BaseModel):
     event_location: str
     total_participants: int
     attendees: int
+    late_attendees: int = 0
     absentees: int
     attendance_rate: float
     programs: List[ProgramFilterItem]  # For program filter dropdown
@@ -106,6 +109,7 @@ class StudentAttendanceSummary(BaseModel):
     student_name: str
     total_events: int
     attended_events: int
+    late_events: int = 0
     absent_events: int
     excused_events: int
     attendance_rate: float

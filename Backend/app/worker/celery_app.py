@@ -19,6 +19,17 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_time_limit=settings.celery_task_time_limit_seconds,
+    broker_connection_retry_on_startup=True,
 )
+
+if settings.event_status_sync_enabled:
+    celery_app.conf.beat_schedule = {
+        "sync-event-workflow-statuses": {
+            "task": "app.worker.tasks.sync_event_workflow_statuses",
+            "schedule": settings.event_status_sync_interval_seconds,
+        }
+    }
+else:
+    celery_app.conf.beat_schedule = {}
 
 celery_app.autodiscover_tasks(["app.worker"])

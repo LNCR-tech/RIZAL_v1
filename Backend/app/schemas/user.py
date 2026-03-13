@@ -174,6 +174,8 @@ class UserRoleResponse(BaseModel):
 
 class StudentProfile(StudentProfileBase):
     id: int
+    is_face_registered: bool = False
+    registration_complete: bool = False
     attendances: List[Attendance] = []
     
     class Config:

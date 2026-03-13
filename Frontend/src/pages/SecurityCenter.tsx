@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import NavbarAdmin from "../components/NavbarAdmin";
 import NavbarSchoolIT from "../components/NavbarSchoolIT";
@@ -31,6 +32,9 @@ const SecurityCenter = () => {
   const roles = getStoredRoles();
   const isSchoolIT = roles.some((role) => normalizeRole(role) === "school-it");
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;
+  const facialVerificationPath = isSchoolIT
+    ? "/school_it_face_verification"
+    : "/admin_face_verification";
 
   const [mfa, setMfa] = useState<MfaStatus | null>(null);
   const [sessions, setSessions] = useState<UserSessionItem[]>([]);
@@ -102,6 +106,21 @@ const SecurityCenter = () => {
       <main className="container py-4">
         <h2 className="mb-3">Security Center</h2>
         {error && <div className="alert alert-danger">{error}</div>}
+
+        <div className="card mb-4">
+          <div className="card-header">Facial Verification</div>
+          <div className="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div>
+              <div className="fw-semibold">Identity check workspace</div>
+              <div className="text-muted">
+                Enroll the backend reference face, run verification checks, and review the current face security status for this account.
+              </div>
+            </div>
+            <Link to={facialVerificationPath} className="btn btn-outline-primary">
+              Open Facial Verification
+            </Link>
+          </div>
+        </div>
 
         <div className="card mb-4">
           <div className="card-header">Multi-Factor Authentication</div>

@@ -3,16 +3,18 @@ import { NavLink } from "react-router-dom";
 import {
   FaHome,
   FaCalendarAlt,
+  FaCamera,
   FaClipboardCheck,
   FaBars,
   FaTimes,
   FaThList,
 } from "react-icons/fa";
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 import userprofile from "../assets/images/userprofile.png";
 import "../css/NavbarStudentStyles.css";
 import { useUser } from "../context/UserContext";
 import { normalizeLogoUrl } from "../api/schoolSettingsApi";
+import { useRoleSidebarLayout } from "../hooks/useRoleSidebarLayout";
 
 export const NavbarStudent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,6 +22,8 @@ export const NavbarStudent = () => {
   const { branding } = useUser();
   const schoolLogo = normalizeLogoUrl(branding?.logo_url) || logoValid8;
   const schoolName = branding?.school_name || "Student";
+
+  useRoleSidebarLayout({ isExpanded, sidebarOpen });
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -101,6 +105,19 @@ export const NavbarStudent = () => {
               >
                 <FaCalendarAlt className="nav-icon" />
                 <span className="nav-text">Upcoming Events</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/student_event_checkin"
+                className={({ isActive }) =>
+                  isActive ? "student-nav-link active" : "student-nav-link"
+                }
+                onClick={() => setSidebarOpen(false)}
+                title="Event Sign In"
+              >
+                <FaCamera className="nav-icon" />
+                <span className="nav-text">Event Sign In</span>
               </NavLink>
             </li>
             <li>

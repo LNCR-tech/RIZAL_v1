@@ -7,9 +7,12 @@ import logging
 from app.schemas.event import (
     Event as EventSchema,
     EventCreate,
+    EventLocationVerificationRequest,
+    EventLocationVerificationResponse,
     EventUpdate,
     EventWithRelations,
-    EventStatus
+    EventStatus,
+    EventTimeStatusInfo,
 )
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
 from app.models.department import Department as DepartmentModel
@@ -22,6 +25,16 @@ from typing import Optional  # For Optional type hint
 from app.models.user import User as UserModel  # For UserModel
 from app.models.attendance import Attendance as AttendanceModel  # For AttendanceModel
 from sqlalchemy import func  # For aggregate functions
+from app.services.event_attendance_service import finalize_completed_event_attendance
+from app.services.event_geolocation import (
+    build_event_time_status_info,
+    validate_event_geolocation_fields,
+    verify_event_geolocation,
+)
+from app.services.event_workflow_status import (
+    sync_event_workflow_status,
+    sync_scope_event_workflow_statuses,
+)
 
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -55,6 +68,19 @@ def _school_scoped_event_query(db: Session, school_id: Optional[int]):
         query = query.filter(EventModel.school_id == school_id)
     return query
 
+
+def _persist_scope_status_sync(db: Session, school_id: Optional[int]) -> None:
+    results = sync_scope_event_workflow_statuses(db, school_id=school_id)
+    if any(result.changed for result in results):
+        db.commit()
+
+
+def _persist_event_status_sync(db: Session, event: EventModel) -> None:
+    result = sync_event_workflow_status(db, event)
+    if result.changed:
+        db.commit()
+        db.refresh(event)
+
 # 1. Create Event
 @router.post("/", response_model=EventWithRelations, status_code=status.HTTP_201_CREATED)
 def create_event(
@@ -70,12 +96,24 @@ def create_event(
         # Validate datetime
         if event.start_datetime >= event.end_datetime:
             raise HTTPException(status_code=400, detail="End datetime must be after start datetime")
+        validate_event_geolocation_fields(
+            latitude=event.geo_latitude,
+            longitude=event.geo_longitude,
+            radius_m=event.geo_radius_m,
+            required=event.geo_required,
+        )
         
         # Create event
         db_event = EventModel(
             school_id=school_id,
             name=event.name,
             location=event.location,
+            geo_latitude=event.geo_latitude,
+            geo_longitude=event.geo_longitude,
+            geo_radius_m=event.geo_radius_m,
+            geo_required=event.geo_required,
+            geo_max_accuracy_m=event.geo_max_accuracy_m,
+            late_threshold_minutes=event.late_threshold_minutes,
             start_datetime=event.start_datetime,
             end_datetime=event.end_datetime,
             status=ModelEventStatus[event.status.value.upper()]
@@ -121,6 +159,15 @@ def create_event(
                 raise HTTPException(404, f"SSG members not found in this school: {missing}")
 
             db_event.ssg_members = ssg_profiles
+
+        auto_sync_result = None
+        if db_event.status not in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:
+            auto_sync_result = sync_event_workflow_status(db, db_event)
+
+        if db_event.status == ModelEventStatus.COMPLETED and not (
+            auto_sync_result and auto_sync_result.attendance_finalized
+        ):
+            finalize_completed_event_attendance(db, db_event)
         
         db.commit()
         db.refresh(db_event)  # This should load departments/programs/ssg_members thanks to lazy="joined"
@@ -128,6 +175,9 @@ def create_event(
         print(f"Departments: {[d.id for d in db_event.departments]}")
         return db_event
         
+    except HTTPException as he:
+        db.rollback()
+        raise he
     except IntegrityError:
         db.rollback()
         raise HTTPException(400, "Event creation failed (possible duplicate)")
@@ -149,6 +199,7 @@ def read_events(
 ):
     """Get paginated list of events with optional filters"""
     school_id = _actor_school_scope_id(current_user)
+    _persist_scope_status_sync(db, school_id)
     query = _school_scoped_event_query(db, school_id).options(
         joinedload(EventModel.ssg_members).joinedload(SSGProfile.user)  # ← ADD THIS
     )
@@ -172,6 +223,7 @@ def get_ongoing_events(
 ):
     """Get all ongoing events"""
     school_id = _actor_school_scope_id(current_user)
+    _persist_scope_status_sync(db, school_id)
     events = _school_scoped_event_query(db, school_id).options(
         joinedload(EventModel.departments),
         joinedload(EventModel.programs),
@@ -199,8 +251,51 @@ def read_event(
     
     if not event:
         raise HTTPException(404, "Event not found")
-    
+
+    _persist_event_status_sync(db, event)
     return event
+
+
+@router.get("/{event_id}/time-status", response_model=EventTimeStatusInfo)
+def read_event_time_status(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    school_id = _actor_school_scope_id(current_user)
+    event = (
+        _school_scoped_event_query(db, school_id)
+        .filter(EventModel.id == event_id)
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _persist_event_status_sync(db, event)
+    return build_event_time_status_info(event)
+
+
+@router.post("/{event_id}/verify-location", response_model=EventLocationVerificationResponse)
+def verify_event_location(
+    event_id: int,
+    payload: EventLocationVerificationRequest,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    school_id = _actor_school_scope_id(current_user)
+    event = (
+        _school_scoped_event_query(db, school_id)
+        .filter(EventModel.id == event_id)
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _persist_event_status_sync(db, event)
+    return verify_event_geolocation(
+        event,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        accuracy_m=payload.accuracy_m,
+    )
 
 # 4. Update Event
 @router.patch("/{event_id}", response_model=EventSchema)
@@ -218,6 +313,11 @@ def update_event(
         # Get the existing event
         db_event = (
             _school_scoped_event_query(db, school_id)
+            .options(
+                joinedload(EventModel.departments),
+                joinedload(EventModel.programs),
+                joinedload(EventModel.ssg_members),
+            )
             .filter(EventModel.id == event_id)
             .first()
         )
@@ -226,6 +326,8 @@ def update_event(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Event not found"
             )
+
+        was_completed = db_event.status == ModelEventStatus.COMPLETED
 
         # Prepare the new datetime values
         new_start = event_update.start_datetime if event_update.start_datetime is not None else db_event.start_datetime
@@ -238,11 +340,34 @@ def update_event(
                 detail="End datetime must be after start datetime"
             )
 
+        new_geo_latitude = event_update.geo_latitude if event_update.geo_latitude is not None else db_event.geo_latitude
+        new_geo_longitude = event_update.geo_longitude if event_update.geo_longitude is not None else db_event.geo_longitude
+        new_geo_radius = event_update.geo_radius_m if event_update.geo_radius_m is not None else db_event.geo_radius_m
+        new_geo_required = event_update.geo_required if event_update.geo_required is not None else bool(db_event.geo_required)
+        validate_event_geolocation_fields(
+            latitude=new_geo_latitude,
+            longitude=new_geo_longitude,
+            radius_m=new_geo_radius,
+            required=new_geo_required,
+        )
+
         # Update basic fields
         if event_update.name is not None:
             db_event.name = event_update.name
         if event_update.location is not None:
             db_event.location = event_update.location
+        if event_update.geo_latitude is not None:
+            db_event.geo_latitude = event_update.geo_latitude
+        if event_update.geo_longitude is not None:
+            db_event.geo_longitude = event_update.geo_longitude
+        if event_update.geo_radius_m is not None:
+            db_event.geo_radius_m = event_update.geo_radius_m
+        if event_update.geo_required is not None:
+            db_event.geo_required = event_update.geo_required
+        if event_update.geo_max_accuracy_m is not None:
+            db_event.geo_max_accuracy_m = event_update.geo_max_accuracy_m
+        if event_update.late_threshold_minutes is not None:
+            db_event.late_threshold_minutes = event_update.late_threshold_minutes
         db_event.start_datetime = new_start
         db_event.end_datetime = new_end
         if event_update.status is not None:
@@ -296,6 +421,15 @@ def update_event(
                 raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,detail=f"SSG members not found: {missing}")
             db_event.ssg_members = ssg_profiles
+
+        auto_sync_result = None
+        if db_event.status not in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:
+            auto_sync_result = sync_event_workflow_status(db, db_event)
+
+        if db_event.status == ModelEventStatus.COMPLETED and not was_completed and not (
+            auto_sync_result and auto_sync_result.attendance_finalized
+        ):
+            finalize_completed_event_attendance(db, db_event)
         
         db.commit()
         db.refresh(db_event)
@@ -382,7 +516,8 @@ def get_event_attendees(
     )
     if not event:
         raise HTTPException(404, "Event not found")
-    
+
+    _persist_event_status_sync(db, event)
     query = db.query(AttendanceModel).filter(
         AttendanceModel.event_id == event_id
     )
@@ -411,7 +546,8 @@ def get_event_stats(
     )
     if not event:
         raise HTTPException(404, "Event not found")
-    
+
+    _persist_event_status_sync(db, event)
     total = db.query(func.count(AttendanceModel.id)).filter(
         AttendanceModel.event_id == event_id
     ).scalar()
@@ -452,14 +588,29 @@ def update_event_status(
         # Get the existing event
         db_event = (
             _school_scoped_event_query(db, school_id)
+            .options(
+                joinedload(EventModel.departments),
+                joinedload(EventModel.programs),
+                joinedload(EventModel.ssg_members),
+            )
             .filter(EventModel.id == event_id)
             .first()
         )
         if not db_event:
             raise HTTPException(404, "Event not found")
+        was_completed = db_event.status == ModelEventStatus.COMPLETED
         
         # Update only the status
         db_event.status = ModelEventStatus[status.value.upper()]
+
+        auto_sync_result = None
+        if db_event.status not in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:
+            auto_sync_result = sync_event_workflow_status(db, db_event)
+
+        if db_event.status == ModelEventStatus.COMPLETED and not was_completed and not (
+            auto_sync_result and auto_sync_result.attendance_finalized
+        ):
+            finalize_completed_event_attendance(db, db_event)
         
         db.commit()
         db.refresh(db_event)

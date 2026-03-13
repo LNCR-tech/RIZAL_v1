@@ -6,8 +6,10 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
 )
@@ -60,6 +62,20 @@ class UserSecuritySetting(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User")
+
+
+class UserFaceProfile(Base):
+    __tablename__ = "user_face_profiles"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    face_encoding = Column(LargeBinary, nullable=False)
+    provider = Column(String(50), nullable=False, default="face_recognition")
+    reference_image_sha256 = Column(String(64), nullable=True)
+    last_verified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="face_profile")
 
 
 class MfaChallenge(Base):

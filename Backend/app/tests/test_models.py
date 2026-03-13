@@ -74,7 +74,7 @@ def test_password_hashing(test_db):
     user.set_password(test_password)
     
     # Password should be hashed, not stored in plain text
-    assert user.hashed_password != test_password
+    assert user.password_hash != test_password
     assert user.check_password(test_password) is True
     assert user.check_password("WrongPassword") is False
 

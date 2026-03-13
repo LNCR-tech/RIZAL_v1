@@ -25,6 +25,7 @@ class User(Base):
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     ssg_profile = relationship("SSGProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     school = relationship("School", back_populates="users")
+    face_profile = relationship("UserFaceProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     def set_password(self, password: str):
         if len(password) < 8:

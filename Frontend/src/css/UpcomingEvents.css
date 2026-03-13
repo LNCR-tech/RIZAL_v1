@@ -22,6 +22,7 @@
 }
 
 .upcoming-container {
+  width: min(100%, var(--app-shell-max-width));
   max-width: 1200px;
   margin: 0 auto;
   padding: 30px 30px 30px 30px; /* Changed from 110px to 30px for left padding */
@@ -152,6 +153,40 @@
   color: #721c24;
 }
 
+.upcoming-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: none;
+  border-radius: 999px;
+  padding: 0.65rem 0.95rem;
+  background: #162f65;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.upcoming-action-button:hover:not(:disabled) {
+  background: #1e3d85;
+  transform: translateY(-1px);
+}
+
+.upcoming-action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.upcoming-action-placeholder {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
 .no-results {
   text-align: center;
   padding: 20px;
@@ -161,7 +196,7 @@
 /* Responsive Styles - Tablet */
 @media (max-width: 768px) {
   .upcoming-container {
-    padding: 20px 15px 20px 30px;
+    padding: 20px 15px;
   }
 
   .upcoming-header,
@@ -213,12 +248,16 @@
     padding: 8px 12px;
     font-size: 0.95rem;
   }
+
+  .upcoming-action-button {
+    width: 100%;
+  }
 }
 
 /* Responsive Styles - Mobile */
 @media (max-width: 375px) {
   .upcoming-container {
-    padding: 15px 10px 15px 20px;
+    padding: 15px 10px;
   }
 
   .upcoming-header h2 {

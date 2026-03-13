@@ -4,6 +4,7 @@ import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEv
 import Modal from "react-modal";
 import "../css/ManageEvent.css";
 import { useNavigate } from "react-router-dom";
+import EventGeofencePicker from "../components/EventGeofencePicker";
 
 interface ManageEventProps {
   role: string;
@@ -40,6 +41,12 @@ interface Event {
   start_datetime: string;
   end_datetime: string;
   location: string;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
+  geo_radius_m?: number | null;
+  geo_required?: boolean;
+  geo_max_accuracy_m?: number | null;
+  late_threshold_minutes?: number | string;
   status: string; // Will match EventStatus values
   departments: Department[];
   programs: Program[];
@@ -50,6 +57,36 @@ interface Event {
   program_ids?: number[];
   ssg_member_ids?: number[];
 }
+
+const sanitizeWholeNumberInput = (value: string) => value.replace(/\D/g, "");
+
+const parseLateThresholdMinutes = (value?: number | string) => {
+  if (typeof value === "number") {
+    return Math.max(0, value);
+  }
+
+  if (!value || !value.trim()) {
+    return 0;
+  }
+
+  return Math.max(0, Number.parseInt(value, 10) || 0);
+};
+
+const formatDateTimeForApi = (value?: string) => {
+  if (!value) {
+    return "";
+  }
+
+  return value.length === 16 ? `${value}:00` : value;
+};
+
+const toDateTimeLocalInputValue = (value?: string) => {
+  if (!value) {
+    return "";
+  }
+
+  return value.slice(0, 16);
+};
 
 export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
   const navigate = useNavigate();
@@ -124,7 +161,7 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
       setIsLoading(true);
       try {
         // Fetch events with relations - FastAPI returns complete objects
-        const eventsResponse = await fetchWithAuth(`${BASE_URL}/events`);
+        const eventsResponse = await fetchWithAuth(`${BASE_URL}/events/`);
         const eventsData = await eventsResponse.json();
 
         // Add derived fields for form handling with error handling
@@ -232,6 +269,15 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
   const openEditModal = (item: Event) => {
     setEditingEvent({
       ...item,
+      geo_latitude: item.geo_latitude ?? null,
+      geo_longitude: item.geo_longitude ?? null,
+      geo_radius_m: item.geo_radius_m ?? 100,
+      geo_required: item.geo_required ?? true,
+      geo_max_accuracy_m: item.geo_max_accuracy_m ?? 50,
+      late_threshold_minutes:
+        item.late_threshold_minutes != null
+          ? String(item.late_threshold_minutes)
+          : "",
       department_ids: item.departments?.map((d) => d.id) || [],
       program_ids: item.programs?.map((p) => p.id) || [],
       ssg_member_ids: item.ssg_members?.map((m) => m.user_id) || [],
@@ -248,12 +294,27 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     if (editingEvent) {
-      setEditingEvent({ ...editingEvent, [e.target.name]: e.target.value });
+      setEditingEvent({
+        ...editingEvent,
+        [e.target.name]:
+          e.target.name === "late_threshold_minutes"
+            ? sanitizeWholeNumberInput(e.target.value)
+            : e.target.value,
+      });
     }
   };
   // Fixed saveEditedEvent function - removed duplicate property
   const saveEditedEvent = async () => {
     if (!editingEvent) return;
+
+    if (
+      editingEvent.geo_latitude == null ||
+      editingEvent.geo_longitude == null ||
+      !editingEvent.geo_radius_m
+    ) {
+      setError("Mark the event venue on the map and set a valid geofence radius.");
+      return;
+    }
 
     // Clean up the ssg_member_ids to remove any null values
     const cleanSsgMemberIds = Array.isArray(editingEvent.ssg_member_ids)
@@ -267,8 +328,16 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
       const updatePayload = {
         name: editingEvent.name,
         location: editingEvent.location,
-        start_datetime: editingEvent.start_datetime,
-        end_datetime: editingEvent.end_datetime,
+        geo_latitude: editingEvent.geo_latitude,
+        geo_longitude: editingEvent.geo_longitude,
+        geo_radius_m: editingEvent.geo_radius_m,
+        geo_required: editingEvent.geo_required ?? true,
+        geo_max_accuracy_m: editingEvent.geo_max_accuracy_m ?? 50,
+        late_threshold_minutes: parseLateThresholdMinutes(
+          editingEvent.late_threshold_minutes
+        ),
+        start_datetime: formatDateTimeForApi(editingEvent.start_datetime),
+        end_datetime: formatDateTimeForApi(editingEvent.end_datetime),
         department_ids: Array.isArray(editingEvent.department_ids)
           ? editingEvent.department_ids
           : [],
@@ -518,6 +587,18 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
                   <p>
                     <strong>Location:</strong> {event.location}
                   </p>
+                  <p>
+                    <strong>Geofence:</strong>{" "}
+                    {event.geo_latitude != null &&
+                    event.geo_longitude != null &&
+                    event.geo_radius_m != null
+                      ? `${Math.round(event.geo_radius_m)}m radius`
+                      : "Not configured"}
+                  </p>
+                  <p>
+                    <strong>Late Threshold:</strong>{" "}
+                    {event.late_threshold_minutes ?? 0} minute(s)
+                  </p>
                   <p className="departments">
                     <strong>Departments:</strong>{" "}
                     {getDepartmentNames(event.departments)}
@@ -629,13 +710,7 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
                 type="datetime-local"
                 id="event-start"
                 name="start_datetime"
-                value={
-                  editingEvent?.start_datetime
-                    ? new Date(editingEvent.start_datetime)
-                        .toISOString()
-                        .slice(0, 16)
-                    : ""
-                }
+                value={toDateTimeLocalInputValue(editingEvent?.start_datetime)}
                 onChange={handleEditChange}
               />
             </div>
@@ -646,13 +721,7 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
                 type="datetime-local"
                 id="event-end"
                 name="end_datetime"
-                value={
-                  editingEvent?.end_datetime
-                    ? new Date(editingEvent.end_datetime)
-                        .toISOString()
-                        .slice(0, 16)
-                    : ""
-                }
+                value={toDateTimeLocalInputValue(editingEvent?.end_datetime)}
                 onChange={handleEditChange}
               />
             </div>
@@ -667,6 +736,54 @@ export const ManageEvent: React.FC<ManageEventProps> = ({ role }) => {
               value={editingEvent?.location || ""}
               onChange={handleEditChange}
               placeholder="Enter event location"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="event-late-threshold">Late Threshold (minutes)</label>
+            <input
+              type="number"
+              id="event-late-threshold"
+              name="late_threshold_minutes"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={editingEvent?.late_threshold_minutes ?? ""}
+              onChange={handleEditChange}
+              placeholder="0"
+            />
+            <small>
+              Students who sign in after the event start plus this threshold
+              will be marked late.
+            </small>
+          </div>
+
+          <div className="form-group">
+            <label>Event Geofence</label>
+            <EventGeofencePicker
+              value={{
+                latitude: editingEvent?.geo_latitude ?? null,
+                longitude: editingEvent?.geo_longitude ?? null,
+                radiusM: editingEvent?.geo_radius_m ?? 100,
+                maxAccuracyM: editingEvent?.geo_max_accuracy_m ?? 50,
+                required: editingEvent?.geo_required ?? true,
+              }}
+              onChange={(nextValue) =>
+                setEditingEvent((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        geo_latitude: nextValue.latitude,
+                        geo_longitude: nextValue.longitude,
+                        geo_radius_m: nextValue.radiusM,
+                        geo_required: nextValue.required,
+                        geo_max_accuracy_m: nextValue.maxAccuracyM,
+                      }
+                    : null
+                )
+              }
+              invalidateKey={isEditModalOpen}
             />
           </div>
 

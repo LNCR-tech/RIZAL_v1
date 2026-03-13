@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { NavbarAdmin } from "../components/NavbarAdmin";
 import search_logo from "../assets/images/search_logo.png";
 import { FaDownload } from "react-icons/fa";
@@ -16,6 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import Modal from "react-modal";
+import { fetchAllEvents } from "../api/eventsApi";
 
 interface AttendanceReport {
   event_name: string;
@@ -23,6 +24,7 @@ interface AttendanceReport {
   event_location: string;
   total_participants: number;
   attendees: number;
+  late_attendees: number;
   absentees: number;
   attendance_rate: number;
   programs: { id: number; name: string }[];
@@ -30,6 +32,7 @@ interface AttendanceReport {
     program: string;
     total: number;
     present: number;
+    late: number;
     absent: number;
   }[];
 }
@@ -50,13 +53,13 @@ const ACCENT_COLOR = "var(--accent-color, #4A90E2)";
 export const Reports: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [attendanceReport, setAttendanceReport] =
     useState<AttendanceReport | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<number | "all">("all");
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const getAuthHeaders = (): HeadersInit => {
     const token =
@@ -83,20 +86,19 @@ export const Reports: React.FC = () => {
     selectedProgramName && attendanceReport
       ? attendanceReport.program_breakdown.find((p) => p.program === selectedProgramName) ?? null
       : null;
+  const selectedProgramAttendees = selectedProgramBreakdown
+    ? selectedProgramBreakdown.present + selectedProgramBreakdown.late
+    : 0;
+  const overallPresentCount = attendanceReport
+    ? Math.max(0, attendanceReport.attendees - attendanceReport.late_attendees)
+    : 0;
 
   useEffect(() => {
     const fetchEvents = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`${BASE_URL}/events/`, {
-          headers: getAuthHeaders(),
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch events: ${response.status}`);
-        }
-        const data = await response.json();
+        const data = await fetchAllEvents();
         setEvents(data);
-        setFilteredEvents(data);
       } catch (error) {
         console.error("Error fetching events:", error);
       } finally {
@@ -113,12 +115,9 @@ export const Reports: React.FC = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  useEffect(() => {
-    const filtered = events.filter((event) =>
-      event.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredEvents(filtered);
-  }, [searchTerm, events]);
+  const filteredEvents = events.filter((event) =>
+    event.name.toLowerCase().includes(deferredSearchTerm.toLowerCase())
+  );
 
   const fetchEventReport = async (event: Event): Promise<AttendanceReport> => {
     const response = await fetch(`${BASE_URL}/attendance/events/${event.id}/report`, {
@@ -157,14 +156,19 @@ export const Reports: React.FC = () => {
     csvContent += `Overall Summary:\r\n`;
     csvContent += `Total Participants: ${report.total_participants}\r\n`;
     csvContent += `Attendees: ${report.attendees}\r\n`;
+    csvContent += `Late Attendees: ${report.late_attendees}\r\n`;
     csvContent += `Absentees: ${report.absentees}\r\n`;
     csvContent += `Attendance Rate: ${report.attendance_rate}%\r\n\r\n`;
 
     csvContent += `Program Breakdown:\r\n`;
+    csvContent += `Program,Total,Present,Late,Absent,Rate\r\n`;
     report.program_breakdown.forEach((program) => {
+      const programAttendees = program.present + program.late;
       csvContent += `${program.program},${program.total},${program.present},${
-        program.absent
-      },${Math.round((program.present / program.total) * 100)}%\r\n`;
+        program.late
+      },${program.absent},${Math.round(
+        (programAttendees / Math.max(program.total, 1)) * 100
+      )}%\r\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
@@ -205,6 +209,7 @@ export const Reports: React.FC = () => {
           .card-value { display: block; font-size: 24px; font-weight: bold; margin-top: 5px; }
           .total .card-value { color: #2196F3; }
           .present .card-value { color: #4CAF50; }
+          .late .card-value { color: #F57C00; }
           .absent .card-value { color: #F44336; }
           .rate .card-value { color: #FF9800; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
@@ -232,6 +237,10 @@ export const Reports: React.FC = () => {
               <span class="card-title">Attendees</span>
               <span class="card-value">${report.attendees}</span>
             </div>
+            <div class="summary-card late">
+              <span class="card-title">Late Attendees</span>
+              <span class="card-value">${report.late_attendees}</span>
+            </div>
             <div class="summary-card absent">
               <span class="card-title">Absentees</span>
               <span class="card-value">${report.absentees}</span>
@@ -250,6 +259,7 @@ export const Reports: React.FC = () => {
               <th>Program</th>
               <th>Total</th>
               <th>Present</th>
+              <th>Late</th>
               <th>Absent</th>
               <th>Rate</th>
             </tr>
@@ -258,13 +268,15 @@ export const Reports: React.FC = () => {
     `;
 
     report.program_breakdown.forEach((program) => {
+      const programAttendees = program.present + program.late;
       htmlContent += `
         <tr>
           <td>${program.program}</td>
           <td>${program.total}</td>
           <td>${program.present}</td>
+          <td>${program.late}</td>
           <td>${program.absent}</td>
-          <td>${Math.round((program.present / program.total) * 100)}%</td>
+          <td>${Math.round((programAttendees / Math.max(program.total, 1)) * 100)}%</td>
         </tr>
       `;
     });
@@ -290,13 +302,15 @@ export const Reports: React.FC = () => {
 
     if (selectedProgram === "all") {
       return [
-        { name: "Present", value: attendanceReport.attendees },
+        { name: "Present", value: overallPresentCount },
+        { name: "Late", value: attendanceReport.late_attendees },
         { name: "Absent", value: attendanceReport.absentees },
       ];
     } else {
       if (!selectedProgramBreakdown) return [];
       return [
         { name: "Present", value: selectedProgramBreakdown.present },
+        { name: "Late", value: selectedProgramBreakdown.late },
         { name: "Absent", value: selectedProgramBreakdown.absent },
       ];
     }
@@ -307,6 +321,7 @@ export const Reports: React.FC = () => {
     return attendanceReport.program_breakdown.map((program) => ({
       name: program.program,
       present: program.present,
+      late: program.late,
       absent: program.absent,
     }));
   };
@@ -325,6 +340,21 @@ export const Reports: React.FC = () => {
     });
   };
 
+  const contentPadding = isMobile ? "1rem" : "1.5rem";
+  const tableCellPadding = isMobile ? "10px 12px" : "12px 15px";
+  const actionButtonStyle = {
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "5px",
+    padding: "8px 15px",
+    width: isMobile ? "100%" : "auto",
+  } as const;
+
   return (
     <div
       style={{
@@ -336,9 +366,10 @@ export const Reports: React.FC = () => {
       <NavbarAdmin />
       <div
         style={{
+          width: "min(100%, var(--app-shell-max-width))",
           maxWidth: "1200px",
           margin: "0 auto",
-          padding: "20px",
+          padding: contentPadding,
         }}
       >
         <header
@@ -376,7 +407,7 @@ export const Reports: React.FC = () => {
             style={{
               position: "relative",
               width: "100%",
-              maxWidth: "500px",
+              maxWidth: "560px",
             }}
           >
             <img
@@ -441,16 +472,16 @@ export const Reports: React.FC = () => {
                   borderBottom: "1px solid #ddd",
                 }}
               >
-                <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                <th style={{ padding: tableCellPadding, textAlign: "left" }}>
                   Event Name
                 </th>
-                <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                <th style={{ padding: tableCellPadding, textAlign: "left" }}>
                   Date
                 </th>
-                <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                <th style={{ padding: tableCellPadding, textAlign: "left" }}>
                   Location
                 </th>
-                <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                <th style={{ padding: tableCellPadding, textAlign: "left" }}>
                   Actions
                 </th>
               </tr>
@@ -463,12 +494,12 @@ export const Reports: React.FC = () => {
                     borderBottom: "1px solid #eee",
                   }}
                 >
-                  <td style={{ padding: "12px 15px" }}>{event.name}</td>
-                  <td style={{ padding: "12px 15px" }}>
+                  <td style={{ padding: tableCellPadding }}>{event.name}</td>
+                  <td style={{ padding: tableCellPadding }}>
                     {formatEventDate(event)}
                   </td>
-                  <td style={{ padding: "12px 15px" }}>{event.location}</td>
-                  <td style={{ padding: "12px 15px" }}>
+                  <td style={{ padding: tableCellPadding }}>{event.location}</td>
+                  <td style={{ padding: tableCellPadding }}>
                     <div
                       style={{
                         display: "flex",
@@ -478,13 +509,9 @@ export const Reports: React.FC = () => {
                     >
                       <button
                         style={{
-                          padding: "8px 15px",
                           backgroundColor: PRIMARY_COLOR,
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
                           opacity: isLoading ? 0.7 : 1,
+                          ...actionButtonStyle,
                         }}
                         onClick={() => handleViewReport(event)}
                         disabled={isLoading}
@@ -493,15 +520,8 @@ export const Reports: React.FC = () => {
                       </button>
                       <button
                         style={{
-                          padding: "8px 15px",
                           backgroundColor: SECONDARY_COLOR,
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "5px",
+                          ...actionButtonStyle,
                         }}
                         onClick={async () => {
                           const report = await handleViewReport(event);
@@ -513,15 +533,8 @@ export const Reports: React.FC = () => {
                       </button>
                       <button
                         style={{
-                          padding: "8px 15px",
                           backgroundColor: ACCENT_COLOR,
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "5px",
+                          ...actionButtonStyle,
                         }}
                         onClick={async () => {
                           const report = await handleViewReport(event);
@@ -572,9 +585,9 @@ export const Reports: React.FC = () => {
                 position: "relative",
                 backgroundColor: "white",
                 borderRadius: "8px",
-                padding: "20px",
+                padding: contentPadding,
                 maxWidth: "900px",
-                width: "90%",
+                width: isMobile ? "100%" : "90%",
                 maxHeight: "90vh",
                 overflow: "auto",
                 border: "none",
@@ -585,6 +598,10 @@ export const Reports: React.FC = () => {
             <div
               style={{
                 marginBottom: "20px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+                alignItems: "center",
               }}
             >
               <h3
@@ -601,6 +618,7 @@ export const Reports: React.FC = () => {
                   marginTop: "0",
                   display: "flex",
                   gap: "10px",
+                  flexWrap: "wrap",
                 }}
               >
                 <span>{attendanceReport.event_date}</span>
@@ -632,9 +650,10 @@ export const Reports: React.FC = () => {
                   )
                 }
                 style={{
-                  padding: "8px",
-                  borderRadius: "4px",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
                   border: "1px solid #ddd",
+                  minWidth: isMobile ? "100%" : "220px",
                 }}
               >
                 <option value="all">All Programs</option>
@@ -664,7 +683,7 @@ export const Reports: React.FC = () => {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                   gap: "20px",
                   marginTop: "20px",
                 }}
@@ -726,7 +745,37 @@ export const Reports: React.FC = () => {
                   >
                     {selectedProgram === "all"
                       ? attendanceReport.attendees
-                      : selectedProgramBreakdown?.present || 0}
+                      : selectedProgramAttendees}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    backgroundColor: "#fff4e5",
+                    borderRadius: "8px",
+                    padding: "15px",
+                    textAlign: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "14px",
+                      color: "#666",
+                    }}
+                  >
+                    Late
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "24px",
+                      fontWeight: "bold",
+                      color: "#F57C00",
+                    }}
+                  >
+                    {selectedProgram === "all"
+                      ? attendanceReport.late_attendees
+                      : selectedProgramBreakdown?.late || 0}
                   </span>
                 </div>
                 <div
@@ -788,7 +837,7 @@ export const Reports: React.FC = () => {
                       ? `${attendanceReport.attendance_rate}%`
                       : selectedProgramBreakdown
                       ? `${Math.round(
-                          (selectedProgramBreakdown.present /
+                          (selectedProgramAttendees /
                             Math.max(selectedProgramBreakdown.total, 1)) *
                             100
                         )}%`
@@ -802,7 +851,8 @@ export const Reports: React.FC = () => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gridTemplateColumns:
+                  isMobile || selectedProgram !== "all" ? "1fr" : "1fr 1fr",
                 gap: "20px",
                 marginBottom: "30px",
               }}
@@ -818,7 +868,7 @@ export const Reports: React.FC = () => {
                 </h5>
                 <div
                   style={{
-                    height: "300px",
+                    height: isMobile ? "260px" : "300px",
                     backgroundColor: "white",
                     borderRadius: "8px",
                     padding: "15px",
@@ -839,6 +889,7 @@ export const Reports: React.FC = () => {
                         }
                       >
                         <Cell fill="#4CAF50" />
+                        <Cell fill="#FFB74D" />
                         <Cell fill="#F44336" />
                       </Pie>
                       <Tooltip
@@ -862,7 +913,7 @@ export const Reports: React.FC = () => {
                   </h5>
                   <div
                     style={{
-                      height: "300px",
+                      height: isMobile ? "260px" : "300px",
                       backgroundColor: "white",
                       borderRadius: "8px",
                       padding: "15px",
@@ -902,9 +953,10 @@ export const Reports: React.FC = () => {
                         <Legend />
                         <Bar
                           dataKey="present"
-                          name="Attendees"
+                          name="Present"
                           fill="#4CAF50"
                         />
+                        <Bar dataKey="late" name="Late" fill="#FFB74D" />
                         <Bar dataKey="absent" name="Absentees" fill="#F44336" />
                       </BarChart>
                     </ResponsiveContainer>
@@ -944,19 +996,22 @@ export const Reports: React.FC = () => {
                         backgroundColor: "#f8f9fa",
                       }}
                     >
-                      <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                      <th style={{ padding: tableCellPadding, textAlign: "left" }}>
                         Program
                       </th>
-                      <th style={{ padding: "12px 15px", textAlign: "right" }}>
+                      <th style={{ padding: tableCellPadding, textAlign: "right" }}>
                         Total
                       </th>
-                      <th style={{ padding: "12px 15px", textAlign: "right" }}>
+                      <th style={{ padding: tableCellPadding, textAlign: "right" }}>
                         Present
                       </th>
-                      <th style={{ padding: "12px 15px", textAlign: "right" }}>
+                      <th style={{ padding: tableCellPadding, textAlign: "right" }}>
+                        Late
+                      </th>
+                      <th style={{ padding: tableCellPadding, textAlign: "right" }}>
                         Absent
                       </th>
-                      <th style={{ padding: "12px 15px", textAlign: "right" }}>
+                      <th style={{ padding: tableCellPadding, textAlign: "right" }}>
                         Rate
                       </th>
                     </tr>
@@ -969,17 +1024,17 @@ export const Reports: React.FC = () => {
                           borderBottom: "1px solid #eee",
                         }}
                       >
-                        <td style={{ padding: "12px 15px" }}>
+                        <td style={{ padding: tableCellPadding }}>
                           {program.program}
                         </td>
                         <td
-                          style={{ padding: "12px 15px", textAlign: "right" }}
+                          style={{ padding: tableCellPadding, textAlign: "right" }}
                         >
                           {program.total}
                         </td>
                         <td
                           style={{
-                            padding: "12px 15px",
+                            padding: tableCellPadding,
                             textAlign: "right",
                             color: "#4CAF50",
                           }}
@@ -988,7 +1043,16 @@ export const Reports: React.FC = () => {
                         </td>
                         <td
                           style={{
-                            padding: "12px 15px",
+                            padding: tableCellPadding,
+                            textAlign: "right",
+                            color: "#F57C00",
+                          }}
+                        >
+                          {program.late}
+                        </td>
+                        <td
+                          style={{
+                            padding: tableCellPadding,
                             textAlign: "right",
                             color: "#F44336",
                           }}
@@ -997,12 +1061,16 @@ export const Reports: React.FC = () => {
                         </td>
                         <td
                           style={{
-                            padding: "12px 15px",
+                            padding: tableCellPadding,
                             textAlign: "right",
                             color: PRIMARY_COLOR,
                           }}
                         >
-                          {Math.round((program.present / program.total) * 100)}%
+                          {Math.round(
+                            ((program.present + program.late) /
+                              Math.max(program.total, 1)) *
+                              100
+                          )}%
                         </td>
                       </tr>
                     ))}
@@ -1018,20 +1086,14 @@ export const Reports: React.FC = () => {
                 flexDirection: "column",
                 alignItems: "center",
                 gap: "10px",
+                width: "100%",
               }}
             >
               <button
                 onClick={() => handleDownloadCSVReport()}
                 style={{
-                  padding: "10px 20px",
                   backgroundColor: SECONDARY_COLOR,
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
+                  ...actionButtonStyle,
                 }}
               >
                 <FaDownload /> Download CSV Report
@@ -1039,15 +1101,8 @@ export const Reports: React.FC = () => {
               <button
                 onClick={() => handleDownloadPDFReport()}
                 style={{
-                  padding: "10px 20px",
                   backgroundColor: ACCENT_COLOR,
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
+                  ...actionButtonStyle,
                 }}
               >
                 <FaDownload /> Download PDF Report
@@ -1055,13 +1110,9 @@ export const Reports: React.FC = () => {
               <button
                 onClick={() => setSelectedEvent(null)}
                 style={{
-                  padding: "10px 20px",
                   backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
                   marginTop: "10px",
+                  ...actionButtonStyle,
                 }}
               >
                 Close

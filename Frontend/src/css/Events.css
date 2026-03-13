@@ -18,6 +18,7 @@
 }
 
 .events-container {
+  width: min(100%, var(--app-shell-max-width));
   max-width: 1200px;
   margin: 0 auto;
   padding: 30px 30px 30px 30px; /* Changed from 110px to 30px for left padding */
@@ -118,7 +119,7 @@
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   z-index: 1000;
-  min-width: 180px;
+  min-width: min(180px, 78vw);
   opacity: 1;
   visibility: visible;
   transition: all 0.2s ease;
@@ -505,7 +506,7 @@
 /* Tablet Styles */
 @media (max-width: 768px) {
   .events-container {
-    padding: 20px 15px 20px 30px;
+    padding: 20px 15px;
   }
 
   .events-header,
@@ -569,17 +570,20 @@
     background-color: white;
   }
   .search-filter-section {
-    flex-direction: row; /* Ensure horizontal layout */
-    flex-wrap: nowrap; /* Prevent wrapping */
-    gap: 10px; /* Reduced gap for smaller screens */
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
   }
 
   .search-box {
     flex-grow: 1;
+    max-width: none;
   }
 
   .filter-container {
-    flex-shrink: 0; /* Prevent shrinking */
+    display: flex;
+    justify-content: flex-end;
   }
 
   /* Modal adjustments for tablet */
@@ -620,6 +624,8 @@
   .filter-btn {
     padding: 10px 15px;
     font-size: 1rem;
+    width: 100%;
+    justify-content: center;
   }
 
   .events-table td {

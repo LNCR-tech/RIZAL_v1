@@ -11,16 +11,20 @@ import {
   FaShieldAlt,
   FaRegListAlt,
   FaDatabase,
+  FaUserShield,
 } from "react-icons/fa";
 import { useUser } from "../context/UserContext";
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 import defaultAvatar from "../assets/images/userprofile1.png";
+import { useRoleSidebarLayout } from "../hooks/useRoleSidebarLayout";
 import "../css/NavbarAdmin.css";
 
 export const NavbarAdmin = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const { avatar } = useUser();
+
+  useRoleSidebarLayout({ isExpanded, sidebarOpen });
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -141,6 +145,19 @@ export const NavbarAdmin = () => {
               >
                 <FaShieldAlt className="nav-icon" />
                 <span className="nav-text">Security</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/admin_face_verification"
+                className={({ isActive }) =>
+                  isActive ? "admin-nav-link active" : "admin-nav-link"
+                }
+                onClick={() => setSidebarOpen(false)}
+                title="Facial Verification"
+              >
+                <FaUserShield className="nav-icon" />
+                <span className="nav-text">Facial Verification</span>
               </NavLink>
             </li>
             <li>

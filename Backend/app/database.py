@@ -7,15 +7,17 @@ import os
 import logging
 from app.core.config import get_settings
 
-# Configure logging
-logging.basicConfig()
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
-
 load_dotenv()
 
 settings = get_settings()
 DATABASE_URL = settings.database_url
 SQL_ECHO = os.getenv("SQL_ECHO", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+if SQL_ECHO:
+    logging.basicConfig()
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+else:
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 engine = create_engine(
     DATABASE_URL,

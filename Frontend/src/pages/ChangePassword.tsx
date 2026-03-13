@@ -2,25 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { changePassword, logout } from "../api/authApi";
-
-const resolveDashboardPath = (roles: string[]): string => {
-  const normalizedRoles = new Set(roles.map((role) => role.toLowerCase()));
-  const hasRole = (...roleNames: string[]) =>
-    roleNames.some((roleName) => normalizedRoles.has(roleName.toLowerCase()));
-
-  const isStudent = hasRole("student");
-  const isSsg = hasRole("ssg");
-  const isEventOrganizer = hasRole("event-organizer", "event_organizer");
-
-  if (hasRole("admin")) return "/admin_dashboard";
-  if (hasRole("school_it", "school-it")) return "/school_it_dashboard";
-  if (isStudent && isSsg && isEventOrganizer) return "/student_ssg_eventorganizer_dashboard";
-  if (isStudent && isSsg) return "/student_ssg_dashboard";
-  if (isStudent) return "/student_dashboard";
-  if (isSsg) return "/ssg_dashboard";
-  if (isEventOrganizer) return "/event_organizer_dashboard";
-  return "/";
-};
+import { resolvePostAuthenticationPath } from "../authFlow";
 
 const hasStrongPassword = (password: string): boolean =>
   /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password);
@@ -55,7 +37,13 @@ const ChangePassword = () => {
     }
     const needsPasswordChange = Boolean(storedUser.mustChangePassword || storedUser.must_change_password);
     if (!needsPasswordChange) {
-      navigate(resolveDashboardPath(storedUser.roles || []), { replace: true });
+      navigate(
+        resolvePostAuthenticationPath({
+          roles: storedUser.roles || [],
+          mustChangePassword: false,
+        }),
+        { replace: true }
+      );
     }
   }, [navigate, storedUser, token]);
 
@@ -85,7 +73,13 @@ const ChangePassword = () => {
     }
 
     if (!Boolean(storedUser?.mustChangePassword || storedUser?.must_change_password)) {
-      navigate(resolveDashboardPath(storedUser?.roles || []), { replace: true });
+      navigate(
+        resolvePostAuthenticationPath({
+          roles: storedUser?.roles || [],
+          mustChangePassword: false,
+        }),
+        { replace: true }
+      );
       return;
     }
 
@@ -102,7 +96,13 @@ const ChangePassword = () => {
 
       setSuccess("Password changed successfully. Redirecting...");
       window.setTimeout(() => {
-        navigate(resolveDashboardPath(updatedUser.roles || []), { replace: true });
+        navigate(
+          resolvePostAuthenticationPath({
+            roles: updatedUser.roles || [],
+            mustChangePassword: false,
+          }),
+          { replace: true }
+        );
       }, 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to change password.");

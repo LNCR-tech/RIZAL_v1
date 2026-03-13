@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { buildApiUrl, buildAssetUrl } from "./apiUrl";
 const SCHOOL_THEME_KEY = "schoolTheme";
 const SCHOOL_BRANDING_KEY = "schoolBranding";
 
@@ -139,9 +139,7 @@ const extractApiErrorMessage = async (response: Response, fallback: string): Pro
 
 export const normalizeLogoUrl = (logoUrl?: string | null): string | null => {
   if (!logoUrl) return null;
-  if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) return logoUrl;
-  if (logoUrl.startsWith("/")) return `${BASE_URL}${logoUrl}`;
-  return `${BASE_URL}/${logoUrl}`;
+  return buildAssetUrl(logoUrl);
 };
 
 export const applyTheme = (settings: Pick<SchoolSettings, "primary_color" | "secondary_color">) => {
@@ -200,7 +198,7 @@ export const applyStoredTheme = () => {
 };
 
 export const fetchSchoolSettings = async (): Promise<SchoolSettings> => {
-  const response = await fetch(`${BASE_URL}/api/school/me`, {
+  const response = await fetch(buildApiUrl("/api/school/me"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -232,7 +230,7 @@ export const createSchool = async (
   logoFile?: File | null
 ): Promise<SchoolSettings> => {
   const formData = buildSchoolFormData(payload, logoFile);
-  const response = await fetch(`${BASE_URL}/api/school/create`, {
+  const response = await fetch(buildApiUrl("/api/school/create"), {
     method: "POST",
     headers: withAuthHeaders(),
     body: formData,
@@ -253,7 +251,7 @@ export const updateSchoolSettings = async (
   logoFile?: File | null
 ): Promise<SchoolSettings> => {
   const formData = buildSchoolFormData(payload, logoFile);
-  const response = await fetch(`${BASE_URL}/api/school/update`, {
+  const response = await fetch(buildApiUrl("/api/school/update"), {
     method: "PUT",
     headers: withAuthHeaders(),
     body: formData,
@@ -270,7 +268,7 @@ export const updateSchoolSettings = async (
 };
 
 export const downloadUserImportTemplate = async (): Promise<void> => {
-  const response = await fetch(`${BASE_URL}/api/admin/import-students/template`, {
+  const response = await fetch(buildApiUrl("/api/admin/import-students/template"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -295,7 +293,7 @@ export const importUsersFromExcel = async (file: File): Promise<ImportJobCreateR
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${BASE_URL}/api/admin/import-students`, {
+  const response = await fetch(buildApiUrl("/api/admin/import-students"), {
     method: "POST",
     headers: withAuthHeaders(),
     body: formData,
@@ -313,7 +311,7 @@ export const previewImportUsersFromExcel = async (file: File): Promise<ImportPre
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${BASE_URL}/api/admin/import-students/preview`, {
+  const response = await fetch(buildApiUrl("/api/admin/import-students/preview"), {
     method: "POST",
     headers: withAuthHeaders(),
     body: formData,
@@ -328,7 +326,7 @@ export const previewImportUsersFromExcel = async (file: File): Promise<ImportPre
 };
 
 export const getImportStatus = async (jobId: string): Promise<UserImportSummary> => {
-  const response = await fetch(`${BASE_URL}/api/admin/import-status/${jobId}`, {
+  const response = await fetch(buildApiUrl(`/api/admin/import-status/${jobId}`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -342,7 +340,7 @@ export const getImportStatus = async (jobId: string): Promise<UserImportSummary>
 };
 
 export const downloadImportErrors = async (jobId: string): Promise<void> => {
-  const response = await fetch(`${BASE_URL}/api/admin/import-errors/${jobId}/download`, {
+  const response = await fetch(buildApiUrl(`/api/admin/import-errors/${jobId}/download`), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -367,7 +365,7 @@ export const retryFailedImportRows = async (
   jobId: string,
   rowNumbers?: number[]
 ): Promise<ImportJobCreateResponse> => {
-  const response = await fetch(`${BASE_URL}/api/admin/import-students/retry-failed/${jobId}`, {
+  const response = await fetch(buildApiUrl(`/api/admin/import-students/retry-failed/${jobId}`), {
     method: "POST",
     headers: {
       ...withAuthHeaders(),
@@ -416,7 +414,7 @@ export const adminCreateSchoolWithSchoolIT = async (
   logoFile?: File | null
 ): Promise<AdminSchoolItCreateResponse> => {
   const formData = buildAdminSchoolItCreateFormData(payload, logoFile);
-  const response = await fetch(`${BASE_URL}/api/school/admin/create-school-it`, {
+  const response = await fetch(buildApiUrl("/api/school/admin/create-school-it"), {
     method: "POST",
     headers: withAuthHeaders(),
     body: formData,
@@ -429,7 +427,7 @@ export const adminCreateSchoolWithSchoolIT = async (
 };
 
 export const adminListSchools = async (): Promise<SchoolSummary[]> => {
-  const response = await fetch(`${BASE_URL}/api/school/admin/list`, {
+  const response = await fetch(buildApiUrl("/api/school/admin/list"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -441,7 +439,7 @@ export const adminListSchools = async (): Promise<SchoolSummary[]> => {
 };
 
 export const adminListSchoolItAccounts = async (): Promise<SchoolITAccountSummary[]> => {
-  const response = await fetch(`${BASE_URL}/api/school/admin/school-it-accounts`, {
+  const response = await fetch(buildApiUrl("/api/school/admin/school-it-accounts"), {
     method: "GET",
     headers: withAuthHeaders(),
   });
@@ -456,7 +454,7 @@ export const adminSetSchoolItActiveStatus = async (
   userId: number,
   isActive: boolean
 ): Promise<SchoolITAccountSummary> => {
-  const response = await fetch(`${BASE_URL}/api/school/admin/school-it-accounts/${userId}/status`, {
+  const response = await fetch(buildApiUrl(`/api/school/admin/school-it-accounts/${userId}/status`), {
     method: "PATCH",
     headers: {
       ...withAuthHeaders(),
@@ -474,7 +472,7 @@ export const adminSetSchoolItActiveStatus = async (
 export const adminResetSchoolItPassword = async (
   userId: number
 ): Promise<{ user_id: number; email: string; temporary_password: string; must_change_password: boolean }> => {
-  const response = await fetch(`${BASE_URL}/api/school/admin/school-it-accounts/${userId}/reset-password`, {
+  const response = await fetch(buildApiUrl(`/api/school/admin/school-it-accounts/${userId}/reset-password`), {
     method: "POST",
     headers: withAuthHeaders(),
   });

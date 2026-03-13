@@ -11,13 +11,16 @@ import {
   FaThList,
   FaUserCheck,
 } from "react-icons/fa";
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 import userprofile from "../assets/images/userprofile.png";
+import { useRoleSidebarLayout } from "../hooks/useRoleSidebarLayout";
 import "../css/NavbarStudentSSG.css";
 
 export const NavbarStudentSSG = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  useRoleSidebarLayout({ isExpanded, sidebarOpen });
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -103,6 +106,19 @@ export const NavbarStudentSSG = () => {
               >
                 <FaCalendarAlt className="nav-icon" />
                 <span className="nav-text">Upcoming Events</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/student_event_checkin"
+                className={({ isActive }) =>
+                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
+                }
+                onClick={() => setSidebarOpen(false)}
+                title="Event Sign In"
+              >
+                <FaUserCheck className="nav-icon" />
+                <span className="nav-text">Event Sign In</span>
               </NavLink>
             </li>
             <li>

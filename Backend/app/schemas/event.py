@@ -3,10 +3,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from enum import Enum
 
+from app.schemas.attendance import Attendance, AttendanceStatus
 from app.schemas.department import Department
 from app.schemas.program import Program
 from app.schemas.user import SSGProfile
-from app.schemas.attendance import Attendance
 from pydantic import computed_field  # Add this import at the top
 
 class EventStatus(str, Enum):
@@ -15,9 +15,61 @@ class EventStatus(str, Enum):
     completed = "completed"
     cancelled = "cancelled"
 
+
+class EventTimeStatus(str, Enum):
+    upcoming = "upcoming"
+    open = "open"
+    late = "late"
+    closed = "closed"
+
+
+class EventTimeStatusInfo(BaseModel):
+    event_status: EventTimeStatus
+    current_time: datetime
+    start_time: datetime
+    end_time: datetime
+    late_threshold_time: datetime
+    timezone_name: str
+
+
+class EventAttendanceDecisionInfo(BaseModel):
+    event_status: EventTimeStatus
+    attendance_allowed: bool
+    attendance_status: Optional[AttendanceStatus] = None
+    reason_code: Optional[str] = None
+    message: str
+    current_time: datetime
+    start_time: datetime
+    end_time: datetime
+    late_threshold_time: datetime
+    timezone_name: str
+
+
+class EventLocationVerificationRequest(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy_m: Optional[float] = Field(default=None, gt=0, le=5000)
+
+
+class EventLocationVerificationResponse(BaseModel):
+    ok: bool
+    reason: Optional[str] = None
+    distance_m: float
+    effective_distance_m: Optional[float] = None
+    radius_m: float
+    accuracy_m: Optional[float] = None
+    time_status: Optional[EventTimeStatusInfo] = None
+    attendance_decision: Optional[EventAttendanceDecisionInfo] = None
+
 class EventBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     location: str = Field(..., min_length=1, max_length=200)
+    geo_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    geo_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    geo_radius_m: Optional[float] = Field(default=None, gt=0, le=5000)
+    geo_required: bool = False
+    geo_max_accuracy_m: Optional[float] = Field(default=None, gt=0, le=1000)
+    late_threshold_minutes: int = Field(default=0, ge=0, le=1440)
     start_datetime: datetime
     end_datetime: datetime
     status: EventStatus = EventStatus.upcoming
@@ -33,6 +85,12 @@ class EventCreate(EventBase):
 class EventUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     location: Optional[str] = Field(None, min_length=1, max_length=200)
+    geo_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    geo_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    geo_radius_m: Optional[float] = Field(default=None, gt=0, le=5000)
+    geo_required: Optional[bool] = None
+    geo_max_accuracy_m: Optional[float] = Field(default=None, gt=0, le=1000)
+    late_threshold_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None

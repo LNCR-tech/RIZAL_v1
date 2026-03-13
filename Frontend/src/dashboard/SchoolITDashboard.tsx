@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaFileImport, FaKey, FaPalette, FaRegListAlt, FaSchool, FaSitemap, FaUsers } from "react-icons/fa";
+import {
+  FaFileImport,
+  FaKey,
+  FaPalette,
+  FaRegListAlt,
+  FaSchool,
+  FaSitemap,
+  FaUserShield,
+  FaUsers,
+} from "react-icons/fa";
 
 import NavbarSchoolIT from "../components/NavbarSchoolIT";
 import { fetchSchoolSettings, normalizeLogoUrl, SchoolSettings } from "../api/schoolSettingsApi";
@@ -169,6 +178,22 @@ const SchoolITDashboard = () => {
                   </h5>
                   <p className="card-text text-muted mb-0">
                     View, edit, and deactivate users within your school scope.
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          <div className="col-md-6">
+            <Link to="/school_it_face_verification" className="text-decoration-none">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h5 className="card-title">
+                    <FaUserShield className="me-2" />
+                    Facial Verification
+                  </h5>
+                  <p className="card-text text-muted mb-0">
+                    Manage live face enrollment and anti-spoof verification for School IT access.
                   </p>
                 </div>
               </div>

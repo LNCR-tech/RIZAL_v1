@@ -36,6 +36,12 @@ EXEMPT_PATH_PREFIXES = {
     "/redoc",
     "/openapi.json",
 }
+FACE_VERIFICATION_EXEMPT_PATH_PREFIXES = {
+    "/auth/security/face-status",
+    "/auth/security/face-liveness",
+    "/auth/security/face-reference",
+    "/auth/security/face-verify",
+}
 
 
 def normalize_role_name(role_name: str) -> str:
@@ -90,7 +96,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def _decode_token_to_token_data(token: str) -> TokenData:
+def decode_token_to_token_data(token: str) -> TokenData:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -108,6 +114,7 @@ def _decode_token_to_token_data(token: str) -> TokenData:
             roles=payload.get("roles"),
             must_change_password=payload.get("must_change_password"),
             jti=payload.get("jti"),
+            face_pending=payload.get("face_pending"),
         )
     except JWTError as exc:
         raise credentials_exception from exc
@@ -122,6 +129,28 @@ def _raise_password_change_required() -> None:
             "change_password_endpoint": PASSWORD_CHANGE_ENDPOINT,
         },
     )
+
+
+def _raise_face_verification_required() -> None:
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "face_verification_required",
+            "message": "Face verification is required before accessing protected resources.",
+            "verify_endpoint": "/auth/security/face-verify",
+        },
+    )
+
+
+def _enforce_face_verification_gate(token_data: TokenData, request: Request) -> None:
+    if not token_data.face_pending:
+        return
+
+    path = request.url.path
+    if any(path.startswith(prefix) for prefix in FACE_VERIFICATION_EXEMPT_PATH_PREFIXES):
+        return
+
+    _raise_face_verification_required()
 
 
 def _enforce_password_change_gate(user: User, request: Request) -> None:
@@ -140,7 +169,7 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    token_data = _decode_token_to_token_data(token)
+    token_data = decode_token_to_token_data(token)
 
     user = (
         db.query(User)
@@ -156,7 +185,9 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    assert_session_valid(db, token_jti=token_data.jti)
+    if not token_data.face_pending:
+        assert_session_valid(db, token_jti=token_data.jti)
+    _enforce_face_verification_gate(token_data, request)
     _enforce_password_change_gate(user, request)
     return user
 
@@ -166,7 +197,7 @@ async def get_current_user_with_roles(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    token_data = _decode_token_to_token_data(token)
+    token_data = decode_token_to_token_data(token)
 
     user = (
         db.query(User)
@@ -186,7 +217,9 @@ async def get_current_user_with_roles(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    assert_session_valid(db, token_jti=token_data.jti)
+    if not token_data.face_pending:
+        assert_session_valid(db, token_jti=token_data.jti)
+    _enforce_face_verification_gate(token_data, request)
     _enforce_password_change_gate(user, request)
     return user
 

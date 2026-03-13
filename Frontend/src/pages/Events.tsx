@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { NavbarAdmin } from "../components/NavbarAdmin";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
 import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
 import { NavbarSSG } from "../components/NavbarSSG";
 import NavbarSchoolIT from "../components/NavbarSchoolIT";
 import { FaFilter, FaSearch, FaUsers } from "react-icons/fa";
-import { fetchEventsByStatus } from "../api/eventsApi";
+import { fetchAllEvents } from "../api/eventsApi";
 import "../css/Events.css";
 
 interface EventsProps {
@@ -56,18 +56,14 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         setLoading(true);
-        const [upcoming, ongoing, completed, cancelled] = await Promise.all([
-          fetchEventsByStatus("upcoming"),
-          fetchEventsByStatus("ongoing"),
-          fetchEventsByStatus("completed"),
-          fetchEventsByStatus("cancelled"),
-        ]);
-        setEvents([...upcoming, ...ongoing, ...completed, ...cancelled]);
+        const allEvents = await fetchAllEvents();
+        setEvents(allEvents);
       } catch (err) {
         setError("Failed to fetch events. Please try again later.");
         console.error("Error fetching events:", err);
@@ -115,7 +111,7 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
 
   const filteredEvents = events
     .filter((event) =>
-      event.name.toLowerCase().includes(searchTerm.toLowerCase())
+      event.name.toLowerCase().includes(deferredSearchTerm.toLowerCase())
     )
     .filter((event) => {
       if (filter === "upcoming") return event.status === "upcoming";

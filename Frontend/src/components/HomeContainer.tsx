@@ -1,4 +1,4 @@
-import logoValid8 from "../assets/images/logo-valid83_transparent.png";
+import logoValid8 from "../assets/images/logo-valid83.webp";
 
 export const HomeContainer = () => {
   return (

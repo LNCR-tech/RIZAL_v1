@@ -14,6 +14,9 @@ import {
   FaInfoCircle,
   FaSearch,
 } from "react-icons/fa";
+import EventGeofencePicker, {
+  type EventGeofenceValue,
+} from "../components/EventGeofencePicker";
 import "../css/CreateEvent.css";
 
 interface CreateEventProps {
@@ -46,6 +49,12 @@ interface Department {
 interface EventFormData {
   name: string;
   location: string;
+  geo_latitude: number | null;
+  geo_longitude: number | null;
+  geo_radius_m: number;
+  geo_required: boolean;
+  geo_max_accuracy_m: number;
+  late_threshold_minutes: string;
   start_datetime: string;
   end_datetime: string;
   status: "upcoming" | "ongoing" | "completed" | "cancelled";
@@ -54,11 +63,35 @@ interface EventFormData {
   department_ids: number[];
 }
 
+const DEFAULT_GEOFENCE: EventGeofenceValue = {
+  latitude: null,
+  longitude: null,
+  radiusM: 100,
+  maxAccuracyM: 50,
+  required: true,
+};
+
+const sanitizeWholeNumberInput = (value: string) => value.replace(/\D/g, "");
+
+const parseLateThresholdMinutes = (value: string) => {
+  if (!value.trim()) {
+    return 0;
+  }
+
+  return Math.max(0, Number.parseInt(value, 10) || 0);
+};
+
 export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<EventFormData>({
     name: "",
     location: "",
+    geo_latitude: DEFAULT_GEOFENCE.latitude,
+    geo_longitude: DEFAULT_GEOFENCE.longitude,
+    geo_radius_m: DEFAULT_GEOFENCE.radiusM,
+    geo_required: DEFAULT_GEOFENCE.required,
+    geo_max_accuracy_m: DEFAULT_GEOFENCE.maxAccuracyM,
+    late_threshold_minutes: "",
     start_datetime: "",
     end_datetime: "",
     status: "upcoming",
@@ -158,9 +191,9 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
     }
   };
 
-  const formatDateForAPI = (dateString: string) => {
+  const formatDateTimeForAPI = (dateString: string) => {
     if (!dateString) return "";
-    return new Date(dateString).toISOString();
+    return dateString.length === 16 ? `${dateString}:00` : dateString;
   };
 
   const checkAuthentication = (): boolean => {
@@ -230,7 +263,13 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]:
+        name === "late_threshold_minutes"
+          ? sanitizeWholeNumberInput(value)
+          : value,
+    }));
     if (validationErrors[name]) {
       setValidationErrors((prev) => {
         const newErrors = { ...prev };
@@ -252,6 +291,24 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
         return newErrors;
       });
     }
+  };
+
+  const handleGeofenceChange = (nextValue: EventGeofenceValue) => {
+    setFormData((prev) => ({
+      ...prev,
+      geo_latitude: nextValue.latitude,
+      geo_longitude: nextValue.longitude,
+      geo_radius_m: nextValue.radiusM,
+      geo_required: nextValue.required,
+      geo_max_accuracy_m: nextValue.maxAccuracyM,
+    }));
+
+    setValidationErrors((prev) => {
+      const nextErrors = { ...prev };
+      delete nextErrors.geo_location;
+      delete nextErrors.geo_radius_m;
+      return nextErrors;
+    });
   };
 
   const toggleSelection = (
@@ -276,9 +333,21 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
+    const lateThresholdMinutes = parseLateThresholdMinutes(
+      formData.late_threshold_minutes
+    );
 
     if (!formData.name.trim()) errors.name = "Event name is required";
     if (!formData.location.trim()) errors.location = "Location is required";
+    if (formData.geo_latitude == null || formData.geo_longitude == null) {
+      errors.geo_location = "Mark the event venue on the map.";
+    }
+    if (!formData.geo_radius_m || formData.geo_radius_m <= 0) {
+      errors.geo_radius_m = "Allowed radius must be greater than zero.";
+    }
+    if (lateThresholdMinutes < 0) {
+      errors.late_threshold_minutes = "Late threshold must be zero or greater.";
+    }
     if (!formData.start_datetime)
       errors.start_datetime = "Start date & time is required";
     if (!formData.end_datetime)
@@ -321,8 +390,11 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
     try {
       const apiFormData = {
         ...formData,
-        start_datetime: formatDateForAPI(formData.start_datetime),
-        end_datetime: formatDateForAPI(formData.end_datetime),
+        late_threshold_minutes: parseLateThresholdMinutes(
+          formData.late_threshold_minutes
+        ),
+        start_datetime: formatDateTimeForAPI(formData.start_datetime),
+        end_datetime: formatDateTimeForAPI(formData.end_datetime),
       };
 
       console.log("Submitting event data:", apiFormData);
@@ -338,6 +410,12 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
       setFormData({
         name: "",
         location: "",
+        geo_latitude: DEFAULT_GEOFENCE.latitude,
+        geo_longitude: DEFAULT_GEOFENCE.longitude,
+        geo_radius_m: DEFAULT_GEOFENCE.radiusM,
+        geo_required: DEFAULT_GEOFENCE.required,
+        geo_max_accuracy_m: DEFAULT_GEOFENCE.maxAccuracyM,
+        late_threshold_minutes: "",
         start_datetime: "",
         end_datetime: "",
         status: "upcoming",
@@ -551,7 +629,74 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
             )}
           </div>
 
+          <div
+            className={`ce-form-group ${
+              validationErrors.geo_location || validationErrors.geo_radius_m
+                ? "ce-error"
+                : ""
+            }`}
+          >
+            <label className="ce-form-label">
+              <FaMapMarkerAlt className="ce-icon" />
+              Event Map Location*
+            </label>
+            <EventGeofencePicker
+              value={{
+                latitude: formData.geo_latitude,
+                longitude: formData.geo_longitude,
+                radiusM: formData.geo_radius_m,
+                maxAccuracyM: formData.geo_max_accuracy_m,
+                required: formData.geo_required,
+              }}
+              onChange={handleGeofenceChange}
+              invalidateKey="create-event-map"
+            />
+            {validationErrors.geo_location && (
+              <div className="ce-error-text">{validationErrors.geo_location}</div>
+            )}
+            {validationErrors.geo_radius_m && (
+              <div className="ce-error-text">{validationErrors.geo_radius_m}</div>
+            )}
+          </div>
+
           <div className="ce-form-row">
+            <div
+              className={`ce-form-group ${
+                validationErrors.late_threshold_minutes ? "ce-error" : ""
+              }`}
+            >
+              <label className="ce-form-label">
+                <FaInfoCircle className="ce-icon" />
+                Late Threshold (minutes)*
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                name="late_threshold_minutes"
+                value={formData.late_threshold_minutes}
+                onChange={handleInputChange}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                required
+                placeholder="0"
+                className={`ce-form-input ${
+                  validationErrors.late_threshold_minutes
+                    ? "ce-input-error"
+                    : ""
+                }`}
+              />
+              <div className="ce-helper-text">
+                Students who sign in after the event start plus this threshold
+                will be marked late.
+              </div>
+              {validationErrors.late_threshold_minutes && (
+                <div className="ce-error-text">
+                  {validationErrors.late_threshold_minutes}
+                </div>
+              )}
+            </div>
+
             <div
               className={`ce-form-group ${
                 validationErrors.start_datetime ? "ce-error" : ""
@@ -938,6 +1083,12 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ role }) => {
                 setFormData({
                   name: "",
                   location: "",
+                  geo_latitude: DEFAULT_GEOFENCE.latitude,
+                  geo_longitude: DEFAULT_GEOFENCE.longitude,
+                  geo_radius_m: DEFAULT_GEOFENCE.radiusM,
+                  geo_required: DEFAULT_GEOFENCE.required,
+                  geo_max_accuracy_m: DEFAULT_GEOFENCE.maxAccuracyM,
+                  late_threshold_minutes: "",
                   start_datetime: "",
                   end_datetime: "",
                   status: "upcoming",

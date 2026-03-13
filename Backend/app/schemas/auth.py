@@ -25,6 +25,9 @@ class Token(BaseModel):
     mfa_required: Optional[bool] = None
     mfa_challenge_id: Optional[str] = None
     mfa_expires_at: Optional[datetime] = None
+    face_verification_required: Optional[bool] = None
+    face_reference_enrolled: Optional[bool] = None
+    face_verification_pending: Optional[bool] = None
 
 class TokenData(BaseModel):
     email: Optional[str] = None
@@ -32,6 +35,7 @@ class TokenData(BaseModel):
     school_id: Optional[int] = None
     must_change_password: Optional[bool] = None
     jti: Optional[str] = None
+    face_pending: Optional[bool] = None
 
 class LoginRequest(BaseModel):
     email: EmailStr  # More strict validation

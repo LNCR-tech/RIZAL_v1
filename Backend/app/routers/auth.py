@@ -1,15 +1,12 @@
-from datetime import datetime, timedelta
-import uuid
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 
 from app.core.security import (
     authenticate_user,
-    create_access_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     get_current_user_with_roles,
     has_any_role,
 )
@@ -23,13 +20,23 @@ from app.schemas.password_reset import (
     PasswordResetRequestItem,
 )
 from app.models.password_reset_request import PasswordResetRequest
+from app.models.school import School
 from app.models.user import User, UserRole
-from app.models.school import School, SchoolSetting
-from app.services.email_service import EmailDeliveryError, send_mfa_code_email, send_password_reset_email
+from app.services.email_service import EmailDeliveryError, send_password_reset_email
+from app.services.auth_session import (
+    get_school_context,
+    get_user_role_names,
+    has_face_reference_enrolled,
+    issue_login_token_response,
+    validate_login_account_state,
+)
+from app.services.auth_background import (
+    dispatch_account_security_notification,
+    dispatch_mfa_code_email,
+)
 from app.services.notification_center_service import send_account_security_notification
 from app.services.security_service import (
     create_mfa_challenge,
-    create_user_session,
     record_login_history,
     should_require_mfa,
     verify_mfa_challenge,
@@ -37,96 +44,9 @@ from app.services.security_service import (
 from app.utils.passwords import generate_secure_password
 
 router = APIRouter(tags=["authentication"])
-PASSWORD_CHANGE_ENDPOINT = "/auth/change-password"
 FORGOT_PASSWORD_GENERIC_MESSAGE = (
     "If the account exists, a password reset request has been submitted for School IT approval."
 )
-
-
-def _get_school_context(db: Session, user: User) -> dict:
-    """
-    Resolve school context strictly from the authenticated user's school_id.
-    Do not fall back to any other school to avoid cross-tenant data leakage.
-    """
-    try:
-        school_id = getattr(user, "school_id", None)
-        if school_id is None:
-            return {}
-        school = db.query(School).filter(School.id == school_id).first()
-        if school is None:
-            return {}
-
-        settings = (
-            db.query(SchoolSetting)
-            .filter(SchoolSetting.school_id == school.id)
-            .first()
-        )
-
-        return {
-            "school_id": school.id,
-            "school_name": school.school_name or school.name,
-            "school_code": school.school_code,
-            "logo_url": school.logo_url,
-            "primary_color": school.primary_color if getattr(school, "primary_color", None) else (settings.primary_color if settings else None),
-            "secondary_color": school.secondary_color if getattr(school, "secondary_color", None) else (settings.secondary_color if settings else None),
-            "accent_color": settings.accent_color if settings else (school.secondary_color or school.primary_color),
-        }
-    except Exception:
-        # Avoid breaking authentication if school tables are not migrated yet.
-        return {}
-
-
-def _issue_access_token_response(
-    *,
-    db: Session,
-    user: User,
-    role_names: list[str],
-    school_context: dict,
-    request: Request | None = None,
-) -> dict:
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    session_id = str(uuid.uuid4())
-    token_jti = str(uuid.uuid4())
-
-    token_payload = {
-        "sub": user.email,
-        "roles": role_names,
-        "user_id": user.id,
-        "is_admin": "admin" in role_names,
-        "must_change_password": user.must_change_password,
-        "jti": token_jti,
-        "sid": session_id,
-    }
-    if school_context.get("school_id") is not None:
-        token_payload["school_id"] = school_context["school_id"]
-
-    access_token = create_access_token(
-        data=token_payload,
-        expires_delta=access_token_expires,
-    )
-    create_user_session(
-        db,
-        user=user,
-        token_jti=token_jti,
-        session_id=session_id,
-        expires_in_minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
-        request=request,
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "email": user.email,
-        "roles": role_names,
-        "user_id": user.id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "is_admin": "admin" in role_names,
-        "must_change_password": user.must_change_password,
-        "change_password_endpoint": PASSWORD_CHANGE_ENDPOINT if user.must_change_password else None,
-        "session_id": session_id,
-        **school_context,
-    }
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
@@ -152,14 +72,11 @@ async def login_for_access_token(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    validate_login_account_state(db, user)
 
-    role_names = [ur.role.name for ur in user.roles]
-    school_context = _get_school_context(db, user)
-    response_payload = _issue_access_token_response(
+    response_payload = issue_login_token_response(
         db=db,
         user=user,
-        role_names=role_names,
-        school_context=school_context,
         request=request,
     )
     record_login_history(
@@ -167,7 +84,11 @@ async def login_for_access_token(
         email_attempted=user.email,
         user=user,
         success=True,
-        auth_method="password",
+        auth_method=(
+            "password_face_pending"
+            if response_payload.get("face_verification_pending")
+            else "password"
+        ),
         request=request,
     )
     db.commit()
@@ -176,6 +97,7 @@ async def login_for_access_token(
 @router.post("/login", response_model=Token)
 async def login_with_email(
     request: Request,
+    background_tasks: BackgroundTasks,
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
@@ -196,14 +118,16 @@ async def login_with_email(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
+    validate_login_account_state(db, user)
 
-    role_names = [ur.role.name for ur in user.roles]
-    school_context = _get_school_context(db, user)
+    role_names = get_user_role_names(user)
+    school_context = get_school_context(db, user)
 
     if should_require_mfa(db, user):
         challenge, code = create_mfa_challenge(db, user=user, request=request, ttl_minutes=10)
         try:
-            send_mfa_code_email(
+            dispatch_mfa_code_email(
+                background_tasks,
                 recipient_email=user.email,
                 code=code,
                 first_name=user.first_name,
@@ -235,14 +159,17 @@ async def login_with_email(
             "mfa_required": True,
             "mfa_challenge_id": challenge.id,
             "mfa_expires_at": challenge.expires_at,
+            "face_verification_required": any(
+                role_name.strip().lower().replace("_", "-") in {"admin", "school-it"}
+                for role_name in role_names
+            ),
+            "face_reference_enrolled": has_face_reference_enrolled(db, user.id),
             **school_context,
         }
 
-    response_payload = _issue_access_token_response(
+    response_payload = issue_login_token_response(
         db=db,
         user=user,
-        role_names=role_names,
-        school_context=school_context,
         request=request,
     )
     record_login_history(
@@ -250,24 +177,24 @@ async def login_with_email(
         email_attempted=user.email,
         user=user,
         success=True,
-        auth_method="password",
+        auth_method=(
+            "password_face_pending"
+            if response_payload.get("face_verification_pending")
+            else "password"
+        ),
         request=request,
     )
 
-    try:
-        send_account_security_notification(
-            db,
-            user=user,
-            subject="New Login Detected",
-            message=(
-                "A new login to your VALID8 account was detected. "
-                "If this wasn't you, reset your password immediately."
-            ),
-            metadata_json={"event": "login"},
-        )
-    except Exception:
-        # Authentication should succeed even if notifications fail.
-        pass
+    dispatch_account_security_notification(
+        background_tasks,
+        user_id=user.id,
+        subject="New Login Detected",
+        message=(
+            "A new login to your VALID8 account was detected. "
+            "If this wasn't you, reset your password immediately."
+        ),
+        metadata_json={"event": "login"},
+    )
 
     db.commit()
     return response_payload
@@ -276,6 +203,7 @@ async def login_with_email(
 @router.post("/auth/mfa/verify", response_model=Token)
 async def verify_mfa_and_login(
     request: Request,
+    background_tasks: BackgroundTasks,
     payload: MfaChallengeVerifyRequest,
     db: Session = Depends(get_db),
 ):
@@ -287,6 +215,7 @@ async def verify_mfa_and_login(
     )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    validate_login_account_state(db, user)
 
     challenge = verify_mfa_challenge(
         db,
@@ -294,13 +223,9 @@ async def verify_mfa_and_login(
         challenge_id=payload.challenge_id,
         code=payload.code,
     )
-    role_names = [ur.role.name for ur in user.roles]
-    school_context = _get_school_context(db, user)
-    response_payload = _issue_access_token_response(
+    response_payload = issue_login_token_response(
         db=db,
         user=user,
-        role_names=role_names,
-        school_context=school_context,
         request=request,
     )
     record_login_history(
@@ -308,21 +233,22 @@ async def verify_mfa_and_login(
         email_attempted=user.email,
         user=user,
         success=True,
-        auth_method="mfa",
+        auth_method=(
+            "mfa_face_pending"
+            if response_payload.get("face_verification_pending")
+            else "mfa"
+        ),
         request=request,
     )
-    try:
-        send_account_security_notification(
-            db,
-            user=user,
-            subject="MFA Login Completed",
-            message=(
-                "A multi-factor login was completed successfully on your VALID8 account."
-            ),
-            metadata_json={"event": "mfa_login", "challenge_id": challenge.id},
-        )
-    except Exception:
-        pass
+    dispatch_account_security_notification(
+        background_tasks,
+        user_id=user.id,
+        subject="MFA Login Completed",
+        message=(
+            "A multi-factor login was completed successfully on your VALID8 account."
+        ),
+        metadata_json={"event": "mfa_login", "challenge_id": challenge.id},
+    )
     db.commit()
     return response_payload
 

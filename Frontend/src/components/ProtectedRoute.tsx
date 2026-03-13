@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useMemo } from "react";
+import { isStudentFaceEnrollmentRequired } from "../api/studentFaceEnrollmentApi";
 
 const ProtectedRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
   const storedUser = localStorage.getItem("user");
@@ -33,6 +34,18 @@ const ProtectedRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
   const normalizeRole = (role: string) => role.trim().toLowerCase().replace(/_/g, "-");
   const userRoles = (user.roles as string[]).map(normalizeRole);
   const allowed = allowedRoles.map(normalizeRole);
+
+  const requiresStudentFaceEnrollment =
+    userRoles.includes("student") &&
+    isStudentFaceEnrollmentRequired(typeof user.id === "number" ? user.id : null);
+
+  if (
+    requiresStudentFaceEnrollment &&
+    location.pathname !== "/student_face_registration" &&
+    location.pathname !== "/change-password"
+  ) {
+    return <Navigate to="/student_face_registration" replace />;
+  }
 
   // Check if the user has at least one allowed role
   const hasAccess = allowed.some((role) => userRoles.includes(role));

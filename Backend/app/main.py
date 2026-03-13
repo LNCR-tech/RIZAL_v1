@@ -18,8 +18,8 @@ from app.routers import (
     security_center,
     subscription,
     governance,
+    face_recognition,
 )
-from app.services.face_recognition import FaceRecognitionService
 from pathlib import Path
 
 
@@ -50,14 +50,11 @@ app.include_router(notifications.router)
 app.include_router(security_center.router)
 app.include_router(subscription.router)
 app.include_router(governance.router)
+app.include_router(face_recognition.router)
 
 logo_storage_dir = Path(settings.school_logo_storage_dir)
 logo_storage_dir.mkdir(parents=True, exist_ok=True)
 app.mount(settings.school_logo_public_prefix, StaticFiles(directory=str(logo_storage_dir)), name="school-logos")
-
-# Load face encodings at startup
-face_service = FaceRecognitionService()
-face_service.load_encodings("face_encodings.pkl")
 
 @app.get("/")
 async def root():
@@ -74,11 +71,8 @@ async def root():
             "audit_logs": "/api/audit-logs",
             "notifications": "/api/notifications",
             "security": "/auth/security",
+            "face": "/face",
             "subscription": "/api/subscription/me",
             "governance": "/api/governance/settings/me",
         }
     }
-
-@app.on_event("shutdown")
-def save_face_encodings():
-    face_service.save_encodings("face_encodings.pkl")

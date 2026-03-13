@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Enum, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 from app.models.base import Base
@@ -17,6 +17,12 @@ class Event(Base):
     school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=False)
     name = Column(String(100), nullable=False)
     location = Column(String(200))
+    geo_latitude = Column(Float, nullable=True)
+    geo_longitude = Column(Float, nullable=True)
+    geo_radius_m = Column(Float, nullable=True)
+    geo_required = Column(Boolean, nullable=False, default=False)
+    geo_max_accuracy_m = Column(Float, nullable=True)
+    late_threshold_minutes = Column(Integer, nullable=False, default=0)
     start_datetime = Column(DateTime, nullable=False)
     end_datetime = Column(DateTime, nullable=False)
     status = Column(Enum(EventStatus), nullable=False, default=EventStatus.UPCOMING)

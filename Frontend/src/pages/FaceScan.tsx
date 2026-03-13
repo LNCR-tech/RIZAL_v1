@@ -124,6 +124,20 @@ export const FaceScan: React.FC<RecordsProps> = ({ role }) => {
     return canvas.toDataURL("image/jpeg", 0.8);
   }, []);
 
+  const getCurrentLocation = () =>
+    new Promise<GeolocationPosition>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported on this device."));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+      });
+    });
+
   const handleRegisterFace = async () => {
     if (!isStreaming) {
       setMessage("Please start camera first");
@@ -256,6 +270,23 @@ export const FaceScan: React.FC<RecordsProps> = ({ role }) => {
 
     setLoading(true);
     try {
+      let locationPayload: {
+        latitude?: number;
+        longitude?: number;
+        accuracy_m?: number;
+      } = {};
+
+      try {
+        const position = await getCurrentLocation();
+        locationPayload = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy_m: position.coords.accuracy,
+        };
+      } catch (locationError) {
+        console.warn("Geolocation lookup failed:", locationError);
+      }
+
       // FIXED: Use the correct endpoint path with '/face/' prefix
       const response = await fetchWithAuth(
         `${BASE_URL}/face/face-scan-with-recognition`,
@@ -264,6 +295,7 @@ export const FaceScan: React.FC<RecordsProps> = ({ role }) => {
           body: JSON.stringify({
             event_id: eventId,
             image_base64: imageBase64,
+            ...locationPayload,
           }),
         }
       );
@@ -271,7 +303,11 @@ export const FaceScan: React.FC<RecordsProps> = ({ role }) => {
       const result = await response.json();
       if (result.action === "time_in") {
         setMessage(
-          `Check-in recorded for ${result.student_name} (${result.student_id})`
+          `Check-in recorded for ${result.student_name} (${result.student_id})${
+            result.geo?.distance_m != null
+              ? ` at ${Number(result.geo.distance_m).toFixed(1)}m from the event zone`
+              : ""
+          }`
         );
       } else if (result.action === "timeout") {
         setMessage(

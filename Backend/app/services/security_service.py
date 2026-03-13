@@ -9,6 +9,7 @@ from typing import Iterable, Optional
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.platform_features import LoginHistory, MfaChallenge, UserSecuritySetting, UserSession
 from app.models.user import User
 
@@ -56,6 +57,10 @@ def get_or_create_security_setting(db: Session, user: User) -> UserSecuritySetti
 
 
 def should_require_mfa(db: Session, user: User) -> bool:
+    settings = get_settings()
+    if not settings.auth_enable_mfa:
+        return False
+
     setting = get_or_create_security_setting(db, user)
     return bool(setting.mfa_enabled)
 

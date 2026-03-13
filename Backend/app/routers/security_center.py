@@ -1,13 +1,30 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from jose import JWTError, jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.security import ALGORITHM, SECRET_KEY, get_current_user_with_roles, oauth2_scheme
+from app.core.security import (
+    ALGORITHM,
+    SECRET_KEY,
+    decode_token_to_token_data,
+    get_current_user_with_roles,
+    oauth2_scheme,
+)
 from app.database import get_db
+from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.platform_features import UserSession
 from app.models.user import User
+from app.schemas.face_recognition import (
+    Base64ImageRequest,
+    SecurityFaceLivenessResponse,
+    SecurityFaceReferenceResponse,
+    SecurityFaceStatusResponse,
+    SecurityFaceVerificationRequest,
+    SecurityFaceVerificationResponse,
+)
 from app.schemas.security import (
     LoginHistoryItem,
     MfaStatusResponse,
@@ -15,15 +32,20 @@ from app.schemas.security import (
     RevokeSessionResponse,
     UserSessionItem,
 )
+from app.services.auth_session import issue_full_access_token_response
 from app.services.security_service import (
     get_or_create_security_setting,
+    is_privileged_user,
     list_active_sessions,
     list_login_history_for_actor,
+    record_login_history,
     revoke_other_sessions,
     revoke_session,
 )
+from app.services.face_recognition import FaceRecognitionService
 
 router = APIRouter(prefix="/auth/security", tags=["security"])
+face_service = FaceRecognitionService()
 
 
 def _extract_current_jti(token: str) -> str | None:
@@ -33,6 +55,14 @@ def _extract_current_jti(token: str) -> str | None:
         return str(jti) if jti else None
     except JWTError:
         return None
+
+
+def _require_privileged_face_verification_user(current_user: User) -> None:
+    if not is_privileged_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or School IT access is required for face verification.",
+        )
 
 
 @router.get("/mfa-status", response_model=MfaStatusResponse)
@@ -149,3 +179,184 @@ def get_login_history(
 ):
     rows = list_login_history_for_actor(db, actor=current_user, limit=limit)
     return rows
+
+
+@router.get("/face-status", response_model=SecurityFaceStatusResponse)
+def get_face_status(
+    current_user: User = Depends(get_current_user_with_roles),
+    db: Session = Depends(get_db),
+):
+    _require_privileged_face_verification_user(current_user)
+    profile = (
+        db.query(UserFaceRecognitionProfile)
+        .filter(UserFaceRecognitionProfile.user_id == current_user.id)
+        .first()
+    )
+    anti_spoof_ready, anti_spoof_reason = face_service.anti_spoof_status()
+    return SecurityFaceStatusResponse(
+        user_id=current_user.id,
+        face_verification_required=True,
+        face_reference_enrolled=profile is not None,
+        provider=(profile.provider if profile is not None else "face_recognition"),
+        updated_at=(profile.updated_at if profile is not None else None),
+        last_verified_at=(profile.last_verified_at if profile is not None else None),
+        liveness_enabled=True,
+        anti_spoof_ready=anti_spoof_ready,
+        anti_spoof_reason=anti_spoof_reason,
+        live_capture_required=True,
+    )
+
+
+@router.post("/face-liveness", response_model=SecurityFaceLivenessResponse)
+def check_face_liveness(
+    payload: Base64ImageRequest,
+    current_user: User = Depends(get_current_user_with_roles),
+):
+    _require_privileged_face_verification_user(current_user)
+    image_bytes = face_service.decode_base64_image(payload.image_base64)
+    rgb_image = face_service.load_rgb_from_bytes(image_bytes)
+    liveness = face_service.check_liveness(rgb_image)
+    return SecurityFaceLivenessResponse(**liveness.to_dict())
+
+
+@router.post("/face-reference", response_model=SecurityFaceReferenceResponse)
+def save_face_reference(
+    payload: Base64ImageRequest,
+    current_user: User = Depends(get_current_user_with_roles),
+    db: Session = Depends(get_db),
+):
+    _require_privileged_face_verification_user(current_user)
+    image_bytes = face_service.decode_base64_image(payload.image_base64)
+    encoding, liveness = face_service.extract_encoding_from_bytes(
+        image_bytes,
+        require_single_face=True,
+        enforce_liveness=True,
+    )
+
+    profile = (
+        db.query(UserFaceRecognitionProfile)
+        .filter(UserFaceRecognitionProfile.user_id == current_user.id)
+        .first()
+    )
+    if profile is None:
+        profile = UserFaceRecognitionProfile(
+            user_id=current_user.id,
+            face_encoding=face_service.encoding_to_bytes(encoding),
+            provider="face_recognition",
+            reference_image_sha256=face_service.compute_image_sha256(image_bytes),
+        )
+        db.add(profile)
+    else:
+        profile.face_encoding = face_service.encoding_to_bytes(encoding)
+        profile.reference_image_sha256 = face_service.compute_image_sha256(image_bytes)
+
+    db.commit()
+    db.refresh(profile)
+
+    return SecurityFaceReferenceResponse(
+        user_id=current_user.id,
+        face_reference_enrolled=True,
+        provider=profile.provider,
+        updated_at=profile.updated_at,
+        liveness=liveness.to_dict(),
+    )
+
+
+@router.delete("/face-reference")
+def delete_face_reference(
+    current_user: User = Depends(get_current_user_with_roles),
+    db: Session = Depends(get_db),
+):
+    _require_privileged_face_verification_user(current_user)
+    profile = (
+        db.query(UserFaceRecognitionProfile)
+        .filter(UserFaceRecognitionProfile.user_id == current_user.id)
+        .first()
+    )
+    if profile is not None:
+        db.delete(profile)
+        db.commit()
+    return {"user_id": current_user.id, "face_reference_enrolled": False}
+
+
+@router.post("/face-verify", response_model=SecurityFaceVerificationResponse)
+def verify_face_reference(
+    payload: SecurityFaceVerificationRequest,
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+    current_user: User = Depends(get_current_user_with_roles),
+    db: Session = Depends(get_db),
+):
+    _require_privileged_face_verification_user(current_user)
+    profile = (
+        db.query(UserFaceRecognitionProfile)
+        .filter(UserFaceRecognitionProfile.user_id == current_user.id)
+        .first()
+    )
+    if profile is None or not profile.face_encoding:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No face reference is enrolled for this account.",
+        )
+
+    image_bytes = face_service.decode_base64_image(payload.image_base64)
+    encoding, liveness = face_service.extract_encoding_from_bytes(
+        image_bytes,
+        require_single_face=True,
+        enforce_liveness=True,
+    )
+    comparison = face_service.compare_encodings(
+        encoding,
+        face_service.encoding_from_bytes(bytes(profile.face_encoding)),
+        threshold=payload.threshold,
+    )
+    token_data = decode_token_to_token_data(token)
+    issued_session: dict[str, object | None] | None = None
+
+    if comparison.matched:
+        profile.last_verified_at = datetime.utcnow()
+        if token_data.face_pending:
+            issued_session = issue_full_access_token_response(
+                db=db,
+                user=current_user,
+                request=request,
+            )
+            record_login_history(
+                db,
+                email_attempted=current_user.email,
+                user=current_user,
+                success=True,
+                auth_method="face_verification",
+                request=request,
+            )
+        db.commit()
+        db.refresh(profile)
+
+    return SecurityFaceVerificationResponse(
+        matched=comparison.matched,
+        distance=round(comparison.distance, 6),
+        confidence=round(comparison.confidence, 6),
+        threshold=round(comparison.threshold, 6),
+        liveness=liveness.to_dict(),
+        verified_at=(profile.last_verified_at if comparison.matched else None),
+        access_token=(
+            str(issued_session["access_token"])
+            if issued_session is not None and issued_session.get("access_token") is not None
+            else None
+        ),
+        token_type=(
+            str(issued_session["token_type"])
+            if issued_session is not None and issued_session.get("token_type") is not None
+            else None
+        ),
+        session_id=(
+            str(issued_session["session_id"])
+            if issued_session is not None and issued_session.get("session_id") is not None
+            else None
+        ),
+        face_verification_pending=(
+            bool(issued_session.get("face_verification_pending"))
+            if issued_session is not None
+            else bool(token_data.face_pending and not comparison.matched)
+        ),
+    )

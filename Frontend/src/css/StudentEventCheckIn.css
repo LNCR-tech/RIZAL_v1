@@ -1,0 +1,164 @@
+.student-event-checkin-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(74, 144, 226, 0.16), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+}
+
+.student-event-checkin-shell {
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 3vw, 1.5rem);
+}
+
+.student-event-checkin-flow {
+  justify-items: stretch;
+}
+
+.student-event-checkin-card {
+  width: min(100%, 34rem);
+  margin: 0 auto;
+}
+
+.student-event-checkin-header {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.student-event-checkin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(22, 47, 101, 0.08);
+  color: #162f65;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.student-event-checkin-header h1 {
+  margin: 0;
+  color: #173152;
+  font-size: clamp(1.35rem, 4vw, 1.95rem);
+}
+
+.student-event-checkin-meta {
+  display: grid;
+  gap: 0.55rem;
+  color: #627489;
+  font-size: 0.95rem;
+}
+
+.student-event-checkin-meta span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1.5;
+}
+
+.student-event-checkin-ring {
+  width: min(76vw, 20rem);
+}
+
+.student-event-checkin-statuses {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.student-event-checkin-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.85rem;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.student-event-checkin-status--pending,
+.student-event-checkin-status--checking {
+  background: rgba(44, 95, 158, 0.1);
+  color: #245287;
+}
+
+.student-event-checkin-status--ready {
+  background: rgba(34, 139, 93, 0.12);
+  color: #177046;
+}
+
+.student-event-checkin-status--error {
+  background: rgba(201, 45, 45, 0.12);
+  color: #a22828;
+}
+
+.student-event-checkin-state {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  text-align: center;
+  padding: 1.25rem 0.5rem;
+}
+
+.student-event-checkin-state p {
+  margin: 0;
+  color: #627489;
+}
+
+.student-event-checkin-spinner {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 3px solid rgba(22, 47, 101, 0.14);
+  border-top-color: #162f65;
+  animation: student-event-checkin-spin 0.85s linear infinite;
+}
+
+.student-event-checkin-detail {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  background: #f5f7fa;
+  color: #556678;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+@keyframes student-event-checkin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .student-event-checkin-shell {
+    padding-inline: 0.85rem;
+  }
+
+  .student-event-checkin-card {
+    width: 100%;
+  }
+
+  .student-event-checkin-ring {
+    width: min(100%, 17.5rem);
+  }
+
+  .student-event-checkin-meta span,
+  .student-event-checkin-status {
+    font-size: 0.88rem;
+  }
+}
