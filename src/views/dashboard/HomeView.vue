@@ -13,66 +13,136 @@
     </div>
 
     <!-- Search bar + Talk to Aura AI row -->
-    <div class="flex items-start gap-3 mb-1">
-      <!-- Search bar -->
-      <div class="relative flex-1 z-20">
-        <div class="search-shell" :class="{ 'search-shell--open': searchActive }">
-          <div class="search-input-row">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Event Search Here"
-              class="search-input"
-            />
-            <span class="search-icon-wrap" aria-hidden="true">
-              <Search
-                :size="14"
-                class="search-icon"
-                style="color: var(--color-primary);"
+    <div class="search-area mb-1">
+      <div class="search-row">
+        <!-- Search bar — expands to full width when active -->
+        <div class="search-wrap" :class="{ 'search-wrap--active': searchActive }">
+          <div class="search-shell" :class="{ 'search-shell--open': searchActive }">
+            <div class="search-input-row">
+              <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="Event Search Here"
+                class="search-input"
               />
-            </span>
-          </div>
+              <span class="search-icon-wrap" aria-hidden="true">
+                <Search
+                  :size="14"
+                  class="search-icon"
+                  style="color: var(--color-primary);"
+                />
+              </span>
+            </div>
 
-          <div class="search-results">
-            <div class="search-results-inner">
-              <template v-if="filteredEvents.length">
-                <button
-                  v-for="event in filteredEvents"
-                  :key="event.id"
-                  class="search-item"
-                  type="button"
-                  @click="handleSearchResult(event)"
-                >
-                  <span class="search-pill">{{ event.name }}</span>
-                  <span class="search-meta">{{ formatSearchMeta(event) }}</span>
-                </button>
-              </template>
-              <p v-else class="search-empty">No matching events.</p>
+            <div class="search-results">
+              <div class="search-results-inner">
+                <template v-if="filteredEvents.length">
+                  <button
+                    v-for="event in filteredEvents"
+                    :key="event.id"
+                    class="search-item"
+                    type="button"
+                    @click="handleSearchResult(event)"
+                  >
+                    <span class="search-pill">{{ event.name }}</span>
+                    <span class="search-meta">{{ formatSearchMeta(event) }}</span>
+                  </button>
+                </template>
+                <p v-else class="search-empty">No matching events.</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Talk to Aura AI (mobile only — desktop has it in the sidebar) -->
-      <button
-        class="md:hidden flex flex-col items-center justify-center gap-1 transition-all duration-200 hover:brightness-110 hover:scale-105 active:scale-95 flex-shrink-0"
-        style="background: var(--color-primary); border-radius: 26px; width: 80px; height: 50px;"
-        aria-label="Talk to Aura AI"
-      >
-        <div class="flex items-center gap-1.5 pt-0.5">
+        <!-- Talk to Aura AI (mobile only — hides when search is active) -->
+        <button
+          v-show="!searchActive"
+          class="ai-pill md:hidden"
+          :class="{ 'ai-pill--open': isMobileAiOpen }"
+          style="background: var(--color-primary);"
+          aria-label="Talk to Aura AI"
+          :aria-expanded="isMobileAiOpen ? 'true' : 'false'"
+          aria-controls="mobile-ai-panel"
+          type="button"
+          @click="toggleMobileAi"
+        >
           <img
             :src="activeAuraLogo"
             alt="Aura"
             class="w-4 h-4 object-contain opacity-90"
           />
           <span
-            class="text-[9px] font-extrabold text-left leading-[1.1] transition-colors duration-200"
+            class="text-[9px] font-extrabold text-left leading-[1.1]"
             style="color: var(--color-banner-text);"
           >
             Talk to<br>Aura Ai
           </span>
+        </button>
+      </div>
+
+      <!-- Mobile AI panel: expands downward from the search row -->
+      <Transition
+        name="mobile-ai-panel"
+        @before-enter="onMobilePanelBeforeEnter"
+        @enter="onMobilePanelEnter"
+        @after-enter="onMobilePanelAfterEnter"
+        @before-leave="onMobilePanelBeforeLeave"
+        @leave="onMobilePanelLeave"
+        @after-leave="onMobilePanelAfterLeave"
+      >
+        <div
+          v-if="isMobileAiOpen && !searchActive"
+          id="mobile-ai-panel"
+          class="mobile-ai-panel md:hidden"
+          role="region"
+          aria-label="Aura AI chat"
+        >
+          <div class="mobile-ai-panel-inner">
+            <div class="mobile-ai-shell">
+              <div class="mobile-ai-messages" ref="scrollEl">
+                <TransitionGroup name="mobile-bubble" tag="div" class="mobile-ai-messages-inner">
+                  <div
+                    v-for="msg in messages"
+                    :key="msg.id"
+                    :class="['mobile-bubble', msg.sender === 'ai' ? 'mobile-bubble--ai' : 'mobile-bubble--user']"
+                  >
+                    {{ msg.text }}
+                  </div>
+
+                  <div v-if="isTyping" key="typing" class="mobile-bubble mobile-bubble--ai mobile-bubble--typing">
+                    <span class="mobile-dot" style="animation-delay: 0ms"   />
+                    <span class="mobile-dot" style="animation-delay: 150ms" />
+                    <span class="mobile-dot" style="animation-delay: 300ms" />
+                  </div>
+                </TransitionGroup>
+              </div>
+
+              <div class="mobile-ai-input">
+                <div class="mobile-ai-input-row">
+                  <input
+                    ref="mobileInputEl"
+                    v-model="inputText"
+                    class="mobile-ai-input-field"
+                    type="text"
+                    placeholder="Ask Aura..."
+                    :disabled="isTyping"
+                    @keyup.enter="sendMessage"
+                  />
+                  <button
+                    class="mobile-ai-send-btn"
+                    :disabled="!inputText.trim() || isTyping"
+                    aria-label="Send message"
+                    type="button"
+                    @click="sendMessage"
+                  >
+                    <Send :size="15" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </button>
+      </Transition>
     </div>
 
     <!-- Cards grid: stacked on mobile, side-by-side on desktop -->
@@ -81,8 +151,8 @@
       <Transition name="card-slide" appear>
         <UniversityBanner
           class="md:flex-1"
-          :school-name="schoolSettings.school_name"
-          :school-logo="schoolSettings.logo_url"
+          :school-name="schoolSettings?.school_name"
+          :school-logo="schoolSettings?.logo_url"
           @announcement-click="handleAnnouncementClick"
         />
       </Transition>
@@ -147,37 +217,114 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search } from 'lucide-vue-next'
+import { Search, Send } from 'lucide-vue-next'
 import TopBar from '@/components/dashboard/TopBar.vue'
 import UniversityBanner from '@/components/dashboard/UniversityBanner.vue'
 import EventsCard from '@/components/dashboard/EventsCard.vue'
 
-import { mockCurrentUser, mockEvents, mockSchoolSettings } from '@/data/mockData.js'
-import { mockAnnouncements } from '@/data/mockAnnouncements.js'
-import { loadTheme, applyTheme, activeAuraLogo } from '@/config/theme.js'
+import { activeAuraLogo } from '@/config/theme.js'
+import { useChat } from '@/composables/useChat.js'
+import { useDashboardSession } from '@/composables/useDashboardSession.js'
 
 // --- State ---
 const searchQuery = ref('')
 const showNotifications = ref(false)
+const isMobileAiOpen = ref(false)
+const mobileInputEl = ref(null)
 const router = useRouter()
+const { currentUser, schoolSettings, events, hasAttendanceForEvent } = useDashboardSession()
 
-// --- Data (swap with API calls in production) ---
-const currentUser = ref(mockCurrentUser)
-const events = ref(mockEvents)
-const schoolSettings = ref(mockSchoolSettings)
-const announcements = ref(mockAnnouncements)
+const schoolEvents = computed(() => {
+  const schoolId = Number(currentUser.value?.school_id)
+  return events.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
+})
 
 // --- Computed ---
 const displayEvents = computed(() =>
-  events.value.filter((e) => {
+  schoolEvents.value.filter((e) => {
     const status = normalizeStatus(e.status)
     return status === 'upcoming' || status === 'ongoing'
   })
 )
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
+
+const {
+  messages,
+  inputText,
+  isTyping,
+  scrollEl,
+  sendMessage,
+  closeAll,
+} = useChat()
+
+const nextFrame = (cb) => requestAnimationFrame(() => requestAnimationFrame(cb))
+
+function onMobilePanelBeforeEnter(el) {
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.transform = 'translateY(-8px)'
+  el.style.willChange = 'height, opacity, transform'
+}
+
+function onMobilePanelEnter(el) {
+  const height = el.scrollHeight
+  el.style.transition = 'height 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)'
+  nextFrame(() => {
+    el.style.height = `${height}px`
+    el.style.opacity = '1'
+    el.style.transform = 'translateY(0)'
+  })
+}
+
+function onMobilePanelAfterEnter(el) {
+  el.style.height = 'auto'
+  el.style.transition = ''
+  el.style.willChange = ''
+}
+
+function onMobilePanelBeforeLeave(el) {
+  el.style.height = `${el.scrollHeight}px`
+  el.style.opacity = '1'
+  el.style.transform = 'translateY(0)'
+  el.style.willChange = 'height, opacity, transform'
+}
+
+function onMobilePanelLeave(el) {
+  el.style.transition = 'height 420ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms ease, transform 300ms ease'
+  nextFrame(() => {
+    el.style.height = '0px'
+    el.style.opacity = '0'
+    el.style.transform = 'translateY(-6px)'
+  })
+}
+
+function onMobilePanelAfterLeave(el) {
+  el.style.transition = ''
+  el.style.height = ''
+  el.style.opacity = ''
+  el.style.transform = ''
+  el.style.willChange = ''
+}
+
+function toggleMobileAi() {
+  isMobileAiOpen.value = !isMobileAiOpen.value
+}
+
+watch(isMobileAiOpen, (open) => {
+  if (open) {
+    closeAll()
+    nextTick(() => {
+      setTimeout(() => mobileInputEl.value?.focus(), 220)
+    })
+  }
+})
+
+watch(searchActive, (active) => {
+  if (active) isMobileAiOpen.value = false
+})
 
 const filteredEvents = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -232,7 +379,7 @@ const filteredEvents = computed(() => {
 const upcomingEvents = computed(() => filteredEvents.value)
 
 const unreadAnnouncements = computed(() =>
-  announcements.value.filter((a) => !a.is_read).length
+  0
 )
 
 // --- Formatters ---
@@ -266,7 +413,7 @@ function handleAnnouncementClick() {
 
 function handleSeeEvent(event) {
   if (!event?.id) return
-  if (event.status === 'ongoing') {
+  if (event.status === 'ongoing' && !hasAttendanceForEvent(event.id)) {
     router.push(`/dashboard/schedule/${event.id}/attendance`)
     return
   }
@@ -274,8 +421,7 @@ function handleSeeEvent(event) {
 }
 
 function handleSearchResult(event) {
-  if (!event?.id) return
-  router.push(`/dashboard/schedule/${event.id}`)
+  handleSeeEvent(event)
 }
 
 function formatSearchMeta(event) {
@@ -297,20 +443,262 @@ function formatSearchMeta(event) {
 </script>
 
 <style scoped>
-/* Search expand UI */
+/* ── Search row shell ─────────────────────────────────── */
+.search-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Search wrapper grows/shrinks relative to AI pill */
+.search-wrap {
+  flex: 1;
+  min-width: 0;
+  transition: flex 0.3s ease;
+}
+
+/* When active on mobile: take full row width */
+.search-wrap--active {
+  flex: 1 1 100%;
+}
+
+/* AI pill */
+.ai-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex-shrink: 0;
+  width: 72px;
+  height: 50px;
+  border-radius: 26px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.25s ease;
+}
+
+.ai-pill:hover {
+  filter: brightness(1.08);
+  transform: scale(1.04);
+}
+
+.ai-pill:active {
+  transform: scale(0.95);
+}
+
+.ai-pill--open {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+  transform: translateY(1px) scale(0.98);
+}
+
+/* ── Mobile AI panel ─────────────────────────────────── */
+.mobile-ai-panel {
+  overflow: hidden;
+  transform-origin: top center;
+}
+
+.mobile-ai-panel-inner {
+  overflow: hidden;
+}
+
+.mobile-ai-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--color-primary);
+  border-radius: 28px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+
+.mobile-ai-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 120% at 18% 0%, rgba(255, 255, 255, 0.28), transparent 55%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.mobile-ai-messages {
+  position: relative;
+  flex: 1;
+  min-height: clamp(110px, 22vh, 180px);
+  max-height: min(46vh, 320px);
+  overflow-y: auto;
+  padding: 6px 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: none;
+  z-index: 1;
+}
+
+.mobile-ai-messages::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-ai-messages-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-bubble {
+  max-width: 88%;
+  padding: 12px 16px;
+  border-radius: 24px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  font-family: 'Manrope', sans-serif;
+  word-break: break-word;
+}
+
+.mobile-bubble--ai {
+  align-self: flex-start;
+  background: #ffffff;
+  color: #0a0a0a;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+.mobile-bubble--user {
+  align-self: flex-end;
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--color-banner-text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.mobile-bubble--typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+.mobile-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  animation: mobile-dot-bounce 1s infinite ease-in-out;
+}
+
+@keyframes mobile-dot-bounce {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-4px); }
+}
+
+.mobile-bubble-enter-active {
+  animation: mobile-bubble-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.mobile-bubble--ai.mobile-bubble-enter-active { transform-origin: bottom left; }
+.mobile-bubble--user.mobile-bubble-enter-active { transform-origin: bottom right; }
+
+@keyframes mobile-bubble-pop {
+  0%   { opacity: 0; transform: scale(0.55); }
+  65%  { opacity: 1; transform: scale(1.04); }
+  82%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+.mobile-ai-input {
+  position: relative;
+  z-index: 1;
+}
+
+.mobile-ai-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.08);
+  border: 1.4px solid rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+  padding: 0 8px 0 16px;
+  height: 44px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.mobile-ai-input-row:focus-within {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.35);
+}
+
+.mobile-ai-input-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-banner-text);
+  min-width: 0;
+}
+
+.mobile-ai-input-field::placeholder {
+  color: var(--color-banner-text);
+  opacity: 0.55;
+}
+
+.mobile-ai-send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--color-banner-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.18s ease, transform 0.15s ease, opacity 0.18s ease;
+}
+
+.mobile-ai-send-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.28);
+  transform: scale(1.08);
+}
+
+.mobile-ai-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-pill,
+  .mobile-ai-send-btn,
+  .mobile-bubble-enter-active {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── Search shell card ────────────────────────────────── */
 .search-shell {
   display: grid;
   grid-template-rows: auto 0fr;
   background: var(--color-surface);
   border-radius: 30px;
-  padding: 10px 16px;
+  padding: 12px 16px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.06);
-  transition: grid-template-rows 0.25s ease, box-shadow 0.25s ease;
+  transition: grid-template-rows 0.28s ease, box-shadow 0.28s ease, border-radius 0.28s ease;
 }
 
 .search-shell--open {
   grid-template-rows: auto 1fr;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.08);
+  border-radius: 28px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.09);
 }
 
 .search-input-row {
@@ -334,33 +722,34 @@ function formatSearchMeta(event) {
   font-weight: 500;
 }
 
-.search-icon {
-  display: block;
-}
+.search-icon { display: block; }
 
 .search-icon-wrap {
   margin-left: auto;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1.5px solid rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
+/* ── Dropdown results ─────────────────────────────────── */
 .search-results {
   overflow: hidden;
   min-height: 0;
 }
 
 .search-results-inner {
-  padding: 12px 2px 4px;
+  padding: 14px 0 6px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
+/* ── Desktop search result (default) — original 2-column pill + meta ── */
 .search-item {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -374,9 +763,7 @@ function formatSearchMeta(event) {
   transition: opacity 0.15s ease;
 }
 
-.search-item:hover {
-  opacity: 0.8;
-}
+.search-item:hover { opacity: 0.8; }
 
 .search-pill {
   display: inline-flex;
@@ -403,49 +790,37 @@ function formatSearchMeta(event) {
   padding: 6px 2px;
 }
 
+/* ── Mobile search result override — full-width lime pill ── */
 @media (max-width: 767px) {
-  .search-shell {
-    border-radius: 28px;
-    padding: 12px 16px 12px;
-  }
-
-  .search-shell--open {
-    padding-bottom: 16px;
-    min-height: 150px;
-  }
-
-  .search-input {
-    font-size: 12px;
-    padding-left: 6px;
-  }
-
-  .search-results-inner {
-    padding: 14px 2px 6px;
-    align-items: center;
-    justify-content: center;
-    min-height: 70px;
-  }
-
   .search-item {
-    grid-template-columns: 1fr;
-    justify-items: center;
+    display: block;
+    width: 100%;
+    padding: 13px 20px;
+    border-radius: 999px;
+    background: var(--color-primary);
+    text-align: center;
+    transition: opacity 0.15s ease, transform 0.15s ease;
   }
 
+  .search-item:hover  { opacity: 0.85; }
+  .search-item:active { transform: scale(0.97); }
+
+  /* On mobile the pill span is invisible — the button itself IS the pill */
   .search-pill {
-    width: min(220px, 80%);
-    justify-content: center;
+    display: contents;
     font-size: 13px;
-    padding: 8px 20px;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: var(--color-text-always-dark);
   }
 
-  .search-meta {
-    display: none;
-  }
+  /* Hide meta text on mobile */
+  .search-meta { display: none; }
 
-  .search-icon-wrap {
-    width: 24px;
-    height: 24px;
-    border: 1.5px solid rgba(0, 0, 0, 0.1);
+  .search-empty {
+    text-align: center;
+    padding: 10px 0;
   }
 }
 

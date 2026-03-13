@@ -1,4 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import {
+    clearDashboardSession,
+    hasSessionToken,
+    initializeDashboardSession,
+    sessionNeedsFaceRegistration,
+} from '@/composables/useDashboardSession.js'
 
 const routes = [
     // Auth routes (no layout)
@@ -7,6 +13,20 @@ const routes = [
         name: 'Login',
         component: () => import('@/views/auth/LoginView.vue'),
         meta: { requiresGuest: true },
+    },
+    {
+        path: '/api-lab',
+        name: 'ApiLab',
+        component: () => import('@/views/tools/ApiLabView.vue'),
+    },
+    {
+        path: '/face-registration',
+        name: 'FaceRegistration',
+        component: () => import('@/views/auth/FaceRegistrationView.vue'),
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
     },
 
     // Student dashboard routes (wrapped in AppLayout)
@@ -58,16 +78,42 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, _from, next) => {
-    const isAuthenticated = !!localStorage.getItem('aura_token')
+router.beforeEach(async (to) => {
+    const isAuthenticated = hasSessionToken()
 
     if (to.meta.requiresAuth && !isAuthenticated) {
-        next({ name: 'Login' })
-    } else if (to.meta.requiresGuest && isAuthenticated) {
-        next({ name: 'Home' })
-    } else {
-        next()
+        return { name: 'Login' }
     }
+
+    if (to.meta.requiresGuest && isAuthenticated) {
+        try {
+            await initializeDashboardSession()
+            return sessionNeedsFaceRegistration()
+                ? { name: 'FaceRegistration' }
+                : { name: 'Home' }
+        } catch {
+            clearDashboardSession()
+            return { name: 'Login' }
+        }
+    }
+
+    if (to.meta.requiresAuth && isAuthenticated) {
+        try {
+            await initializeDashboardSession()
+            const needsFaceRegistration = sessionNeedsFaceRegistration()
+            if (needsFaceRegistration && !to.meta.allowWithoutFaceEnrollment) {
+                return { name: 'FaceRegistration' }
+            }
+            if (!needsFaceRegistration && to.name === 'FaceRegistration') {
+                return { name: 'Home' }
+            }
+        } catch {
+            clearDashboardSession()
+            return { name: 'Login' }
+        }
+    }
+
+    return true
 })
 
 export default router

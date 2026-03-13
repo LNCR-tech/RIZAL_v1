@@ -3,7 +3,7 @@
     
     <!-- ── Header ─────────────────────────────────────────────────────── -->
     <TopBar
-      :user="user"
+      :user="currentUser"
       :unread-count="unreadAnnouncements"
       @toggle-notifications="showNotifications = !showNotifications"
     />
@@ -35,6 +35,7 @@
           v-for="event in filteredEvents" 
           :key="event.id" 
           :event="event"
+          :is-attended="isEventAttended(event)"
           @click="handleEventClick"
           @open-detail="handleOpenDetail"
         />
@@ -54,22 +55,18 @@ import { useRouter } from 'vue-router'
 import EventCard from '@/components/dashboard/EventCard.vue'
 import TopBar from '@/components/dashboard/TopBar.vue'
 
-// ── Mock Data (swap with actual API calls later) ──────────────────────
-import { mockCurrentUser, mockEvents } from '@/data/mockData.js'
-import { mockAnnouncements } from '@/data/mockAnnouncements.js'
+import { useDashboardSession } from '@/composables/useDashboardSession.js'
 
-// User Data Compute
-const user = ref(mockCurrentUser)
+const { currentUser, events, hasAttendanceForEvent, unreadAnnouncements } = useDashboardSession()
 const showNotifications = ref(false)
-const announcements = ref(mockAnnouncements)
-const unreadAnnouncements = computed(() =>
-  announcements.value.filter((a) => !a.is_read).length
-)
 
 const router = useRouter()
 
 // ── Filters & Events Logic ────────────────────────────────────────────
-const events = ref(mockEvents)
+const schoolEvents = computed(() => {
+  const schoolId = Number(currentUser.value?.school_id)
+  return events.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
+})
 const filters = [
   { id: 'all', label: 'All' },
   { id: 'ongoing', label: 'On Going' },
@@ -92,7 +89,7 @@ function normalizeStatus(status) {
 }
 
 const filteredEvents = computed(() => {
-  let items = events.value
+  let items = schoolEvents.value
   if (activeFilter.value !== 'all' && activeFilter.value !== 'maps') {
     items = items.filter(e => normalizeStatus(e.status) === activeFilter.value)
   }
@@ -107,7 +104,7 @@ const filteredEvents = computed(() => {
 
 function handleEventClick(event) {
   if (!event?.id) return
-  if (event.status === 'ongoing') {
+  if (event.status === 'ongoing' && !isEventAttended(event)) {
     router.push(`/dashboard/schedule/${event.id}/attendance`)
     return
   }
@@ -117,6 +114,10 @@ function handleEventClick(event) {
 function handleOpenDetail(event) {
   if (!event?.id) return
   router.push(`/dashboard/schedule/${event.id}`)
+}
+
+function isEventAttended(event) {
+  return hasAttendanceForEvent(event?.id)
 }
 </script>
 

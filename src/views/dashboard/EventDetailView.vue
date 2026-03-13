@@ -85,18 +85,21 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowUpRight, Bell } from 'lucide-vue-next'
-import { mockEvents } from '@/data/mockData.js'
+import { useDashboardSession } from '@/composables/useDashboardSession.js'
 
 const route = useRoute()
 const router = useRouter()
-
-const events = ref(mockEvents)
+const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
 
 const eventId = computed(() => Number(route.params.id))
-const event = computed(() => events.value.find((e) => e.id === eventId.value))
+const event = computed(() => getDashboardEventById(eventId.value))
+
+onMounted(() => {
+  ensureDashboardEvent(eventId.value).catch(() => null)
+})
 
 function goBack() {
   router.back()

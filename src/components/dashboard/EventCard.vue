@@ -12,12 +12,12 @@
     <!-- Content -->
     <div class="event-card__content">
       <p class="event-desc">{{ eventMeta }}</p>
-      <h3 class="event-title">{{ event.name }}</h3>
+      <h3 class="event-title">{{ props.event.name }}</h3>
     </div>
 
     <!-- Action Button -->
     <div class="event-action-row">
-      <button class="event-action" :class="actionBtnClass" @click="$emit('click', event)">
+      <button class="event-action" :class="actionBtnClass" type="button" @click="emitClick">
         <div class="action-icon">
           <ArrowRight :size="16" />
         </div>
@@ -25,13 +25,19 @@
       </button>
 
       <button
-        v-if="canToggleMap"
+        v-if="showSecondaryAction"
         class="map-toggle"
-        :class="{ 'map-toggle--open': isMapOpen }"
-        aria-label="Toggle map"
+        :class="{
+          'map-toggle--open': isMapOpen,
+          'map-toggle--done': showAttendanceCheck,
+        }"
+        type="button"
+        :aria-label="secondaryActionLabel"
+        :disabled="showAttendanceCheck"
         @click.stop="handleToggleMap"
       >
-        <ChevronDown :size="16" />
+        <Check v-if="showAttendanceCheck" :size="18" />
+        <ChevronDown v-else :size="16" />
       </button>
     </div>
 
@@ -59,13 +65,17 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { ArrowRight, ChevronDown } from 'lucide-vue-next'
+import { ArrowRight, ChevronDown, Check } from 'lucide-vue-next'
 
 const props = defineProps({
   event: {
     type: Object,
     required: true,
-  }
+  },
+  isAttended: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['click', 'open-detail'])
@@ -111,10 +121,16 @@ const normalizedStatus = computed(() => {
 const statusConfig = computed(() => STATUS_CONFIG[normalizedStatus.value] ?? STATUS_CONFIG.upcoming)
 
 const statusText = computed(() => statusConfig.value.label)
-const actionText = computed(() => statusConfig.value.actionText)
+const actionText = computed(() => {
+  if (normalizedStatus.value === 'ongoing' && props.isAttended) return 'View Event'
+  return statusConfig.value.actionText
+})
 const cardClasses = computed(() => statusConfig.value.cardClass)
 const statusDotClass = computed(() => statusConfig.value.dotClass)
-const actionBtnClass = computed(() => statusConfig.value.actionBtnClass)
+const actionBtnClass = computed(() => {
+  if (normalizedStatus.value === 'ongoing' && props.isAttended) return 'action-btn--white'
+  return statusConfig.value.actionBtnClass
+})
 
 const eventMeta = computed(() => props.event.location ?? '')
 
@@ -122,7 +138,13 @@ const hasGeo = computed(() =>
   props.event.geo_latitude != null && props.event.geo_longitude != null
 )
 
-const canToggleMap = computed(() => normalizedStatus.value === 'ongoing' && hasGeo.value)
+const isOngoing = computed(() => normalizedStatus.value === 'ongoing')
+const canToggleMap = computed(() => isOngoing.value && hasGeo.value && !props.isAttended)
+const showAttendanceCheck = computed(() => isOngoing.value && props.isAttended)
+const showSecondaryAction = computed(() => canToggleMap.value || showAttendanceCheck.value)
+const secondaryActionLabel = computed(() =>
+  props.isAttended ? 'Attendance already marked' : 'Toggle map'
+)
 
 const isMobile = ref(false)
 const isMapOpen = ref(false)
@@ -146,6 +168,14 @@ function emitOpenDetail() {
   emit('open-detail', props.event)
 }
 
+function emitClick() {
+  if (isOngoing.value && props.isAttended) {
+    emitOpenDetail()
+    return
+  }
+  emit('click', props.event)
+}
+
 onMounted(() => {
   updateMedia()
   window.addEventListener('resize', updateMedia)
@@ -157,6 +187,10 @@ onUnmounted(() => {
 
 watch(isMobile, (next) => {
   if (!next) isMapOpen.value = false
+})
+
+watch(() => props.isAttended, (next) => {
+  if (next) isMapOpen.value = false
 })
 
 const mapUrl = computed(() => {
@@ -328,8 +362,17 @@ const mapUrl = computed(() => {
   will-change: transform;
 }
 
+.map-toggle:disabled {
+  cursor: default;
+}
+
 .map-toggle--open {
   transform: rotate(180deg);
+}
+
+.map-toggle--done {
+  color: var(--color-primary-dark, #88cc00);
+  transform: none;
 }
 
 .map-panel {

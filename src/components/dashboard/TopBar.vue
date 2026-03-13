@@ -91,9 +91,9 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { Bell, Moon, LogOut } from 'lucide-vue-next'
 import { isDarkMode, toggleDarkMode } from '@/config/theme.js'
+import { useAuth } from '@/composables/useAuth.js'
 
 const props = defineProps({
   user: {
@@ -109,15 +109,10 @@ const props = defineProps({
 defineEmits(['toggle-notifications'])
 
 const isProfileExpanded = ref(false)
-const router = useRouter()
+const { logout } = useAuth()
 
-function handleLogout() {
-  // Clear the actual token used by the router's beforeEach guard
-  localStorage.removeItem('aura_token')
-  localStorage.removeItem('aura_user_roles')
-  
-  // Navigate back to the Login view
-  router.push({ name: 'Login' })
+async function handleLogout() {
+  await logout()
 }
 
 const displayName = computed(() => {

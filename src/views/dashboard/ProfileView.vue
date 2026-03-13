@@ -259,18 +259,18 @@ import {
   Shield, ChevronRight, Bell
 } from 'lucide-vue-next'
 
-import { mockCurrentUser, mockSchoolSettings } from '@/data/mockData.js'
 import { useAuth } from '@/composables/useAuth.js'
+import { useDashboardSession } from '@/composables/useDashboardSession.js'
 
 // ── Router ───────────────────────────────────────────────────────────
 const router = useRouter()
 
 // ── Auth ─────────────────────────────────────────────────────────────
 const { logout } = useAuth()
+const { currentUser, schoolSettings, attendanceRecords, saveCurrentUserProfile } = useDashboardSession()
 
-// ── User data (swap with GET /users/me in production) ─────────────────
-const user       = ref(mockCurrentUser)
-const schoolName = ref(mockSchoolSettings.school_name)
+const user = currentUser
+const schoolName = computed(() => schoolSettings.value?.school_name ?? 'University Name')
 
 // ── Derived ───────────────────────────────────────────────────────────
 const fullName = computed(() =>
@@ -290,14 +290,16 @@ const avatarError  = ref(false)
 const avatarPreview = ref(null) // shown on main view after successful save
 
 // School logo for the readonly field
-const schoolLogo = ref(mockSchoolSettings.logo_url ?? null)
+const schoolLogo = computed(() => schoolSettings.value?.logo_url ?? null)
 
-// ── Stats (swap with GET /users/me attendances[] in production) ────────
 const eventsAttended = computed(() =>
-  user.value.student_profile?.attendances?.filter(a => a.status === 'present').length ?? 0
+  attendanceRecords.value.filter((attendance) => {
+    const status = String(attendance?.status ?? '').toLowerCase()
+    return status === 'present' || status === 'late'
+  }).length
 )
 const eventsMissed = computed(() =>
-  user.value.student_profile?.attendances?.filter(a => a.status === 'absent').length ?? 0
+  attendanceRecords.value.filter((attendance) => String(attendance?.status ?? '').toLowerCase() === 'absent').length
 )
 
 // ── Custom slider logic ────────────────────────────────────────────────
@@ -438,26 +440,13 @@ function onPhotoSelected(e) {
 async function saveProfile() {
   isSaving.value = true
   try {
-    // ── LOCAL ────────────────────────────────────────────────
-    user.value = {
-      ...user.value,
-      email:       editForm.value.email.trim(),
-      first_name:  editForm.value.firstName.trim(),
-      last_name:   editForm.value.lastName.trim(),
-      middle_name: editForm.value.middleName.trim(),
-    }
+    await saveCurrentUserProfile({
+      email: editForm.value.email.trim(),
+      first_name: editForm.value.firstName.trim(),
+      last_name: editForm.value.lastName.trim(),
+      middle_name: editForm.value.middleName.trim() || null,
+    })
     if (editPreview.value) avatarPreview.value = editPreview.value
-
-    // ── BACKEND (swap in when ready) ────────────────────────────
-    // const fd = new FormData()
-    // fd.append('email', editForm.value.email.trim())
-    // fd.append('first_name', editForm.value.firstName.trim())
-    // fd.append('last_name', editForm.value.lastName.trim())
-    // if (editForm.value.middleName.trim()) {
-    //   fd.append('middle_name', editForm.value.middleName.trim())
-    // }
-    // if (photoInput.value?.files?.[0]) fd.append('photo', photoInput.value.files[0])
-    // await api.patch('/api/users/me', fd)
 
     isEditing.value = false
   } finally {

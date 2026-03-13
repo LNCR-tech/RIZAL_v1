@@ -56,6 +56,13 @@
           >
             Log In
           </BaseButton>
+
+          <RouterLink
+            to="/api-lab"
+            class="text-center text-[12px] font-semibold text-[#4C5C00] hover:text-[#0A0A0A] transition-colors"
+          >
+            Open temporary API lab
+          </RouterLink>
         </form>
 
         <!-- Powered by Aura -->

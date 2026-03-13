@@ -1,5 +1,10 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { loginForAccessToken, resolveApiBaseUrl } from '@/services/backendApi.js'
+import {
+    clearDashboardSession,
+    initializeDashboardSession,
+} from '@/composables/useDashboardSession.js'
 
 export function useAuth() {
     const router = useRouter()
@@ -11,25 +16,36 @@ export function useAuth() {
         error.value = null
 
         try {
-            // TODO: Replace with real API call
-            await new Promise((resolve) => setTimeout(resolve, 800))
-
-            if (email && password) {
-                localStorage.setItem('aura_token', 'mock_token')
-                localStorage.setItem('mock_logged_in_email', email) // Store email to pick right mock user
-                router.push({ name: 'Home' })
-            } else {
+            if (!email || !password) {
                 throw new Error('Please enter your email and password.')
             }
+
+            const apiBaseUrl = resolveApiBaseUrl()
+            const tokenPayload = await loginForAccessToken(apiBaseUrl, {
+                username: email,
+                password,
+            })
+
+            const accessToken = tokenPayload?.access_token
+            if (!accessToken) {
+                throw new Error('The API did not return an access token.')
+            }
+
+            localStorage.setItem('aura_token', accessToken)
+            localStorage.setItem('aura_user_roles', JSON.stringify(tokenPayload?.roles ?? []))
+
+            await initializeDashboardSession(true)
+            router.push({ name: 'Home' })
         } catch (err) {
-            error.value = err.message || 'Login failed. Please try again.'
+            clearDashboardSession()
+            error.value = err?.message || 'Login failed. Please try again.'
         } finally {
             isLoading.value = false
         }
     }
 
     function logout() {
-        localStorage.removeItem('aura_token')
+        clearDashboardSession()
         router.push({ name: 'Login' })
     }
 
