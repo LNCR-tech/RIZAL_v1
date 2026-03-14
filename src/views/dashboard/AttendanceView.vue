@@ -4,7 +4,7 @@
       <template v-if="event">
         <div
           ref="stepTrackEl"
-          class="step-track"
+          class="step-track dashboard-enter dashboard-enter--1"
           role="progressbar"
           aria-label="Attendance progress"
           :aria-valuenow="progressValue"
@@ -29,6 +29,7 @@
 
         <FaceScanPanel
           v-if="flowStep === 'face'"
+          class="dashboard-enter dashboard-enter--2"
           :progress="faceScanProgress"
           :is-camera-ready="isCameraReady"
           :face-image-url="faceImageUrl"
@@ -37,7 +38,7 @@
           @retry="retryFaceScan"
         />
 
-        <section v-else-if="flowStep === 'location'" class="step-section step-section--location">
+        <section v-else-if="flowStep === 'location'" class="step-section step-section--location dashboard-enter dashboard-enter--2">
           <p class="step-caption">Locating you for the event...</p>
 
           <div class="location-map">
@@ -102,7 +103,7 @@
           </button>
         </section>
 
-        <section v-else class="step-section step-section--success">
+        <section v-else class="step-section step-section--success dashboard-enter dashboard-enter--3">
           <p class="success-caption">{{ successMessage }}</p>
           <button class="success-btn" type="button" @click="goBack">
             <span class="success-btn-icon">
@@ -113,7 +114,7 @@
         </section>
       </template>
 
-      <section v-else class="step-section step-section--success">
+      <section v-else class="step-section step-section--success dashboard-enter dashboard-enter--2">
         <p class="success-caption">Event not found.</p>
         <button class="success-btn" type="button" @click="goBack">
           <span class="success-btn-icon">
@@ -172,6 +173,7 @@ const trackCenters = ref({ left: 0, middle: 0, right: 0 })
 const locationStatus = ref('idle')
 const locationError = ref('')
 const videoEl = ref(null)
+const capturedFaceDataUrl = ref('')
 const mediaStream = ref(null)
 const cameraState = ref('idle')
 const videoReady = ref(false)
@@ -385,13 +387,30 @@ function resolveEventGeo() {
 async function recordFaceScanAttendance() {
   const eventIdValue = eventId.value
   const studentIdValue = currentUser.value?.student_profile?.student_id
-  if (!eventIdValue || !studentIdValue) return
+  const imageDataUrl = capturedFaceDataUrl.value
+  if (!eventIdValue || !studentIdValue || !imageDataUrl) {
+    throw new Error('A live face capture is required before attendance can be recorded.')
+  }
 
   const token = localStorage.getItem('aura_token')
-  await postFaceScanAttendance(apiBaseUrl, token, {
+  const rawBase64 = imageDataUrl.includes(',') ? imageDataUrl.split(',')[1] : imageDataUrl
+  const payload = {
     eventId: eventIdValue,
     studentId: String(studentIdValue),
-  })
+    imageBase64: imageDataUrl,
+    latitude: userCoords.value?.latitude ?? null,
+    longitude: userCoords.value?.longitude ?? null,
+    accuracyM: userCoords.value?.accuracy ?? null,
+  }
+
+  try {
+    await postFaceScanAttendance(apiBaseUrl, token, payload)
+  } catch {
+    await postFaceScanAttendance(apiBaseUrl, token, {
+      ...payload,
+      imageBase64: rawBase64,
+    })
+  }
   await refreshAttendanceRecords({ event_id: eventIdValue })
 }
 
@@ -467,13 +486,21 @@ async function runAttendanceFlow() {
     await nextTick()
     await startCamera()
     await waitForFaceDetection()
+    capturedFaceDataUrl.value = captureVideoFrame()
 
     flowStep.value = 'location'
     stopCamera()
     await waitForLocationCheck()
     await recordFaceScanAttendance()
-  } catch {
     flowStep.value = 'success'
+  } catch (error) {
+    const message = error?.message || 'Unable to record your attendance right now.'
+    if (flowStep.value === 'location') {
+      locationStatus.value = 'error'
+      locationError.value = message
+    } else {
+      faceScanError.value = true
+    }
   } finally {
     stopCamera()
     isRunning.value = false
@@ -494,6 +521,7 @@ function retryFaceScan() {
   faceScanError.value = false
   faceDetected.value = false
   videoReady.value = false
+  capturedFaceDataUrl.value = ''
   startCamera()
   if (retryResolve) {
     const resolve = retryResolve
@@ -502,6 +530,27 @@ function retryFaceScan() {
     return
   }
   if (flowStep.value === 'face') startFaceProgress()
+}
+
+function captureVideoFrame() {
+  const el = videoEl.value
+  if (!el || el.videoWidth <= 0 || el.videoHeight <= 0) {
+    throw new Error('Unable to capture a face image.')
+  }
+
+  const size = Math.min(el.videoWidth, el.videoHeight)
+  const sx = Math.max(0, (el.videoWidth - size) / 2)
+  const sy = Math.max(0, (el.videoHeight - size) / 2)
+  const canvas = document.createElement('canvas')
+  canvas.width = 720
+  canvas.height = 720
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    throw new Error('Unable to prepare the face image.')
+  }
+
+  ctx.drawImage(el, sx, sy, size, size, 0, 0, canvas.width, canvas.height)
+  return canvas.toDataURL('image/jpeg', 0.92)
 }
 
 function retryLocationCheck() {

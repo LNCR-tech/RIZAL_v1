@@ -14,3 +14,53 @@ body {
   margin: 0;
   padding: 0;
 }
+
+html {
+  min-height: 100%;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--color-text-primary);
+}
+
+#app {
+  min-height: 100vh;
+  width: 100%;
+}
+
+.dashboard-enter {
+  opacity: 0;
+  transform: translateY(22px) scale(0.985);
+  animation: dashboardEnterRise 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--dashboard-enter-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.dashboard-enter--1 { --dashboard-enter-delay: 60ms; }
+.dashboard-enter--2 { --dashboard-enter-delay: 140ms; }
+.dashboard-enter--3 { --dashboard-enter-delay: 220ms; }
+.dashboard-enter--4 { --dashboard-enter-delay: 300ms; }
+.dashboard-enter--5 { --dashboard-enter-delay: 380ms; }
+
+@keyframes dashboardEnterRise {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-enter {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}

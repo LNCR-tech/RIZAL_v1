@@ -1,19 +1,20 @@
 <template>
-  <div class="flex flex-col gap-5 px-4 md:pl-10 md:pr-[30%] pb-6 pt-2">
+  <div class="home-page">
     <!-- TopBar -->
     <TopBar
+      class="dashboard-enter dashboard-enter--1"
       :user="currentUser"
       :unread-count="unreadAnnouncements"
       @toggle-notifications="showNotifications = !showNotifications"
     />
 
     <!-- Page Title -->
-    <div class="mt-1 px-1">
+    <div class="mt-1 px-1 dashboard-enter dashboard-enter--2">
       <h1 class="text-[26px] font-extrabold" style="color: var(--color-text-primary);">Home</h1>
     </div>
 
     <!-- Search bar + Talk to Aura AI row -->
-    <div class="search-area mb-1">
+    <div class="search-area dashboard-enter dashboard-enter--3">
       <div class="search-row">
         <!-- Search bar — expands to full width when active -->
         <div class="search-wrap" :class="{ 'search-wrap--active': searchActive }">
@@ -146,7 +147,7 @@
     </div>
 
     <!-- Cards grid: stacked on mobile, side-by-side on desktop -->
-    <div class="flex flex-col md:flex-row gap-6 md:gap-6 mt-1">
+    <div class="home-hero-grid dashboard-enter dashboard-enter--4">
       <!-- University Banner -->
       <Transition name="card-slide" appear>
         <UniversityBanner
@@ -168,7 +169,7 @@
     </div>
 
     <!-- Upcoming events list (additional quick-view) -->
-    <div v-if="!searchActive && upcomingEvents.length > 1" class="mt-4">
+    <div v-if="!searchActive && upcomingEvents.length > 1" class="mt-4 dashboard-enter dashboard-enter--5">
       <h2 class="text-[16px] font-bold mb-3 px-1" style="color: var(--color-text-primary);">Upcoming Events</h2>
       <div class="flex flex-col gap-3">
         <TransitionGroup name="list" appear>
@@ -240,6 +241,22 @@ const schoolEvents = computed(() => {
   const schoolId = Number(currentUser.value?.school_id)
   return events.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
 })
+
+const statusRank = {
+  ongoing: 0,
+  upcoming: 1,
+  completed: 2,
+  cancelled: 3,
+}
+
+function sortHomeEvents(items) {
+  return [...items].sort((left, right) => {
+    const leftRank = statusRank[normalizeStatus(left?.status)] ?? 99
+    const rightRank = statusRank[normalizeStatus(right?.status)] ?? 99
+    if (leftRank !== rightRank) return leftRank - rightRank
+    return new Date(left?.start_datetime ?? 0) - new Date(right?.start_datetime ?? 0)
+  })
+}
 
 // --- Computed ---
 const displayEvents = computed(() =>
@@ -353,14 +370,14 @@ const filteredEvents = computed(() => {
     .map((token) => token.trim())
     .filter((token) => token && !stopWords.has(token))
 
-  let candidates = displayEvents.value
+  let candidates = schoolEvents.value
   if (statusFilters.length) {
     candidates = candidates.filter((event) => statusFilters.includes(normalizeStatus(event.status)))
   }
 
-  if (!tokens.length) return candidates
+  if (!tokens.length) return sortHomeEvents(candidates)
 
-  return candidates.filter((event) => {
+  return sortHomeEvents(candidates.filter((event) => {
     const haystack = [
       event.name,
       event.location,
@@ -373,7 +390,7 @@ const filteredEvents = computed(() => {
       .toLowerCase()
 
     return tokens.some((token) => haystack.includes(token))
-  })
+  }))
 })
 
 const upcomingEvents = computed(() => filteredEvents.value)
@@ -443,11 +460,25 @@ function formatSearchMeta(event) {
 </script>
 
 <style scoped>
+.home-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100vh;
+  padding: 28px 22px 100px;
+}
+
 /* ── Search row shell ─────────────────────────────────── */
 .search-area {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.home-hero-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .search-row {
@@ -681,6 +712,27 @@ function formatSearchMeta(event) {
   .mobile-bubble-enter-active {
     transition: none;
     animation: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .ai-pill,
+  .mobile-ai-panel {
+    display: none !important;
+  }
+
+  .home-page {
+    padding: 36px 36px 40px;
+  }
+
+  .search-area {
+    margin-top: 4px;
+  }
+
+  .home-hero-grid {
+    flex-direction: row;
+    gap: 24px;
+    margin-top: 10px;
   }
 }
 

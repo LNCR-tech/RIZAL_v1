@@ -1,8 +1,8 @@
 <template>
   <!-- Desktop Left Sidebar -->
   <aside
-    class="hidden md:flex fixed left-4 top-1/2 -translate-y-1/2 z-50 flex-col items-center bg-[#0A0A0A] shadow-2xl"
-    style="width: 52px; border-radius: 32px; min-height: 380px;"
+    class="nav-rail hidden md:flex fixed left-4 top-1/2 -translate-y-1/2 z-50 flex-col items-center shadow-2xl"
+    style="background: var(--color-nav);"
     aria-label="Desktop navigation"
   >
     <!-- Nav icons (top section) -->
@@ -27,7 +27,7 @@
           :is="item.icon"
           :size="19"
           :stroke-width="isActive(item.route) ? 2.2 : 1.6"
-          :color="isActive(item.route) ? 'var(--color-primary)' : '#FFFFFF'"
+          :color="isActive(item.route) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
           class="relative z-10 transition-all duration-200"
         />
         <!-- Active dot below icon -->
@@ -146,10 +146,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Home, User, Calendar, BarChart2, Maximize2, Send } from 'lucide-vue-next'
+import { Maximize2, Send } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
+import { dashboardNavigationItems as navItems } from '@/components/navigation/navigationItems.js'
 
 // ── Chat state from singleton composable ──────────────────
 const {
@@ -176,13 +177,6 @@ onMounted(()  => document.addEventListener('mousedown', handleOutsideClick))
 onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
 
 // ── Navigation ────────────────────────────────────────────
-const navItems = [
-  { name: 'Home',      route: '/dashboard',           icon: Home      },
-  { name: 'Profile',   route: '/dashboard/profile',   icon: User      },
-  { name: 'Schedule',  route: '/dashboard/schedule',  icon: Calendar  },
-  { name: 'Analytics', route: '/dashboard/analytics', icon: BarChart2 },
-]
-
 const router = useRouter()
 const route  = useRoute()
 
@@ -192,11 +186,18 @@ function isActive(path) {
 }
 
 function navigate(path) {
+  if (route.path === path) return
   router.push(path)
 }
 </script>
 
 <style scoped>
+.nav-rail {
+  width: 52px;
+  border-radius: 32px;
+  height: clamp(380px, 68vh, 460px);
+}
+
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -226,15 +227,15 @@ function navigate(path) {
 
 .mini-bubble--ai {
   align-self: flex-start;
-  background: #ffffff;
-  color: #0a0a0a;
-  border: 1px solid rgba(0,0,0,0.05);
+  background: var(--color-surface);
+  color: var(--color-surface-text);
+  border: 1px solid var(--color-surface-border);
 }
 
 .mini-bubble--user {
   align-self: flex-end;
   background: rgba(0,0,0,0.10);
-  color: var(--color-banner-text);
+  color: var(--color-primary-text);
   border: 1px solid rgba(255,255,255,0.10);
 }
 

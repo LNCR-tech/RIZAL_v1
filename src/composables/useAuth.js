@@ -3,8 +3,11 @@ import { useRouter } from 'vue-router'
 import { loginForAccessToken, resolveApiBaseUrl } from '@/services/backendApi.js'
 import {
     clearDashboardSession,
+    getDefaultAuthenticatedRoute,
     initializeDashboardSession,
+    sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
+import { hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
 
 export function useAuth() {
     const router = useRouter()
@@ -33,9 +36,23 @@ export function useAuth() {
 
             localStorage.setItem('aura_token', accessToken)
             localStorage.setItem('aura_user_roles', JSON.stringify(tokenPayload?.roles ?? []))
+            const authMeta = storeAuthMeta(tokenPayload)
+
+            if (hasPrivilegedPendingFace(authMeta)) {
+                throw new Error('This account still needs privileged face verification before it can be used here.')
+            }
+
+            if (authMeta.mustChangePassword) {
+                router.push({ name: 'ChangePassword' })
+                return
+            }
 
             await initializeDashboardSession(true)
-            router.push({ name: 'Home' })
+            router.push(
+                sessionNeedsFaceRegistration()
+                    ? { name: 'FaceRegistration' }
+                    : getDefaultAuthenticatedRoute()
+            )
         } catch (err) {
             clearDashboardSession()
             error.value = err?.message || 'Login failed. Please try again.'

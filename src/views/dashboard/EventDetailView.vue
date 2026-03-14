@@ -1,7 +1,7 @@
 <template>
   <div class="event-detail">
     <!-- Header -->
-    <header class="detail-header">
+    <header class="detail-header dashboard-enter dashboard-enter--1">
       <button class="icon-btn icon-btn--ghost icon-btn--back" aria-label="Back" @click="goBack">
         <ArrowLeft :size="18" />
       </button>
@@ -15,14 +15,14 @@
 
     <section v-if="event" class="detail-body">
       <!-- Title -->
-      <div class="title-block">
+      <div class="title-block dashboard-enter dashboard-enter--2">
         <h1 class="event-title">{{ event.name }}</h1>
         <p class="event-subtitle">Event Date & Time</p>
         <p class="event-date">{{ dateRange }}</p>
       </div>
 
       <!-- Map -->
-      <div class="map-shell">
+      <div class="map-shell dashboard-enter dashboard-enter--3">
         <iframe
           v-if="mapUrl"
           class="map-frame"
@@ -72,7 +72,7 @@
       </div>
 
       <!-- Status pill (mobile) -->
-      <div class="status-pill status-pill--below">
+      <div class="status-pill status-pill--below dashboard-enter dashboard-enter--4">
         <span class="status-dot" :class="statusDotClass"></span>
         <span class="status-text">{{ statusLabel }}</span>
       </div>

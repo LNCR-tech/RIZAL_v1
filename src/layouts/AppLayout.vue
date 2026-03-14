@@ -6,7 +6,7 @@
 
     <!-- Main content area -->
     <main
-      class="min-h-screen transition-all duration-300"
+      class="min-h-screen"
       :class="[
         'md:ml-[80px]',   // sidebar width offset on desktop
         'pb-28 md:pb-8',  // bottom padding for mobile nav
@@ -33,14 +33,15 @@ import BottomNav from '@/components/navigation/BottomNav.vue'
 <style scoped>
 .page-fade-enter-active,
 .page-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.2s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
 }
 .page-fade-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(12px) scale(0.985);
 }
 .page-fade-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(0.995);
 }
 </style>

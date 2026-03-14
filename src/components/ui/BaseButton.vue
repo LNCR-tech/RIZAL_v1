@@ -48,9 +48,9 @@ const props = defineProps({
 })
 
 const variantClass = computed(() => ({
-  'bg-[var(--color-text-always-dark)] text-white hover:opacity-90 active:scale-[0.98]': props.variant === 'primary',
-  'bg-white text-[var(--color-text-always-dark)] border border-[var(--color-text-always-dark)] hover:bg-[#f5f5f5] active:scale-[0.98]': props.variant === 'secondary',
-  'bg-transparent text-[var(--color-text-always-dark)] hover:underline': props.variant === 'ghost',
+  'bg-[var(--color-nav)] text-[var(--color-nav-text)] hover:opacity-90 active:scale-[0.98]': props.variant === 'primary',
+  'bg-[var(--color-surface)] text-[var(--color-surface-text)] border border-[var(--color-surface-border-strong)] hover:opacity-92 active:scale-[0.98]': props.variant === 'secondary',
+  'bg-transparent text-[var(--color-surface-text)] hover:underline': props.variant === 'ghost',
 }))
 
 const sizeClass = computed(() => ({

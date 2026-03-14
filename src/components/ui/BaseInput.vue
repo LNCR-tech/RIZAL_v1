@@ -7,7 +7,7 @@
       :placeholder="placeholder"
       :disabled="disabled"
       :autocomplete="autocomplete"
-      class="w-full bg-white border border-[var(--color-text-always-dark)] rounded-full px-5 py-4 text-[15px] font-medium text-[var(--color-text-always-dark)] placeholder-[#9E9E9E] outline-none transition-all duration-150 focus:ring-2 focus:ring-[var(--color-text-always-dark)] focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pr-12"
+      class="w-full bg-[var(--color-surface)] border border-[var(--color-surface-border-strong)] rounded-full px-5 py-4 text-[15px] font-medium text-[var(--color-surface-text)] placeholder-[var(--color-surface-text-muted)] outline-none transition-all duration-150 focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pr-12"
       @input="$emit('update:modelValue', $event.target.value)"
       @keyup.enter="$emit('enter')"
     />
@@ -16,7 +16,7 @@
       v-if="type === 'password'"
       type="button"
       tabindex="-1"
-      class="absolute right-4 top-1/2 -translate-y-1/2 text-[#9E9E9E] hover:text-[var(--color-text-always-dark)] transition-colors p-1"
+      class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-surface-text-muted)] hover:text-[var(--color-surface-text)] transition-colors p-1"
       @click="togglePasswordVisibility"
       aria-label="Toggle password visibility"
     >

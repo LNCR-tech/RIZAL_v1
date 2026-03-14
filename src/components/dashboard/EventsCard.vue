@@ -5,7 +5,7 @@
       <!-- Left: Label + CTA -->
       <div class="flex flex-col justify-between p-5 flex-1">
         <div>
-          <h3 class="text-[26px] font-extrabold leading-tight" style="color: var(--color-text-always-dark);">
+          <h3 class="text-[26px] font-extrabold leading-tight" style="color: var(--color-surface-text);">
             Latest<br>Event
           </h3>
         </div>
@@ -18,9 +18,9 @@
         >
           <span
             class="flex items-center justify-center w-7 h-7 rounded-full"
-            style="background: var(--color-text-always-dark);"
+            style="background: var(--color-nav);"
           >
-            <ArrowRight :size="13" color="white" :stroke-width="2.5" />
+            <ArrowRight :size="13" color="var(--color-nav-text)" :stroke-width="2.5" />
           </span>
           <span class="text-[12px] font-semibold" style="color: var(--color-banner-text);">See Event</span>
         </button>
@@ -32,25 +32,25 @@
       <!-- Right: Event Info -->
       <div class="flex flex-col justify-center p-5 flex-1 relative" style="border-radius: 0 24px 24px 0;">
         <!-- Slight tint to differentiate the right panel -->
-        <div class="absolute inset-0 bg-black/5 mix-blend-multiply pointer-events-none" style="border-radius: 0 24px 24px 0;"></div>
+        <div class="absolute inset-0 pointer-events-none" style="border-radius: 0 24px 24px 0; background: color-mix(in srgb, var(--color-surface-text) 4%, transparent);"></div>
         
         <div class="relative z-10">
           <template v-if="latestEvent">
             <h4
               class="text-[14px] font-bold leading-tight mb-2"
-              style="color: var(--color-primary);"
+              style="color: var(--color-surface-text);"
             >
               {{ latestEvent.name }}
             </h4>
-            <p class="text-[12px] leading-relaxed mb-2" style="color: var(--color-text-secondary);">
+            <p class="text-[12px] leading-relaxed mb-2" style="color: var(--color-surface-text-secondary);">
               {{ truncate(latestEvent.location, 80) }}
             </p>
-            <p class="text-[11px] font-medium" style="color: var(--color-text-muted);">
+            <p class="text-[11px] font-medium" style="color: var(--color-surface-text-muted);">
               {{ formatDate(latestEvent.start_datetime) }}
             </p>
           </template>
           <template v-else>
-            <p class="text-[13px]" style="color: var(--color-text-muted);">No upcoming events</p>
+            <p class="text-[13px]" style="color: var(--color-surface-text-muted);">No upcoming events</p>
           </template>
         </div>
       </div>

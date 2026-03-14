@@ -4,7 +4,7 @@
     class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 md:hidden"
     aria-label="Mobile navigation"
   >
-    <div class="flex items-center gap-1 bg-[#0A0A0A] rounded-full px-4 py-3 shadow-2xl">
+    <div class="flex items-center gap-1 rounded-full px-4 py-3 shadow-2xl" style="background: var(--color-nav);">
       <button
         v-for="item in navItems"
         :key="item.name"
@@ -24,7 +24,7 @@
           :is="item.icon"
           :size="20"
           :stroke-width="isActive(item.route) ? 2.5 : 2"
-          :color="isActive(item.route) ? 'var(--color-primary)' : '#FFFFFF'"
+          :color="isActive(item.route) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
           class="relative z-10 transition-all duration-200"
           :class="{ 'mb-2': isActive(item.route) }"
         />
@@ -42,14 +42,7 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
-import { Home, User, Calendar, BarChart2 } from 'lucide-vue-next'
-
-const navItems = [
-  { name: 'Home', route: '/dashboard', icon: Home },
-  { name: 'Profile', route: '/dashboard/profile', icon: User },
-  { name: 'Schedule', route: '/dashboard/schedule', icon: Calendar },
-  { name: 'Analytics', route: '/dashboard/analytics', icon: BarChart2 },
-]
+import { dashboardNavigationItems as navItems } from '@/components/navigation/navigationItems.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -60,6 +53,7 @@ function isActive(path) {
 }
 
 function navigate(path) {
+  if (route.path === path) return
   router.push(path)
 }
 </script>

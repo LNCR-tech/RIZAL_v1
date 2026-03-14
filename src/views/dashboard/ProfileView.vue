@@ -2,7 +2,7 @@
   <div class="profile-page">
 
     <!-- ── Header ─────────────────────────────────────────────────────── -->
-    <header class="profile-header">
+    <header class="profile-header dashboard-enter dashboard-enter--1">
       <button class="icon-btn" aria-label="Go back" @click="router.back()">
         <ArrowLeft :size="18" />
       </button>
@@ -61,10 +61,11 @@
           <div class="edit-field edit-field--readonly">
             <span class="edit-field__value">{{ schoolName }}</span>
             <img
-              v-if="schoolLogo"
-              :src="schoolLogo"
+              v-if="schoolLogoSrc && !schoolLogoUnavailable"
+              :src="schoolLogoSrc"
               alt="School logo"
               class="edit-field__logo"
+              @error="handleSchoolLogoError"
             />
           </div>
 
@@ -127,7 +128,7 @@
     <div class="profile-layout">
 
       <!-- LEFT COLUMN (desktop) / TOP SECTION (mobile) -->
-      <section class="profile-left">
+      <section class="profile-left dashboard-enter dashboard-enter--2">
 
         <!-- Avatar -->
         <div class="avatar-wrap">
@@ -160,7 +161,7 @@
       </section>
 
       <!-- RIGHT COLUMN (desktop) / MIDDLE SECTION (mobile) -->
-      <section class="profile-right">
+      <section class="profile-right dashboard-enter dashboard-enter--3">
 
         <!-- Stat cards -->
         <div class="stat-cards">
@@ -259,6 +260,7 @@ import {
   Shield, ChevronRight, Bell
 } from 'lucide-vue-next'
 
+import { defaultTheme } from '@/config/theme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 
@@ -291,6 +293,13 @@ const avatarPreview = ref(null) // shown on main view after successful save
 
 // School logo for the readonly field
 const schoolLogo = computed(() => schoolSettings.value?.logo_url ?? null)
+const schoolLogoError = ref(false)
+const schoolLogoUnavailable = ref(false)
+const schoolLogoSrc = computed(() => (
+  schoolLogoError.value
+    ? defaultTheme.schoolLogo
+    : schoolLogo.value || defaultTheme.schoolLogo
+))
 
 const eventsAttended = computed(() =>
   attendanceRecords.value.filter((attendance) => {
@@ -403,6 +412,20 @@ watch(notificationsEnabled, enabled =>
   savePreferences({ notifications_enabled: enabled })
 )
 
+watch(schoolLogo, () => {
+  schoolLogoError.value = false
+  schoolLogoUnavailable.value = false
+})
+
+function handleSchoolLogoError() {
+  if (!schoolLogoError.value) {
+    schoolLogoError.value = true
+    return
+  }
+
+  schoolLogoUnavailable.value = true
+}
+
 // ── Edit Profile ──────────────────────────────────────────────────────
 const isEditing   = ref(false)
 const isSaving    = ref(false)
@@ -456,8 +479,7 @@ async function saveProfile() {
 
 // ── Handlers ──────────────────────────────────────────────────────────
 function handleSecurity() {
-  // TODO: router.push('/dashboard/security')
-  console.log('Security settings')
+  router.push({ name: 'ProfileSecurity' })
 }
 
 async function handleSignOut() {
@@ -470,7 +492,7 @@ async function handleSignOut() {
 /* ── Page shell ──────────────────────────────────────────────────── */
 .profile-page {
   min-height: 100vh;
-  padding: 0 16px 100px;
+  padding: 0 22px 100px;
   font-family: 'Manrope', sans-serif;
   background: var(--color-bg);
 }
@@ -972,7 +994,7 @@ async function handleSignOut() {
 /* ── Desktop layout (md+) ────────────────────────────────────────── */
 @media (min-width: 768px) {
   .profile-page {
-    padding: 0 40px 40px;
+    padding: 0 36px 40px;
   }
 
   .profile-layout {

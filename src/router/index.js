@@ -1,10 +1,20 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import AppLayout from '@/layouts/AppLayout.vue'
+import HomeView from '@/views/dashboard/HomeView.vue'
+import ProfileView from '@/views/dashboard/ProfileView.vue'
+import ScheduleView from '@/views/dashboard/ScheduleView.vue'
+import EventDetailView from '@/views/dashboard/EventDetailView.vue'
+import AttendanceView from '@/views/dashboard/AttendanceView.vue'
+import AnalyticsView from '@/views/dashboard/AnalyticsView.vue'
 import {
     clearDashboardSession,
+    getDefaultAuthenticatedRoute,
     hasSessionToken,
     initializeDashboardSession,
+    isPrivilegedSession,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
+import { needsStoredPasswordChange } from '@/services/localAuth.js'
 
 const routes = [
     // Auth routes (no layout)
@@ -28,42 +38,89 @@ const routes = [
             allowWithoutFaceEnrollment: true,
         },
     },
+    {
+        path: '/change-password',
+        name: 'ChangePassword',
+        component: () => import('@/views/auth/ChangePasswordView.vue'),
+        props: { flow: 'required' },
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+    },
+    {
+        path: '/profile/security',
+        name: 'ProfileSecurity',
+        component: () => import('@/views/dashboard/ProfileSecurityView.vue'),
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+    },
+    {
+        path: '/profile/security/password',
+        name: 'ProfileSecurityPassword',
+        component: () => import('@/views/auth/ChangePasswordView.vue'),
+        props: { flow: 'settings' },
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+    },
+    {
+        path: '/profile/security/face',
+        name: 'ProfileSecurityFace',
+        component: () => import('@/views/dashboard/ProfileFaceUpdateView.vue'),
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+    },
+    {
+        path: '/workspace',
+        name: 'PrivilegedDashboard',
+        component: () => import('@/views/dashboard/PrivilegedComingSoonView.vue'),
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+    },
 
     // Student dashboard routes (wrapped in AppLayout)
     {
         path: '/dashboard',
-        component: () => import('@/layouts/AppLayout.vue'),
+        component: AppLayout,
         meta: { requiresAuth: true },
         children: [
             {
                 path: '',
                 name: 'Home',
-                component: () => import('@/views/dashboard/HomeView.vue'),
+                component: HomeView,
             },
             {
                 path: 'profile',
                 name: 'Profile',
-                component: () => import('@/views/dashboard/ProfileView.vue'),
+                component: ProfileView,
             },
             {
                 path: 'schedule',
                 name: 'Schedule',
-                component: () => import('@/views/dashboard/ScheduleView.vue'),
+                component: ScheduleView,
             },
             {
                 path: 'schedule/:id',
                 name: 'EventDetail',
-                component: () => import('@/views/dashboard/EventDetailView.vue'),
+                component: EventDetailView,
             },
             {
                 path: 'schedule/:id/attendance',
                 name: 'Attendance',
-                component: () => import('@/views/dashboard/AttendanceView.vue'),
+                component: AttendanceView,
             },
             {
                 path: 'analytics',
                 name: 'Analytics',
-                component: () => import('@/views/dashboard/AnalyticsView.vue'),
+                component: AnalyticsView,
             },
         ],
     },
@@ -80,9 +137,34 @@ const router = createRouter({
 // Navigation guard
 router.beforeEach(async (to) => {
     const isAuthenticated = hasSessionToken()
+    const mustChangePassword = needsStoredPasswordChange()
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: 'Login' }
+    }
+
+    if (isAuthenticated && mustChangePassword && to.name !== 'ChangePassword') {
+        return { name: 'ChangePassword' }
+    }
+
+    if (to.name === 'ChangePassword') {
+        if (!isAuthenticated) {
+            return { name: 'Login' }
+        }
+
+        if (!mustChangePassword) {
+            try {
+                await initializeDashboardSession()
+                return sessionNeedsFaceRegistration()
+                    ? { name: 'FaceRegistration' }
+                    : getDefaultAuthenticatedRoute()
+            } catch {
+                clearDashboardSession()
+                return { name: 'Login' }
+            }
+        }
+
+        return true
     }
 
     if (to.meta.requiresGuest && isAuthenticated) {
@@ -90,7 +172,7 @@ router.beforeEach(async (to) => {
             await initializeDashboardSession()
             return sessionNeedsFaceRegistration()
                 ? { name: 'FaceRegistration' }
-                : { name: 'Home' }
+                : getDefaultAuthenticatedRoute()
         } catch {
             clearDashboardSession()
             return { name: 'Login' }
@@ -100,12 +182,20 @@ router.beforeEach(async (to) => {
     if (to.meta.requiresAuth && isAuthenticated) {
         try {
             await initializeDashboardSession()
+            const defaultRoute = getDefaultAuthenticatedRoute()
+            const privilegedSession = isPrivilegedSession()
             const needsFaceRegistration = sessionNeedsFaceRegistration()
             if (needsFaceRegistration && !to.meta.allowWithoutFaceEnrollment) {
                 return { name: 'FaceRegistration' }
             }
             if (!needsFaceRegistration && to.name === 'FaceRegistration') {
-                return { name: 'Home' }
+                return defaultRoute
+            }
+            if (privilegedSession && to.path.startsWith('/dashboard')) {
+                return defaultRoute
+            }
+            if (!privilegedSession && to.name === 'PrivilegedDashboard') {
+                return defaultRoute
             }
         } catch {
             clearDashboardSession()

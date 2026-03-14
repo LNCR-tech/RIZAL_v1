@@ -25,38 +25,50 @@
       </button>
 
       <button
-        v-if="showSecondaryAction"
-        class="map-toggle"
+        class="attendance-toggle"
         :class="{
-          'map-toggle--open': isMapOpen,
-          'map-toggle--done': showAttendanceCheck,
+          'attendance-toggle--open': isAttendanceOpen,
+          'attendance-toggle--present': attendanceAppearance.tone === 'present',
+          'attendance-toggle--absent': attendanceAppearance.tone === 'absent',
+          'attendance-toggle--late': attendanceAppearance.tone === 'late',
+          'attendance-toggle--neutral': attendanceAppearance.tone === 'neutral',
+          'attendance-toggle--unmarked': attendanceAppearance.isUnmarked,
+          'attendance-toggle--desktop-pill': !isMobile,
+          'attendance-toggle--desktop-icon': !isMobile && attendanceAppearance.isUnmarked,
+          'attendance-toggle--revealed': !isMobile && (isAttendanceHovered || isAttendanceOpen),
         }"
         type="button"
-        :aria-label="secondaryActionLabel"
-        :disabled="showAttendanceCheck"
-        @click.stop="handleToggleMap"
+        :aria-label="attendanceAppearance.label"
+        :title="attendanceAppearance.label"
+        @mouseenter="isAttendanceHovered = true"
+        @mouseleave="isAttendanceHovered = false"
+        @focus="isAttendanceHovered = true"
+        @blur="isAttendanceHovered = false"
+        @click.stop="handleAttendanceToggle"
       >
-        <Check v-if="showAttendanceCheck" :size="18" />
-        <ChevronDown v-else :size="16" />
+        <span class="attendance-toggle__icon">
+          <component :is="attendanceAppearance.icon" :size="18" />
+        </span>
+        <span v-if="showDesktopAttendanceText || !isMobile" class="attendance-toggle__text">
+          {{ attendanceAppearance.label }}
+        </span>
       </button>
     </div>
 
-    <!-- Collapsible Map (mobile only) -->
+    <!-- Collapsible Attendance Status (mobile only) -->
     <div
-      v-if="canToggleMap"
-      class="map-panel"
-      :class="{ 'map-panel--open': isMapOpen }"
+      class="attendance-panel"
+      :class="{ 'attendance-panel--open': isAttendanceOpen && isMobile }"
     >
-      <div class="map-panel__inner">
-        <div class="map-shell">
-          <iframe
-            v-if="isMapOpen && mapUrl"
-            class="map-frame"
-            :src="mapUrl"
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-            aria-label="Event location map"
-          />
+      <div class="attendance-panel__inner">
+        <div class="attendance-status-card" :class="attendanceAppearance.cardClass">
+          <span class="attendance-status-card__icon">
+            <component :is="attendanceAppearance.icon" :size="18" />
+          </span>
+          <div class="attendance-status-card__content">
+            <span class="attendance-status-card__label">{{ attendanceAppearance.label }}</span>
+            <span class="attendance-status-card__meta">{{ attendanceAppearance.meta }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -65,7 +77,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { ArrowRight, ChevronDown, Check } from 'lucide-vue-next'
+import { ArrowRight, Check, Clock3, Minus, X } from 'lucide-vue-next'
 
 const props = defineProps({
   event: {
@@ -75,6 +87,10 @@ const props = defineProps({
   isAttended: {
     type: Boolean,
     default: false,
+  },
+  attendanceRecord: {
+    type: Object,
+    default: null,
   },
 })
 
@@ -134,34 +150,73 @@ const actionBtnClass = computed(() => {
 
 const eventMeta = computed(() => props.event.location ?? '')
 
-const hasGeo = computed(() =>
-  props.event.geo_latitude != null && props.event.geo_longitude != null
-)
-
 const isOngoing = computed(() => normalizedStatus.value === 'ongoing')
-const canToggleMap = computed(() => isOngoing.value && hasGeo.value && !props.isAttended)
-const showAttendanceCheck = computed(() => isOngoing.value && props.isAttended)
-const showSecondaryAction = computed(() => canToggleMap.value || showAttendanceCheck.value)
-const secondaryActionLabel = computed(() =>
-  props.isAttended ? 'Attendance already marked' : 'Toggle map'
-)
+const normalizedAttendanceStatus = computed(() => {
+  const raw = String(props.attendanceRecord?.status ?? '').trim().toLowerCase()
+  return raw || null
+})
+
+const attendanceAppearance = computed(() => {
+  const sharedMeta = isOngoing.value
+    ? 'Tap to see your attendance state for this event.'
+    : 'Attendance state loaded from your backend record.'
+
+  if (normalizedAttendanceStatus.value === 'present') {
+    return {
+      label: 'Present',
+      icon: Check,
+      tone: 'present',
+      cardClass: 'attendance-status-card--present',
+      meta: sharedMeta,
+      isUnmarked: false,
+    }
+  }
+
+  if (normalizedAttendanceStatus.value === 'absent') {
+    return {
+      label: 'Absent',
+      icon: X,
+      tone: 'absent',
+      cardClass: 'attendance-status-card--absent',
+      meta: sharedMeta,
+      isUnmarked: false,
+    }
+  }
+
+  if (normalizedAttendanceStatus.value === 'late') {
+    return {
+      label: 'Late',
+      icon: Clock3,
+      tone: 'late',
+      cardClass: 'attendance-status-card--late',
+      meta: sharedMeta,
+      isUnmarked: false,
+    }
+  }
+
+  return {
+    label: 'Unmarked',
+    icon: Minus,
+    tone: 'neutral',
+    cardClass: 'attendance-status-card--neutral',
+    meta: 'No attendance status has been returned by the API for this event yet.',
+    isUnmarked: true,
+  }
+})
+
+const showDesktopAttendanceText = computed(() => !isMobile.value && !attendanceAppearance.value.isUnmarked)
 
 const isMobile = ref(false)
-const isMapOpen = ref(false)
+const isAttendanceOpen = ref(false)
+const isAttendanceHovered = ref(false)
 
 function updateMedia() {
   isMobile.value = window.matchMedia('(max-width: 767px)').matches
 }
 
-function handleToggleMap() {
-  if (!canToggleMap.value) return
-  if (!isMobile.value) {
-    // Desktop behavior: open event detail instead of expanding
-    // Use the same payload as the action button
-    emitOpenDetail()
-    return
-  }
-  isMapOpen.value = !isMapOpen.value
+function handleAttendanceToggle() {
+  if (!isMobile.value && !attendanceAppearance.value.isUnmarked) return
+  isAttendanceOpen.value = !isAttendanceOpen.value
 }
 
 function emitOpenDetail() {
@@ -186,31 +241,9 @@ onUnmounted(() => {
 })
 
 watch(isMobile, (next) => {
-  if (!next) isMapOpen.value = false
-})
-
-watch(() => props.isAttended, (next) => {
-  if (next) isMapOpen.value = false
-})
-
-const mapUrl = computed(() => {
-  if (!hasGeo.value) return null
-  const lat = props.event.geo_latitude
-  const lon = props.event.geo_longitude
-  const radius = typeof props.event.geo_radius_m === 'number' && props.event.geo_radius_m > 0
-    ? props.event.geo_radius_m
-    : 350
-
-  const latDelta = radius / 111320
-  const lonDelta = radius / (111320 * Math.cos((lat * Math.PI) / 180) || 1)
-  const bbox = [
-    (lon - lonDelta).toFixed(6),
-    (lat - latDelta).toFixed(6),
-    (lon + lonDelta).toFixed(6),
-    (lat + latDelta).toFixed(6),
-  ].join(',')
-
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lon}`
+  if (!next) {
+    isAttendanceOpen.value = false
+  }
 })
 </script>
 
@@ -239,8 +272,8 @@ const mapUrl = computed(() => {
 }
 
 .event-card--white {
-  background: #FFFFFF;
-  color: var(--color-text-always-dark);
+  background: var(--color-surface);
+  color: var(--color-surface-text);
 }
 
 /* ── Top Status ── */
@@ -314,13 +347,14 @@ const mapUrl = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .event-action:active {
   transform: scale(0.95);
 }
 
-.action-btn--white { background: #FFFFFF; }
+.action-btn--white { background: var(--color-surface); }
 .action-btn--lime { background: var(--color-primary); }
 
 .action-icon {
@@ -329,8 +363,8 @@ const mapUrl = computed(() => {
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: var(--color-text-always-dark);
-  color: #fff;
+  background: var(--color-nav);
+  color: var(--color-nav-text);
   border-radius: 50%;
 }
 
@@ -340,42 +374,115 @@ const mapUrl = computed(() => {
 }
 
 .action-btn--white .action-text {
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
 }
 
 .action-btn--lime .action-text {
   color: var(--color-banner-text);
 }
 
-.map-toggle {
+.attendance-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px;
+  max-width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: #ffffff;
-  color: var(--color-text-always-dark);
+  border: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
+  color: var(--color-surface-text);
   cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.26s ease,
+    color 0.26s ease,
+    max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    gap 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.26s ease;
   will-change: transform;
+  position: relative;
+  overflow: hidden;
 }
 
-.map-toggle:disabled {
-  cursor: default;
+.attendance-toggle__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.map-toggle--open {
-  transform: rotate(180deg);
+.attendance-toggle__text {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transform: translateX(-8px);
+  transition:
+    max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.24s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.map-toggle--done {
-  color: var(--color-primary-dark, #88cc00);
-  transform: none;
+.attendance-toggle--desktop-pill {
+  min-width: 44px;
+  border-radius: 999px;
+  padding: 0;
+  justify-content: flex-start;
+  gap: 0;
 }
 
-.map-panel {
+.attendance-toggle--desktop-icon {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
+.attendance-toggle--desktop-pill .attendance-toggle__icon,
+.attendance-toggle--desktop-icon .attendance-toggle__icon {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+}
+
+.attendance-toggle--revealed {
+  max-width: 168px;
+  min-width: 168px;
+  padding-right: 18px;
+  gap: 12px;
+}
+
+.attendance-toggle--revealed .attendance-toggle__text {
+  max-width: 104px;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.attendance-toggle--open {
+  transform: scale(0.96);
+}
+
+.attendance-toggle--present {
+  color: #9dce00;
+}
+
+.attendance-toggle--absent {
+  color: #ff3b30;
+}
+
+.attendance-toggle--late {
+  color: #ff9f0a;
+}
+
+.attendance-toggle--neutral {
+  color: #6b7280;
+}
+
+.attendance-panel {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
@@ -387,37 +494,93 @@ const mapUrl = computed(() => {
     transform 0.2s ease,
     margin-top 0.2s ease;
   will-change: opacity, transform;
+  width: 100%;
 }
 
-.map-panel--open {
+.attendance-panel--open {
   grid-template-rows: 1fr;
   opacity: 1;
   transform: translateY(0);
   margin-top: 12px;
 }
 
-.map-panel__inner {
+.attendance-panel__inner {
   min-height: 0;
   overflow: hidden;
 }
 
-.map-shell {
-  border-radius: 20px;
-  padding: 0px;
-  background: rgba(0,0,0,0.08);
+.attendance-status-card {
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid var(--color-surface-border);
 }
 
-.map-frame {
-  width: 100%;
-  height: 200px;
-  border: none;
-  border-radius: 20px;
-  background: #f6f6f6;
+.attendance-status-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-surface-text) 8%, transparent);
+  flex: 0 0 auto;
+}
+
+.attendance-status-card__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.attendance-status-card__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-surface-text);
+}
+
+.attendance-status-card__meta {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-surface-text-muted);
+  margin-top: 2px;
+}
+
+.attendance-status-card--present .attendance-status-card__icon {
+  color: #9dce00;
+}
+
+.attendance-status-card--absent .attendance-status-card__icon {
+  color: #ff3b30;
+}
+
+.attendance-status-card--late .attendance-status-card__icon {
+  color: #ff9f0a;
+}
+
+.attendance-status-card--neutral .attendance-status-card__icon {
+  color: #6b7280;
 }
 
 @media (min-width: 768px) {
-  .map-panel {
+  .attendance-panel {
     display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .attendance-toggle {
+    flex: 0 0 auto;
+    max-width: none;
+  }
+
+  .attendance-toggle__text {
+    max-width: none;
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

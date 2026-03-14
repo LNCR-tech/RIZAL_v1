@@ -22,16 +22,16 @@
       </div>
 
       <!-- Announcement Button -->
-      <button
-        @click="$emit('announcement-click')"
-        class="mt-4 flex items-center gap-3 rounded-full pl-3 pr-5 py-2.5 self-start transition-all duration-150 hover:scale-105 active:scale-95 group"
-        style="background: var(--color-text-always-dark);"
-      >
-        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
-          <ArrowRight :size="14" color="var(--color-surface)" :stroke-width="2.5" />
-        </span>
-        <span class="text-[12px] font-semibold" style="color: var(--color-surface);">Latest Announcement</span>
-      </button>
+        <button
+          @click="$emit('announcement-click')"
+          class="mt-4 flex items-center gap-3 rounded-full pl-3 pr-5 py-2.5 self-start transition-all duration-150 hover:scale-105 active:scale-95 group"
+          style="background: var(--color-nav);"
+        >
+          <span class="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+            <ArrowRight :size="14" color="var(--color-nav-text)" :stroke-width="2.5" />
+          </span>
+        <span class="text-[12px] font-semibold" style="color: var(--color-nav-text);">Latest Announcement</span>
+        </button>
     </div>
 
     <!--
@@ -42,11 +42,11 @@
       Adjust right offset (--logo-offset) to control how much is clipped.
     -->
     <div
-      v-if="!logoFailed"
+      v-if="resolvedLogoSrc && !logoUnavailable"
       class="logo-wrap"
     >
       <img
-        :src="schoolLogo"
+        :src="resolvedLogoSrc"
         :alt="schoolName + ' logo'"
         class="logo-img object-contain drop-shadow-xl opacity-95"
         @error="onLogoError"
@@ -56,10 +56,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ArrowRight } from 'lucide-vue-next'
+import { defaultTheme } from '@/config/theme.js'
 
-defineProps({
+const props = defineProps({
   schoolName: {
     type: String,
     default: 'University Name',
@@ -73,11 +74,30 @@ defineProps({
 defineEmits(['announcement-click'])
 
 const logoFailed = ref(false)
+const logoUnavailable = ref(false)
+const resolvedLogoSrc = computed(() => (
+  logoFailed.value
+    ? defaultTheme.schoolLogo
+    : props.schoolLogo || defaultTheme.schoolLogo
+))
 
 function onLogoError(e) {
-  logoFailed.value = true
+  if (!logoFailed.value) {
+    logoFailed.value = true
+    return
+  }
+
+  logoUnavailable.value = true
   e.target.style.display = 'none'
 }
+
+watch(
+  () => props.schoolLogo,
+  () => {
+    logoFailed.value = false
+    logoUnavailable.value = false
+  }
+)
 </script>
 
 <style scoped>

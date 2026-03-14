@@ -1,65 +1,53 @@
 <template>
   <div class="face-gate-page">
     <div v-if="step === 'intro'" class="face-gate-shell face-gate-shell--intro">
-      <h1 class="intro-title">
-        Hi {{ firstName }},<br>
-        face is<br>
-        unregistered<br>
-        please register<br>
-        now.
-      </h1>
+      <section class="intro-card">
+        <span class="intro-chip">{{ schoolName }}</span>
+        <h1 class="intro-title">
+          Hi {{ firstName }},<br>
+          face is<br>
+          unregistered<br>
+          please register<br>
+          now.
+        </h1>
+        <p class="intro-copy">
+          We will use the same face-scan experience as attendance so future check-ins feel familiar.
+        </p>
 
-      <button class="register-pill" type="button" @click="beginEnrollment">
-        <span class="register-pill__icon">
-          <ArrowRight :size="18" />
-        </span>
-        <span class="register-pill__text">Register Now</span>
-      </button>
+        <button class="register-pill" type="button" @click="beginEnrollment">
+          <span class="register-pill__icon">
+            <ArrowRight :size="18" />
+          </span>
+          <span class="register-pill__text">Register Now</span>
+        </button>
+      </section>
     </div>
 
     <div v-else class="face-gate-shell face-gate-shell--capture">
-      <p class="capture-caption">{{ captionText }}</p>
+      <section class="capture-card">
+        <header class="capture-header">
+          <span class="capture-chip">Face Setup</span>
+          <h2 class="capture-title">{{ captureTitle }}</h2>
+          <p class="capture-copy">{{ captureCopy }}</p>
+        </header>
 
-      <div class="face-orbit" :class="orbitClass">
-        <span class="face-orbit__dot face-orbit__dot--top" aria-hidden="true"></span>
-        <span class="face-orbit__dot face-orbit__dot--left" aria-hidden="true"></span>
+        <FaceScanPanel
+          class="face-gate-panel"
+          :caption="panelCaption"
+          :progress="scanProgress"
+          :is-camera-ready="panelCameraReady"
+          :face-image-url="panelFaceImageUrl"
+          :show-error="showRetry"
+          :error-text="statusMessage"
+          :video-ref="setVideoEl"
+          @retry="retryEnrollment"
+        />
 
-        <div class="face-orbit__inner">
-          <video
-            v-show="showLivePreview"
-            ref="videoEl"
-            class="face-media face-media--video"
-            autoplay
-            playsinline
-            muted
-          ></video>
-
-          <img
-            v-if="capturedPreview"
-            :src="capturedPreview"
-            alt="Registered face preview"
-            class="face-media"
-          />
-
-          <div v-if="showPlaceholder" class="face-placeholder">
-            {{ placeholderText }}
-          </div>
-        </div>
-      </div>
-
-      <p class="capture-status" :class="statusClass">{{ statusMessage }}</p>
-
-      <button
-        v-if="showRetry"
-        class="retry-pill"
-        type="button"
-        @click="retryEnrollment"
-      >
-        Try Again
-      </button>
+        <p v-if="showStatusMessage" class="capture-status" :class="statusClass">{{ statusText }}</p>
+      </section>
     </div>
 
-    <button class="signout-link" type="button" @click="logout">
+    <button v-if="step === 'intro'" class="signout-link" type="button" @click="logout">
       Sign Out
     </button>
   </div>
@@ -71,8 +59,11 @@ import { useRouter } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
-import { saveFaceReference } from '@/services/backendApi.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
+import { registerStudentFace } from '@/services/backendApi.js'
 import { initFaceScanDetector, resetFaceScanDetector } from '@/composables/useFaceScanDetector.js'
+import { getStoredAuthMeta, patchStoredAuthMeta } from '@/services/localAuth.js'
+import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
 
 const router = useRouter()
 const { logout } = useAuth()
@@ -81,6 +72,7 @@ const {
   currentUser,
   initializeDashboardSession,
   needsFaceRegistration,
+  schoolSettings,
 } = useDashboardSession()
 
 const step = ref('intro')
@@ -100,29 +92,78 @@ let detectionStreak = 0
 let redirectTimeout = null
 
 const firstName = computed(() => currentUser.value?.first_name?.trim() || 'there')
-const captionText = computed(() =>
-  statusState.value === 'success'
-    ? 'Face registered successfully.'
-    : 'Ensure your face is well-lit.'
-)
-const showRetry = computed(() => statusState.value === 'error')
-const showLivePreview = computed(() => !capturedPreview.value)
-const showPlaceholder = computed(() => !capturedPreview.value && (!videoReady.value || cameraState.value !== 'ready'))
-const placeholderText = computed(() => {
-  if (cameraState.value === 'denied') return 'Camera access is required.'
-  if (cameraState.value === 'unsupported') return 'Camera is unavailable on this device.'
-  if (statusState.value === 'starting') return 'Starting camera...'
-  return 'Preparing camera...'
+const schoolName = computed(() => (
+  currentUser.value?.school_name?.trim() ||
+  schoolSettings.value?.school_name?.trim() ||
+  getStoredAuthMeta()?.schoolName ||
+  'Your school'
+))
+const captureTitle = computed(() => {
+  if (statusState.value === 'success') return 'You are all set'
+  if (statusState.value === 'submitting' || statusState.value === 'capturing') return 'Registering your face'
+  if (statusState.value === 'starting') return 'Preparing your camera'
+  if (statusState.value === 'detecting') return 'Hold steady for a clear scan'
+  if (statusState.value === 'error') return 'Let’s try that again'
+  return 'Register your face'
 })
+const captureCopy = computed(() => {
+  if (statusState.value === 'success') {
+    return 'Your face profile is saved. We are taking you straight to your dashboard.'
+  }
+  if (statusState.value === 'submitting' || statusState.value === 'capturing') {
+    return 'Stay centered for a moment while we save a clean reference image.'
+  }
+  if (statusState.value === 'starting') {
+    return 'We are warming up your camera and loading the same scan frame used for attendance.'
+  }
+  if (statusState.value === 'detecting') {
+    return 'Use a well-lit angle and keep your face inside the frame so future attendance scans feel natural.'
+  }
+  if (statusState.value === 'error') {
+    return 'Better lighting and a centered face usually fixes this on the next try.'
+  }
+  return 'Use the same school-branded scan flow that powers attendance check-ins.'
+})
+const panelCaption = computed(() => {
+  if (statusState.value === 'success') return 'Face registered successfully.'
+  if (statusState.value === 'submitting' || statusState.value === 'capturing') {
+    return 'Hold still while we save your face.'
+  }
+  if (statusState.value === 'starting') return 'Preparing your camera...'
+  if (statusState.value === 'error') return 'Unable to register your face yet.'
+  return 'Ensure your face is well-lit.'
+})
+const showRetry = computed(() => statusState.value === 'error')
 const statusClass = computed(() => ({
   'capture-status--error': statusState.value === 'error',
   'capture-status--success': statusState.value === 'success',
 }))
-const orbitClass = computed(() => ({
-  'face-orbit--error': statusState.value === 'error',
-  'face-orbit--success': statusState.value === 'success',
-  'face-orbit--active': ['starting', 'detecting', 'capturing', 'submitting'].includes(statusState.value),
-}))
+const panelCameraReady = computed(() => cameraState.value === 'ready' && !capturedPreview.value)
+const panelFaceImageUrl = computed(() =>
+  capturedPreview.value ||
+  currentUser.value?.avatar_url ||
+  currentUser.value?.profile_photo_url ||
+  ''
+)
+const showStatusMessage = computed(() =>
+  Boolean(statusText.value) && statusState.value === 'success'
+)
+const statusText = computed(() => {
+  if (statusState.value === 'success') {
+    return 'Face registered successfully. Redirecting to your dashboard...'
+  }
+
+  return statusMessage.value
+})
+const scanProgress = computed(() => {
+  if (statusState.value === 'success') return 100
+  if (statusState.value === 'submitting') return 88
+  if (statusState.value === 'capturing') return 72
+  if (statusState.value === 'detecting') return 46
+  if (statusState.value === 'starting') return 18
+  if (statusState.value === 'error') return 64
+  return panelCameraReady.value ? 28 : 12
+})
 
 const faceDetectorWasmBaseUrl =
   import.meta.env.VITE_FACE_DETECTOR_WASM_URL ||
@@ -136,6 +177,24 @@ const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVA
 const detectTimeoutMs = Number(import.meta.env.VITE_FACE_ENROLL_DETECT_TIMEOUT_MS ?? 12000)
 const captureDelayMs = Number(import.meta.env.VITE_FACE_ENROLL_CAPTURE_DELAY_MS ?? 450)
 
+const setVideoEl = (el) => {
+  videoEl.value = el
+}
+
+function applyRegistrationTheme() {
+  const authMeta = getStoredAuthMeta()
+  const fallbackSettings = {
+    school_name: currentUser.value?.school_name || authMeta?.schoolName || null,
+    school_code: currentUser.value?.school_code || authMeta?.schoolCode || null,
+    logo_url: schoolSettings.value?.logo_url || authMeta?.logoUrl || null,
+    primary_color: schoolSettings.value?.primary_color || authMeta?.primaryColor || '#0057B8',
+    secondary_color: schoolSettings.value?.secondary_color || authMeta?.secondaryColor || '#FFD400',
+    accent_color: schoolSettings.value?.accent_color || authMeta?.accentColor || '#000000',
+  }
+
+  applyTheme(loadTheme(fallbackSettings))
+}
+
 watch(
   () => needsFaceRegistration.value,
   (required) => {
@@ -145,7 +204,23 @@ watch(
   }
 )
 
+watch(
+  () => [
+    currentUser.value?.school_name,
+    currentUser.value?.school_code,
+    schoolSettings.value?.primary_color,
+    schoolSettings.value?.secondary_color,
+    schoolSettings.value?.accent_color,
+    schoolSettings.value?.logo_url,
+  ],
+  () => {
+    applyRegistrationTheme()
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
+  applyRegistrationTheme()
   if (!needsFaceRegistration.value) {
     router.replace({ name: 'Home' })
   }
@@ -401,10 +476,14 @@ async function captureAndRegister() {
 
     const token = localStorage.getItem('aura_token')
     try {
-      await saveFaceReference(apiBaseUrl.value, token, imageDataUrl)
+      await registerStudentFace(apiBaseUrl.value, token, imageDataUrl)
     } catch {
-      await saveFaceReference(apiBaseUrl.value, token, rawBase64)
+      await registerStudentFace(apiBaseUrl.value, token, rawBase64)
     }
+
+    patchStoredAuthMeta({
+      faceReferenceEnrolled: true,
+    })
 
     await initializeDashboardSession(true)
     if (needsFaceRegistration.value) {
@@ -432,39 +511,110 @@ function setRegistrationError(message) {
 
 <style scoped>
 .face-gate-page {
+  --scan-size: clamp(244px, 70vw, 292px);
+  --scan-thickness: 9px;
+  --scan-gap: 8px;
+  --scan-media: calc(var(--scan-size) - (var(--scan-thickness) * 2) - (var(--scan-gap) * 2));
   min-height: 100vh;
-  background: #ebebeb;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-bg, #ebebeb);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 36px 24px 28px;
+  padding: 34px 24px 28px;
   font-family: 'Manrope', sans-serif;
 }
 
 .face-gate-shell {
-  width: min(100%, 340px);
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
   display: flex;
   flex-direction: column;
 }
 
 .face-gate-shell--intro {
-  align-items: flex-start;
-  gap: 44px;
+  align-items: stretch;
 }
 
 .face-gate-shell--capture {
   align-items: center;
-  gap: 24px;
+}
+
+.intro-card,
+.capture-card {
+  width: 100%;
+  border-radius: 32px;
+  padding: 28px 24px 24px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.intro-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.capture-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.intro-chip,
+.capture-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary, #0057b8) 18%, #ffffff 82%);
+  color: color-mix(in srgb, var(--color-primary, #0057b8) 56%, #0a0a0a 44%);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.capture-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
 }
 
 .intro-title {
   margin: 0;
-  font-size: clamp(27px, 8vw, 46px);
+  font-size: clamp(27px, 8vw, 44px);
   line-height: 0.96;
   letter-spacing: -0.05em;
   font-weight: 700;
   color: #0a0a0a;
+}
+
+.intro-copy,
+.capture-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #5b5b54;
+}
+
+.capture-title {
+  margin: 0;
+  font-size: clamp(24px, 7vw, 30px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  color: #111111;
 }
 
 .register-pill {
@@ -475,15 +625,14 @@ function setRegistrationError(message) {
   padding: 4px 22px 4px 4px;
   border: none;
   border-radius: 999px;
-  background: var(--color-primary, #caff00);
-  color: #0a0a0a;
+  background: var(--color-primary, #0057b8);
+  color: var(--color-primary-text, #ffffff);
   cursor: pointer;
-  box-shadow: 0 16px 28px rgba(10, 10, 10, 0.08);
+  font-family: 'Manrope', sans-serif;
   transition: transform 0.16s ease;
 }
 
 .register-pill:active,
-.retry-pill:active,
 .signout-link:active {
   transform: scale(0.97);
 }
@@ -492,7 +641,7 @@ function setRegistrationError(message) {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: #0a0a0a;
+  background: var(--color-nav, #0a0a0a);
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -505,135 +654,120 @@ function setRegistrationError(message) {
   font-weight: 700;
 }
 
-.capture-caption {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: #4c4c46;
-}
-
-.face-orbit {
-  position: relative;
-  width: min(72vw, 286px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: conic-gradient(from -55deg, var(--color-primary, #caff00) 0deg 300deg, #f1efe4 300deg 360deg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: filter 0.2s ease, transform 0.2s ease;
-}
-
-.face-orbit--active {
-  animation: orbitPulse 1.6s ease-in-out infinite;
-}
-
-.face-orbit--error {
-  background: conic-gradient(from -55deg, #f55b5b 0deg 300deg, #f1efe4 300deg 360deg);
-}
-
-.face-orbit--success {
-  background: conic-gradient(from -55deg, var(--color-primary, #caff00) 0deg 360deg, var(--color-primary, #caff00) 360deg 360deg);
-}
-
-.face-orbit__inner {
-  width: calc(100% - 42px);
-  height: calc(100% - 42px);
-  border-radius: 50%;
-  overflow: hidden;
-  background: #f7f5ec;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.face-orbit__dot {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #0a0a0a;
-}
-
-.face-orbit__dot--top {
-  top: 16px;
-  left: 54%;
-}
-
-.face-orbit__dot--left {
-  left: 15px;
-  top: 53%;
-}
-
-.face-media {
+.face-gate-panel {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.face-media--video {
-  transform: scaleX(-1);
-}
-
-.face-placeholder {
-  padding: 0 28px;
-  text-align: center;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #55554e;
 }
 
 .capture-status {
-  min-height: 18px;
-  margin: 0;
-  font-size: 13px;
+  width: min(100%, 276px);
+  min-height: 20px;
+  margin: -2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
   font-weight: 600;
-  color: #6b6b64;
+  color: #5f5f5f;
   text-align: center;
 }
 
 .capture-status--error {
-  color: #ff5f5f;
+  color: #d24848;
 }
 
 .capture-status--success {
-  color: #5a7f00;
-}
-
-.retry-pill {
-  min-width: 162px;
-  min-height: 48px;
-  padding: 0 24px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.68);
-  color: #4b4b45;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 14px 24px rgba(10, 10, 10, 0.05);
+  color: color-mix(in srgb, var(--color-primary, #0057b8) 52%, #111111 48%);
 }
 
 .signout-link {
-  margin-top: 28px;
+  margin-top: 24px;
   border: none;
   background: transparent;
-  color: #6b6b64;
+  color: color-mix(in srgb, var(--color-primary, #0057b8) 34%, #4d4d47 66%);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 
-@keyframes orbitPulse {
-  0%,
-  100% {
-    transform: scale(1);
-    filter: brightness(1);
+.face-gate-panel :deep(.face-scan-section) {
+  gap: 16px;
+}
+
+.face-gate-panel :deep(.step-caption) {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #1d1d18;
+  max-width: 250px;
+}
+
+.face-gate-panel :deep(.face-scan) {
+  margin-top: 0;
+}
+
+.face-gate-panel :deep(.scan-ring-base) {
+  stroke: color-mix(in srgb, var(--color-primary, #0057b8) 12%, #fff7d7 88%);
+}
+
+.face-gate-panel :deep(.scan-ring-progress) {
+  stroke: var(--color-primary, #0057b8);
+}
+
+.face-gate-panel :deep(.scan-ring-dot) {
+  fill: #111111;
+}
+
+.face-gate-panel :deep(.scan-media) {
+  background: var(--color-surface, #ffffff);
+  box-shadow: none;
+}
+
+.face-gate-panel :deep(.scan-video) {
+  transform: scaleX(-1);
+}
+
+.face-gate-panel :deep(.scan-photo--placeholder) {
+  color: color-mix(in srgb, var(--color-primary, #0057b8) 22%, #7b7b72 78%);
+}
+
+.face-gate-panel :deep(.face-error-block) {
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.face-gate-panel :deep(.face-error) {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.face-gate-panel :deep(.face-retry-btn) {
+  width: 148px;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: color-mix(in srgb, var(--color-primary, #0057b8) 30%, #2f2f2a 70%);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Manrope', sans-serif;
+}
+
+@media (max-width: 480px) {
+  .face-gate-page {
+    padding: 24px 18px 20px;
   }
 
-  50% {
-    transform: scale(1.015);
-    filter: brightness(1.03);
+  .face-gate-shell {
+    width: min(100%, 360px);
+  }
+
+  .intro-title {
+    font-size: clamp(25px, 11vw, 40px);
+  }
+
+  .intro-card,
+  .capture-card {
+    padding: 24px 18px 20px;
+    border-radius: 28px;
   }
 }
 </style>

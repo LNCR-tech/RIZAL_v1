@@ -1,12 +1,13 @@
 <template>
-  <div class="min-h-screen bg-[#EBEBEB] flex flex-col font-[Manrope] overflow-hidden">
+  <div class="min-h-screen flex flex-col font-[Manrope] overflow-hidden" style="background: var(--color-bg);">
     <!-- Main centered content -->
     <div class="flex-1 flex flex-col items-center justify-center px-8 relative z-10">
       <div class="w-full max-w-[340px] flex flex-col gap-6">
 
         <!-- Heading -->
         <h1 
-          class="text-[22px] font-semibold text-[#0A0A0A] leading-[1.4] tracking-[-0.3px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
+          class="text-[22px] font-semibold leading-[1.4] tracking-[-0.3px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
+          style="color: var(--color-text-primary);"
           :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
         >
           Welcome to the portal. Log in to access your dashboard.
@@ -56,13 +57,6 @@
           >
             Log In
           </BaseButton>
-
-          <RouterLink
-            to="/api-lab"
-            class="text-center text-[12px] font-semibold text-[#4C5C00] hover:text-[#0A0A0A] transition-colors"
-          >
-            Open temporary API lab
-          </RouterLink>
         </form>
 
         <!-- Powered by Aura -->
@@ -75,7 +69,7 @@
             alt="Aura"
             class="h-8 w-auto object-contain"
           />
-          <span class="text-[13px] font-medium text-[var(--color-text-always-dark)] tracking-tight">
+          <span class="text-[13px] font-medium tracking-tight" style="color: var(--color-text-primary);">
             Powered by Aura Ai
           </span>
         </div>
@@ -90,20 +84,12 @@
     >
       <a
         href="#"
-        class="text-[12px] font-medium text-[#666666] hover:text-[#0A0A0A] transition-colors"
+        class="text-[12px] font-medium transition-colors"
+        style="color: var(--color-text-secondary);"
       >
         Learn more about Aura Project
       </a>
     </footer>
-    
-    <!-- Decorative background elements (optional, subtle blur) -->
-    <div 
-      class="fixed inset-0 pointer-events-none transition-opacity duration-1000"
-      :class="isMounted ? 'opacity-100' : 'opacity-0'"
-    >
-      <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white rounded-full blur-[100px] opacity-40"></div>
-      <div class="absolute bottom-[-10%] right-[-10%] w-[30%] h-[40%] bg-white rounded-full blur-[100px] opacity-40"></div>
-    </div>
   </div>
 </template>
 

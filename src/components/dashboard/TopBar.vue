@@ -18,22 +18,22 @@
           />
           <div
             v-else
-            class="avatar-fallback w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white transition-colors duration-300"
-            style="background: linear-gradient(135deg, #0A0A0A 0%, #333 100%);"
+            class="avatar-fallback w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors duration-300"
+            style="background: var(--color-nav); color: var(--color-nav-text);"
           >
             {{ initials }}
           </div>
           <!-- Online dot -->
           <span
             class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white transition-colors duration-300"
-            style="background: var(--color-primary);"
+            style="background: var(--color-primary); border-color: var(--color-profile-bg);"
           />
         </div>
 
         <!-- Name & greeting -->
         <div class="leading-none text-left">
-          <p class="text-[10px] font-medium transition-colors duration-300" style="color: var(--color-text-muted);">Welcome Back</p>
-          <p class="text-[13px] font-bold transition-colors duration-300" style="color: var(--color-text-always-dark);">{{ displayName }}</p>
+          <p class="text-[10px] font-medium transition-colors duration-300" style="color: var(--color-surface-text-muted);">Welcome Back</p>
+          <p class="text-[13px] font-bold transition-colors duration-300" style="color: var(--color-profile-text);">{{ displayName }}</p>
         </div>
       </div>
       
@@ -42,8 +42,8 @@
         @click.stop="handleLogout"
         class="signout-pill flex items-center overflow-hidden max-w-0 opacity-0 transition-all duration-300 ease-in-out whitespace-nowrap hover:opacity-75 cursor-pointer"
       >
-        <LogOut :size="18" color="#FF0B0B" :stroke-width="2.5" class="mr-2" />
-        <span class="text-[14px] font-medium" style="color: #FF0B0B; letter-spacing: -0.02em;">Sign Out</span>
+          <LogOut :size="18" color="#D92D20" :stroke-width="2.5" class="mr-2" />
+        <span class="text-[14px] font-medium" style="color: #D92D20; letter-spacing: -0.02em;">Sign Out</span>
       </div>
     </button>
 
@@ -57,10 +57,11 @@
         <!-- Bell notification -->
         <button
           @click="$emit('toggle-notifications')"
-          class="relative flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 hover:bg-black/5 active:scale-95"
+          class="relative flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 active:scale-95"
+          style="color: var(--color-nav-pill-text);"
           aria-label="Notifications"
         >
-          <Bell :size="18" color="var(--color-text-always-dark)" :stroke-width="2" />
+          <Bell :size="18" color="var(--color-nav-pill-text)" :stroke-width="2" />
           <!-- unread badge -->
           <span
             v-if="unreadCount > 0"
@@ -70,17 +71,18 @@
         </button>
 
         <!-- Spacer/Divider -->
-        <div class="w-[1px] h-5 bg-gray-200 mx-0.5"></div>
+        <div class="w-[1px] h-5 mx-0.5" style="background: var(--color-surface-border);"></div>
 
         <!-- Dark Mode Toggle -->
         <button
           @click="toggleDarkMode"
-          class="relative flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 hover:bg-gray-100 active:scale-95"
+          class="relative flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 active:scale-95"
+          style="color: var(--color-nav-pill-text);"
           aria-label="Toggle Dark Mode"
         >
           <Moon 
             :size="18" 
-            :color="isDarkMode ? 'var(--color-primary)' : 'var(--color-text-primary)'" 
+            :color="isDarkMode ? 'var(--color-primary)' : 'var(--color-nav-pill-text)'" 
             :stroke-width="2" 
           />
         </button>

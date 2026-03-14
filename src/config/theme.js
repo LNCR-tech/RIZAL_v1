@@ -1,10 +1,12 @@
 import { ref } from 'vue'
+import defaultSchoolLogo from '@/data/jrmsu_icon.png'
 
 /**
  * Global Dark Mode State
  */
 export const isDarkMode = ref(false)
 export const activeAuraLogo = ref('/logos/aura_logo_black.png')
+export const surfaceAuraLogo = ref('/logos/aura_logo_black.png')
 let currentActiveTheme = null
 
 /**
@@ -19,7 +21,7 @@ export const defaultTheme = {
     primaryText: '#0A0A0A',        // Text on primary colored backgrounds
     schoolName: 'University Name',
     schoolSlogan: 'Slogan Goes Here',
-    schoolLogo: '/logos/university_logo.svg', // Replace with actual school PNG
+    schoolLogo: defaultSchoolLogo,
 
     // Fixed Aura system colors
     background: '#EBEBEB',
@@ -31,16 +33,75 @@ export const defaultTheme = {
     textMuted: '#999999',
 }
 
+function normalizeHexColor(hex, fallback = '#0A0A0A') {
+    if (typeof hex !== 'string') return fallback
+
+    let next = hex.trim()
+    if (!next) return fallback
+
+    if (!next.startsWith('#')) next = `#${next}`
+    if (next.length === 4) {
+        next = `#${next[1]}${next[1]}${next[2]}${next[2]}${next[3]}${next[3]}`
+    }
+    if (!/^#[0-9A-Fa-f]{6}$/.test(next)) return fallback
+    return next.toUpperCase()
+}
+
+function hexToRgb(hex) {
+    const normalized = normalizeHexColor(hex)
+    return {
+        r: parseInt(normalized.slice(1, 3), 16),
+        g: parseInt(normalized.slice(3, 5), 16),
+        b: parseInt(normalized.slice(5, 7), 16),
+    }
+}
+
+function rgbToHex({ r, g, b }) {
+    const toHex = (value) => {
+        const clamped = Math.max(0, Math.min(255, Math.round(value)))
+        return clamped.toString(16).padStart(2, '0')
+    }
+
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
+}
+
+function mixHexColors(baseHex, mixHex, baseWeight = 0.5) {
+    const safeBaseWeight = Math.max(0, Math.min(1, baseWeight))
+    const mixWeight = 1 - safeBaseWeight
+    const base = hexToRgb(baseHex)
+    const blend = hexToRgb(mixHex)
+
+    return rgbToHex({
+        r: (base.r * safeBaseWeight) + (blend.r * mixWeight),
+        g: (base.g * safeBaseWeight) + (blend.g * mixWeight),
+        b: (base.b * safeBaseWeight) + (blend.b * mixWeight),
+    })
+}
+
 /**
  * Load theme - in production, fetches from API and merges school settings.
  */
 export function loadTheme(schoolSettings = null) {
     if (!schoolSettings) return defaultTheme
 
+    const primaryColor = normalizeHexColor(
+        schoolSettings.primary_color ?? defaultTheme.primaryColor,
+        defaultTheme.primaryColor
+    )
+    const primaryDark = normalizeHexColor(
+        schoolSettings.primary_color_dark ?? darkenHex(primaryColor, 18),
+        defaultTheme.primaryDark
+    )
+    const primaryText = normalizeHexColor(
+        schoolSettings.primary_text ?? getContrastYIQ(primaryColor),
+        defaultTheme.primaryText
+    )
+
     return {
         ...defaultTheme,
-        primaryColor: schoolSettings.primary_color ?? defaultTheme.primaryColor,
-        primaryDark: schoolSettings.primary_color_dark ?? defaultTheme.primaryDark,
+        primaryColor,
+        primaryDark,
+        primaryText,
         schoolName: schoolSettings.school_name ?? defaultTheme.schoolName,
         schoolSlogan: schoolSettings.slogan ?? defaultTheme.schoolSlogan,
         schoolLogo: schoolSettings.logo_url ?? defaultTheme.schoolLogo,
@@ -91,6 +152,13 @@ function getContrastYIQ(hexcolor) {
     return (yiq >= 128) ? '#0A0A0A' : '#FFFFFF'
 }
 
+export function resolveAuraLogoForBackground(backgroundColor) {
+    const contrastText = getContrastYIQ(backgroundColor)
+    return contrastText === '#FFFFFF'
+        ? '/logos/aura_logo_white.png'
+        : '/logos/aura_logo_black.png'
+}
+
 export function toggleDarkMode() {
     isDarkMode.value = !isDarkMode.value
     if (currentActiveTheme) {
@@ -125,28 +193,52 @@ export function applyTheme(theme) {
         textPrimary = '#FFFFFF' // This applies to body text (like "Home", "Upcoming Events" headers)
     }
 
+    const profileBg = surfaceColor
+    const navPillBg = isDarkMode.value ? '#EBEBEB' : surfaceColor
+    const bgTextColor = getContrastYIQ(bgColor)
+    const surfaceTextColor = getContrastYIQ(surfaceColor)
+    const profileTextColor = getContrastYIQ(profileBg)
+    const navTextColor = getContrastYIQ(theme.navColor)
+    const navPillTextColor = getContrastYIQ(navPillBg)
+    const primaryTextColor = normalizeHexColor(theme.primaryText ?? getContrastYIQ(theme.primaryColor), '#0A0A0A')
+
+    const bgSecondaryText = mixHexColors(bgTextColor, bgColor, 0.68)
+    const bgMutedText = mixHexColors(bgTextColor, bgColor, 0.48)
+    const surfaceSecondaryText = mixHexColors(surfaceTextColor, surfaceColor, 0.68)
+    const surfaceMutedText = mixHexColors(surfaceTextColor, surfaceColor, 0.48)
+    const navSecondaryText = mixHexColors(navTextColor, theme.navColor, 0.68)
+    const softSurfaceBorder = mixHexColors(surfaceTextColor, surfaceColor, 0.1)
+    const strongSurfaceBorder = mixHexColors(surfaceTextColor, surfaceColor, 0.22)
+
     root.style.setProperty('--color-primary', theme.primaryColor)
     root.style.setProperty('--color-primary-dark', theme.primaryDark)
-    root.style.setProperty('--color-primary-text', theme.primaryText)
+    root.style.setProperty('--color-primary-text', primaryTextColor)
     root.style.setProperty('--color-bg', bgColor)
     root.style.setProperty('--color-surface', surfaceColor) // White cards
-    root.style.setProperty('--color-profile-bg', '#FFFFFF') // Always white
-    root.style.setProperty('--color-nav-pill-bg', isDarkMode.value ? '#EBEBEB' : '#FFFFFF') // Nav Action pills
+    root.style.setProperty('--color-profile-bg', profileBg)
+    root.style.setProperty('--color-nav-pill-bg', navPillBg)
     root.style.setProperty('--color-nav', theme.navColor)
+    root.style.setProperty('--color-nav-text', navTextColor)
+    root.style.setProperty('--color-nav-text-secondary', navSecondaryText)
+    root.style.setProperty('--color-nav-pill-text', navPillTextColor)
     root.style.setProperty('--color-nav-active', theme.navActiveColor)
-    root.style.setProperty('--color-text-primary', textPrimary)      // Body headings
-    root.style.setProperty('--color-text-secondary', isDarkMode.value ? '#A0A0A0' : theme.textSecondary)
-    root.style.setProperty('--color-text-muted', theme.textMuted)
+    root.style.setProperty('--color-text-primary', bgTextColor || textPrimary)
+    root.style.setProperty('--color-text-secondary', isDarkMode.value ? '#A0A0A0' : bgSecondaryText)
+    root.style.setProperty('--color-text-muted', bgMutedText)
+    root.style.setProperty('--color-surface-text', surfaceTextColor)
+    root.style.setProperty('--color-surface-text-secondary', surfaceSecondaryText)
+    root.style.setProperty('--color-surface-text-muted', surfaceMutedText)
+    root.style.setProperty('--color-profile-text', profileTextColor)
+    root.style.setProperty('--color-surface-border', softSurfaceBorder)
+    root.style.setProperty('--color-surface-border-strong', strongSurfaceBorder)
 
-    // Create a special variable for text that must ALWAYS be dark (inside white cards)
-    root.style.setProperty('--color-text-always-dark', '#0A0A0A')
+    // Backwards-compatible alias for existing white-card text references.
+    root.style.setProperty('--color-text-always-dark', surfaceTextColor)
 
     // Smart contrast text for the dark/light University Banner
-    const bannerTextColor = getContrastYIQ(theme.primaryColor)
-    root.style.setProperty('--color-banner-text', bannerTextColor)
+    root.style.setProperty('--color-banner-text', primaryTextColor)
 
     // Automatically serve the correct Aura logo color based on banner contrast
-    activeAuraLogo.value = bannerTextColor === '#FFFFFF'
-        ? '/logos/aura_logo_white.png'
-        : '/logos/aura_logo_black.png'
+    activeAuraLogo.value = resolveAuraLogoForBackground(theme.primaryColor)
+    surfaceAuraLogo.value = resolveAuraLogoForBackground(surfaceColor)
 }

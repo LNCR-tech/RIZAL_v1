@@ -3,13 +3,14 @@
     
     <!-- ── Header ─────────────────────────────────────────────────────── -->
     <TopBar
+      class="dashboard-enter dashboard-enter--1"
       :user="currentUser"
       :unread-count="unreadAnnouncements"
       @toggle-notifications="showNotifications = !showNotifications"
     />
 
     <!-- ── Title & Filters ────────────────────────────────────────────── -->
-    <div class="events-content">
+    <div class="events-content dashboard-enter dashboard-enter--2">
       <h1 class="page-title">Events</h1>
       
       <div class="filters-scroll">
@@ -30,18 +31,19 @@
       </div>
 
       <!-- ── Events List ──────────────────────────────────────────────── -->
-      <div v-if="filteredEvents.length > 0" class="events-grid">
+      <div v-if="filteredEvents.length > 0" class="events-grid dashboard-enter dashboard-enter--3">
         <EventCard 
           v-for="event in filteredEvents" 
           :key="event.id" 
           :event="event"
           :is-attended="isEventAttended(event)"
+          :attendance-record="getAttendanceRecord(event)"
           @click="handleEventClick"
           @open-detail="handleOpenDetail"
         />
       </div>
       
-      <div v-else class="empty-state">
+      <div v-else class="empty-state dashboard-enter dashboard-enter--3">
         <p>No events found for this category.</p>
       </div>
 
@@ -57,7 +59,13 @@ import TopBar from '@/components/dashboard/TopBar.vue'
 
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 
-const { currentUser, events, hasAttendanceForEvent, unreadAnnouncements } = useDashboardSession()
+const {
+  currentUser,
+  events,
+  getLatestAttendanceForEvent,
+  hasAttendanceForEvent,
+  unreadAnnouncements,
+} = useDashboardSession()
 const showNotifications = ref(false)
 
 const router = useRouter()
@@ -118,6 +126,10 @@ function handleOpenDetail(event) {
 
 function isEventAttended(event) {
   return hasAttendanceForEvent(event?.id)
+}
+
+function getAttendanceRecord(event) {
+  return getLatestAttendanceForEvent(event?.id)
 }
 </script>
 
