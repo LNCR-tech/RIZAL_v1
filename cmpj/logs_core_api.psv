@@ -1,4 +1,4 @@
-
+Timestamp|Test ID|Iteration|Endpoint|Status|Latency (ms)|Remarks
 2026-03-11 09:47:55|AUTH_TOKEN_ADMIN|1|/token|SUCCESS|281|status=200
 2026-03-11 09:47:59|SCHOOL_CREATE_WITH_IT|1|/api/school/admin/create-school-it|SUCCESS|3781|status=200
 2026-03-11 09:47:59|SCHOOL_IT_RESET_PASSWORD|1|/api/school/admin/school-it-accounts/8/reset-password|SUCCESS|313|status=200
@@ -50,3 +50,4 @@
 2026-03-11 09:49:21|SCHOOL_CREATE_WITH_IT_B|1|/api/school/admin/create-school-it|SUCCESS|3017|status=200
 2026-03-11 09:49:21|SCHOOL_IT_RESET_PASSWORD_B|1|/api/school/admin/school-it-accounts/19/reset-password|SUCCESS|327|status=200
 2026-03-11 09:49:22|AUTH_TOKEN_SCHOOL_IT_B|1|/token|SUCCESS|264|status=200
+2026-03-14 06:13:51|AUTH_TOKEN_ADMIN|1|/token|ERROR|N/A|[WinError 10061] No connection could be made because the target machine actively refused it

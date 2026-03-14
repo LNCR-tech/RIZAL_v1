@@ -1,4 +1,4 @@
-
+Timestamp|Actor Role|Target School|Action Attempted|Expected|Actual|Lockdown Pass
 2026-03-11 09:48:17|school_it|Auto Test School e5a271|cross_tenant_user_read|403 or 404|403|YES
 2026-03-11 09:48:49|school_it|Auto Test School 4d3f3a|cross_tenant_user_read|403 or 404|403|YES
 2026-03-11 09:49:22|school_it|Auto Test School d92bf4|cross_tenant_user_read|403 or 404|403|YES
