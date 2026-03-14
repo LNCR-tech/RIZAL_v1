@@ -94,9 +94,27 @@ class PsvLogger:
 
     def _ensure_headers(self) -> None:
         for key, path in self.paths.items():
-            if not os.path.exists(path) or os.path.getsize(path) == 0:
+            header_line = "|".join(self.headers[key])
+            if not os.path.exists(path):
                 with open(path, "w", encoding="utf-8") as handle:
-                    handle.write("|".join(self.headers[key]) + "\n")
+                    handle.write(header_line + "\n")
+                continue
+
+            if os.path.getsize(path) == 0:
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write(header_line + "\n")
+                continue
+
+            with open(path, "r", encoding="utf-8") as handle:
+                first_line = (handle.readline() or "").strip()
+
+            if first_line != header_line:
+                with open(path, "r", encoding="utf-8") as handle:
+                    existing = handle.read()
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write(header_line + "\n")
+                    if existing:
+                        handle.write(existing.lstrip("\n"))
 
     def write(self, key: str, row: list[str]) -> None:
         path = self.paths[key]
