@@ -39,7 +39,8 @@ export function useAuth() {
             const authMeta = storeAuthMeta(tokenPayload)
 
             if (hasPrivilegedPendingFace(authMeta)) {
-                throw new Error('This account still needs privileged face verification before it can be used here.')
+                router.push({ name: 'PrivilegedFaceVerification' })
+                return
             }
 
             if (authMeta.mustChangePassword) {

@@ -3,10 +3,13 @@ import { resolveBackendMediaUrl } from '@/services/backendMedia.js'
 const AUTH_META_KEY = 'aura_auth_meta'
 
 function normalizeRoleName(role) {
-    return String(role || '')
+    const normalized = String(role || '')
         .trim()
         .toLowerCase()
         .replace(/_/g, '-')
+
+    if (normalized === 'campus-admin') return 'school-it'
+    return normalized
 }
 
 function normalizeRoles(roles) {

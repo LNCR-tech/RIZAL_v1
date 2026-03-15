@@ -13,10 +13,12 @@ body {
   background-color: var(--color-bg);
   margin: 0;
   padding: 0;
-  -webkit-text-size-adjust: 100%;
+  text-size-adjust: var(--aura-text-size-adjust, 100%);
+  -webkit-text-size-adjust: var(--aura-text-size-adjust, 100%);
 }
 
 html {
+  font-size: var(--aura-font-base, 16px);
   min-height: 100%;
   overflow-y: scroll;
   scrollbar-gutter: stable;

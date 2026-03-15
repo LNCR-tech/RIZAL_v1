@@ -1,38 +1,38 @@
 <template>
   <!-- Mobile Bottom Navigation -->
   <nav
-    class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 md:hidden"
+    class="bottom-nav fixed bottom-5 left-1/2 -translate-x-1/2 z-50 md:hidden"
     aria-label="Mobile navigation"
   >
-    <div class="flex items-center gap-1 rounded-full px-4 py-3 shadow-2xl" style="background: var(--color-nav);">
+    <div class="bottom-nav__shell" :style="bottomNavStyle">
       <button
         v-for="item in navItems"
         :key="item.name"
         @click="navigate(item.route)"
         :aria-label="item.name"
-        class="relative flex flex-col items-center justify-center w-[52px] h-12 rounded-full transition-all duration-200"
-        :class="isActive(item.route) ? '' : 'opacity-40 hover:opacity-60'"
+        class="bottom-nav__button"
+        :class="isActive(item) ? 'bottom-nav__button--active' : 'bottom-nav__button--idle'"
       >
         <!-- Active glowing background -->
         <span
-          v-if="isActive(item.route)"
-          class="absolute inset-0 rounded-full"
+          v-if="isActive(item)"
+          class="bottom-nav__glow"
           style="background: radial-gradient(circle, var(--color-primary) 0%, transparent 60%); opacity: 0.15;"
         />
         
         <component
           :is="item.icon"
           :size="20"
-          :stroke-width="isActive(item.route) ? 2.5 : 2"
-          :color="isActive(item.route) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
-          class="relative z-10 transition-all duration-200"
-          :class="{ 'mb-2': isActive(item.route) }"
+          :stroke-width="isActive(item) ? 2.5 : 2"
+          :color="isActive(item) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
+          class="bottom-nav__icon"
+          :class="{ 'bottom-nav__icon--active': isActive(item) }"
         />
 
         <!-- Active Dot Indicator -->
         <span
-          v-if="isActive(item.route)"
-          class="absolute bottom-2 w-1.5 h-1.5 rounded-full shadow-sm"
+          v-if="isActive(item)"
+          class="bottom-nav__dot"
           style="background: var(--color-primary);"
         />
       </button>
@@ -41,15 +41,26 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { dashboardNavigationItems as navItems } from '@/components/navigation/navigationItems.js'
+import { getNavigationItemsForPath } from '@/components/navigation/navigationItems.js'
 
 const router = useRouter()
 const route = useRoute()
+const navItems = computed(() => getNavigationItemsForPath(route.path))
+const bottomNavStyle = computed(() => ({
+  background: 'var(--color-nav)',
+  '--nav-count': String(navItems.value.length),
+}))
 
-function isActive(path) {
-  if (path === '/dashboard') return route.path === '/dashboard' || route.path === '/dashboard/'
-  return route.path.startsWith(path)
+function isActive(item) {
+  const path = item?.route
+  if (path === '/dashboard' || path === '/workspace' || path === '/preview/workspace') {
+    return route.path === path || route.path === `${path}/`
+  }
+
+  const matchPrefixes = Array.isArray(item?.matchPrefixes) ? item.matchPrefixes : []
+  return route.path.startsWith(path) || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
 }
 
 function navigate(path) {
@@ -57,3 +68,67 @@ function navigate(path) {
   router.push(path)
 }
 </script>
+
+<style scoped>
+.bottom-nav__shell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.22);
+}
+
+.bottom-nav__button {
+  position: relative;
+  width: 52px;
+  height: 48px;
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 200ms ease, transform 220ms ease;
+}
+
+.bottom-nav__button--idle {
+  opacity: 0.4;
+}
+
+.bottom-nav__button--idle:active {
+  transform: scale(0.96);
+}
+
+.bottom-nav__glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+}
+
+.bottom-nav__icon {
+  position: relative;
+  z-index: 10;
+  transition: transform 220ms ease, opacity 200ms ease;
+}
+
+.bottom-nav__icon--active {
+  margin-bottom: 8px;
+  transform: scale(1.04);
+}
+
+.bottom-nav__dot {
+  position: absolute;
+  bottom: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav__button,
+  .bottom-nav__icon {
+    transition: none;
+  }
+}
+</style>

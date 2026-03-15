@@ -65,7 +65,7 @@
           :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
         >
           <img
-            :src="activeAuraLogo"
+            :src="surfaceAuraLogo"
             alt="Aura"
             class="h-8 w-auto object-contain"
           />
@@ -94,17 +94,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onBeforeMount, onMounted } from 'vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuth } from '@/composables/useAuth.js'
-import { activeAuraLogo } from '@/config/theme.js'
+import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
 
 const email = ref('')
 const password = ref('')
 const isMounted = ref(false)
 
 const { login, isLoading, error } = useAuth()
+
+onBeforeMount(() => {
+  applyTheme(loadUnbrandedTheme())
+})
 
 onMounted(() => {
   // Wait a tiny bit on load to ensure the browser paints the initial opacity-0 state

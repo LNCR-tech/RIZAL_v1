@@ -483,8 +483,8 @@ function formatSearchMeta(event) {
 
 .search-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: stretch;
+  gap: clamp(8px, 2.8vw, 10px);
 }
 
 /* Search wrapper grows/shrinks relative to AI pill */
@@ -507,8 +507,8 @@ function formatSearchMeta(event) {
   justify-content: center;
   gap: 3px;
   flex-shrink: 0;
-  width: 72px;
-  height: 50px;
+  width: clamp(70px, 21vw, 76px);
+  height: clamp(50px, 14vw, 52px);
   border-radius: 26px;
   border: none;
   cursor: pointer;
@@ -742,7 +742,7 @@ function formatSearchMeta(event) {
   grid-template-rows: auto 0fr;
   background: var(--color-surface);
   border-radius: 30px;
-  padding: 12px 16px;
+  padding: 12px clamp(12px, 4vw, 16px);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.06);
   transition: grid-template-rows 0.28s ease, box-shadow 0.28s ease, border-radius 0.28s ease;
 }
@@ -754,13 +754,16 @@ function formatSearchMeta(event) {
 }
 
 .search-input-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: clamp(8px, 2.5vw, 10px);
+  min-height: clamp(30px, 8.5vw, 34px);
 }
 
 .search-input {
   width: 100%;
+  min-width: 0;
   border: none;
   background: transparent;
   font-size: 13px;
@@ -777,15 +780,15 @@ function formatSearchMeta(event) {
 .search-icon { display: block; }
 
 .search-icon-wrap {
-  margin-left: auto;
-  width: 28px;
-  height: 28px;
+  width: clamp(28px, 8vw, 30px);
+  height: clamp(28px, 8vw, 30px);
   border-radius: 50%;
   border: 1.5px solid rgba(0, 0, 0, 0.08);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  place-self: center;
 }
 
 /* ── Dropdown results ─────────────────────────────────── */
