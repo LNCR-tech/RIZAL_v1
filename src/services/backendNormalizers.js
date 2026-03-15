@@ -320,6 +320,145 @@ export function normalizeEventLocationResponse(payload = {}) {
     }
 }
 
+export function normalizeGovernanceStudentProfileSummary(profile = null) {
+    if (!profile || typeof profile !== 'object') return null
+
+    return {
+        ...profile,
+        id: toOptionalNumber(profile.id, 0),
+        student_id: toOptionalString(profile.student_id, null),
+        department_id: toOptionalNumber(profile.department_id, null),
+        program_id: toOptionalNumber(profile.program_id, null),
+        department_name: toOptionalString(profile.department_name, null),
+        program_name: toOptionalString(profile.program_name, null),
+        year_level: toOptionalNumber(profile.year_level, null),
+    }
+}
+
+export function normalizeGovernanceUserSummary(user = null) {
+    if (!user || typeof user !== 'object') return null
+
+    return {
+        ...user,
+        id: toOptionalNumber(user.id, 0),
+        email: toOptionalString(user.email, ''),
+        first_name: toOptionalString(user.first_name, ''),
+        middle_name: toOptionalString(user.middle_name, null),
+        last_name: toOptionalString(user.last_name, ''),
+        school_id: toOptionalNumber(user.school_id, null),
+        is_active: typeof user.is_active === 'boolean' ? user.is_active : true,
+        student_profile: normalizeGovernanceStudentProfileSummary(user.student_profile),
+    }
+}
+
+export function normalizeGovernanceStudentCandidate(candidate = {}) {
+    return {
+        ...candidate,
+        user: normalizeGovernanceUserSummary(candidate.user),
+        student_profile: normalizeGovernanceStudentProfileSummary(candidate.student_profile),
+        is_current_governance_member: Boolean(candidate.is_current_governance_member),
+    }
+}
+
+export function normalizeGovernancePermission(permission = null) {
+    if (!permission || typeof permission !== 'object') return null
+
+    return {
+        ...permission,
+        id: toOptionalNumber(permission.id, 0),
+        permission_code: toOptionalString(permission.permission_code, null),
+        permission_name: toOptionalString(permission.permission_name, null),
+        description: toOptionalString(permission.description, null),
+    }
+}
+
+export function normalizeGovernanceMemberPermission(permission = {}) {
+    const permissionRecord = normalizeGovernancePermission(permission.permission)
+
+    return {
+        ...permission,
+        id: toOptionalNumber(permission.id, 0),
+        permission_id: toOptionalNumber(permission.permission_id, null),
+        granted_by_user_id: toOptionalNumber(permission.granted_by_user_id, null),
+        created_at: toOptionalString(permission.created_at, null),
+        permission: permissionRecord,
+        permission_code: toOptionalString(permission.permission_code ?? permissionRecord?.permission_code, null),
+        permission_name: toOptionalString(permission.permission_name ?? permissionRecord?.permission_name, null),
+        description: toOptionalString(permission.description ?? permissionRecord?.description, null),
+    }
+}
+
+export function normalizeGovernanceMember(member = {}) {
+    return {
+        ...member,
+        id: toOptionalNumber(member.id, 0),
+        governance_unit_id: toOptionalNumber(member.governance_unit_id, null),
+        user_id: toOptionalNumber(member.user_id, null),
+        position_title: toOptionalString(member.position_title, null),
+        assigned_by_user_id: toOptionalNumber(member.assigned_by_user_id, null),
+        assigned_at: toOptionalString(member.assigned_at, null),
+        is_active: typeof member.is_active === 'boolean' ? member.is_active : true,
+        user: normalizeGovernanceUserSummary(member.user),
+        member_permissions: Array.isArray(member.member_permissions)
+            ? member.member_permissions.map(normalizeGovernanceMemberPermission)
+            : [],
+    }
+}
+
+export function normalizeGovernanceUnitPermission(permission = {}) {
+    const permissionRecord = normalizeGovernancePermission(permission.permission)
+
+    return {
+        ...permission,
+        id: toOptionalNumber(permission.id, 0),
+        governance_unit_id: toOptionalNumber(permission.governance_unit_id, null),
+        permission_id: toOptionalNumber(permission.permission_id, null),
+        granted_by_user_id: toOptionalNumber(permission.granted_by_user_id, null),
+        created_at: toOptionalString(permission.created_at, null),
+        permission: permissionRecord,
+        permission_code: toOptionalString(permission.permission_code ?? permissionRecord?.permission_code, null),
+        permission_name: toOptionalString(permission.permission_name ?? permissionRecord?.permission_name, null),
+        description: toOptionalString(permission.description ?? permissionRecord?.description, null),
+    }
+}
+
+export function normalizeGovernanceUnitDetail(unit = null) {
+    if (!unit || typeof unit !== 'object') return null
+
+    return {
+        ...unit,
+        id: toOptionalNumber(unit.id, 0),
+        unit_code: toOptionalString(unit.unit_code, ''),
+        unit_name: toOptionalString(unit.unit_name, ''),
+        description: toOptionalString(unit.description, null),
+        unit_type: toOptionalString(unit.unit_type, null),
+        parent_unit_id: toOptionalNumber(unit.parent_unit_id, null),
+        school_id: toOptionalNumber(unit.school_id, null),
+        department_id: toOptionalNumber(unit.department_id, null),
+        program_id: toOptionalNumber(unit.program_id, null),
+        created_by_user_id: toOptionalNumber(unit.created_by_user_id, null),
+        is_active: typeof unit.is_active === 'boolean' ? unit.is_active : true,
+        created_at: toOptionalString(unit.created_at, null),
+        updated_at: toOptionalString(unit.updated_at, null),
+        members: Array.isArray(unit.members)
+            ? unit.members.map(normalizeGovernanceMember)
+            : [],
+        unit_permissions: Array.isArray(unit.unit_permissions)
+            ? unit.unit_permissions.map(normalizeGovernanceUnitPermission)
+            : [],
+    }
+}
+
+export function normalizeGovernanceSsgSetup(payload = null) {
+    if (!payload || typeof payload !== 'object') return null
+
+    return {
+        ...payload,
+        unit: normalizeGovernanceUnitDetail(payload.unit),
+        total_imported_students: toOptionalNumber(payload.total_imported_students, 0),
+    }
+}
+
 export function normalizeEventTimeStatus(payload = {}) {
     return {
         ...payload,

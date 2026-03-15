@@ -209,17 +209,26 @@
               <div
                 class="custom-slider-track"
                 ref="sliderTrack"
-                @mousedown="onSliderDown"
-                @touchstart.prevent="onSliderTouch"
+                tabindex="0"
                 role="slider"
                 :aria-valuenow="fontSize"
-                aria-valuemin="80"
-                aria-valuemax="130"
+                :aria-valuemin="FONT_SIZE_MIN"
+                :aria-valuemax="FONT_SIZE_MAX"
+                :aria-valuetext="`${fontSize}%`"
                 aria-label="Font size"
+                @pointerdown.prevent="onSliderPointerDown"
+                @pointermove="onSliderPointerMove"
+                @pointerup="onSliderPointerUp"
+                @pointercancel="onSliderPointerUp"
+                @lostpointercapture="endSliderDrag()"
+                @keydown="onSliderKeyDown"
               >
                 <div
                   class="custom-slider-thumb"
-                  :class="{ 'custom-slider-thumb--bounce': isBouncing }"
+                  :class="{
+                    'custom-slider-thumb--bounce': isBouncing,
+                    'custom-slider-thumb--dragging': isSliderDragging,
+                  }"
                   :style="{ left: thumbPercent + '%' }"
                 />
               </div>
@@ -314,17 +323,32 @@ const eventsMissed = computed(() =>
 // ── Custom slider logic ────────────────────────────────────────────────
 const sliderTrack = ref(null)
 const isBouncing  = ref(false)
-let   isDragging  = false
+const isSliderDragging = ref(false)
+
+const FONT_SIZE_MIN = 80
+const FONT_SIZE_MAX = 130
+const FONT_SIZE_STEP = 5
+const DEFAULT_FONT_SIZE = 100
 
 // Thumb position as % of the track width
 const thumbPercent = computed(() =>
-  ((fontSize.value - 80) / (130 - 80)) * 100
+  ((fontSize.value - FONT_SIZE_MIN) / (FONT_SIZE_MAX - FONT_SIZE_MIN)) * 100
 )
 
+function snapFontSize(value) {
+  const normalized = Math.round(Number(value) / FONT_SIZE_STEP) * FONT_SIZE_STEP
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, normalized))
+}
+
 function setValueFromX(clientX) {
-  const rect  = sliderTrack.value.getBoundingClientRect()
+  const trackElement = sliderTrack.value
+  if (!trackElement) return
+
+  const rect = trackElement.getBoundingClientRect()
+  if (!rect.width) return
+
   const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
-  fontSize.value = Math.round(80 + ratio * (130 - 80))
+  fontSize.value = snapFontSize(FONT_SIZE_MIN + ratio * (FONT_SIZE_MAX - FONT_SIZE_MIN))
 }
 
 function triggerBounce() {
@@ -335,49 +359,77 @@ function triggerBounce() {
   setTimeout(() => { isBouncing.value = false }, 600)
 }
 
-function onSliderDown(e) {
-  isDragging = true
-  setValueFromX(e.clientX)
-  triggerBounce()
-
-  const onMove = (ev) => { if (isDragging) setValueFromX(ev.clientX) }
-  const onUp   = () => {
-    isDragging = false
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
+function endSliderDrag(pointerId = null) {
+  isSliderDragging.value = false
+  if (pointerId != null) {
+    sliderTrack.value?.releasePointerCapture?.(pointerId)
   }
-  window.addEventListener('mousemove', onMove)
-  window.addEventListener('mouseup', onUp)
 }
 
-function onSliderTouch(e) {
-  const touch = e.touches[0]
-  setValueFromX(touch.clientX)
-  triggerBounce()
-
-  const onMove = (ev) => setValueFromX(ev.touches[0].clientX)
-  const onEnd  = () => {
-    window.removeEventListener('touchmove', onMove)
-    window.removeEventListener('touchend', onEnd)
-  }
-  window.addEventListener('touchmove', onMove, { passive: true })
-  window.addEventListener('touchend', onEnd)
+function onSliderPointerMove(event) {
+  if (!isSliderDragging.value) return
+  setValueFromX(event.clientX)
 }
 
-// Applied directly to <html> zoom so the whole app scales in real time.
+function onSliderPointerUp(event) {
+  if (!isSliderDragging.value) return
+  endSliderDrag(event.pointerId)
+  triggerBounce()
+}
+
+function onSliderPointerDown(event) {
+  sliderTrack.value?.focus?.()
+  isSliderDragging.value = true
+  sliderTrack.value?.setPointerCapture?.(event.pointerId)
+  setValueFromX(event.clientX)
+}
+
+function onSliderKeyDown(event) {
+  const key = event.key
+  const nextBy = (delta) => {
+    fontSize.value = snapFontSize(fontSize.value + delta)
+    triggerBounce()
+  }
+
+  if (key === 'ArrowLeft' || key === 'ArrowDown') {
+    event.preventDefault()
+    nextBy(-FONT_SIZE_STEP)
+  } else if (key === 'ArrowRight' || key === 'ArrowUp') {
+    event.preventDefault()
+    nextBy(FONT_SIZE_STEP)
+  } else if (key === 'Home') {
+    event.preventDefault()
+    fontSize.value = FONT_SIZE_MIN
+    triggerBounce()
+  } else if (key === 'End') {
+    event.preventDefault()
+    fontSize.value = FONT_SIZE_MAX
+    triggerBounce()
+  }
+}
+
+// Applied to the root font size instead of browser zoom so mobile layouts stay stable.
 function applyFontSize(val) {
-  document.documentElement.style.zoom = (val / 100).toString()
+  const root = document.documentElement
+  const baseSize = 16 * (snapFontSize(val) / 100)
+  root.style.zoom = ''
+  root.style.setProperty('--aura-font-base', `${baseSize}px`)
+  root.style.setProperty('--aura-text-size-adjust', `${snapFontSize(val)}%`)
 }
 
 // Default 100 = normal size.
 // Guard: old system stored 1/2/3 — if value is out of range, reset to 100.
-const storedSize = Number(localStorage.getItem('aura_font_size') ?? 100)
-const fontSize = ref(storedSize >= 80 && storedSize <= 130 ? storedSize : 100)
+const storedSize = Number(localStorage.getItem('aura_font_size') ?? DEFAULT_FONT_SIZE)
+const fontSize = ref(
+  storedSize >= FONT_SIZE_MIN && storedSize <= FONT_SIZE_MAX
+    ? snapFontSize(storedSize)
+    : DEFAULT_FONT_SIZE
+)
 
 // Apply on mount (restore persisted setting, clear bad legacy values)
 onMounted(() => {
-  if (storedSize < 80 || storedSize > 130) {
-    localStorage.setItem('aura_font_size', 100)
+  if (storedSize < FONT_SIZE_MIN || storedSize > FONT_SIZE_MAX) {
+    localStorage.setItem('aura_font_size', DEFAULT_FONT_SIZE)
   }
   applyFontSize(fontSize.value)
 })
@@ -833,6 +885,14 @@ async function handleSignOut() {
   cursor: pointer;
   /* Enough vertical overflow for tall thumb */
   overflow: visible;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.custom-slider-track:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .custom-slider-thumb {
@@ -847,6 +907,11 @@ async function handleSignOut() {
   transition: left 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: grab;
   pointer-events: none; /* track handles events */
+}
+
+.custom-slider-thumb--dragging {
+  transition: none;
+  cursor: grabbing;
 }
 
 /* Bounce keyframe — triggered on click/tap */

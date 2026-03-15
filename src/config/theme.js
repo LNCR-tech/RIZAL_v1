@@ -41,6 +41,14 @@ export const defaultTheme = {
     textMuted: '#999999',
 }
 
+export const unbrandedTheme = {
+    ...defaultTheme,
+    primaryColor: '#0A0A0A',
+    primaryDark: '#000000',
+    primaryText: '#FFFFFF',
+    navActiveColor: '#0A0A0A',
+}
+
 function normalizeHexColor(hex, fallback = '#0A0A0A') {
     if (typeof hex !== 'string') return fallback
 
@@ -114,6 +122,10 @@ export function loadTheme(schoolSettings = null) {
         schoolSlogan: schoolSettings.slogan ?? defaultTheme.schoolSlogan,
         schoolLogo: schoolSettings.logo_url ?? defaultTheme.schoolLogo,
     }
+}
+
+export function loadUnbrandedTheme() {
+    return unbrandedTheme
 }
 
 /**
@@ -217,6 +229,17 @@ export function applyTheme(theme) {
     const navSecondaryText = mixHexColors(navTextColor, theme.navColor, 0.68)
     const softSurfaceBorder = mixHexColors(surfaceTextColor, surfaceColor, 0.1)
     const strongSurfaceBorder = mixHexColors(surfaceTextColor, surfaceColor, 0.22)
+    const fieldSurface = mixHexColors(bgColor, surfaceColor, 0.5)
+    const fieldSurfaceStrong = mixHexColors(bgColor, surfaceTextColor, 0.9)
+    const aiSurface = normalizeHexColor(theme.primaryDark ?? darkenHex(theme.primaryColor, 16), theme.primaryDark)
+    const aiSurfaceText = getContrastYIQ(aiSurface)
+    const aiInputBorder = mixHexColors(aiSurfaceText, aiSurface, 0.14)
+    const aiInputBg = mixHexColors(aiSurface, aiSurfaceText, 0.9)
+    const aiInputFocusBg = mixHexColors(aiSurface, aiSurfaceText, 0.84)
+    const aiSendBg = mixHexColors(aiSurface, aiSurfaceText, 0.86)
+    const aiSendBgHover = mixHexColors(aiSurface, aiSurfaceText, 0.78)
+    const aiUserBubbleBg = mixHexColors(theme.primaryColor, aiSurface, 0.76)
+    const aiUserBubbleText = getContrastYIQ(aiUserBubbleBg)
 
     root.style.setProperty('--color-primary', theme.primaryColor)
     root.style.setProperty('--color-primary-dark', theme.primaryDark)
@@ -239,6 +262,17 @@ export function applyTheme(theme) {
     root.style.setProperty('--color-profile-text', profileTextColor)
     root.style.setProperty('--color-surface-border', softSurfaceBorder)
     root.style.setProperty('--color-surface-border-strong', strongSurfaceBorder)
+    root.style.setProperty('--color-field-surface', fieldSurface)
+    root.style.setProperty('--color-field-surface-strong', fieldSurfaceStrong)
+    root.style.setProperty('--color-ai-surface', aiSurface)
+    root.style.setProperty('--color-ai-surface-text', aiSurfaceText)
+    root.style.setProperty('--color-ai-input-border', aiInputBorder)
+    root.style.setProperty('--color-ai-input-bg', aiInputBg)
+    root.style.setProperty('--color-ai-input-bg-focus', aiInputFocusBg)
+    root.style.setProperty('--color-ai-send-bg', aiSendBg)
+    root.style.setProperty('--color-ai-send-bg-hover', aiSendBgHover)
+    root.style.setProperty('--color-ai-user-bubble-bg', aiUserBubbleBg)
+    root.style.setProperty('--color-ai-user-bubble-text', aiUserBubbleText)
 
     // Backwards-compatible alias for existing white-card text references.
     root.style.setProperty('--color-text-always-dark', surfaceTextColor)

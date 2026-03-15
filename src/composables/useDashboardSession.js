@@ -220,15 +220,25 @@ function getRoleNames(user) {
         .map((role) => String(role))
 }
 
+function normalizeRoleKey(role) {
+    const normalized = String(role || '').trim().toLowerCase().replace(/_/g, '-')
+    if (normalized === 'campus-admin') return 'school-it'
+    return normalized
+}
+
 function hasRole(user, roleName) {
-    const normalizedExpected = String(roleName || '').trim().toLowerCase().replace(/_/g, '-')
+    const normalizedExpected = normalizeRoleKey(roleName)
     return getRoleNames(user).some(
-        (role) => String(role).trim().toLowerCase().replace(/_/g, '-') === normalizedExpected
+        (role) => normalizeRoleKey(role) === normalizedExpected
     )
 }
 
 function isPrivilegedFaceUser(user) {
     return hasRole(user, 'admin') || hasRole(user, 'school_IT')
+}
+
+function isSchoolItUser(user) {
+    return hasRole(user, 'school_IT')
 }
 
 function applyActiveTheme() {
@@ -622,8 +632,14 @@ export function isPrivilegedSession(user = state.user) {
     return isPrivilegedFaceUser(user)
 }
 
+export function isSchoolItSession(user = state.user) {
+    return isSchoolItUser(user)
+}
+
 export function getDefaultAuthenticatedRoute(user = state.user) {
-    return isPrivilegedSession(user)
+    return isSchoolItSession(user)
+        ? { name: 'SchoolItHome' }
+        : isPrivilegedSession(user)
         ? { name: 'PrivilegedDashboard' }
         : { name: 'Home' }
 }
@@ -652,6 +668,7 @@ export function useDashboardSession() {
         getSessionRoleNames,
         sessionHasRole,
         isPrivilegedSession,
+        isSchoolItSession,
         getDefaultAuthenticatedRoute,
         sessionNeedsFaceRegistration,
     }

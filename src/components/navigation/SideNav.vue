@@ -2,23 +2,23 @@
   <!-- Desktop Left Sidebar -->
   <aside
     class="nav-rail hidden md:flex fixed left-4 top-1/2 -translate-y-1/2 z-50 flex-col items-center shadow-2xl"
-    style="background: var(--color-nav);"
+    :style="navRailStyle"
     aria-label="Desktop navigation"
   >
     <!-- Nav icons (top section) -->
-    <div class="flex flex-col items-center gap-0 pt-5 pb-3 flex-1 w-full">
+    <div class="nav-rail__nav">
       <button
         v-for="item in navItems"
         :key="item.name"
         @click="navigate(item.route)"
         :aria-label="item.name"
-        class="relative flex flex-col items-center justify-center w-full py-3.5 gap-1 transition-all duration-200"
-        :class="isActive(item.route) ? '' : 'opacity-35 hover:opacity-65'"
+        class="nav-rail__button"
+        :class="isActive(item) ? 'nav-rail__button--active' : 'nav-rail__button--idle'"
       >
         <!-- Active glowing background -->
         <span
-          v-if="isActive(item.route)"
-          class="absolute w-12 h-12 rounded-full pointer-events-none"
+          v-if="isActive(item)"
+          class="nav-rail__glow"
           style="background: radial-gradient(circle, var(--color-primary) 0%, transparent 65%); opacity: 0.15; top: 50%; transform: translateY(-50%);"
         />
 
@@ -26,14 +26,14 @@
         <component
           :is="item.icon"
           :size="19"
-          :stroke-width="isActive(item.route) ? 2.2 : 1.6"
-          :color="isActive(item.route) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
-          class="relative z-10 transition-all duration-200"
+          :stroke-width="isActive(item) ? 2.2 : 1.6"
+          :color="isActive(item) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
+          class="nav-rail__icon"
         />
         <!-- Active dot below icon -->
         <span
-          class="w-1 h-1 rounded-full transition-all duration-200"
-          :style="isActive(item.route)
+          class="nav-rail__dot"
+          :style="isActive(item)
             ? 'background: var(--color-primary); opacity: 1;'
             : 'background: transparent; opacity: 0;'"
         />
@@ -144,13 +144,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Maximize2, Send } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
-import { dashboardNavigationItems as navItems } from '@/components/navigation/navigationItems.js'
+import { getNavigationItemsForPath } from '@/components/navigation/navigationItems.js'
 
 // ── Chat state from singleton composable ──────────────────
 const {
@@ -179,10 +179,20 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
 // ── Navigation ────────────────────────────────────────────
 const router = useRouter()
 const route  = useRoute()
+const navItems = computed(() => getNavigationItemsForPath(route.path))
+const navRailStyle = computed(() => ({
+  background: 'var(--color-nav)',
+  '--nav-count': String(navItems.value.length),
+}))
 
-function isActive(path) {
-  if (path === '/dashboard') return route.path === '/dashboard' || route.path === '/dashboard/'
-  return route.path.startsWith(path)
+function isActive(item) {
+  const path = item?.route
+  if (path === '/dashboard' || path === '/workspace' || path === '/preview/workspace') {
+    return route.path === path || route.path === `${path}/`
+  }
+
+  const matchPrefixes = Array.isArray(item?.matchPrefixes) ? item.matchPrefixes : []
+  return route.path.startsWith(path) || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
 }
 
 function navigate(path) {
@@ -195,7 +205,72 @@ function navigate(path) {
 .nav-rail {
   width: 52px;
   border-radius: 32px;
-  height: clamp(380px, 68vh, 460px);
+  height: calc(150px + (var(--nav-count) * 58px));
+  min-height: 380px;
+}
+
+.nav-rail__nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 18px 0 12px;
+  gap: 2px;
+  flex: 1;
+}
+
+.nav-rail__button {
+  position: relative;
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: opacity 200ms ease, transform 220ms ease;
+}
+
+.nav-rail__button--idle {
+  opacity: 0.35;
+}
+
+.nav-rail__button--idle:hover {
+  opacity: 0.65;
+  transform: translateY(-1px);
+}
+
+.nav-rail__button--active {
+  opacity: 1;
+}
+
+.nav-rail__glow {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.nav-rail__icon {
+  position: relative;
+  z-index: 10;
+  transition: transform 220ms ease, opacity 200ms ease;
+}
+
+.nav-rail__button--active .nav-rail__icon {
+  transform: scale(1.04);
+}
+
+.nav-rail__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  transition: opacity 200ms ease, background-color 200ms ease, transform 220ms ease;
+}
+
+.nav-rail__button--active .nav-rail__dot {
+  transform: translateY(1px);
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
