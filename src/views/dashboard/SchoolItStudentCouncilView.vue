@@ -206,6 +206,7 @@
       >
         <div class="student-council-view__sheet">
           <StudentCouncilMemberStage
+            class="student-council-view__sheet-member-stage"
             :title="editingMemberId ? 'Edit Member' : 'Add Member'"
             :search-query="memberDraft.searchQuery"
             :selected-student="selectedStudent"
@@ -243,7 +244,17 @@
       >
         <div class="student-council-view__sheet student-council-view__sheet--detail">
           <section class="student-council-view__member-detail">
-            <h2 class="student-council-view__member-detail-title">SSG Member</h2>
+            <div class="student-council-view__member-detail-header">
+              <h2 class="student-council-view__member-detail-title">SSG Member</h2>
+              <button
+                class="student-council-view__member-detail-close"
+                type="button"
+                aria-label="Close member details"
+                @click="closeMemberDetail"
+              >
+                <X :size="18" />
+              </button>
+            </div>
 
             <div class="student-council-view__member-detail-field">
               <span class="student-council-view__member-detail-label">Name</span>
@@ -307,6 +318,7 @@
       >
         <div class="student-council-view__sheet">
           <StudentCouncilSetupStage
+            class="student-council-view__sheet-setup-stage"
             :draft="councilSheetDraft"
             :is-editing="hasCouncil"
             :submit-label="councilSheetSubmitLabel"
@@ -332,7 +344,7 @@ import {
   watch,
 } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, LogOut, Search, SquarePen, SquarePlus } from 'lucide-vue-next'
+import { Bell, LogOut, Search, SquarePen, SquarePlus, X } from 'lucide-vue-next'
 import StudentCouncilMemberStage from '@/components/council/StudentCouncilMemberStage.vue'
 import StudentCouncilSetupStage from '@/components/council/StudentCouncilSetupStage.vue'
 import { useAuth } from '@/composables/useAuth.js'
@@ -1327,11 +1339,14 @@ async function handleLogout() {
 .student-council-view__member-position{min-width:0;font-size:12px;font-weight:500;color:var(--color-text-muted)}
 .student-council-view__member-edit{width:34px;height:34px;border:none;border-radius:999px;background:transparent;color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center}
 .student-council-view__member-empty{margin:0;padding:18px;border-radius:22px;background:color-mix(in srgb,var(--color-surface) 88%,var(--color-bg));font-size:14px;color:var(--color-text-muted)}
-.student-council-view__sheet-backdrop{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-end;justify-content:center;padding:24px;background:rgba(10,10,10,.28);backdrop-filter:blur(12px)}
-.student-council-view__sheet{width:min(100%,690px);padding:28px;border-radius:34px;background:var(--color-surface)}
+.student-council-view__sheet-backdrop{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-end;justify-content:center;padding:24px;background:rgba(10,10,10,.28);backdrop-filter:blur(12px);overflow-y:auto;overscroll-behavior:contain}
+.student-council-view__sheet{width:min(100%,690px);max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 48px);padding:28px;border-radius:34px;background:var(--color-surface);display:flex;flex-direction:column;overflow:hidden}
 .student-council-view__sheet--detail{padding:28px}
+.student-council-view__sheet-member-stage,.student-council-view__sheet-setup-stage,.student-council-view__member-detail{flex:1;min-height:0;overflow-y:auto;padding-right:4px}
 .student-council-view__member-detail{display:flex;flex-direction:column;gap:18px}
+.student-council-view__member-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
 .student-council-view__member-detail-title{margin:0;font-size:clamp(30px,8vw,42px);line-height:.95;letter-spacing:-.06em;font-weight:700;color:var(--color-text-always-dark)}
+.student-council-view__member-detail-close{width:42px;height:42px;border:none;border-radius:999px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 14%, transparent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--color-text-always-dark)}
 .student-council-view__member-detail-field{display:flex;flex-direction:column;gap:10px}
 .student-council-view__member-detail-label{font-size:13px;font-weight:600;color:var(--color-text-muted)}
 .student-council-view__member-detail-value{min-height:52px;padding:0 18px;border-radius:999px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 16%, transparent);display:flex;align-items:center;font-size:14px;font-weight:600;color:var(--color-text-always-dark)}
@@ -1358,6 +1373,14 @@ async function handleLogout() {
   .student-council-view__header-main{gap:16px}
   .student-council-view__dashboard-secondary{min-height:56px}
   .student-council-view__member-detail-actions{flex-direction:row}
+}
+
+@media (max-width:767px){
+  .student-council-view__sheet-backdrop{padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  .student-council-view__sheet{width:100%;max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px);padding:20px 18px 18px;border-radius:30px}
+  .student-council-view__sheet-member-stage,.student-council-view__sheet-setup-stage,.student-council-view__member-detail{padding-right:2px;padding-bottom:max(6px, env(safe-area-inset-bottom,0px))}
+  .student-council-view__member-detail-header{position:sticky;top:0;z-index:2;padding-bottom:6px;background:linear-gradient(to bottom,var(--color-surface) 78%,transparent)}
+  .student-council-view__member-detail-actions{flex-direction:column}
 }
 
 @media (prefers-reduced-motion:reduce){
