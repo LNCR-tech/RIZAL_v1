@@ -102,10 +102,10 @@ export const NavbarAdmin = () => {
                   isActive ? "admin-nav-link active" : "admin-nav-link"
                 }
                 onClick={() => setSidebarOpen(false)}
-                title="Manage Schools & SCHOOL_IT"
+                title="Manage Schools & Campus Admin"
               >
                 <FaSchool className="nav-icon" />
-                <span className="nav-text">Manage Schools & SCHOOL_IT</span>
+                <span className="nav-text">Manage Schools & Campus Admin</span>
               </NavLink>
             </li>
             <li>
@@ -220,3 +220,5 @@ export const NavbarAdmin = () => {
 };
 
 export default NavbarAdmin;
+
+

@@ -35,6 +35,8 @@ class Attendance(Base):
         default='present',  # Lowercase default
         nullable=False
     )
+    check_in_status = Column(String(16), nullable=True)
+    check_out_status = Column(String(16), nullable=True)
     verified_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))  # Who verified (SSG/admin)
     notes = Column(String(500))  # Reason for excused absence, etc.
     geo_distance_m = Column(Float, nullable=True)

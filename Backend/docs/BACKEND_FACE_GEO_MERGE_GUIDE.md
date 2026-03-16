@@ -242,20 +242,25 @@ This flow is for `admin` and `school_IT`.
 
 1. The user submits email and password to `POST /auth/login`.
 2. `auth.py` calls the auth session helpers in `auth_session.py`.
-3. If the role requires face verification, the backend issues a pending face token instead of a full access token.
-4. The frontend calls `GET /auth/security/face-status`.
-5. If there is no registered face:
+3. New onboarding accounts can also receive `password_change_recommended=true` as a non-blocking suggestion.
+4. If the user wants to change the password immediately, the frontend can call `POST /auth/change-password`.
+5. If the user skips that suggestion, the frontend can persist the skip through `POST /auth/password-change-prompt/dismiss`.
+6. If the role requires face verification, the backend issues a pending face token instead of a full access token.
+7. The frontend calls `GET /auth/security/face-status`.
+8. If there is no registered face:
    - the frontend captures a live image
    - the frontend can call `POST /auth/security/face-liveness`
    - the frontend saves the reference through `POST /auth/security/face-reference`
-6. For login verification, the frontend submits a live image to `POST /auth/security/face-verify`.
-7. On success, the backend promotes the pending face session into a full access session.
+9. For login verification, the frontend submits a live image to `POST /auth/security/face-verify`.
+10. On success, the backend promotes the pending face session into a full access session.
 
 ### Logic summary
 
 - password is the first factor
+- password-change suggestion is optional for new accounts and is not used as a gate
 - live face is the second factor
 - registration is required only when no privileged face reference exists yet
+- student face registration still uses `/face/register`; the `/auth/security/face-*` endpoints remain reserved for privileged login onboarding
 
 ## 4. Student Face Registration Flow
 

@@ -6,11 +6,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 
 from app.core.security import (
+    PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT,
     authenticate_user,
-    get_current_user_with_roles,
+    get_current_admin_or_campus_admin,
+    get_current_application_user,
     has_any_role,
+    normalize_role_name,
+    verify_password,
 )
-from app.database import get_db
+from app.core.dependencies import get_db
 from app.schemas.auth import ChangePasswordRequest, Token, LoginRequest
 from app.schemas.security import MfaChallengeVerifyRequest
 from app.schemas.password_reset import (
@@ -28,13 +32,15 @@ from app.services.auth_session import (
     get_user_role_names,
     has_face_reference_enrolled,
     issue_login_token_response,
+    should_recommend_password_change,
     validate_login_account_state,
 )
-from app.services.auth_background import (
+from app.services.auth_task_dispatcher import (
     dispatch_account_security_notification,
     dispatch_mfa_code_email,
 )
 from app.services.notification_center_service import send_account_security_notification
+from app.services.password_change_policy import must_change_password_for_temporary_reset
 from app.services.security_service import (
     create_mfa_challenge,
     record_login_history,
@@ -45,7 +51,7 @@ from app.utils.passwords import generate_secure_password
 
 router = APIRouter(tags=["authentication"])
 FORGOT_PASSWORD_GENERIC_MESSAGE = (
-    "If the account exists, a password reset request has been submitted for School IT approval."
+    "If the account exists, a password reset request has been submitted for Campus Admin approval."
 )
 
 @router.post("/token", response_model=Token)
@@ -156,11 +162,12 @@ async def login_with_email(
             "last_name": user.last_name,
             "is_admin": "admin" in role_names,
             "must_change_password": user.must_change_password,
+            "password_change_recommended": should_recommend_password_change(user),
             "mfa_required": True,
             "mfa_challenge_id": challenge.id,
             "mfa_expires_at": challenge.expires_at,
             "face_verification_required": any(
-                role_name.strip().lower().replace("_", "-") in {"admin", "school-it"}
+                normalize_role_name(role_name) in {"admin", "campus-admin"}
                 for role_name in role_names
             ),
             "face_reference_enrolled": has_face_reference_enrolled(db, user.id),
@@ -256,10 +263,12 @@ async def verify_mfa_and_login(
 @router.post("/auth/change-password")
 async def change_password(
     payload: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.check_password(payload.current_password):
+    # Use the same verifier as login so temporary passwords work consistently
+    # regardless of which hashing helper originally created the stored hash.
+    if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect",
@@ -267,6 +276,7 @@ async def change_password(
 
     current_user.set_password(payload.new_password)
     current_user.must_change_password = False
+    current_user.should_prompt_password_change = False
     try:
         send_account_security_notification(
             db,
@@ -280,6 +290,16 @@ async def change_password(
     db.commit()
 
     return {"message": "Password updated successfully"}
+
+
+@router.post(PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT)
+async def dismiss_password_change_prompt(
+    current_user: User = Depends(get_current_application_user),
+    db: Session = Depends(get_db),
+):
+    current_user.should_prompt_password_change = False
+    db.commit()
+    return {"message": "Password change prompt dismissed."}
 
 
 @router.post("/auth/forgot-password", response_model=ForgotPasswordRequestResponse)
@@ -301,7 +321,7 @@ async def request_forgot_password(
     if not getattr(target_user, "is_active", True) or getattr(target_user, "school_id", None) is None:
         return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
-    if has_any_role(target_user, ["admin", "school_IT", "school-it", "school_it"]):
+    if has_any_role(target_user, ["admin", "campus_admin"]):
         return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
     existing_pending = (
@@ -330,12 +350,9 @@ async def request_forgot_password(
 
 @router.get("/auth/password-reset-requests", response_model=list[PasswordResetRequestItem])
 async def list_password_reset_requests(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["school_IT", "admin"]):
-        raise HTTPException(status_code=403, detail="School IT or admin role required")
-
     is_platform_admin = has_any_role(current_user, ["admin"]) and getattr(current_user, "school_id", None) is None
 
     query = (
@@ -371,12 +388,9 @@ async def list_password_reset_requests(
 @router.post("/auth/password-reset-requests/{request_id}/approve", response_model=PasswordResetApprovalResponse)
 async def approve_password_reset_request(
     request_id: int,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["school_IT", "admin"]):
-        raise HTTPException(status_code=403, detail="School IT or admin role required")
-
     request_item = (
         db.query(PasswordResetRequest)
         .options(joinedload(PasswordResetRequest.user).joinedload(User.roles).joinedload(UserRole.role))
@@ -400,18 +414,19 @@ async def approve_password_reset_request(
     if not getattr(target_user, "is_active", True):
         raise HTTPException(status_code=400, detail="Target user is inactive")
 
-    if has_any_role(current_user, ["school_IT"]) and not has_any_role(current_user, ["admin"]):
-        if has_any_role(target_user, ["admin", "school_IT", "school-it", "school_it"]):
+    if has_any_role(current_user, ["campus_admin"]) and not has_any_role(current_user, ["admin"]):
+        if has_any_role(target_user, ["admin", "campus_admin"]):
             raise HTTPException(
                 status_code=403,
-                detail="SCHOOL_IT cannot reset admin or SCHOOL_IT accounts.",
+                detail="Campus Admin cannot reset admin or Campus Admin accounts.",
             )
         if current_user.id == target_user.id:
-            raise HTTPException(status_code=403, detail="SCHOOL_IT cannot approve their own reset request.")
+            raise HTTPException(status_code=403, detail="Campus Admin cannot approve their own reset request.")
 
     temporary_password = generate_secure_password(min_length=10, max_length=14)
     target_user.set_password(temporary_password)
-    target_user.must_change_password = True
+    target_user.must_change_password = must_change_password_for_temporary_reset()
+    target_user.should_prompt_password_change = False
 
     request_item.status = "approved"
     request_item.resolved_at = datetime.utcnow()
@@ -450,3 +465,4 @@ async def approve_password_reset_request(
         resolved_at=request_item.resolved_at or datetime.utcnow(),
         message="Password reset approved and temporary password emailed.",
     )
+

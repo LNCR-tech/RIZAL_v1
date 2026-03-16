@@ -14,8 +14,7 @@ import {
   updateMfaStatus,
   UserSessionItem,
 } from "../api/platformOpsApi";
-
-const normalizeRole = (role: string) => role.trim().toLowerCase().replace(/_/g, "-");
+import { isCampusAdminRole } from "../utils/roleUtils";
 
 const getStoredRoles = (): string[] => {
   try {
@@ -30,10 +29,10 @@ const getStoredRoles = (): string[] => {
 
 const SecurityCenter = () => {
   const roles = getStoredRoles();
-  const isSchoolIT = roles.some((role) => normalizeRole(role) === "school-it");
+  const isSchoolIT = roles.some(isCampusAdminRole);
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;
   const facialVerificationPath = isSchoolIT
-    ? "/school_it_face_verification"
+    ? "/campus_admin_face_verification"
     : "/admin_face_verification";
 
   const [mfa, setMfa] = useState<MfaStatus | null>(null);

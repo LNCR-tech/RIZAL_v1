@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user_with_roles, has_any_role
-from app.database import get_db
+from app.core.security import get_current_admin_or_campus_admin, has_any_role
+from app.core.dependencies import get_db
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.schemas.audit import SchoolAuditLogSearchItem, SchoolAuditLogSearchResponse
@@ -40,15 +40,9 @@ def search_audit_logs(
     end_date: Optional[datetime] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or School IT privileges required",
-        )
-
     school_scope = _resolve_scope(current_user)
 
     query = db.query(SchoolAuditLog)
@@ -110,3 +104,4 @@ def search_audit_logs(
         )
 
     return SchoolAuditLogSearchResponse(total=total, items=items)
+

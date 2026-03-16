@@ -9,12 +9,15 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.event_defaults import resolve_school_event_default_values
 from app.core.security import (
     get_current_admin,
-    get_current_user_with_roles,
+    get_current_application_user,
+    get_current_school_it,
+    get_role_lookup_names,
     has_any_role,
 )
-from app.database import get_db
+from app.core.dependencies import get_db
 from app.models.role import Role
 from app.models.school import School, SchoolAuditLog, SchoolSetting
 from app.models.user import User, UserRole
@@ -29,6 +32,12 @@ from app.schemas.school import (
     SchoolUpdateForm,
 )
 from app.services.email_service import EmailDeliveryError, send_welcome_email
+from app.services.password_change_policy import (
+    must_change_password_for_new_account,
+    must_change_password_for_temporary_reset,
+    should_prompt_password_change_for_new_account,
+    should_prompt_password_change_for_temporary_reset,
+)
 from app.services.logo_storage_service import delete_managed_school_logo, store_school_logo
 from app.utils.passwords import generate_secure_password
 
@@ -63,6 +72,12 @@ def _write_audit(
 
 
 def _school_to_response(school: School) -> SchoolBrandingResponse:
+    school_settings = getattr(school, "settings", None)
+    (
+        event_default_early_check_in_minutes,
+        event_default_late_threshold_minutes,
+        event_default_sign_out_grace_minutes,
+    ) = resolve_school_event_default_values(school_settings)
     return SchoolBrandingResponse(
         school_id=school.id,
         school_name=school.school_name or school.name,
@@ -70,6 +85,9 @@ def _school_to_response(school: School) -> SchoolBrandingResponse:
         logo_url=school.logo_url,
         primary_color=school.primary_color,
         secondary_color=school.secondary_color,
+        event_default_early_check_in_minutes=event_default_early_check_in_minutes,
+        event_default_late_threshold_minutes=event_default_late_threshold_minutes,
+        event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
         subscription_status=school.subscription_status,
         active_status=school.active_status,
         created_at=school.created_at,
@@ -87,6 +105,7 @@ def _sync_school_settings(db: Session, school: School, updated_by_user_id: int) 
     settings.secondary_color = school.secondary_color or "#2C5F9E"
     settings.accent_color = school.secondary_color or school.primary_color
     settings.updated_by_user_id = updated_by_user_id
+    school.settings = settings
 
 
 def _ensure_unique_school(
@@ -117,13 +136,14 @@ def _ensure_unique_school(
 
 
 def _get_school_it_role_or_500(db: Session) -> Role:
-    role = db.query(Role).filter(Role.name == "school_IT").first()
-    if role is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Role configuration error: school_IT role not found.",
-        )
-    return role
+    for role_name in get_role_lookup_names("campus_admin"):
+        role = db.query(Role).filter(Role.name == role_name).first()
+        if role is not None:
+            return role
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Role configuration error: campus_admin role not found.",
+    )
 
 
 def _get_school_for_current_user_or_404(db: Session, current_user: User) -> School:
@@ -237,11 +257,15 @@ async def admin_create_school_with_school_it(
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="SCHOOL_IT email is already registered.",
+            detail="Campus Admin email is already registered.",
         )
 
     school_it_role = _get_school_it_role_or_500(db)
-    temporary_password = generate_secure_password(min_length=10, max_length=14)
+    generated_temporary_password = None
+    issued_password = payload.school_it_password
+    if issued_password is None:
+        generated_temporary_password = generate_secure_password(min_length=10, max_length=14)
+        issued_password = generated_temporary_password
 
     logo_url = None
     if logo is not None:
@@ -270,9 +294,10 @@ async def admin_create_school_with_school_it(
         middle_name=payload.school_it_middle_name,
         last_name=payload.school_it_last_name,
         is_active=True,
-        must_change_password=True,
+        must_change_password=must_change_password_for_new_account(),
+        should_prompt_password_change=should_prompt_password_change_for_new_account(),
     )
-    school_it_user.set_password(temporary_password)
+    school_it_user.set_password(issued_password)
     db.add(school_it_user)
     db.flush()
     db.add(UserRole(user_id=school_it_user.id, role_id=school_it_role.id))
@@ -300,15 +325,16 @@ async def admin_create_school_with_school_it(
             delete_managed_school_logo(logo_url)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Failed to create school and SCHOOL_IT due to uniqueness conflict.",
+            detail="Failed to create school and Campus Admin due to uniqueness conflict.",
         ) from exc
 
     try:
         send_welcome_email(
             recipient_email=school_it_user.email,
-            temporary_password=temporary_password,
+            temporary_password=issued_password,
             first_name=school_it_user.first_name,
             system_name=school.school_name or school.name,
+            password_is_temporary=generated_temporary_password is not None,
         )
     except EmailDeliveryError:
         _write_audit(
@@ -329,7 +355,7 @@ async def admin_create_school_with_school_it(
         school=_school_to_response(school),
         school_it_user_id=school_it_user.id,
         school_it_email=school_it_user.email,
-        generated_temporary_password=None,
+        generated_temporary_password=generated_temporary_password,
     )
 
 
@@ -395,7 +421,7 @@ def admin_list_school_it_accounts(
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
         .join(School, School.id == User.school_id, isouter=True)
-        .filter(Role.name == "school_IT")
+        .filter(Role.name.in_(get_role_lookup_names("campus_admin")))
         .order_by(User.created_at.desc())
         .all()
     )
@@ -425,11 +451,11 @@ def admin_update_school_it_status(
         db.query(User)
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
-        .filter(User.id == user_id, Role.name == "school_IT")
+        .filter(User.id == user_id, Role.name.in_(get_role_lookup_names("campus_admin")))
         .first()
     )
     if school_it_user is None:
-        raise HTTPException(status_code=404, detail="SCHOOL_IT account not found.")
+        raise HTTPException(status_code=404, detail="Campus Admin account not found.")
 
     school_it_user.is_active = is_active
     db.commit()
@@ -474,15 +500,16 @@ def admin_reset_school_it_password(
         db.query(User)
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
-        .filter(User.id == user_id, Role.name == "school_IT")
+        .filter(User.id == user_id, Role.name.in_(get_role_lookup_names("campus_admin")))
         .first()
     )
     if school_it_user is None:
-        raise HTTPException(status_code=404, detail="SCHOOL_IT account not found.")
+        raise HTTPException(status_code=404, detail="Campus Admin account not found.")
 
     temporary_password = generate_secure_password()
     school_it_user.set_password(temporary_password)
-    school_it_user.must_change_password = True
+    school_it_user.must_change_password = must_change_password_for_temporary_reset()
+    school_it_user.should_prompt_password_change = should_prompt_password_change_for_temporary_reset()
 
     school = None
     if school_it_user.school_id is not None:
@@ -505,7 +532,7 @@ def admin_reset_school_it_password(
         "user_id": school_it_user.id,
         "email": school_it_user.email,
         "temporary_password": temporary_password,
-        "must_change_password": True,
+        "must_change_password": must_change_password_for_temporary_reset(),
     }
 
 
@@ -515,22 +542,22 @@ async def update_school(
     primary_color: Optional[str] = Form(default=None),
     secondary_color: Optional[str] = Form(default=None),
     school_code: Optional[str] = Form(default=None),
+    event_default_early_check_in_minutes: Optional[int] = Form(default=None),
+    event_default_late_threshold_minutes: Optional[int] = Form(default=None),
+    event_default_sign_out_grace_minutes: Optional[int] = Form(default=None),
     logo: Optional[UploadFile] = File(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_school_it),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["school_IT"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only SCHOOL_IT can update school branding for their school.",
-        )
-
     school = _get_school_for_current_user_or_404(db, current_user)
     payload = SchoolUpdateForm(
         school_name=_normalize_optional(school_name),
         primary_color=_normalize_optional(primary_color),
         secondary_color=_normalize_optional(secondary_color),
         school_code=_normalize_optional(school_code),
+        event_default_early_check_in_minutes=event_default_early_check_in_minutes,
+        event_default_late_threshold_minutes=event_default_late_threshold_minutes,
+        event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
     )
 
     proposed_school_name = payload.school_name if payload.school_name is not None else (school.school_name or school.name)
@@ -559,6 +586,17 @@ async def update_school(
 
     school.logo_url = new_logo_url
     _sync_school_settings(db, school, current_user.id)
+    settings = school.settings
+    if settings is None:
+        settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
+    if settings is not None:
+        if payload.event_default_early_check_in_minutes is not None:
+            settings.event_default_early_check_in_minutes = payload.event_default_early_check_in_minutes
+        if payload.event_default_late_threshold_minutes is not None:
+            settings.event_default_late_threshold_minutes = payload.event_default_late_threshold_minutes
+        if payload.event_default_sign_out_grace_minutes is not None:
+            settings.event_default_sign_out_grace_minutes = payload.event_default_sign_out_grace_minutes
+        school.settings = settings
     _write_audit(
         db,
         school_id=school.id,
@@ -569,6 +607,21 @@ async def update_school(
             "school_name": school.school_name,
             "school_code": school.school_code,
             "logo_updated": bool(logo is not None),
+            "event_default_early_check_in_minutes": (
+                payload.event_default_early_check_in_minutes
+                if payload.event_default_early_check_in_minutes is not None
+                else resolve_school_event_default_values(settings)[0] if settings is not None else None
+            ),
+            "event_default_late_threshold_minutes": (
+                payload.event_default_late_threshold_minutes
+                if payload.event_default_late_threshold_minutes is not None
+                else resolve_school_event_default_values(settings)[1] if settings is not None else None
+            ),
+            "event_default_sign_out_grace_minutes": (
+                payload.event_default_sign_out_grace_minutes
+                if payload.event_default_sign_out_grace_minutes is not None
+                else resolve_school_event_default_values(settings)[2] if settings is not None else None
+            ),
         },
     )
 
@@ -592,8 +645,12 @@ async def update_school(
 
 @router.get("/me", response_model=SchoolBrandingResponse)
 def get_my_school_branding(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     school = _get_school_for_current_user_or_404(db, current_user)
+    if school.settings is None:
+        school.settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
     return _school_to_response(school)
+
+

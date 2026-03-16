@@ -46,7 +46,7 @@ body.sidebar-mobile-open {
   }
 }
 
-:is(.admin-sidebar, .student-sidebar, .ssg-sidebar, .event-organizer-sidebar) {
+:is(.admin-sidebar, .student-sidebar, .ssg-sidebar) {
   width: min(88vw, var(--app-sidebar-expanded-width));
   max-width: var(--app-sidebar-expanded-width);
   min-width: 0;
@@ -55,11 +55,11 @@ body.sidebar-mobile-open {
 }
 
 @media (min-width: 769px) {
-  :is(.admin-sidebar, .student-sidebar, .ssg-sidebar, .event-organizer-sidebar) {
+  :is(.admin-sidebar, .student-sidebar, .ssg-sidebar) {
     width: var(--app-sidebar-collapsed-width);
   }
 
-  :is(.admin-sidebar, .student-sidebar, .ssg-sidebar, .event-organizer-sidebar).expanded {
+  :is(.admin-sidebar, .student-sidebar, .ssg-sidebar).expanded {
     width: var(--app-sidebar-expanded-width);
     padding-right: 0;
   }
@@ -68,8 +68,7 @@ body.sidebar-mobile-open {
 :is(
   .admin-sidebar-header,
   .student-sidebar-header,
-  .ssg-sidebar-header,
-  .event-organizer-sidebar-header
+  .ssg-sidebar-header
 ) {
   padding: 18px 16px;
   gap: 12px;
@@ -84,7 +83,7 @@ body.sidebar-mobile-open {
   object-fit: cover;
 }
 
-:is(.admin-title, .student-title, .ssg-title, .event-organizer-title) {
+:is(.admin-title, .student-title, .ssg-title) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -92,7 +91,7 @@ body.sidebar-mobile-open {
   font-size: 1rem;
 }
 
-:is(.admin-nav-link, .student-nav-link, .ssg-nav-link, .event-organizer-nav-link) {
+:is(.admin-nav-link, .student-nav-link, .ssg-nav-link) {
   min-height: 52px;
   padding: 14px 18px;
 }
@@ -102,7 +101,7 @@ body.sidebar-mobile-open {
 }
 
 @media (max-width: 480px) {
-  :is(.admin-sidebar, .student-sidebar, .ssg-sidebar, .event-organizer-sidebar) {
+  :is(.admin-sidebar, .student-sidebar, .ssg-sidebar) {
     width: 100%;
     max-width: none;
   }

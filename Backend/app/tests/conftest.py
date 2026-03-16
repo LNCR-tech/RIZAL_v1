@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database import get_db
+from app.core.dependencies import get_db
 from app.main import app
 from app.models import Base, Role, User, UserRole
 

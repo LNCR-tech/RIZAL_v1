@@ -7,22 +7,34 @@ from fastapi import HTTPException, status
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from app.core.security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    canonicalize_role_name_for_storage,
+    create_access_token,
+)
 from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.school import School, SchoolSetting
 from app.models.user import User
 from app.services.security_service import create_user_session, is_privileged_user
 
 PENDING_FACE_TOKEN_EXPIRE_MINUTES = 15
+BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
 
 
 def get_user_role_names(user: User) -> list[str]:
-    return [
-        role_assignment.role.name
-        for role_assignment in getattr(user, "roles", [])
-        if getattr(role_assignment, "role", None) is not None
-        and getattr(role_assignment.role, "name", None)
-    ]
+    role_names = []
+    seen = set()
+    for role_assignment in getattr(user, "roles", []):
+        role = getattr(role_assignment, "role", None)
+        role_name = getattr(role, "name", None)
+        if not role_name:
+            continue
+        canonical_name = canonicalize_role_name_for_storage(role_name)
+        if canonical_name not in BASE_AUTH_ROLE_NAMES or canonical_name in seen:
+            continue
+        seen.add(canonical_name)
+        role_names.append(canonical_name)
+    return role_names
 
 
 def validate_login_account_state(db: Session, user: User) -> None:
@@ -108,6 +120,13 @@ def has_face_reference_enrolled(db: Session, user_id: int) -> bool:
     )
 
 
+def should_recommend_password_change(user: User) -> bool:
+    return bool(
+        getattr(user, "should_prompt_password_change", False)
+        and not getattr(user, "must_change_password", False)
+    )
+
+
 def issue_full_access_token_response(
     *,
     db: Session,
@@ -156,6 +175,7 @@ def issue_full_access_token_response(
         "last_name": user.last_name,
         "is_admin": "admin" in role_names,
         "must_change_password": user.must_change_password,
+        "password_change_recommended": should_recommend_password_change(user),
         "session_id": session_id,
         "face_verification_required": is_privileged_user(user),
         "face_reference_enrolled": face_reference_enrolled,
@@ -199,6 +219,7 @@ def issue_pending_face_token_response(
         "last_name": user.last_name,
         "is_admin": "admin" in role_names,
         "must_change_password": user.must_change_password,
+        "password_change_recommended": should_recommend_password_change(user),
         "session_id": None,
         "face_verification_required": True,
         "face_reference_enrolled": face_reference_enrolled,

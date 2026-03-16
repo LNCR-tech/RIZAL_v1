@@ -3,10 +3,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from enum import Enum
 
+from app.core.event_defaults import (
+    DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
+    DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
+    DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
+)
 from app.schemas.attendance import Attendance, AttendanceStatus
 from app.schemas.department import Department
 from app.schemas.program import Program
-from app.schemas.user import SSGProfile
 from pydantic import computed_field  # Add this import at the top
 
 class EventStatus(str, Enum):
@@ -17,31 +21,46 @@ class EventStatus(str, Enum):
 
 
 class EventTimeStatus(str, Enum):
-    upcoming = "upcoming"
-    open = "open"
-    late = "late"
+    before_check_in = "before_check_in"
+    early_check_in = "early_check_in"
+    late_check_in = "late_check_in"
+    absent_check_in = "absent_check_in"
+    sign_out_open = "sign_out_open"
     closed = "closed"
 
 
 class EventTimeStatusInfo(BaseModel):
     event_status: EventTimeStatus
     current_time: datetime
+    check_in_opens_at: datetime
     start_time: datetime
     end_time: datetime
     late_threshold_time: datetime
+    sign_out_opens_at: datetime
+    normal_sign_out_closes_at: datetime
+    effective_sign_out_closes_at: datetime
+    sign_out_override_until: Optional[datetime] = None
+    sign_out_override_active: bool = False
     timezone_name: str
 
 
 class EventAttendanceDecisionInfo(BaseModel):
+    action: str = "check_in"
     event_status: EventTimeStatus
     attendance_allowed: bool
     attendance_status: Optional[AttendanceStatus] = None
     reason_code: Optional[str] = None
     message: str
     current_time: datetime
+    check_in_opens_at: datetime
     start_time: datetime
     end_time: datetime
     late_threshold_time: datetime
+    sign_out_opens_at: datetime
+    normal_sign_out_closes_at: datetime
+    effective_sign_out_closes_at: datetime
+    sign_out_override_until: Optional[datetime] = None
+    sign_out_override_active: bool = False
     timezone_name: str
 
 
@@ -49,6 +68,15 @@ class EventLocationVerificationRequest(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     accuracy_m: Optional[float] = Field(default=None, gt=0, le=5000)
+
+
+class SignOutOverrideOpenRequest(BaseModel):
+    override_minutes: int = Field(
+        ...,
+        ge=1,
+        le=1440,
+        description="How many minutes the early sign-out override should stay open from now.",
+    )
 
 
 class EventLocationVerificationResponse(BaseModel):
@@ -69,7 +97,22 @@ class EventBase(BaseModel):
     geo_radius_m: Optional[float] = Field(default=None, gt=0, le=5000)
     geo_required: bool = False
     geo_max_accuracy_m: Optional[float] = Field(default=None, gt=0, le=1000)
-    late_threshold_minutes: int = Field(default=0, ge=0, le=1440)
+    early_check_in_minutes: int = Field(
+        default=DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
+        ge=0,
+        le=1440,
+    )
+    late_threshold_minutes: int = Field(
+        default=DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
+        ge=0,
+        le=1440,
+    )
+    sign_out_grace_minutes: int = Field(
+        default=DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
+        ge=0,
+        le=1440,
+    )
+    sign_out_override_until: Optional[datetime] = None
     start_datetime: datetime
     end_datetime: datetime
     status: EventStatus = EventStatus.upcoming
@@ -77,10 +120,6 @@ class EventBase(BaseModel):
 class EventCreate(EventBase):
     department_ids: List[int] = Field(default_factory=list)
     program_ids: List[int] = Field(default_factory=list)
-    ssg_member_ids: List[int] = Field(
-        default_factory=list,
-        description="List of SSG profile IDs to assign to this event"
-    )
 
 class EventUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -90,20 +129,21 @@ class EventUpdate(BaseModel):
     geo_radius_m: Optional[float] = Field(default=None, gt=0, le=5000)
     geo_required: Optional[bool] = None
     geo_max_accuracy_m: Optional[float] = Field(default=None, gt=0, le=1000)
+    early_check_in_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     late_threshold_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+    sign_out_grace_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+    sign_out_override_until: Optional[datetime] = None
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None
     department_ids: Optional[List[int]] = None
     program_ids: Optional[List[int]] = None
-    ssg_member_ids: Optional[List[int]] = None
 
 class Event(EventBase):
     id: int
     school_id: int
     departments: List[Department] = Field(default_factory=list)
     programs: List[Program] = Field(default_factory=list)
-    ssg_members: List[SSGProfile] = Field(default_factory=list)
     
     # Computed fields for IDs
     @computed_field
@@ -114,19 +154,11 @@ class Event(EventBase):
     def program_ids(self) -> List[int]:
         return [program.id for program in self.programs]
     
-    @computed_field
-    def ssg_member_ids(self) -> List[int]:
-        return [ssg.id for ssg in self.ssg_members]
-    
     model_config = ConfigDict(from_attributes=True)
 
 class EventWithRelations(Event):
     departments: List[Department] = Field(default_factory=list)
     programs: List[Program] = Field(default_factory=list)
-    ssg_members: List[SSGProfile] = Field(
-        default_factory=list,
-        description="Assigned SSG members details"
-    )
     attendances: List[Attendance] = Field(
         default_factory=list,
         description="Attendance records for this event"

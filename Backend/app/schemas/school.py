@@ -15,6 +15,9 @@ class SchoolBrandingResponse(BaseModel):
     logo_url: Optional[str] = None
     primary_color: str
     secondary_color: Optional[str] = None
+    event_default_early_check_in_minutes: int
+    event_default_late_threshold_minutes: int
+    event_default_sign_out_grace_minutes: int
     subscription_status: str
     active_status: bool
     created_at: datetime
@@ -36,6 +39,9 @@ class SchoolUpdateForm(BaseModel):
     primary_color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     secondary_color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     school_code: Optional[str] = Field(default=None, min_length=2, max_length=50)
+    event_default_early_check_in_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+    event_default_late_threshold_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+    event_default_sign_out_grace_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
 
 
 class AdminSchoolItCreateForm(BaseModel):

@@ -33,8 +33,8 @@ const readStoredUser = (): StoredUserSnapshot | null => {
 
 const FacialVerification = ({ role }: FacialVerificationPageProps) => {
   const storedUser = useMemo(() => readStoredUser(), []);
-  const roleLabel = role === "school_IT" ? "School IT" : "Admin";
-  const NavbarComponent = role === "school_IT" ? NavbarSchoolIT : NavbarAdmin;
+  const roleLabel = role === "campus_admin" ? "Campus Admin" : "Admin";
+  const NavbarComponent = role === "campus_admin" ? NavbarSchoolIT : NavbarAdmin;
   const subjectId = storedUser?.email || role;
   const subjectLabel =
     storedUser?.first_name ||

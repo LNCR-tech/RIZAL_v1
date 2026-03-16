@@ -6,8 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.security import get_current_user_with_roles, has_any_role
-from app.database import get_db
+from app.core.security import (
+    get_current_admin_or_campus_admin,
+    get_role_lookup_names,
+    has_any_role,
+)
+from app.core.dependencies import get_db
 from app.models.event import Event
 from app.models.import_job import BulkImportJob
 from app.models.platform_features import SchoolSubscriptionReminder, SchoolSubscriptionSetting
@@ -120,11 +124,9 @@ def _build_metrics(db: Session, *, school_id: int, setting: SchoolSubscriptionSe
 @router.get("/me", response_model=SchoolSubscriptionResponse)
 def get_school_subscription(
     school_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_id(current_user, school_id)
 
     setting = _get_or_create_subscription_setting(db, scoped_school_id)
@@ -150,11 +152,9 @@ def get_school_subscription(
 def update_school_subscription(
     payload: SchoolSubscriptionUpdate,
     school_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_id(current_user, school_id)
 
     setting = _get_or_create_subscription_setting(db, scoped_school_id)
@@ -194,12 +194,9 @@ def update_school_subscription(
 @router.post("/run-reminders", response_model=ReminderRunResult)
 def run_subscription_reminders(
     school_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
-
     actor_school_id = getattr(current_user, "school_id", None)
     is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
 
@@ -257,7 +254,7 @@ def run_subscription_reminders(
             .filter(
                 User.school_id == setting.school_id,
                 User.is_active.is_(True),
-                Role.name.in_(["admin", "school_IT"]),
+                Role.name.in_(("admin", *get_role_lookup_names("campus_admin"))),
             )
             .options(joinedload(User.roles).joinedload(UserRole.role))
             .all()
@@ -305,3 +302,4 @@ def run_subscription_reminders(
         reminders_sent=reminders_sent,
         reminders_failed=reminders_failed,
     )
+

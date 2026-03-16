@@ -37,13 +37,23 @@ const ChangePassword = () => {
     }
     const needsPasswordChange = Boolean(storedUser.mustChangePassword || storedUser.must_change_password);
     if (!needsPasswordChange) {
-      navigate(
-        resolvePostAuthenticationPath({
+      let cancelled = false;
+      const redirectToResolvedPath = async () => {
+        const nextPath = await resolvePostAuthenticationPath({
           roles: storedUser.roles || [],
           mustChangePassword: false,
-        }),
-        { replace: true }
-      );
+          authToken: token,
+          userId: typeof storedUser.id === "number" ? storedUser.id : null,
+        });
+        if (!cancelled) {
+          navigate(nextPath, { replace: true });
+        }
+      };
+
+      void redirectToResolvedPath();
+      return () => {
+        cancelled = true;
+      };
     }
   }, [navigate, storedUser, token]);
 
@@ -72,14 +82,14 @@ const ChangePassword = () => {
       return;
     }
 
-    if (!Boolean(storedUser?.mustChangePassword || storedUser?.must_change_password)) {
-      navigate(
-        resolvePostAuthenticationPath({
-          roles: storedUser?.roles || [],
-          mustChangePassword: false,
-        }),
-        { replace: true }
-      );
+    if (!(storedUser?.mustChangePassword || storedUser?.must_change_password)) {
+      const nextPath = await resolvePostAuthenticationPath({
+        roles: storedUser?.roles || [],
+        mustChangePassword: false,
+        authToken: token,
+        userId: typeof storedUser?.id === "number" ? storedUser.id : null,
+      });
+      navigate(nextPath, { replace: true });
       return;
     }
 
@@ -95,14 +105,14 @@ const ChangePassword = () => {
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
       setSuccess("Password changed successfully. Redirecting...");
-      window.setTimeout(() => {
-        navigate(
-          resolvePostAuthenticationPath({
-            roles: updatedUser.roles || [],
-            mustChangePassword: false,
-          }),
-          { replace: true }
-        );
+      window.setTimeout(async () => {
+        const nextPath = await resolvePostAuthenticationPath({
+          roles: updatedUser.roles || [],
+          mustChangePassword: false,
+          authToken: token,
+          userId: typeof updatedUser.id === "number" ? updatedUser.id : null,
+        });
+        navigate(nextPath, { replace: true });
       }, 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to change password.");

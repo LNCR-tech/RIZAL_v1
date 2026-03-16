@@ -58,7 +58,10 @@ def is_late_arrival(
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> bool:
     localized_time_in = normalize_attendance_datetime(time_in, timezone_name)
-    return localized_time_in > late_cutoff_datetime(
+    localized_start = normalize_event_datetime(event_start, timezone_name)
+    if localized_time_in < localized_start:
+        return False
+    return localized_time_in <= late_cutoff_datetime(
         event_start,
         late_threshold_minutes,
         timezone_name=timezone_name,
@@ -72,6 +75,10 @@ def resolve_time_in_status(
     late_threshold_minutes: Any,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> str:
+    localized_time_in = normalize_attendance_datetime(time_in, timezone_name)
+    localized_start = normalize_event_datetime(event_start, timezone_name)
+    if localized_time_in < localized_start:
+        return "present"
     if is_late_arrival(
         event_start=event_start,
         time_in=time_in,
@@ -79,55 +86,27 @@ def resolve_time_in_status(
         timezone_name=timezone_name,
     ):
         return "late"
-    return "present"
-
-
-def attendance_window_overlaps_event(
-    *,
-    event_start: datetime,
-    event_end: datetime,
-    time_in: datetime | None,
-    time_out: datetime | None,
-    timezone_name: str = DEFAULT_EVENT_TIMEZONE,
-) -> bool:
-    if time_in is None or time_out is None:
-        return False
-    localized_start = normalize_event_datetime(event_start, timezone_name)
-    localized_end = normalize_event_datetime(event_end, timezone_name)
-    localized_time_in = normalize_attendance_datetime(time_in, timezone_name)
-    localized_time_out = normalize_attendance_datetime(time_out, timezone_name)
-    if localized_time_out <= localized_time_in:
-        return False
-    overlap_start = max(localized_time_in, localized_start)
-    overlap_end = min(localized_time_out, localized_end)
-    return overlap_end > overlap_start
+    return "absent"
 
 
 def finalize_completed_attendance_status(
     *,
-    event_start: datetime,
-    event_end: datetime,
-    time_in: datetime,
-    time_out: datetime,
-    late_threshold_minutes: Any,
-    timezone_name: str = DEFAULT_EVENT_TIMEZONE,
+    check_in_status: Any,
+    check_out_status: Any,
 ) -> tuple[str, str | None]:
-    if not attendance_window_overlaps_event(
-        event_start=event_start,
-        event_end=event_end,
-        time_in=time_in,
-        time_out=time_out,
-        timezone_name=timezone_name,
-    ):
+    normalized_check_in_status = normalize_attendance_status(check_in_status)
+    normalized_check_out_status = normalize_attendance_status(check_out_status)
+
+    if normalized_check_out_status != "present":
         return (
             "absent",
-            "Sign-in and sign-out were recorded, but the attendance window did not align with the event schedule.",
+            "Attendance was marked absent because sign-out was missing or outside the allowed sign-out window.",
         )
 
-    final_status = resolve_time_in_status(
-        event_start=event_start,
-        time_in=time_in,
-        late_threshold_minutes=late_threshold_minutes,
-        timezone_name=timezone_name,
+    if normalized_check_in_status in {"present", "late", "absent"}:
+        return normalized_check_in_status, None
+
+    return (
+        "absent",
+        "Attendance was marked absent because the sign-in status could not be determined.",
     )
-    return final_status, None

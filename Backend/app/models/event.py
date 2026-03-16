@@ -1,8 +1,14 @@
 from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
+
+from app.core.event_defaults import (
+    DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
+    DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
+    DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
+)
 from app.models.base import Base
-from app.models.associations import event_department_association, event_program_association, event_ssg_association
+from app.models.associations import event_department_association, event_program_association
 
 class EventStatus(PyEnum):
     UPCOMING = "upcoming"
@@ -22,7 +28,22 @@ class Event(Base):
     geo_radius_m = Column(Float, nullable=True)
     geo_required = Column(Boolean, nullable=False, default=False)
     geo_max_accuracy_m = Column(Float, nullable=True)
-    late_threshold_minutes = Column(Integer, nullable=False, default=0)
+    early_check_in_minutes = Column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
+    )
+    late_threshold_minutes = Column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
+    )
+    sign_out_grace_minutes = Column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
+    )
+    sign_out_override_until = Column(DateTime, nullable=True)
     start_datetime = Column(DateTime, nullable=False)
     end_datetime = Column(DateTime, nullable=False)
     status = Column(Enum(EventStatus), nullable=False, default=EventStatus.UPCOMING)
@@ -40,13 +61,6 @@ class Event(Base):
         secondary=event_program_association, 
         back_populates="events",
        
-    )
-     # Add this relationship
-    ssg_members = relationship(
-        "SSGProfile", 
-        secondary=event_ssg_association,
-        back_populates="assigned_events",
-        
     )
     attendances = relationship(
        "Attendance",

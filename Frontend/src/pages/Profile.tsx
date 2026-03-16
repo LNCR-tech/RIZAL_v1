@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import LogoutButton from "../components/LogoutButton";
 import NavbarStudent from "../components/NavbarStudent";
 import NavbarAdmin from "../components/NavbarAdmin";
-import NavbarEventOrganizer from "../components/NavbarEventOrganizer";
 import NavbarSSG from "../components/NavbarSSG";
-import NavbarStudentSSG from "../components/NavbarStudentSSG";
-import NavbarStudentSSGEventOrganizer from "../components/NavbarStudentSSGEventOrganizer";
+import NavbarSG from "../components/NavbarSG";
+import NavbarORG from "../components/NavbarORG";
 import NavbarSchoolIT from "../components/NavbarSchoolIT";
 import defaultAvatar from "../assets/images/userprofile1.png";
 import { FaSave, FaEdit, FaSpinner, FaTimes, FaCheck } from "react-icons/fa";
@@ -37,10 +36,6 @@ interface UserData {
     department_id: number;
     program_id: number;
     year_level: number;
-  };
-  ssg_profile?: {
-    id: number;
-    position: string;
   };
 }
 
@@ -108,7 +103,7 @@ export const Profile: React.FC<ProfileProps> = ({ role }) => {
             // Handle validation errors that might be nested
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (e) {
+        } catch {
           // If not JSON, use raw error text
           console.error("API Error (non-JSON):", errorText);
           errorMessage = errorText || errorMessage;
@@ -241,27 +236,26 @@ export const Profile: React.FC<ProfileProps> = ({ role }) => {
     );
   }
 
+  const navbar = role === "student" ? (
+    <NavbarStudent />
+  ) : role === "admin" ? (
+    <NavbarAdmin />
+  ) : role === "campus_admin" ? (
+    <NavbarSchoolIT />
+  ) : role === "ssg" ? (
+    <NavbarSSG />
+  ) : role === "sg" ? (
+    <NavbarSG />
+  ) : role === "org" ? (
+    <NavbarORG />
+  ) : (
+    <h1>Role Not Found</h1>
+  );
+
   // Helper function to render a login prompt if not authenticated
   const renderLoginPrompt = () => (
     <div className="profile-page">
-      {/* Navbar Selection */}
-      {role === "student-ssg" ? (
-        <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
-      ) : role === "student" ? (
-        <NavbarStudent />
-      ) : role === "admin" ? (
-        <NavbarAdmin />
-      ) : role === "school_IT" ? (
-        <NavbarSchoolIT />
-      ) : role === "event-organizer" ? (
-        <NavbarEventOrganizer />
-      ) : role === "ssg" ? (
-        <NavbarSSG />
-      ) : (
-        <h1>Role Not Found</h1>
-      )}
+      {navbar}
 
       <div className="profile-container">
         <div className="error-message">
@@ -293,24 +287,7 @@ export const Profile: React.FC<ProfileProps> = ({ role }) => {
 
   return (
     <div className="profile-page">
-      {/* Navbar Selection */}
-      {role === "student-ssg" ? (
-        <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
-      ) : role === "student" ? (
-        <NavbarStudent />
-      ) : role === "admin" ? (
-        <NavbarAdmin />
-      ) : role === "school_IT" ? (
-        <NavbarSchoolIT />
-      ) : role === "event-organizer" ? (
-        <NavbarEventOrganizer />
-      ) : role === "ssg" ? (
-        <NavbarSSG />
-      ) : (
-        <h1>Role Not Found</h1>
-      )}
+      {navbar}
 
       <div className="profile-container">
         <div className="profile-header">
@@ -366,13 +343,6 @@ export const Profile: React.FC<ProfileProps> = ({ role }) => {
             <div className="info-item">
               <label>Year Level:</label>
               <p>{userData.student_profile.year_level}</p>
-            </div>
-          )}
-
-          {userData.ssg_profile && (
-            <div className="info-item">
-              <label>Position:</label>
-              <p>{userData.ssg_profile.position}</p>
             </div>
           )}
         </div>

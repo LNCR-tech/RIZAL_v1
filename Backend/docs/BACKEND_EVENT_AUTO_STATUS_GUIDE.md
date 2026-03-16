@@ -2,37 +2,99 @@
 
 ## Purpose
 
-This guide explains the automatic event workflow-status sync that was added on top of the existing event time-status system.
+This guide explains how the backend now keeps the stored event workflow status aligned with the computed attendance windows.
 
-The goal is:
-
-- keep attendance decisions time-based
-- automatically keep the stored event `status` aligned with the event schedule
-- preserve existing `cancelled` and manual completion behavior
-- finalize attendance automatically when an event closes through time-based sync
+The system still stores organizer-facing workflow status on `events.status`, but that stored value is now synced from the computed time window instead of only from the raw event end time.
 
 ## Status Layers
 
-The backend now uses two related status layers:
+### Computed attendance-window status
 
-1. Attendance window status from `Backend/app/services/event_time_status.py`
-   - `upcoming`
-   - `open`
-   - `late`
-   - `closed`
+From `Backend/app/services/event_time_status.py`:
 
-2. Stored workflow status on `events.status`
-   - `upcoming`
-   - `ongoing`
-   - `completed`
-   - `cancelled`
+- `before_check_in`
+- `early_check_in`
+- `late_check_in`
+- `absent_check_in`
+- `sign_out_open`
+- `closed`
 
-Mapping rule:
+### Stored workflow status
 
-- `upcoming` time status -> `upcoming` workflow status
-- `open` time status -> `ongoing` workflow status
-- `late` time status -> `ongoing` workflow status
-- `closed` time status -> `completed` workflow status
+On `events.status`:
+
+- `upcoming`
+- `ongoing`
+- `completed`
+- `cancelled`
+
+## Mapping Rules
+
+The workflow sync service maps computed time status like this:
+
+- `before_check_in` -> `upcoming`
+- `early_check_in` -> `upcoming`
+- `late_check_in` -> `ongoing`
+- `absent_check_in` -> `ongoing`
+- `sign_out_open` -> `ongoing`
+- `closed` -> `completed`
+
+This means:
+
+- early check-in does not move the event to `ongoing`
+- sign-out availability still counts as `ongoing`
+- the event becomes `completed` only after the effective sign-out close
+
+## Effective Sign-Out Close
+
+Auto-completion now uses the effective sign-out close, not just `end_datetime`.
+
+The effective close is:
+
+- `end_datetime + sign_out_grace_minutes`, or
+- `sign_out_override_until` if the override extends later
+
+So if an override is active near the end of the event, the event stays `ongoing` until the later close time passes.
+
+## Safety Rules
+
+Two terminal-state protections remain in place:
+
+- `cancelled` stays manual and is never auto-overridden
+- manually completed events stay sticky and are not reopened automatically
+
+## Attendance Finalization On Completion
+
+When sync moves an event to `completed`, the backend runs:
+
+- `finalize_completed_event_attendance()`
+
+That finalizer:
+
+- creates absent rows for in-scope students who never signed in
+- marks open attendances with no sign-out as absent
+- uses the effective sign-out close timestamp when writing the auto-finalized `time_out`
+
+## Where Sync Runs
+
+### Request-time fallback
+
+Relevant routes refresh stale workflow status before continuing:
+
+- `GET /events/`
+- `GET /events/{event_id}`
+- `GET /events/{event_id}/time-status`
+- `POST /events/{event_id}/verify-location`
+- event attendance helpers in `attendance.py`
+- student face attendance helpers in `face_recognition.py`
+
+### Background scheduler
+
+Celery Beat still publishes:
+
+- `app.workers.tasks.sync_event_workflow_statuses`
+
+That task scans `upcoming` and `ongoing` events and applies the same service logic.
 
 ## Main Files
 
@@ -42,130 +104,32 @@ Mapping rule:
 - `Backend/app/routers/events.py`
 - `Backend/app/routers/attendance.py`
 - `Backend/app/routers/face_recognition.py`
-- `Backend/app/worker/celery_app.py`
-- `Backend/app/worker/tasks.py`
+- `Backend/app/workers/celery_app.py`
+- `Backend/app/workers/tasks.py`
 - `Backend/app/tests/test_event_workflow_status.py`
-- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
-
-## Step-By-Step Logic
-
-## 1. Compute the time-based status
-
-The backend still computes the dynamic attendance-window state from:
-
-- `start_datetime`
-- `end_datetime`
-- `late_threshold_minutes`
-- current time in `Asia/Manila`
-
-That logic remains in:
-
-- `Backend/app/services/event_time_status.py`
-
-## 2. Convert that time status into the stored workflow status
-
-The new service in:
-
-- `Backend/app/services/event_workflow_status.py`
-
-maps the time status into the stored event workflow status:
-
-- before start -> `upcoming`
-- during open or late window -> `ongoing`
-- after end -> `completed`
-
-## 3. Preserve terminal manual states safely
-
-Two safety rules were added:
-
-- `cancelled` stays manual and is never auto-overridden by time
-- `completed` is treated as sticky during automatic sync so an already completed event is not reopened by accident
-
-This keeps the change safe with the repo's current event-management workflow.
-
-## 4. Finalize attendance when auto-sync closes the event
-
-When the auto-sync moves an event into `completed`, the backend also runs:
-
-- `finalize_completed_event_attendance()`
-
-from:
-
-- `Backend/app/services/event_attendance_service.py`
-
-That means the system automatically:
-
-- creates `absent` records for scoped students who never signed in
-- marks no-timeout active attendances as `absent`
-
-## 5. Trigger the sync automatically in the background
-
-The repo now runs a periodic scheduler through Celery Beat.
-
-Background flow:
-
-- Celery Beat publishes `app.worker.tasks.sync_event_workflow_statuses`
-- the worker scans `upcoming` and `ongoing` events
-- matching events are moved to `ongoing` or `completed`
-- completed events trigger automatic attendance finalization
-
-Default interval:
-
-- every `60` seconds
-
-Configuration:
-
-- `EVENT_STATUS_SYNC_ENABLED=true`
-- `EVENT_STATUS_SYNC_INTERVAL_SECONDS=60`
-
-The repo also keeps request-driven sync in the route helpers as a fallback, so normal app requests still correct stale statuses even if the scheduler was temporarily down.
-
-## Routes and Logic Touchpoints
-
-Updated routes and helpers:
-
-- `GET /events/`
-- `GET /events/ongoing`
-- `GET /events/{event_id}`
-- `GET /events/{event_id}/time-status`
-- `POST /events/{event_id}/verify-location`
-- `GET /events/{event_id}/attendees`
-- `GET /events/{event_id}/stats`
-- `PATCH /events/{event_id}`
-- `PATCH /events/{event_id}/status`
-- attendance helper `_get_event_in_school_or_404()`
-- face helper `_get_school_event_or_404()`
-- periodic task `app.worker.tasks.sync_event_workflow_statuses`
-
-## Important Behavior Notes
-
-- the dynamic attendance window status is still computed on demand and is still the source of truth for attendance decisions
-- the stored event `status` is auto-synced both by Celery Beat and by request-time fallbacks
-- the `beat` service should run as a single instance in deployment
-- `cancelled` remains a manual organizer action
-- manual `completed` still works and still finalizes attendance
 
 ## Example Flow
 
-1. An event starts in the future with stored status `upcoming`.
-2. Celery Beat fires the periodic sync task after the start time.
-3. The backend sync service recalculates the event time window.
-4. The stored `events.status` is updated to `ongoing`.
-5. After the end time, the next scheduler run moves it to `completed`.
-6. Attendance finalization runs automatically.
+If an event has:
 
-## No Migration Impact
+- `start_datetime = 1:00 PM`
+- `end_datetime = 2:00 PM`
+- `sign_out_grace_minutes = 10`
 
-This change does not add or alter database columns.
+then:
 
-It changes backend behavior only.
+- before `1:00 PM`, including early check-in -> stored status stays `upcoming`
+- from `1:00 PM` through attendance and sign-out availability -> stored status is `ongoing`
+- after `2:10 PM` -> stored status becomes `completed`
 
-## Deployment Notes
+If an early sign-out override opens until `2:15 PM`, the event stays `ongoing` until `2:15 PM`.
 
-For container or VPS deployments, this setup is practical as long as:
+## Testing
 
-- Redis is available
-- one worker is running
-- one beat instance is running
+Recommended checks:
 
-For managed cloud platforms, you can keep this design or replace Beat later with a provider cron job that calls the same sync logic.
+1. Run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_workflow_status.py`.
+2. Create an event with a sign-out grace period and confirm it stays `ongoing` after `end_datetime` while sign-out is still open.
+3. Open a sign-out override near the end of the event and confirm the event remains `ongoing` until the later override close.
+4. Confirm the next sync after the effective close moves the event to `completed`.
+5. Confirm absent finalization happens only after that completion point.

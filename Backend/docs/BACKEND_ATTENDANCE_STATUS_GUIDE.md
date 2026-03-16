@@ -2,141 +2,150 @@
 
 ## Purpose
 
-This document records how attendance statuses work in the backend and how the `late` status was merged into the live `RIZAL_v1` backend safely.
+This guide documents how attendance status is now recorded in the backend with explicit sign-in and sign-out audit fields.
 
-## Current Valid Attendance Statuses
+The backend now separates:
+
+- `check_in_status`: what the sign-in window decided
+- `check_out_status`: whether sign-out completed inside an allowed sign-out window
+- `status`: the final attendance status used by reports and dashboards
+
+## Valid Final Statuses
 
 - `present`
 - `late`
 - `absent`
 - `excused`
 
-## Event Late Threshold
+## New Attendance Audit Fields
 
-Events now support `late_threshold_minutes`.
+Stored on `attendances`:
 
-Meaning:
+- `check_in_status: "present" | "late" | "absent" | null`
+- `check_out_status: "present" | "absent" | null`
 
-- the threshold is stored on the event
-- the value is measured from the event start time
-- if a valid sign-in happens after `start_datetime + late_threshold_minutes`, the final attendance status becomes `late`
-
-Example:
-
-- event starts at `9:00 AM`
-- late threshold is `10`
-- sign-in at `9:10 AM` is still `present`
-- sign-in at `9:11 AM` becomes `late`
-
-## Business Rule In This Repo
-
-`late` is now a valid attendance status across the backend and database.
-
-For reporting and attendance-rate calculations in this repo:
-
-- `present` counts as attended
-- `late` also counts as attended
-- `absent` does not count as attended
-- `excused` does not count as attended
-
-## Automatic Absent On Event Completion
-
-When an event is marked `completed`, the backend now finalizes attendance for the event scope.
-
-Current behavior:
-
-- students with no attendance record for the completed event are automatically given an `absent` record
-- students with an active attendance record but no `time_out` are automatically marked `absent`
-
-The participant scope follows the event assignment rules already used by the repo:
-
-- all students in the school if no department or program filters are set
-- otherwise the students matching the event's department and program scope
-
-## Automatic Time Window Behavior
-
-The backend now computes a separate attendance-window status from the event schedule.
-
-Computed event time statuses:
-
-- `upcoming`
-- `open`
-- `late`
-- `closed`
-
-Current behavior:
-
-- `upcoming` rejects new attendance verification
-- `open` allows verification and marks the new check-in as `present`
-- `late` allows verification and marks the new check-in as `late`
-- `closed` rejects new attendance verification
-
-The reusable implementation lives in:
-
-- `Backend/app/services/event_time_status.py`
-
-Important limit:
-
-- this computed time status does not replace the stored organizer event workflow status
-- organizer event management still uses the event model's saved `status` field
-
-## Main Files
+Exposed from:
 
 - `Backend/app/models/attendance.py`
 - `Backend/app/schemas/attendance.py`
-- `Backend/app/services/attendance_status.py`
+
+Added by migration:
+
+- `Backend/alembic/versions/e4b7c1d9f6a2_add_event_attendance_window_controls.py`
+
+Historical rows may still have `null` audit fields.
+
+## Check-In Status Rules
+
+Check-in status is derived from the event timing window:
+
+- before start, inside the early window -> `present`
+- from exact start through the late threshold cutoff -> `late`
+- after the late threshold cutoff while check-in is still open -> `absent`
+
+Important rule:
+
+- exact start time is treated as `late`
+
+The reusable helpers live in:
+
 - `Backend/app/services/event_time_status.py`
-- `Backend/app/routers/attendance.py`
-- `Backend/app/services/notification_center_service.py`
-- `Backend/alembic/versions/a12b34c56d78_add_late_to_attendance_status_enum.py`
+- `Backend/app/services/attendance_status.py`
 
-## What Changed
+## Sign-Out Rules
 
-### Models
+Sign-out is allowed only when:
 
-The SQLAlchemy attendance enum now includes `late`.
+- the event has reached `end_datetime`, or
+- an active early sign-out override is open
 
-The event model now also includes `late_threshold_minutes`.
+If the student signs out during an allowed sign-out window:
 
-### Schemas
+- `check_out_status = "present"`
 
-The FastAPI and Pydantic attendance enum now includes `late`.
+If sign-out is missing or finalized after the effective close:
 
-The event create and update schemas now accept `late_threshold_minutes`.
+- `check_out_status = "absent"`
 
-Additional response models now expose late-aware fields where needed:
+## Final Status Matrix
+
+The backend finalizes `status` with this matrix:
+
+| check_in_status | check_out_status | final status |
+| --- | --- | --- |
+| `present` | `present` | `present` |
+| `late` | `present` | `late` |
+| `absent` | `present` | `absent` |
+| any value | not `present` | `absent` |
+| unknown check-in | `present` | `absent` |
+
+Implementation:
+
+- `Backend/app/services/attendance_status.py`
+
+## Route Behavior
+
+### Manual and operator face-scan attendance
+
+These routes now branch in this order:
+
+1. find the student and current event
+2. if there is an active attendance with no `time_out`, treat the request as sign-out
+3. otherwise evaluate the check-in window and create a new attendance
+
+That behavior is important so sign-out override works correctly.
+
+Routes:
+
+- `POST /attendance/manual`
+- `POST /attendance/face-scan`
+
+### Student face attendance
+
+Student self-scan already follows the same sign-out-first behavior:
+
+- `POST /face/face-scan-with-recognition`
+
+## Automatic Finalization
+
+When an event reaches the effective sign-out close, the backend finalizes remaining attendance:
+
+- open attendances with no `time_out` become:
+  - `check_out_status = "absent"`
+  - final `status = "absent"`
+- students in scope with no attendance row receive an auto-created absent record
+
+Finalization now waits for the effective sign-out close, not the raw `end_datetime`.
+
+Implementation:
+
+- `Backend/app/services/event_attendance_service.py`
+- `Backend/app/services/event_workflow_status.py`
+
+## Reporting Behavior
+
+For reporting and attendance-rate calculations:
+
+- `present` counts as attended
+- `late` counts as attended
+- `absent` does not count as attended
+- `excused` does not count as attended
+
+Existing report models already expose late-aware summary fields such as:
 
 - `ProgramBreakdownItem.late`
-- `AttendanceReportResponse.late_attendees`
 - `StudentAttendanceSummary.late_events`
 
-### Migration
+## Main Backend Touchpoints
 
-The PostgreSQL enum is updated with:
-
-```sql
-ALTER TYPE attendancestatus ADD VALUE IF NOT EXISTS 'late'
-```
-
-### Reports and summaries
-
-Attendance summaries now treat `late` as attended for:
-
-- event attendance report totals
-- student overview attendance rate
-- student attendance report totals
-- attendance summary dashboard counts
-- low-attendance notification calculations
-
-Monthly chart dictionaries now also include a `late` key by default to avoid missing-key errors.
-
-## Main Backend Touchpoints For This Feature
-
+- `Backend/app/models/attendance.py`
 - `Backend/app/models/event.py`
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/schemas/attendance_requests.py`
 - `Backend/app/schemas/event.py`
 - `Backend/app/services/attendance_status.py`
+- `Backend/app/services/event_time_status.py`
 - `Backend/app/services/event_attendance_service.py`
-- `Backend/app/routers/events.py`
 - `Backend/app/routers/attendance.py`
 - `Backend/app/routers/face_recognition.py`
 
@@ -144,10 +153,14 @@ Monthly chart dictionaries now also include a `late` key by default to avoid mis
 
 Recommended checks:
 
-1. Run the Alembic migration to head.
-2. Run the focused attendance status tests.
-3. Create or edit an event with `late_threshold_minutes`.
-4. Sign in after the threshold and confirm the final status becomes `late`.
-5. Mark an event `completed` and confirm students without attendance are materialized as `absent`.
-6. Verify a summary endpoint returns `late` without validation or key errors.
-7. Call `GET /events/{event_id}/time-status` and confirm the computed status changes from `upcoming` to `open`, `late`, and `closed`.
+1. Run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_attendance_status_support.py Backend/app/tests/test_governance_hierarchy_api.py -k "attendance or override"`.
+2. Create an event with:
+   - `early_check_in_minutes`
+   - `late_threshold_minutes`
+   - `sign_out_grace_minutes`
+3. Record check-in before start and confirm `check_in_status = "present"`.
+4. Record check-in at exact start or inside the threshold and confirm `check_in_status = "late"`.
+5. Record check-in after the threshold and confirm `check_in_status = "absent"`.
+6. Try to sign out before sign-out opens and confirm the backend rejects it.
+7. Open `POST /events/{event_id}/sign-out-override/open` and confirm the same active attendance can sign out successfully.
+8. Confirm final rows include `check_in_status`, `check_out_status`, and the correct final `status`.

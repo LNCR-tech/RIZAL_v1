@@ -13,7 +13,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.database import SessionLocal
+from app.core.database import SessionLocal
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.repositories.import_repository import ImportRepository
@@ -26,7 +26,7 @@ from app.services.import_validation_service import (
     validate_headers,
 )
 from app.utils.passwords import generate_secure_password, hash_password_bcrypt
-from app.worker.celery_app import celery_app
+from app.workers.celery_app import celery_app
 from app.models.department import Department
 from app.models.program import Program
 from app.models.school import School
@@ -307,7 +307,7 @@ class StudentImportService:
 
         for row in success_rows:
             celery_app.send_task(
-                "app.worker.tasks.send_student_welcome_email",
+                "app.workers.tasks.send_student_welcome_email",
                 args=[
                     job_id,
                     row["user_id"],
@@ -330,11 +330,19 @@ class StudentImportService:
                 raise RuntimeError("Target school does not exist")
             department_lookup = {
                 department_name.strip().lower(): department_id
-                for department_id, department_name in db.query(Department.id, Department.name).all()
+                for department_id, department_name in (
+                    db.query(Department.id, Department.name)
+                    .filter(Department.school_id == target_school_id)
+                    .all()
+                )
             }
             course_lookup = {
                 course_name.strip().lower(): course_id
-                for course_id, course_name in db.query(Program.id, Program.name).all()
+                for course_id, course_name in (
+                    db.query(Program.id, Program.name)
+                    .filter(Program.school_id == target_school_id)
+                    .all()
+                )
             }
 
         return ValidationContext(

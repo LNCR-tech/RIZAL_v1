@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  FaBullhorn,
+  FaChartBar,
+  FaClipboardList,
   FaFileImport,
   FaKey,
   FaPalette,
+  FaProjectDiagram,
   FaRegListAlt,
   FaSchool,
   FaSitemap,
@@ -74,7 +78,7 @@ const SchoolITDashboard = () => {
               <div>
                 <h3 className="mb-1">{settings.school_name}</h3>
                 <p className="text-muted mb-0">
-                  School IT control center for branding and onboarding workflows.
+                  Campus Admin control center for branding and onboarding workflows.
                 </p>
               </div>
             </div>
@@ -89,7 +93,7 @@ const SchoolITDashboard = () => {
 
         <section className="row g-3">
           <div className="col-md-6">
-            <Link to="/school_it_events" className="text-decoration-none">
+            <Link to="/campus_admin_events" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -105,7 +109,55 @@ const SchoolITDashboard = () => {
           </div>
 
           <div className="col-md-6">
-            <Link to="/school_it_create_department_program" className="text-decoration-none">
+            <Link to="/campus_admin_reports" className="text-decoration-none">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h5 className="card-title">
+                    <FaChartBar className="me-2" />
+                    Reports
+                  </h5>
+                  <p className="card-text text-muted mb-0">
+                    Review school-scoped event attendance reports and export summaries.
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          <div className="col-md-6">
+            <Link to="/campus_admin_attendance" className="text-decoration-none">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h5 className="card-title">
+                    <FaClipboardList className="me-2" />
+                    Attendance Monitor
+                  </h5>
+                  <p className="card-text text-muted mb-0">
+                    Track student attendance health across the campus with scoped reports.
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          <div className="col-md-6">
+            <Link to="/campus_admin_announcements" className="text-decoration-none">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h5 className="card-title">
+                    <FaBullhorn className="me-2" />
+                    Announcements Monitor
+                  </h5>
+                  <p className="card-text text-muted mb-0">
+                    Monitor SSG, SG, and ORG announcements across your own campus only.
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          <div className="col-md-6">
+            <Link to="/campus_admin_create_department_program" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -121,7 +173,7 @@ const SchoolITDashboard = () => {
           </div>
 
           <div className="col-md-6">
-            <Link to="/school_it_branding" className="text-decoration-none">
+            <Link to="/campus_admin_branding" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -137,7 +189,7 @@ const SchoolITDashboard = () => {
           </div>
 
           <div className="col-md-6">
-            <Link to="/school_it_import_users" className="text-decoration-none">
+            <Link to="/campus_admin_import_users" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -153,7 +205,7 @@ const SchoolITDashboard = () => {
           </div>
 
           <div className="col-md-6">
-            <Link to="/school_it_password_resets" className="text-decoration-none">
+            <Link to="/campus_admin_password_resets" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -169,7 +221,7 @@ const SchoolITDashboard = () => {
           </div>
 
           <div className="col-md-6">
-            <Link to="/school_it_manage_users" className="text-decoration-none">
+            <Link to="/campus_admin_manage_users" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -185,7 +237,24 @@ const SchoolITDashboard = () => {
           </div>
 
           <div className="col-md-6">
-            <Link to="/school_it_face_verification" className="text-decoration-none">
+            <Link to="/campus_admin_governance_hierarchy" className="text-decoration-none">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h5 className="card-title">
+                    <FaProjectDiagram className="me-2" />
+                    Manage SSG
+                  </h5>
+                  <p className="card-text text-muted mb-0">
+                    Edit the fixed campus SSG, assign officers from imported students, and manage
+                    each officer&apos;s position and permissions.
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          <div className="col-md-6">
+            <Link to="/campus_admin_face_verification" className="text-decoration-none">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body">
                   <h5 className="card-title">
@@ -193,7 +262,7 @@ const SchoolITDashboard = () => {
                     Facial Verification
                   </h5>
                   <p className="card-text text-muted mb-0">
-                    Manage live face enrollment and anti-spoof verification for School IT access.
+                    Manage live face enrollment and anti-spoof verification for Campus Admin access.
                   </p>
                 </div>
               </div>

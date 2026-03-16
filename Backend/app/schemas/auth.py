@@ -21,6 +21,7 @@ class Token(BaseModel):
     accent_color: Optional[str] = None
     must_change_password: Optional[bool] = None
     change_password_endpoint: Optional[str] = None
+    password_change_recommended: Optional[bool] = None
     session_id: Optional[str] = None
     mfa_required: Optional[bool] = None
     mfa_challenge_id: Optional[str] = None
@@ -28,6 +29,7 @@ class Token(BaseModel):
     face_verification_required: Optional[bool] = None
     face_reference_enrolled: Optional[bool] = None
     face_verification_pending: Optional[bool] = None
+    
 
 class TokenData(BaseModel):
     email: Optional[str] = None
@@ -48,10 +50,8 @@ class ChangePasswordRequest(BaseModel):
 
 class RoleEnum(str, Enum):
     admin = "admin"
-    school_IT = "school_IT"
+    campus_admin = "campus_admin"
     student = "student"
-    ssg = "ssg"
-    event_organizer = "event-organizer"  # Added missing role
     
     @classmethod
     def has_value(cls, value):

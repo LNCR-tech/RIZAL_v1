@@ -3,8 +3,6 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from datetime import datetime
 import bcrypt
-from typing import Optional
-from app.models.associations import event_ssg_association
 
 class User(Base):
     __tablename__ = "users"
@@ -18,12 +16,12 @@ class User(Base):
     last_name = Column(String(100))
     is_active = Column(Boolean, default=True, index=True)
     must_change_password = Column(Boolean, default=True, nullable=False, index=True)
+    should_prompt_password_change = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    ssg_profile = relationship("SSGProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     school = relationship("School", back_populates="users")
     face_profile = relationship("UserFaceProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
@@ -92,17 +90,3 @@ class StudentProfile(Base):
         self.is_face_registered = True
         self.last_face_update = datetime.utcnow()
     # ==========================
-
-class SSGProfile(Base):
-    __tablename__ = "ssg_profiles"
-    
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
-    position = Column(String(100), index=True)
-    
-    user = relationship("User", back_populates="ssg_profile")
-    assigned_events = relationship(  # Add this
-        "Event",
-        secondary=event_ssg_association,
-        back_populates="ssg_members",
-    )

@@ -6,10 +6,16 @@ import math
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user_with_roles, get_school_id_or_403, has_any_role
-from app.database import get_db
+from app.core.security import (
+    get_current_application_user,
+    get_current_student_user,
+    get_school_id_or_403,
+    has_any_role,
+)
+from app.core.dependencies import get_db
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
+from app.models.governance_hierarchy import PermissionCode
 from app.models.user import StudentProfile, User as UserModel
 from app.schemas.event import EventLocationVerificationResponse
 from app.schemas.face_recognition import (
@@ -27,8 +33,9 @@ from app.services.event_geolocation import (
     find_attendance_geolocation_travel_risk,
     verify_event_geolocation_for_attendance,
 )
-from app.services.event_time_status import get_attendance_decision
+from app.services.event_time_status import get_attendance_decision, get_sign_out_decision
 from app.services.event_workflow_status import sync_event_workflow_status
+from app.services import governance_hierarchy_service
 
 
 router = APIRouter(prefix="/face", tags=["face-recognition"])
@@ -74,18 +81,35 @@ def _get_school_event_or_404(db: Session, event_id: int, school_id: int) -> Even
     return event
 
 
-def _attendance_time_window_detail(event: EventModel) -> dict[str, object]:
-    decision = get_attendance_decision(
-        start_time=event.start_datetime,
-        end_time=event.end_datetime,
-        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
-    )
+def _serialize_attendance_decision(decision) -> dict[str, object]:
     payload = decision.to_dict()
-    for key in ("current_time", "start_time", "end_time", "late_threshold_time"):
-        value = payload.get(key)
+    for key, value in list(payload.items()):
         if isinstance(value, datetime):
             payload[key] = value.isoformat()
     return payload
+
+
+def _attendance_time_window_detail(event: EventModel, *, action: str = "check_in") -> dict[str, object]:
+    decision = (
+        get_sign_out_decision(
+            start_time=event.start_datetime,
+            end_time=event.end_datetime,
+            early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
+            late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+            sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+            sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        )
+        if action == "sign_out"
+        else get_attendance_decision(
+            start_time=event.start_datetime,
+            end_time=event.end_datetime,
+            early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
+            late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+            sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+            sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        )
+    )
+    return _serialize_attendance_decision(decision)
 
 
 def _attendance_scan_error_detail(
@@ -134,7 +158,7 @@ def _student_candidates_for_school(db: Session, school_id: int) -> list[tuple[St
 @router.post("/register", response_model=FaceRegistrationResponse)
 def register_face_from_base64(
     payload: Base64ImageRequest,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_student_user),
     db: Session = Depends(get_db),
 ):
     profile = _require_student_profile(current_user)
@@ -160,7 +184,7 @@ def register_face_from_base64(
 @router.post("/register-upload", response_model=FaceRegistrationResponse)
 async def register_face_from_upload(
     file: UploadFile = File(...),
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_student_user),
     db: Session = Depends(get_db),
 ):
     profile = _require_student_profile(current_user)
@@ -186,7 +210,7 @@ async def register_face_from_upload(
 @router.post("/verify", response_model=FaceVerificationResponse)
 def verify_face_against_registered_students(
     payload: Base64ImageRequest,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     school_id = get_school_id_or_403(current_user)
@@ -242,10 +266,27 @@ def verify_face_against_registered_students(
 @router.post("/face-scan-with-recognition", response_model=FaceAttendanceScanResponse)
 def record_attendance_from_face_scan(
     payload: FaceAttendanceScanRequest,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
-    actor_is_staff_scan = has_any_role(current_user, ["ssg", "admin"])
+    actor_is_staff_scan = has_any_role(
+        current_user,
+        ["admin", "campus_admin"],
+    )
+    if not actor_is_staff_scan and governance_hierarchy_service.get_user_governance_unit_types(
+        db,
+        current_user=current_user,
+    ):
+        governance_hierarchy_service.ensure_governance_permission(
+            db,
+            current_user=current_user,
+            permission_code=PermissionCode.MANAGE_ATTENDANCE,
+            detail=(
+                "This governance account has no attendance features yet. "
+                "Campus Admin must assign manage_attendance to the governance member."
+            ),
+        )
+        actor_is_staff_scan = True
     actor_is_student_self_scan = (
         not actor_is_staff_scan and has_any_role(current_user, ["student"])
     )
@@ -253,7 +294,7 @@ def record_attendance_from_face_scan(
     if not actor_is_staff_scan and not actor_is_student_self_scan:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Student, SSG, or admin access is required for face attendance scans.",
+            detail="Student, governance attendance operator, or admin access is required for face attendance scans.",
         )
 
     school_id = get_school_id_or_403(current_user)
@@ -364,13 +405,29 @@ def record_attendance_from_face_scan(
     )
 
     if active_attendance is not None:
-        active_attendance.time_out = scanned_at
-        finalized_status, finalized_note = finalize_completed_attendance_status(
-            event_start=event.start_datetime,
-            event_end=event.end_datetime,
-            time_in=active_attendance.time_in,
-            time_out=active_attendance.time_out,
+        sign_out_decision = get_sign_out_decision(
+            start_time=event.start_datetime,
+            end_time=event.end_datetime,
+            early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
             late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+            sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+            sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        )
+        if not sign_out_decision.attendance_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_attendance_scan_error_detail(
+                    code=sign_out_decision.reason_code or "attendance_not_allowed",
+                    message=sign_out_decision.message,
+                    **_attendance_time_window_detail(event, action="sign_out"),
+                ),
+            )
+
+        active_attendance.time_out = scanned_at
+        active_attendance.check_out_status = "present"
+        finalized_status, finalized_note = finalize_completed_attendance_status(
+            check_in_status=active_attendance.check_in_status or active_attendance.status,
+            check_out_status=active_attendance.check_out_status,
         )
         active_attendance.status = finalized_status
         active_attendance.notes = finalized_note
@@ -399,7 +456,7 @@ def record_attendance_from_face_scan(
                 if finalized_status == "present"
                 else "Check-out recorded successfully. Attendance was marked late based on the event late threshold."
                 if finalized_status == "late"
-                else "Check-out recorded, but the attendance was marked absent because it did not align with the event schedule."
+                else "Check-out recorded successfully. The attendance remains absent based on the check-in window."
             ),
         )
 
@@ -421,7 +478,10 @@ def record_attendance_from_face_scan(
     attendance_decision = get_attendance_decision(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
+        early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+        sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+        sign_out_override_until=getattr(event, "sign_out_override_until", None),
     )
     if not attendance_decision.attendance_allowed:
         raise HTTPException(
@@ -439,6 +499,8 @@ def record_attendance_from_face_scan(
         time_in=scanned_at,
         method="face_scan",
         status=attendance_decision.attendance_status or "absent",
+        check_in_status=attendance_decision.attendance_status,
+        check_out_status=None,
         verified_by=current_user.id,
         notes="Pending sign-out.",
         geo_distance_m=geo_response.distance_m if geo_response else None,
@@ -454,9 +516,11 @@ def record_attendance_from_face_scan(
     db.refresh(attendance)
 
     time_in_message = (
-        "Check-in recorded successfully. Sign out before the event ends to complete your attendance."
+        "Check-in recorded successfully. Sign out during the sign-out window to complete your attendance."
         if attendance_decision.attendance_status == "present"
-        else "Check-in recorded successfully, but it is already beyond the late threshold. Sign out before the event ends to finalize attendance."
+        else "Check-in recorded successfully, but it is already inside the late window. Sign out during the sign-out window to finalize attendance."
+        if attendance_decision.attendance_status == "late"
+        else "Check-in recorded successfully, but it is already beyond the late threshold. Sign out during the sign-out window to finalize your absent attendance record."
     )
 
     return FaceAttendanceScanResponse(

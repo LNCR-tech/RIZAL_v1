@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
-import NavbarStudentSSGEventOrganizer from "../components/NavbarStudentSSGEventOrganizer";
-import { NavbarSSG } from "../components/NavbarSSG";
 import { NavbarStudent } from "../components/NavbarStudent";
+import SsgFeatureShell from "../components/SsgFeatureShell";
+import type { EventAttendanceWithStudent } from "../api/eventsApi";
 
 interface ManualAttendanceProps {
   role: string;
@@ -37,6 +37,10 @@ interface Student {
 
 export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
   const navigate = useNavigate();
+  const governanceContext =
+    role === "ssg" ? "SSG" : role === "sg" ? "SG" : role === "org" ? "ORG" : null;
+  const isGovernanceRole = Boolean(governanceContext);
+  const governanceUnitType = (governanceContext ?? "SSG") as "SSG" | "SG" | "ORG";
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [studentId, setStudentId] = useState("");
@@ -49,6 +53,14 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
   const [markingAbsent, setMarkingAbsent] = useState(false);
 
   const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const withGovernanceContext = (path: string, params?: Record<string, string | number | boolean>) => {
+    const query = new URLSearchParams();
+    if (governanceContext) query.set("governance_context", governanceContext);
+    Object.entries(params || {}).forEach(([key, value]) => {
+      query.set(key, String(value));
+    });
+    return `${BASE_URL}${path}${query.toString() ? `?${query.toString()}` : ""}`;
+  };
   const getAuthToken = () =>
     localStorage.getItem("authToken") ||
     localStorage.getItem("token") ||
@@ -97,7 +109,7 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
           } else if (typeof errorData === "object") {
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (e) {
+        } catch {
           console.error("API Error (non-JSON):", errorText);
           errorMessage = errorText || errorMessage;
         }
@@ -127,7 +139,7 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
   const fetchEvents = async () => {
     try {
       console.log("Fetching events from:", `${BASE_URL}/events/`);
-      const response = await fetchWithAuth(`${BASE_URL}/events/`);
+      const response = await fetchWithAuth(withGovernanceContext("/events/"));
       if (!response.ok) {
         console.error("Failed to fetch events, status:", response.status);
         const errorText = await response.text();
@@ -149,12 +161,14 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
 
     try {
       const response = await fetchWithAuth(
-        `${BASE_URL}/attendance/events/${selectedEventId}/attendances?active_only=true`
+        withGovernanceContext(`/attendance/events/${selectedEventId}/attendances`, {
+          active_only: true,
+        })
       );
       const attendancesWithStudents = await response.json();
 
       // Transform the data to match your frontend interface
-      const formattedAttendances = attendancesWithStudents.map((item: any) => ({
+      const formattedAttendances = attendancesWithStudents.map((item: EventAttendanceWithStudent) => ({
         ...item.attendance,
         student: {
           id: item.attendance.student_id,
@@ -187,7 +201,7 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
 
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`${BASE_URL}/attendance/manual`, {
+      const response = await fetchWithAuth(withGovernanceContext("/attendance/manual"), {
         method: "POST",
         body: JSON.stringify({
           event_id: selectedEventId,
@@ -196,8 +210,13 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
         }),
       });
 
-      await response.json();
-      showMessage(`Time in recorded successfully for ${studentId}`, "success");
+      const payload = await response.json();
+      showMessage(
+        payload?.action === "time_out"
+          ? `Time out recorded successfully for ${studentId}`
+          : `Time in recorded successfully for ${studentId}`,
+        "success"
+      );
       setStudentId("");
       setNotes("");
       fetchActiveAttendances(); // Refresh active attendances
@@ -218,7 +237,7 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
     setLoading(true);
     try {
       const response = await fetchWithAuth(
-        `${BASE_URL}/attendance/${attendanceId}/time-out`,
+        withGovernanceContext(`/attendance/${attendanceId}/time-out`),
         {
           method: "POST",
         }
@@ -257,7 +276,9 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
     try {
       // Fixed: Send event_id as query parameter instead of request body
       const response = await fetchWithAuth(
-        `${BASE_URL}/attendance/mark-absent-no-timeout?event_id=${selectedEventId}`,
+        withGovernanceContext("/attendance/mark-absent-no-timeout", {
+          event_id: selectedEventId,
+        }),
         {
           method: "POST",
           // Remove the body since event_id is now in query params
@@ -301,14 +322,185 @@ export const ManualAttendance: React.FC<ManualAttendanceProps> = ({ role }) => {
   // Get selected event details for display
   const selectedEvent = events.find((event) => event.id === selectedEventId);
 
+  if (isGovernanceRole) {
+    const manualStats = [
+      {
+        label: "Available Events",
+        value: events.length,
+        hint: "Events currently available for attendance work",
+      },
+      {
+        label: "Selected Event",
+        value: selectedEvent ? selectedEvent.name : "None",
+        hint: "Current event receiving manual attendance updates",
+      },
+      {
+        label: "Active Attendances",
+        value: activeAttendances.length,
+        hint: "Students who have timed in but not timed out",
+      },
+      {
+        label: "Absent Flow",
+        value: markingAbsent ? "Running" : "Ready",
+        hint: "Bulk absent marking status for open sessions",
+      },
+    ];
+
+    return (
+      <SsgFeatureShell
+        eyebrow={`${governanceContext} / Manual Attendance`}
+        title={
+          governanceContext === "SSG"
+            ? "Manual attendance workspace"
+            : governanceContext === "SG"
+              ? "Department attendance workspace"
+              : "Organization attendance workspace"
+        }
+        description={
+          governanceContext === "SSG"
+            ? "Record student time in, time out, and handle remaining open attendance sessions for the selected event."
+            : governanceContext === "SG"
+              ? "Record department attendance, manage time out, and handle remaining open attendance sessions for the selected event."
+              : "Record organization attendance, manage time out, and handle remaining open attendance sessions for the selected event."
+        }
+        stats={manualStats}
+        unitType={governanceUnitType}
+      >
+        {message && (
+          <div className={`alert ${messageType === "success" ? "alert-success" : "alert-danger"} mb-0`}>
+            {message}
+          </div>
+        )}
+
+        <section className="ssg-feature-form-grid">
+          <article className="ssg-feature-card">
+            <div className="ssg-feature-card__header">
+              <div>
+                <h2 className="ssg-feature-card__title">Record time in</h2>
+                <p className="ssg-feature-card__subtitle">
+                  Select an event and submit the student ID to add a manual attendance record.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleTimeIn} className="ssg-feature-stack">
+              <div className="ssg-feature-field">
+                <label htmlFor="event-select">Select Event</label>
+                <select
+                  id="event-select"
+                  className="ssg-feature-select"
+                  value={selectedEventId || ""}
+                  onChange={(e) => setSelectedEventId(Number(e.target.value) || null)}
+                  required
+                >
+                  <option value="">Choose an event...</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name} - {formatDate(event.start_datetime)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="ssg-feature-field">
+                <label htmlFor="student-id">Student ID</label>
+                <input
+                  id="student-id"
+                  className="ssg-feature-input"
+                  type="text"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  placeholder="Enter student ID"
+                  required
+                />
+              </div>
+
+              <div className="ssg-feature-field ssg-feature-field--full">
+                <label htmlFor="notes">Notes</label>
+                <textarea
+                  id="notes"
+                  className="ssg-feature-textarea"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any notes..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="ssg-inline-actions">
+                <button type="submit" disabled={loading} className="btn btn-primary">
+                  {loading ? "Recording..." : "Record Time In"}
+                </button>
+              </div>
+            </form>
+          </article>
+
+          <article className="ssg-feature-card">
+            <div className="ssg-feature-card__header">
+              <div>
+                <h2 className="ssg-feature-card__title">Active attendances</h2>
+                <p className="ssg-feature-card__subtitle">
+                  Open sessions for the selected event that still need time out or absent handling.
+                </p>
+              </div>
+              {activeAttendances.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAbsent}
+                  disabled={markingAbsent}
+                  className="btn btn-outline-warning"
+                  title="Mark all active attendances as absent"
+                >
+                  {markingAbsent ? "Marking Absent..." : "Mark All as Absent"}
+                </button>
+              )}
+            </div>
+
+            {selectedEvent && (
+              <div className="ssg-feature-empty">
+                Event: <strong>{selectedEvent.name}</strong> ({activeAttendances.length} active)
+              </div>
+            )}
+
+            {!selectedEventId ? (
+              <div className="ssg-feature-empty">Select an event first to view active attendances.</div>
+            ) : activeAttendances.length === 0 ? (
+              <div className="ssg-feature-empty">No active attendances found for this event.</div>
+            ) : (
+              <div className="ssg-feature-list">
+                {activeAttendances.map((attendance) => (
+                  <div key={attendance.id} className="ssg-feature-list-item">
+                    <div className="ssg-feature-list-item__meta">
+                      <strong>
+                        {attendance.student.student_id} - {attendance.student.name}
+                      </strong>
+                      <span>
+                        Time In: {formatTime(attendance.time_in)} on {formatDate(attendance.time_in)}
+                      </span>
+                      {attendance.notes && <small>Notes: {attendance.notes}</small>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTimeOut(attendance.id, attendance.student.student_id)}
+                      disabled={loading}
+                      className="btn btn-outline-primary"
+                    >
+                      {loading ? "Recording..." : "Record Time Out"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        </section>
+      </SsgFeatureShell>
+    );
+  }
+
   return (
     <div className="attendance-container">
       {role === "student-ssg" ? (
         <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
-      ) : role === "ssg" ? (
-        <NavbarSSG />
       ) : (
         <NavbarStudent />
       )}

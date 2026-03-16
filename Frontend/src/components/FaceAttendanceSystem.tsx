@@ -23,6 +23,7 @@ export default function FaceAttendanceSystem() {
   // Initialize camera
   useEffect(() => {
     if (!cameraActive) return;
+    const currentVideo = videoRef.current;
 
     const initCamera = async () => {
       try {
@@ -34,8 +35,8 @@ export default function FaceAttendanceSystem() {
           },
           audio: false,
         });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        if (currentVideo) {
+          currentVideo.srcObject = stream;
         }
       } catch (err) {
         console.error("Camera error:", err);
@@ -46,8 +47,8 @@ export default function FaceAttendanceSystem() {
     initCamera();
 
     return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (currentVideo?.srcObject) {
+        const stream = currentVideo.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
       }
     };

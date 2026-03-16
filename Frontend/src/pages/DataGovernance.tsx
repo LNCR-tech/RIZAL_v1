@@ -14,8 +14,7 @@ import {
   updateDataRequestStatus,
   updateGovernanceSettings,
 } from "../api/platformOpsApi";
-
-const normalizeRole = (role: string) => role.trim().toLowerCase().replace(/_/g, "-");
+import { hasAnyRole, isCampusAdminRole } from "../utils/roleUtils";
 
 const getStoredRoles = (): string[] => {
   try {
@@ -30,8 +29,8 @@ const getStoredRoles = (): string[] => {
 
 const DataGovernance = () => {
   const roles = getStoredRoles();
-  const isSchoolIT = roles.some((role) => normalizeRole(role) === "school-it");
-  const isPrivileged = roles.some((role) => ["admin", "school-it"].includes(normalizeRole(role)));
+  const isSchoolIT = roles.some(isCampusAdminRole);
+  const isPrivileged = hasAnyRole(roles, "admin", "campus_admin");
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;
 
   const [settings, setSettings] = useState<GovernanceSettings | null>(null);

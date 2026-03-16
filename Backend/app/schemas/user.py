@@ -1,7 +1,7 @@
 # Reorder your classes in app/schemas/user.py:
 
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import List, Optional, ForwardRef
+from typing import List, Optional
 from enum import Enum
 from datetime import datetime
 from app.schemas.role import Role
@@ -12,20 +12,8 @@ from app.schemas.attendance import Attendance  # Now safe to import
 
 class RoleEnum(str, Enum):
     student = "student"
-    ssg = "ssg"
-    event_organizer = "event-organizer"
-    school_IT = "school_IT"
+    campus_admin = "campus_admin"
     admin = "admin"
-
-class SSGPositionEnum(str, Enum):
-    PRESIDENT = "President"
-    VICE_PRESIDENT = "Vice President"
-    SECRETARY = "Secretary"
-    TREASURER = "Treasurer"
-    AUDITOR = "Auditor"
-    PIO = "Public Information Officer"
-    REPRESENTATIVE = "Representative"
-    OTHER = "Other"
 
 # Base classes first
 class UserBase(BaseModel):
@@ -65,13 +53,6 @@ class StudentProfileWithAttendances(StudentProfileBase):
     class Config:
         from_attributes = True
 
-class SSGProfileBase(BaseModel):
-    position: SSGPositionEnum = Field(
-        ...,
-        description="Standardized SSG position title",
-        example="President"
-    )
-
 # Create and update schemas
 class UserCreate(UserBase):
     password: Optional[str] = None
@@ -98,28 +79,6 @@ class StudentProfileCreate(StudentProfileBase):
         if not any(char.isdigit() for char in v):
             raise ValueError("Student ID must contain at least one number")
         return v.upper()
-
-class SSGProfileCreate(SSGProfileBase):
-    user_id: int = Field(..., description="The ID of the user to be assigned as an SSG officer")
-
-    @validator('position', pre=True)
-    def validate_position(cls, v):
-        if isinstance(v, str):
-            v = v.strip().title()
-            try:
-                return SSGPositionEnum(v)
-            except ValueError:
-                variations = {
-                    "VP": SSGPositionEnum.VICE_PRESIDENT,
-                    "V.P.": SSGPositionEnum.VICE_PRESIDENT,
-                    "P.R.O.": SSGPositionEnum.PIO
-                }
-                if v in variations:
-                    return variations[v]
-                raise ValueError(
-                    f"Invalid position. Valid options: {[e.value for e in SSGPositionEnum]}"
-                )
-        return v
 
 # For password reset/change
 class PasswordUpdate(BaseModel):
@@ -163,9 +122,6 @@ class UserFilter(BaseModel):
     role: Optional[RoleEnum] = None
     is_active: Optional[bool] = None
 
-# Use forward references for circular dependencies
-UserRef = ForwardRef('User')
-
 class UserRoleResponse(BaseModel):
     role: Role
     
@@ -181,13 +137,6 @@ class StudentProfile(StudentProfileBase):
     class Config:
         from_attributes = True
 
-class SSGProfile(SSGProfileBase):
-    id: int
-    user: UserRef  # Using the forward reference
-    
-    class Config:
-        from_attributes = True
-
 class User(UserBase):
     id: int
     school_id: Optional[int] = None
@@ -198,11 +147,14 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+
+class UserCreateResponse(User):
+    generated_temporary_password: Optional[str] = None
+
+
 class UserWithRelations(User):
     student_profile: Optional[StudentProfile] = None
-    ssg_profile: Optional[SSGProfile] = None
 
 # Resolve forward references
 User.update_forward_refs()
-SSGProfile.update_forward_refs()
 StudentProfileWithAttendances.update_forward_refs()

@@ -162,8 +162,8 @@ const SchoolImportUsers = () => {
           <div className="card-body">
             <h3 className="mb-2">Import Students via Excel</h3>
             <p className="text-muted">
-              Upload your student sheet. `School_ID` is not required because students are always imported into your own
-              school automatically.
+              Upload your student sheet. Imported accounts are created as students in your own
+              campus automatically, and officer assignments happen later from Manage SSG.
             </p>
 
             <div className="d-flex flex-wrap gap-2 mb-3">

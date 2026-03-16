@@ -3,6 +3,11 @@ from datetime import date, datetime
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
+from app.core.event_defaults import (
+    DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
+    DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
+    DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
+)
 from app.models.base import Base
 
 
@@ -57,6 +62,21 @@ class SchoolSetting(Base):
     primary_color = Column(String(7), nullable=False, default="#162F65")
     secondary_color = Column(String(7), nullable=False, default="#2C5F9E")
     accent_color = Column(String(7), nullable=False, default="#4A90E2")
+    event_default_early_check_in_minutes = Column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
+    )
+    event_default_late_threshold_minutes = Column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
+    )
+    event_default_sign_out_grace_minutes = Column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
+    )
     updated_at = Column(
         DateTime,
         nullable=False,

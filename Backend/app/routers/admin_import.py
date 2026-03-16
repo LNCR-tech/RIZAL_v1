@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import get_current_user_with_roles, has_any_role
-from app.database import get_db
+from app.core.dependencies import get_db
 from app.models.department import Department
 from app.models.import_job import BulkImportJob
 from app.models.program import Program
@@ -39,7 +39,7 @@ from app.services.import_validation_service import (
     validate_and_transform_row,
     validate_headers,
 )
-from app.worker.celery_app import celery_app
+from app.workers.celery_app import celery_app
 
 router = APIRouter(prefix="/api/admin", tags=["admin-import"])
 
@@ -47,10 +47,10 @@ router = APIRouter(prefix="/api/admin", tags=["admin-import"])
 def get_current_admin_or_school_it(
     current_user: User = Depends(get_current_user_with_roles),
 ) -> User:
-    if not has_any_role(current_user, ["admin", "school_IT"]):
+    if not has_any_role(current_user, ["admin", "campus_admin"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or School IT privileges required",
+            detail="Admin or Campus Admin privileges required",
         )
     return current_user
 
@@ -208,7 +208,7 @@ def _queue_import_job_from_file_bytes(
         action="student_bulk_import_retry" if retried_from_job_id else "student_bulk_import_attempt",
     )
     db.commit()
-    celery_app.send_task("app.worker.tasks.process_student_import_job", args=[job_id])
+    celery_app.send_task("app.workers.tasks.process_student_import_job", args=[job_id])
 
     return ImportJobCreateResponse(
         job_id=job_id,
@@ -220,11 +220,19 @@ def _queue_import_job_from_file_bytes(
 def _build_validation_context(db: Session, target_school_id: int) -> ValidationContext:
     department_lookup = {
         name.strip().lower(): department_id
-        for department_id, name in db.query(Department.id, Department.name).all()
+        for department_id, name in (
+            db.query(Department.id, Department.name)
+            .filter(Department.school_id == target_school_id)
+            .all()
+        )
     }
     course_lookup = {
         name.strip().lower(): program_id
-        for program_id, name in db.query(Program.id, Program.name).all()
+        for program_id, name in (
+            db.query(Program.id, Program.name)
+            .filter(Program.school_id == target_school_id)
+            .all()
+        )
     }
     return ValidationContext(
         target_school_id=target_school_id,
@@ -523,3 +531,4 @@ def download_import_errors(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=f"import_{job.id}_failed_rows.xlsx",
     )
+

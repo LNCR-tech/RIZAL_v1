@@ -18,10 +18,10 @@ from app.routers import (
     security_center,
     subscription,
     governance,
+    governance_hierarchy,
     face_recognition,
 )
 from pathlib import Path
-
 
 app = FastAPI()
 settings = get_settings()
@@ -50,6 +50,7 @@ app.include_router(notifications.router)
 app.include_router(security_center.router)
 app.include_router(subscription.router)
 app.include_router(governance.router)
+app.include_router(governance_hierarchy.router)
 app.include_router(face_recognition.router)
 
 logo_storage_dir = Path(settings.school_logo_storage_dir)
@@ -74,5 +75,6 @@ async def root():
             "face": "/face",
             "subscription": "/api/subscription/me",
             "governance": "/api/governance/settings/me",
+            "governance_hierarchy": "/api/governance/units",
         }
     }

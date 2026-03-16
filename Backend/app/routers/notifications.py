@@ -3,8 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user_with_roles, has_any_role
-from app.database import get_db
+from app.core.security import (
+    get_current_admin_or_campus_admin,
+    get_current_application_user,
+    has_any_role,
+)
+from app.core.dependencies import get_db
 from app.models.platform_features import NotificationLog
 from app.models.user import User
 from app.schemas.notification import (
@@ -40,7 +44,7 @@ def _resolve_school_scope(current_user: User, requested_school_id: int | None = 
 
 @router.get("/preferences/me", response_model=NotificationPreferenceResponse)
 def get_my_notification_preferences(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     pref = get_or_create_notification_preference(db, user_id=current_user.id)
@@ -52,7 +56,7 @@ def get_my_notification_preferences(
 @router.put("/preferences/me", response_model=NotificationPreferenceResponse)
 def update_my_notification_preferences(
     payload: NotificationPreferenceUpdate,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     pref = get_or_create_notification_preference(db, user_id=current_user.id)
@@ -82,12 +86,9 @@ def list_notification_logs(
     status_value: str | None = Query(default=None, alias="status"),
     user_id: int | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
-
     actor_school_id = getattr(current_user, "school_id", None)
     is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
 
@@ -116,7 +117,7 @@ def list_notification_logs(
 @router.post("/test", response_model=NotificationDispatchSummary)
 def send_test_notification(
     payload: NotificationTestRequest,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     message = payload.message or "This is a test notification from VALID8."
@@ -143,11 +144,9 @@ def send_test_notification(
 def dispatch_missed_events_notifications(
     school_id: int | None = Query(default=None),
     lookback_days: int = Query(default=14, ge=1, le=90),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_scope(current_user, school_id)
 
     result = dispatch_missed_event_notifications(
@@ -164,11 +163,9 @@ def dispatch_low_attendance_alerts(
     school_id: int | None = Query(default=None),
     threshold_percent: float = Query(default=75.0, ge=1, le=100),
     min_records: int = Query(default=3, ge=1, le=100),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_scope(current_user, school_id)
 
     result = dispatch_low_attendance_notifications(
@@ -184,12 +181,9 @@ def dispatch_low_attendance_alerts(
 @router.post("/dispatch/security", response_model=NotificationDispatchSummary)
 def dispatch_security_notification(
     payload: SecurityNotificationRequest,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
-
     target_user = db.query(User).filter(User.id == payload.user_id).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="Target user not found")
@@ -215,3 +209,4 @@ def dispatch_security_notification(
         skipped=1 if status_value == "skipped" else 0,
         category="account_security",
     )
+

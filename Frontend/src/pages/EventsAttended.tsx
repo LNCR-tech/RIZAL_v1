@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { FaSearch } from "react-icons/fa";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { FaArrowRight, FaCalendarAlt, FaCheckCircle, FaClock, FaSearch } from "react-icons/fa";
 import { fetchMyAttendanceRecords, type AttendanceRecord } from "../api/eventsApi";
 import { NavbarStudent } from "../components/NavbarStudent";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
-import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
 
 interface EventsAttendedProps {
   role: string;
@@ -24,10 +24,25 @@ const getStatusLabel = (status: AttendanceRecord["status"]) => {
   }
 };
 
+const resolveRolePaths = (role: string) => {
+  if (role === "student-ssg") {
+    return {
+      upcoming: "/studentssg_upcoming_events",
+      checkIn: "/student_event_checkin",
+    };
+  }
+
+  return {
+    upcoming: "/student_upcoming_events",
+    checkIn: "/student_event_checkin",
+  };
+};
+
 export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const rolePaths = useMemo(() => resolveRolePaths(role), [role]);
 
   useEffect(() => {
     const fetchMyAttendance = async () => {
@@ -60,24 +75,77 @@ export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
     });
   };
 
-  const filteredRecords = records.filter((record) =>
-    record.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredRecords = useMemo(
+    () =>
+      records
+        .filter((record) =>
+          record.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .sort(
+          (left, right) =>
+            new Date(right.time_in).getTime() - new Date(left.time_in).getTime()
+        ),
+    [records, searchTerm]
   );
+
+  const summaryCards = useMemo(() => {
+    const attendedStatuses = new Set(["present", "late", "excused"]);
+
+    return [
+      {
+        label: "Recorded Events",
+        value: records.length,
+        icon: <FaCalendarAlt />,
+      },
+      {
+        label: "Attended",
+        value: records.filter((record) => attendedStatuses.has(record.status)).length,
+        icon: <FaCheckCircle />,
+      },
+      {
+        label: "Late Arrivals",
+        value: records.filter((record) => record.status === "late").length,
+        icon: <FaClock />,
+      },
+    ];
+  }, [records]);
 
   return (
     <div className="events-attended">
       {role === "student-ssg" ? (
         <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
       ) : (
         <NavbarStudent />
       )}
 
       <div className="container">
-        <div className="header">
-          <h2>My Attendance Records</h2>
-          <p>View your event attendance history</p>
+        <div className="hero">
+          <div className="header">
+            <span className="eyebrow">Student Attendance</span>
+            <h2>Events Attended</h2>
+            <p>Review your check-ins, time-outs, and attendance status across school events.</p>
+          </div>
+
+          <div className="hero-actions">
+            <Link to={rolePaths.upcoming} className="hero-link hero-link--secondary">
+              Upcoming Events
+              <FaArrowRight />
+            </Link>
+            <Link to={rolePaths.checkIn} className="hero-link">
+              Face Attendance
+              <FaArrowRight />
+            </Link>
+          </div>
+        </div>
+
+        <div className="summary-grid">
+          {summaryCards.map((card) => (
+            <div key={card.label} className="summary-card">
+              <span className="summary-card__icon">{card.icon}</span>
+              <strong>{card.value}</strong>
+              <span>{card.label}</span>
+            </div>
+          ))}
         </div>
 
         <div className="search-box">
@@ -127,7 +195,7 @@ export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
                   <td colSpan={5} className="no-results">
                     {searchTerm
                       ? "No matching records found"
-                      : "No attendance records available"}
+                      : "No attendance records available yet. Use Face Attendance when an event is ongoing."}
                   </td>
                 </tr>
               )}
@@ -148,19 +216,104 @@ export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
           margin-top: 20px;
         }
 
+        .hero {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 1rem;
+          flex-wrap: wrap;
+          margin-bottom: 1.5rem;
+        }
+
         .header {
-          margin-bottom: 20px;
+          display: grid;
+          gap: 0.4rem;
+        }
+
+        .eyebrow {
+          color: var(--secondary-color, #2C5F9E);
+          font-size: 0.8rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
 
         .header h2 {
           margin: 0;
-          font-size: 24px;
+          font-size: 28px;
           color: var(--primary-color, #162F65);
         }
 
         .header p {
-          margin: 5px 0 0;
-          color: var(--secondary-color, #2C5F9E);
+          margin: 0;
+          max-width: 42rem;
+          color: #526377;
+        }
+
+        .hero-actions {
+          display: flex;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .hero-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.8rem 1rem;
+          border-radius: 999px;
+          background: var(--primary-color, #162F65);
+          color: #fff;
+          font-weight: 600;
+          text-decoration: none;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .hero-link:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 12px 24px rgba(22, 47, 101, 0.12);
+        }
+
+        .hero-link--secondary {
+          background: #eef4fb;
+          color: var(--primary-color, #162F65);
+        }
+
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .summary-card {
+          display: grid;
+          gap: 0.35rem;
+          padding: 1rem 1.1rem;
+          border: 1px solid #dbe6f2;
+          border-radius: 18px;
+          background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+        }
+
+        .summary-card__icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 2.25rem;
+          height: 2.25rem;
+          border-radius: 999px;
+          background: rgba(22, 47, 101, 0.08);
+          color: var(--primary-color, #162F65);
+        }
+
+        .summary-card strong {
+          font-size: 1.6rem;
+          color: #173152;
+        }
+
+        .summary-card span:last-child {
+          color: #5f7388;
         }
 
         .search-box {
@@ -245,6 +398,19 @@ export const EventsAttended: React.FC<EventsAttendedProps> = ({ role }) => {
         }
 
         @media (max-width: 768px) {
+          .hero {
+            align-items: stretch;
+          }
+
+          .hero-actions {
+            width: 100%;
+          }
+
+          .hero-link {
+            justify-content: center;
+            width: 100%;
+          }
+
           th,
           td {
             padding: 8px 10px;

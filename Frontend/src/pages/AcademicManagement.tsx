@@ -4,7 +4,7 @@ import NavbarAdmin from "../components/NavbarAdmin";
 import NavbarSchoolIT from "../components/NavbarSchoolIT";
 
 interface AcademicManagementProps {
-  role?: "admin" | "school_IT";
+  role?: "admin" | "campus_admin";
 }
 
 interface Department {
@@ -80,7 +80,7 @@ const AcademicManagement: React.FC<AcademicManagementProps> = ({ role = "admin" 
           } else if (typeof errorData === "object") {
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (e) {
+        } catch {
           console.error("API Error (non-JSON):", errorText);
           errorMessage = errorText || errorMessage;
         }
@@ -256,7 +256,7 @@ const AcademicManagement: React.FC<AcademicManagementProps> = ({ role = "admin" 
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
-      {role === "school_IT" ? <NavbarSchoolIT /> : <NavbarAdmin />}
+      {role === "campus_admin" ? <NavbarSchoolIT /> : <NavbarAdmin />}
       <h1 style={{ textAlign: "center", marginBottom: "30px" }}>
         Department & Program Manager
       </h1>

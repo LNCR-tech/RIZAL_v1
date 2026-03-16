@@ -11,8 +11,8 @@ import {
 export const AdminDashboard: React.FC = () => {
   const cards = [
     {
-      title: "Manage Schools & SCHOOL_IT",
-      description: "Create schools and manage SCHOOL_IT accounts.",
+      title: "Manage Schools & Campus Admin",
+      description: "Create schools and manage Campus Admin accounts.",
       icon: <FaSchool style={{ color: "#dc3545" }} />, // Red color
       link: "/admin_manage_users",
     },
@@ -28,10 +28,12 @@ export const AdminDashboard: React.FC = () => {
     <DashboardHomeLayout
       navbar={<NavbarAdmin />}
       title="Welcome Admin!"
-      description="Your central hub for creating and managing schools and SCHOOL_IT accounts."
+      description="Your central hub for creating and managing schools and Campus Admin accounts."
       cards={cards}
     />
   );
 };
 
 export default AdminDashboard;
+
+

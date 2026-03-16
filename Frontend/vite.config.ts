@@ -23,6 +23,22 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       allowedHosts: true,
       proxy: {
+        "/openapi.json": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/docs": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/redoc": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/token": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         "/api": {
           target: proxyTarget,
           changeOrigin: true,

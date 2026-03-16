@@ -15,8 +15,12 @@ import {
   resolvePostAuthenticationPath,
   syncRememberedEmail,
 } from "../authFlow";
+import { primeGovernanceAccessCache } from "../hooks/useGovernanceAccess";
 import { useUser } from "../context/UserContext";
 import { FaUser, FaLock, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 const LoginForm = () => {
   const [email, setEmail] = useState<string>("");
@@ -46,7 +50,7 @@ const LoginForm = () => {
     }
   }, []);
 
-  const completeLogin = (session: AuthSession) => {
+  const completeLogin = async (session: AuthSession) => {
     if (!session.token || !session.roles) {
       throw new Error("Invalid response from server.");
     }
@@ -54,22 +58,24 @@ const LoginForm = () => {
     persistAuthSession(session);
     setBranding(buildBrandingFromAuthSession(session));
     syncRememberedEmail(session.email || email, rememberMe);
+    await primeGovernanceAccessCache(true);
+    const nextPath = await resolvePostAuthenticationPath({
+      roles: session.roles || [],
+      mustChangePassword: session.mustChangePassword,
+      authToken: session.token,
+      userId: session.id ?? null,
+    });
 
-    navigate(
-      resolvePostAuthenticationPath({
-        roles: session.roles || [],
-        mustChangePassword: session.mustChangePassword,
-      })
-    );
+    navigate(nextPath);
   };
 
-  const continueLoginFlow = (session: AuthSession) => {
+  const continueLoginFlow = async (session: AuthSession) => {
     const faceRole = getRequiredFaceVerificationRole(session.roles || []);
     const requiresFaceVerification =
       session.faceVerificationRequired || faceRole !== null;
 
     if (!requiresFaceVerification || !faceRole) {
-      completeLogin(session);
+      await completeLogin(session);
       return;
     }
 
@@ -96,9 +102,9 @@ const LoginForm = () => {
         setMfaCode("");
         return;
       }
-      continueLoginFlow(userData);
-    } catch (error: any) {
-      alert(error.message || "Login failed! Please check your credentials.");
+      await continueLoginFlow(userData);
+    } catch (error) {
+      alert(getErrorMessage(error, "Login failed! Please check your credentials."));
     } finally {
       setIsLoading(false);
     }
@@ -121,9 +127,9 @@ const LoginForm = () => {
       setMfaChallengeId(null);
       setMfaEmail(null);
       setMfaCode("");
-      continueLoginFlow(userData);
-    } catch (error: any) {
-      alert(error.message || "Failed to verify MFA code.");
+      await continueLoginFlow(userData);
+    } catch (error) {
+      alert(getErrorMessage(error, "Failed to verify MFA code."));
     } finally {
       setMfaSubmitting(false);
     }
@@ -141,8 +147,8 @@ const LoginForm = () => {
       }
       const message = await requestForgotPassword(targetEmail);
       setForgotMessage(message);
-    } catch (error: any) {
-      setForgotError(error.message || "Failed to submit forgot password request.");
+    } catch (error) {
+      setForgotError(getErrorMessage(error, "Failed to submit forgot password request."));
     } finally {
       setForgotSubmitting(false);
     }

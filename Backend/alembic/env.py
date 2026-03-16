@@ -21,6 +21,7 @@ if config.config_file_name is not None:
 # IMPORT YOUR BASE HERE - adjust this import to match your project structure
 # This is the most critical change needed
 from app.models.base import Base  # Update this path if your Base is elsewhere
+from app.core.config import get_settings
 target_metadata = Base.metadata
 from app.models import associations
 from app.models import attendance
@@ -33,6 +34,12 @@ from app.models import import_job
 from app.models import password_reset_request
 from app.models import platform_features
 from app.models import user
+from app.models import governance_hierarchy
+
+settings = get_settings()
+ini_database_url = config.get_main_option("sqlalchemy.url")
+database_url = os.getenv("DATABASE_URL") or ini_database_url or settings.database_url
+config.set_main_option("sqlalchemy.url", database_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

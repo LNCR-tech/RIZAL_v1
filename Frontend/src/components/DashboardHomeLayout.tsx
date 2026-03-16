@@ -17,6 +17,8 @@ interface DashboardHomeLayoutProps {
   cards: DashboardCardItem[];
   logoSrc?: string | null;
   logoAlt?: string;
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
 }
 
 export const DashboardHomeLayout: React.FC<DashboardHomeLayoutProps> = ({
@@ -26,6 +28,8 @@ export const DashboardHomeLayout: React.FC<DashboardHomeLayoutProps> = ({
   cards,
   logoSrc,
   logoAlt = "Dashboard logo",
+  emptyStateTitle = "No items available yet",
+  emptyStateDescription = "This dashboard will show available actions once access is assigned.",
 }) => {
   return (
     <div className="dashboard-home">
@@ -45,30 +49,41 @@ export const DashboardHomeLayout: React.FC<DashboardHomeLayoutProps> = ({
         </section>
 
         <section className="dashboard-home__cards container-fluid px-0">
-          <div className="row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-4">
-            {cards.map((card) => (
-              <div className="col" key={card.link}>
-                <Link
-                  to={card.link}
-                  className="dashboard-home__card-link"
-                >
-                  <article className="dashboard-home__card card h-100 border-0 shadow-sm">
-                    <div className="card-body d-flex flex-column align-items-start gap-3">
-                      <div className="dashboard-home__icon">{card.icon}</div>
-                      <div>
-                        <h2 className="dashboard-home__card-title">
-                          {card.title}
-                        </h2>
-                        <p className="dashboard-home__card-description">
-                          {card.description}
-                        </p>
+          {cards.length > 0 ? (
+            <div className="row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-4">
+              {cards.map((card) => (
+                <div className="col" key={card.link}>
+                  <Link
+                    to={card.link}
+                    className="dashboard-home__card-link"
+                  >
+                    <article className="dashboard-home__card card h-100 border-0 shadow-sm">
+                      <div className="card-body d-flex flex-column align-items-start gap-3">
+                        <div className="dashboard-home__icon">{card.icon}</div>
+                        <div>
+                          <h2 className="dashboard-home__card-title">
+                            {card.title}
+                          </h2>
+                          <p className="dashboard-home__card-description">
+                            {card.description}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                </Link>
+                    </article>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <article className="dashboard-home__card card border-0 shadow-sm">
+              <div className="card-body d-flex flex-column gap-2">
+                <h2 className="dashboard-home__card-title mb-0">{emptyStateTitle}</h2>
+                <p className="dashboard-home__card-description mb-0">
+                  {emptyStateDescription}
+                </p>
               </div>
-            ))}
-          </div>
+            </article>
+          )}
         </section>
       </main>
 

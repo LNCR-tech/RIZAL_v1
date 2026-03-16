@@ -10,6 +10,10 @@ from sqlalchemy.orm import Session
 from app.models.import_job import BulkImportError, BulkImportJob, EmailDeliveryLog
 from app.models.role import Role
 from app.models.user import StudentProfile, User, UserRole
+from app.services.password_change_policy import (
+    must_change_password_for_new_account,
+    should_prompt_password_change_for_new_account,
+)
 
 
 class ImportRepository:
@@ -187,7 +191,8 @@ class ImportRepository:
                 "middle_name": row["middle_name"],
                 "last_name": row["last_name"],
                 "is_active": True,
-                "must_change_password": True,
+                "must_change_password": must_change_password_for_new_account(),
+                "should_prompt_password_change": should_prompt_password_change_for_new_account(),
             }
             for row in candidate_rows
         ]

@@ -6,16 +6,7 @@ import {
   fetchPasswordResetRequests,
   PasswordResetRequestItem,
 } from "../api/passwordResetApi";
-
-const formatRoleLabel = (role: string): string => {
-  const normalized = role.trim().toLowerCase().replace(/_/g, "-");
-  if (normalized === "school-it") return "School IT";
-  if (normalized === "event-organizer") return "Event Organizer";
-  if (normalized === "ssg") return "SSG";
-  if (normalized === "admin") return "Admin";
-  if (normalized === "student") return "Student";
-  return role;
-};
+import { formatRoleLabel } from "../utils/roleUtils";
 
 const SchoolPasswordResetRequests = () => {
   const [requests, setRequests] = useState<PasswordResetRequestItem[]>([]);

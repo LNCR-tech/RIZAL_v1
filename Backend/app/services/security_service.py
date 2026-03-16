@@ -14,6 +14,13 @@ from app.models.platform_features import LoginHistory, MfaChallenge, UserSecurit
 from app.models.user import User
 
 
+def _normalize_role_name(role_name: str) -> str:
+    normalized = (role_name or "").strip().lower().replace(" ", "-").replace("_", "-")
+    if normalized in {"school-it", "campus-admin"}:
+        return "campus-admin"
+    return normalized
+
+
 def _request_ip(request: Optional[Request]) -> str | None:
     if request is None or request.client is None:
         return None
@@ -30,7 +37,7 @@ def _normalize_role_names(user: User) -> set[str]:
     normalized = set()
     for user_role in getattr(user, "roles", []):
         role_name = getattr(getattr(user_role, "role", None), "name", "")
-        role_key = role_name.strip().lower().replace("_", "-")
+        role_key = _normalize_role_name(role_name)
         if role_key:
             normalized.add(role_key)
     return normalized
@@ -38,7 +45,7 @@ def _normalize_role_names(user: User) -> set[str]:
 
 def is_privileged_user(user: User) -> bool:
     role_names = _normalize_role_names(user)
-    return "admin" in role_names or "school-it" in role_names
+    return "admin" in role_names or "campus-admin" in role_names
 
 
 def get_or_create_security_setting(db: Session, user: User) -> UserSecuritySetting:
@@ -263,7 +270,7 @@ def list_login_history_for_actor(
     if is_platform_admin:
         return query.limit(effective_limit).all()
 
-    if "admin" in role_names or "school-it" in role_names:
+    if "admin" in role_names or "campus-admin" in role_names:
         school_id = getattr(actor, "school_id", None)
         if school_id is None:
             return []

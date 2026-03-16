@@ -3,7 +3,6 @@ import React, { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { NavbarStudent } from "../components/NavbarStudent";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
-import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
 import { NavbarSSG } from "../components/NavbarSSG";
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -69,7 +68,7 @@ export const FaceScan: React.FC<RecordsProps> = ({ role }) => {
           } else if (typeof errorData === "object") {
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (e) {
+        } catch {
           console.error("API Error (non-JSON):", errorText);
           errorMessage = errorText || errorMessage;
         }
@@ -334,8 +333,6 @@ export const FaceScan: React.FC<RecordsProps> = ({ role }) => {
     <div className="face-scan-container">
       {role === "student-ssg" ? (
         <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
       ) : role === "ssg" ? (
         <NavbarSSG />
       ) : (

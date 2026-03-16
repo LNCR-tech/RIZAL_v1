@@ -9,8 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.security import get_current_user_with_roles, has_any_role
-from app.database import get_db
+from app.core.security import (
+    get_current_admin_or_campus_admin,
+    get_current_application_user,
+    has_any_role,
+)
+from app.core.dependencies import get_db
 from app.models.import_job import BulkImportJob
 from app.models.platform_features import (
     DataGovernanceSetting,
@@ -65,11 +69,9 @@ def _get_or_create_setting(db: Session, school_id: int) -> DataGovernanceSetting
 @router.get("/settings/me", response_model=DataGovernanceSettingResponse)
 def get_governance_settings(
     school_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_id(current_user, school_id)
     setting = _get_or_create_setting(db, scoped_school_id)
     db.commit()
@@ -81,11 +83,9 @@ def get_governance_settings(
 def update_governance_settings(
     payload: DataGovernanceSettingUpdate,
     school_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_id(current_user, school_id)
     setting = _get_or_create_setting(db, scoped_school_id)
 
@@ -107,7 +107,7 @@ def update_governance_settings(
 @router.post("/consents/me", response_model=PrivacyConsentItem)
 def create_my_privacy_consent(
     payload: PrivacyConsentCreate,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     school_id = getattr(current_user, "school_id", None)
@@ -130,7 +130,7 @@ def create_my_privacy_consent(
 
 @router.get("/consents/me", response_model=list[PrivacyConsentItem])
 def list_my_consents(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     return (
@@ -145,7 +145,7 @@ def list_my_consents(
 @router.post("/requests", response_model=DataRequestItem)
 def create_data_request(
     payload: DataRequestCreate,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     school_id = getattr(current_user, "school_id", None)
@@ -175,13 +175,13 @@ def list_data_requests(
     status_value: str | None = Query(default=None, alias="status"),
     request_type: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     query = db.query(DataRequest)
     actor_school_id = getattr(current_user, "school_id", None)
     is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
-    privileged = has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"])
+    privileged = has_any_role(current_user, ["admin", "campus_admin"])
 
     if privileged:
         if is_platform_admin:
@@ -252,12 +252,9 @@ def _soft_delete_target_user(db: Session, request_row: DataRequest) -> None:
 def update_data_request_status(
     request_id: int,
     payload: DataRequestStatusUpdate,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
-
     row = db.query(DataRequest).filter(DataRequest.id == request_id).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Data request not found")
@@ -295,11 +292,9 @@ def update_data_request_status(
 def run_retention_cleanup(
     payload: RetentionRunRequest,
     school_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    if not has_any_role(current_user, ["admin", "school_IT", "school-it", "school_it"]):
-        raise HTTPException(status_code=403, detail="Admin or School IT privileges required")
     scoped_school_id = _resolve_school_id(current_user, school_id)
     setting = _get_or_create_setting(db, scoped_school_id)
 
@@ -367,3 +362,4 @@ def run_retention_cleanup(
         deleted_notifications=deleted_notifications,
         summary=summary,
     )
+

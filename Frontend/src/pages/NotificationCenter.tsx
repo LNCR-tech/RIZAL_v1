@@ -13,8 +13,7 @@ import {
   sendTestNotification,
   updateNotificationPreferences,
 } from "../api/platformOpsApi";
-
-const normalizeRole = (role: string) => role.trim().toLowerCase().replace(/_/g, "-");
+import { isCampusAdminRole } from "../utils/roleUtils";
 
 const getStoredRoles = (): string[] => {
   try {
@@ -29,7 +28,7 @@ const getStoredRoles = (): string[] => {
 
 const NotificationCenter = () => {
   const roles = getStoredRoles();
-  const isSchoolIT = roles.some((role) => normalizeRole(role) === "school-it");
+  const isSchoolIT = roles.some(isCampusAdminRole);
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;
 
   const [preferences, setPreferences] = useState<NotificationPreference | null>(null);

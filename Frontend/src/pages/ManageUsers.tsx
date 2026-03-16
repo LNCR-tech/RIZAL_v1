@@ -1,10 +1,20 @@
-import { useState, useEffect, useRef } from "react";
-import { NavbarAdmin } from "../components/NavbarAdmin";
-import NavbarSchoolIT from "../components/NavbarSchoolIT";
-import { AiFillEdit, AiFillCloseCircle } from "react-icons/ai";
-import search_logo from "../assets/images/search_logo.png";
+import { useEffect, useRef, useState } from "react";
+import {
+  FaCheckCircle,
+  FaEdit,
+  FaSearch,
+  FaShieldAlt,
+  FaTrashAlt,
+  FaUserCog,
+} from "react-icons/fa";
 import Modal from "react-modal";
 import { useNavigate } from "react-router-dom";
+
+import { normalizeLogoUrl } from "../api/schoolSettingsApi";
+import { NavbarAdmin } from "../components/NavbarAdmin";
+import NavbarSchoolIT from "../components/NavbarSchoolIT";
+import { useUser } from "../context/UserContext";
+import { isCampusAdminRole, normalizeRole } from "../utils/roleUtils";
 import "../css/ManageUsers.css";
 
 // Define interfaces based on your API schemas
@@ -18,7 +28,6 @@ interface User {
   created_at: string;
   roles: UserRole[];
   student_profile?: StudentProfile;
-  ssg_profile?: SSGProfile;
 }
 
 interface UserRole {
@@ -37,11 +46,6 @@ interface StudentProfile {
   program_id?: number; // Add this field to match your state management
 }
 
-interface SSGProfile {
-  id: number;
-  position: string;
-}
-
 interface Department {
   id: number;
   name: string;
@@ -56,22 +60,8 @@ interface Program {
 // Enum for roles
 enum RoleEnum {
   ADMIN = "admin",
-  SCHOOL_IT = "school_IT",
+  CAMPUS_ADMIN = "campus_admin",
   STUDENT = "student",
-  SSG = "ssg",
-  EVENT_ORGANIZER = "event-organizer",
-}
-
-// Enum for SSG positions
-enum SSGPositionEnum {
-  PRESIDENT = "President",
-  VICE_PRESIDENT = "Vice President",
-  SECRETARY = "Secretary",
-  TREASURER = "Treasurer",
-  AUDITOR = "Auditor",
-  PIO = "Public Information Officer",
-  REPRESENTATIVE = "Representative",
-  OTHER = "Other",
 }
 
 Modal.setAppElement("#root");
@@ -87,20 +77,63 @@ const getStoredRoles = (): string[] => {
   }
 };
 
+const formatRoleLabel = (roleName: string) => {
+  switch (roleName) {
+    case RoleEnum.ADMIN:
+      return "Admin";
+    case RoleEnum.CAMPUS_ADMIN:
+      return "Campus Admin";
+    case RoleEnum.STUDENT:
+      return "Student";
+    default:
+      return roleName;
+  }
+};
+
+const getRoleTone = (roleName: string) => {
+  switch (roleName) {
+    case RoleEnum.ADMIN:
+      return "primary";
+    case RoleEnum.CAMPUS_ADMIN:
+      return "info";
+    case RoleEnum.STUDENT:
+      return "success";
+    default:
+      return "secondary";
+  }
+};
+
+const formatCreatedAt = (value?: string) => {
+  if (!value) return "No date";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+};
+
 export const ManageUsers: React.FC = () => {
   const navigate = useNavigate();
+  const { branding } = useUser();
   const roles = getStoredRoles();
-  const isSchoolIT = roles.some(
-    (role) => role.trim().toLowerCase().replace(/_/g, "-") === "school-it"
-  );
+  const isSchoolIT = roles.some(isCampusAdminRole);
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;
-  const editableRoles = isSchoolIT
-    ? [RoleEnum.STUDENT, RoleEnum.SSG, RoleEnum.EVENT_ORGANIZER]
-    : Object.values(RoleEnum);
+  const canManageRoles = !isSchoolIT;
+  const editableRoles = canManageRoles
+    ? [
+        RoleEnum.ADMIN,
+        RoleEnum.CAMPUS_ADMIN,
+        RoleEnum.STUDENT,
+      ]
+    : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState<User[]>([]);
-  const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [editUserId, setEditUserId] = useState<number | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<
@@ -120,13 +153,13 @@ export const ManageUsers: React.FC = () => {
   const [editStudentProfile, setEditStudentProfile] = useState<
     Partial<StudentProfile>
   >({});
-  const [editSSGProfile, setEditSSGProfile] = useState<Partial<SSGProfile>>({});
   const [editProfileImage, setEditProfileImage] = useState<File | null>(null);
   const [editPreviewImage, setEditPreviewImage] = useState<string | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   const API_URL = `${BASE_URL}/users`;
+  const logoUrl = normalizeLogoUrl(branding?.logo_url);
 
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem("authToken");
@@ -169,7 +202,7 @@ export const ManageUsers: React.FC = () => {
           } else if (typeof errorData === "object") {
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (e) {
+        } catch {
           console.error("API Error (non-JSON):", errorText);
           errorMessage = errorText || errorMessage;
         }
@@ -227,9 +260,8 @@ export const ManageUsers: React.FC = () => {
       .join(" ");
   };
 
-  const handleEditClick = (index: number) => {
-    const user = users[index];
-    setEditIndex(index);
+  const handleEditClick = (user: User) => {
+    setEditUserId(user.id);
     setEditedUser({ ...user });
 
     // Set student profile if exists
@@ -242,15 +274,6 @@ export const ManageUsers: React.FC = () => {
       });
     } else {
       setEditStudentProfile({});
-    }
-
-    // Set SSG profile if exists
-    if (user.ssg_profile) {
-      setEditSSGProfile({
-        position: user.ssg_profile.position,
-      });
-    } else {
-      setEditSSGProfile({});
     }
 
     setEditPreviewImage(null); // Reset preview image
@@ -274,7 +297,7 @@ export const ManageUsers: React.FC = () => {
       errors.email = "Email is invalid";
     }
 
-    if (!user.roles || user.roles.length === 0) {
+    if (!isSchoolIT && (!user.roles || user.roles.length === 0)) {
       errors.roles = "At least one role must be selected";
     }
 
@@ -297,17 +320,11 @@ export const ManageUsers: React.FC = () => {
       }
     }
 
-    // Validate SSG profile if user has SSG role
-    const hasSSGRole = user.roles?.some((r) => r.role.name === RoleEnum.SSG);
-    if (hasSSGRole && !editSSGProfile?.position) {
-      errors.position = "Position is required for SSG Officers";
-    }
-
     return errors;
   };
 
   const handleSaveChanges = async () => {
-    if (editIndex === null || !editedUser.id) {
+    if (editUserId === null || !editedUser.id) {
       console.error("No user selected for editing or missing ID");
       return;
     }
@@ -320,7 +337,7 @@ export const ManageUsers: React.FC = () => {
 
     try {
       // Prepare the user update data
-      const userUpdateData: any = {
+      const userUpdateData = {
         email: editedUser.email,
         first_name: editedUser.first_name,
         last_name: editedUser.last_name,
@@ -328,7 +345,7 @@ export const ManageUsers: React.FC = () => {
       };
 
       // If roles are being updated
-      if (editedUser.roles) {
+      if (canManageRoles && editedUser.roles) {
         const roleUpdate = {
           roles: editedUser.roles.map((r) => r.role.name),
         };
@@ -379,41 +396,6 @@ export const ManageUsers: React.FC = () => {
         );
       }
 
-      // Handle SSG profile
-      const hasSSGRole = editedUser.roles?.some(
-        (r) => r.role.name === RoleEnum.SSG
-      );
-      if (hasSSGRole) {
-        if (editedUser.ssg_profile) {
-          // Update existing SSG profile
-          await fetchWithAuth(
-            `${API_URL}/ssg-profiles/${editedUser.ssg_profile.id}`,
-            {
-              method: "PUT",
-              body: JSON.stringify(editSSGProfile),
-            }
-          );
-        } else {
-          // Create new SSG profile
-          const ssgProfileCreate = {
-            user_id: editedUser.id,
-            ...editSSGProfile,
-          };
-          await fetchWithAuth(`${API_URL}/ssg-profiles/`, {
-            method: "POST",
-            body: JSON.stringify(ssgProfileCreate),
-          });
-        }
-      } else if (editedUser.ssg_profile) {
-        // Remove SSG profile if role was removed
-        await fetchWithAuth(
-          `${API_URL}/ssg-profiles/${editedUser.ssg_profile.id}`,
-          {
-            method: "DELETE",
-          }
-        );
-      }
-
       // Handle profile image upload if changed
       if (editProfileImage) {
         const formData = new FormData();
@@ -430,7 +412,9 @@ export const ManageUsers: React.FC = () => {
 
       // Refresh the user list
       await fetchUsers();
-      setEditIndex(null);
+      setEditUserId(null);
+      setEditProfileImage(null);
+      setEditPreviewImage(null);
       setValidationErrors({});
     } catch (err) {
       console.error("Update error:", err);
@@ -438,25 +422,35 @@ export const ManageUsers: React.FC = () => {
     }
   };
 
-  const handleDeleteClick = (index: number) => {
-    setDeleteIndex(index);
+  const handleDeleteClick = (userId: number) => {
+    setDeleteUserId(userId);
   };
 
   const handleConfirmDelete = async () => {
-    if (deleteIndex === null) return;
+    if (deleteUserId === null) return;
 
     try {
-      const userId = users[deleteIndex].id;
-      await fetchWithAuth(`${API_URL}/${userId}`, {
+      await fetchWithAuth(`${API_URL}/${deleteUserId}`, {
         method: "DELETE",
       });
 
       // Refresh the user list
       await fetchUsers();
-      setDeleteIndex(null);
+      setDeleteUserId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete user");
     }
+  };
+
+  const closeEditModal = () => {
+    setEditUserId(null);
+    setEditProfileImage(null);
+    setEditPreviewImage(null);
+    setValidationErrors({});
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteUserId(null);
   };
 
   const toggleRoleSelection = (roleName: string) => {
@@ -499,33 +493,11 @@ export const ManageUsers: React.FC = () => {
 
   const getRoleBadge = (role: UserRole) => {
     const roleName = role.role.name;
-    let badgeClass = "";
+    const badgeClass = `manage-users-role-pill manage-users-role-pill--${getRoleTone(
+      roleName
+    )}`;
 
-    switch (roleName) {
-      case RoleEnum.ADMIN:
-        badgeClass = "badge bg-primary";
-        break;
-      case RoleEnum.SCHOOL_IT:
-        badgeClass = "badge bg-info";
-        break;
-      case RoleEnum.STUDENT:
-        badgeClass = "badge bg-success";
-        break;
-      case RoleEnum.SSG:
-      case RoleEnum.EVENT_ORGANIZER:
-        badgeClass = "badge bg-warning";
-        break;
-      default:
-        badgeClass = "badge bg-secondary";
-    }
-
-    // Format the display name
-    let displayName = roleName;
-    if (roleName === RoleEnum.EVENT_ORGANIZER) displayName = "Event Organizer";
-    if (roleName === RoleEnum.SSG) displayName = "SSG Officer";
-    if (roleName === RoleEnum.SCHOOL_IT) displayName = "School IT";
-
-    return <span className={badgeClass}>{displayName}</span>;
+    return <span className={badgeClass}>{formatRoleLabel(roleName)}</span>;
   };
 
   const filteredUsers = users.filter((user) => {
@@ -535,27 +507,47 @@ export const ManageUsers: React.FC = () => {
     const studentId = user.student_profile?.student_id || "";
     const yearLevel = user.student_profile?.year_level?.toString() || "";
     const program = user.student_profile?.program?.name || "";
-    const position = user.ssg_profile?.position || "";
-
-    return [
-      fullName,
-      user.email,
-      roleNames,
-      studentId,
-      yearLevel,
-      program,
-      position,
-    ]
+    return [fullName, user.email, roleNames, studentId, yearLevel, program]
       .join(" ")
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
   });
 
+  const totalUsers = users.length;
+  const activeUsers = users.filter((user) => user.is_active).length;
+  const studentUsers = users.filter(
+    (user) =>
+      user.roles.some((role) => role.role.name === RoleEnum.STUDENT) ||
+      Boolean(user.student_profile)
+  ).length;
+  const leadershipUsers = users.filter((user) =>
+    user.roles.some((role) =>
+      [RoleEnum.CAMPUS_ADMIN, RoleEnum.ADMIN].includes(
+        normalizeRole(role.role.name) === "campus-admin"
+          ? RoleEnum.CAMPUS_ADMIN
+          : (role.role.name as RoleEnum)
+      )
+    )
+  ).length;
+  const pendingDeletionUser =
+    deleteUserId === null
+      ? null
+      : users.find((user) => user.id === deleteUserId) || null;
+  const pageEyebrow = isSchoolIT
+    ? "Campus Admin User Management"
+    : "Platform User Management";
+  const pageTitle = isSchoolIT
+    ? "Manage campus users in the same control format"
+    : "Review user accounts across the platform";
+  const pageCopy = isSchoolIT
+    ? "Review imported student accounts, keep academic records accurate, and route SSG assignments through the dedicated Manage SSG flow."
+    : "Review school accounts, platform roles, and profile details with the same organized layout used in the governance setup screens.";
+
   if (isLoading) {
     return (
       <div className="manage-users-page">
         <NavbarComponent />
-        <div className="loading-container">
+        <div className="manage-users-state">
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
@@ -564,146 +556,311 @@ export const ManageUsers: React.FC = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="manage-users-page">
-        <NavbarComponent />
-        <div className="error-container">
-          <div className="alert alert-danger" role="alert">
-            {error}
-          </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="manage-users-page">
       <NavbarComponent />
-      <div className="manage-users-container">
-        <header className="manage-users-header">
-          <h2>User Management</h2>
-          <p className="subtitle">
-            View and manage all system users and their permissions
-          </p>
-        </header>
+      <main className="container py-4">
+        <section className="manage-users-hero card border-0 shadow-sm mb-4">
+          <div className="card-body p-4 p-lg-5">
+            <div className="row g-4 align-items-center">
+              <div className="col-lg-7">
+                <div className="d-flex align-items-center gap-3 mb-3">
+                  <div className="manage-users-hero__brand">
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="School logo" />
+                    ) : (
+                      <FaUserCog />
+                    )}
+                  </div>
+                  <div>
+                    <p className="manage-users-hero__eyebrow mb-1">
+                      {pageEyebrow}
+                    </p>
+                    <h1 className="manage-users-hero__title mb-2">
+                      {pageTitle}
+                    </h1>
+                  </div>
+                </div>
 
-        {/* Search Bar and Add User Button */}
-        <div className="search-container">
-          <div className="search-box">
-            <img src={search_logo} alt="search" className="search-icon" />
-            <input
-              type="search"
-              placeholder="Search users by name, email or role..."
-              className="search-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+                <p className="manage-users-hero__copy mb-3">{pageCopy}</p>
+
+                <div className="manage-users-hero__flow">
+                  <span className="is-active">Imported Students</span>
+                  <span>/</span>
+                  <span>{isSchoolIT ? "Manage SSG" : "Role Assignment"}</span>
+                  <span>/</span>
+                  <span>Profile Updates</span>
+                  <span>/</span>
+                  <span>Access Cleanup</span>
+                </div>
+              </div>
+
+              <div className="col-lg-5">
+                <div className="row g-3">
+                  <div className="col-sm-6">
+                    <div className="manage-users-stat">
+                      <span className="manage-users-stat__label">
+                        Total Users
+                      </span>
+                      <strong className="manage-users-stat__value">
+                        {totalUsers}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-sm-6">
+                    <div className="manage-users-stat">
+                      <span className="manage-users-stat__label">
+                        Active Accounts
+                      </span>
+                      <strong className="manage-users-stat__value">
+                        {activeUsers}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-sm-6">
+                    <div className="manage-users-stat">
+                      <span className="manage-users-stat__label">
+                        Students
+                      </span>
+                      <strong className="manage-users-stat__value">
+                        {studentUsers}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-sm-6">
+                    <div className="manage-users-stat">
+                      <span className="manage-users-stat__label">
+                        {isSchoolIT ? "Governance Roles" : "Leadership Roles"}
+                      </span>
+                      <strong className="manage-users-stat__value">
+                        {leadershipUsers}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        {/* Users Table */}
-        <div className="table-responsive">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Details</th>
-                <th>Roles</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user, index) => (
-                <tr key={user.id || index}>
-                  <td data-label="Name">{getFullName(user)}</td>
-                  <td data-label="Email">{user.email}</td>
-                  <td data-label="Details">
-                    {user.student_profile && (
-                      <>
-                        {user.student_profile.student_id && (
-                          <div>ID: {user.student_profile.student_id}</div>
-                        )}
-                        {user.student_profile.year_level && (
-                          <div>Year: {user.student_profile.year_level}</div>
-                        )}
-                        {user.student_profile.program && (
-                          <div>
-                            Program: {user.student_profile.program.name}
-                          </div>
-                        )}
-                        {user.student_profile.department && (
-                          <div>
-                            Dept: {user.student_profile.department.name}
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {user.ssg_profile && (
-                      <div>Position: {user.ssg_profile.position}</div>
-                    )}
-                  </td>
-                  <td data-label="Roles">
-                    <div className="role-badges">
-                      {user.roles.map((role, i) => (
-                        <span key={i}>{getRoleBadge(role)}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td data-label="Actions" className="actions-cell">
-                    <div className="button-group">
-                      <button
-                        className="btn btn-info"
-                        onClick={() => handleEditClick(index)}
-                      >
-                        <AiFillEdit /> Edit
-                      </button>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => handleDeleteClick(index)}
-                      >
-                        <AiFillCloseCircle /> Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="no-results">
+        {error && (
+          <div className="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <span>{error}</span>
+            <button
+              className="btn btn-sm btn-light manage-users-alert-action"
+              onClick={() => {
+                setError(null);
+                void fetchUsers();
+              }}
+              type="button"
+            >
+              Refresh data
+            </button>
+          </div>
+        )}
+
+        <div className="row g-4">
+          <div className="col-xl-4">
+            <div className="card border-0 shadow-sm mb-4">
+              <div className="card-body p-4">
+                <div className="d-flex align-items-center gap-2 mb-3">
+                  <FaSearch className="text-primary" />
+                  <h2 className="h5 mb-0">Search and Filter</h2>
+                </div>
+
+                <div className="manage-users-search-box mb-3">
+                  <FaSearch className="manage-users-search-box__icon" />
+                  <input
+                    type="search"
+                      placeholder="Search by name, email, student ID, role, or program"
+                    className="form-control manage-users-search-box__input"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <div className="manage-users-callout">
+                  <strong>{filteredUsers.length} users in view</strong>
+                  <p className="mb-0">
+                    {searchTerm.trim()
+                      ? "Your results update live as you search across academic and governance details."
+                      : "Use the search field to narrow the directory by student record, role, email, or program."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="card border-0 shadow-sm">
+              <div className="card-body p-4">
+                <div className="d-flex align-items-center gap-2 mb-3">
+                  <FaShieldAlt className="text-primary" />
+                  <h2 className="h5 mb-0">Management Notes</h2>
+                </div>
+
+                <div className="manage-users-rule-list">
+                  <div className="manage-users-rule-item">
+                    <FaCheckCircle />
+                    <span>
+                      {isSchoolIT
+                        ? "Campus Admin manages student accounts here, while SSG assignments and permissions are handled only from Manage SSG."
+                        : "Admin can review and maintain all supported user roles across the platform."}
+                    </span>
+                  </div>
+                  <div className="manage-users-rule-item">
+                    <FaCheckCircle />
+                    <span>
+                      Student profile fields stay connected to department, program, and year level data.
+                    </span>
+                  </div>
+                  <div className="manage-users-rule-item">
+                    <FaCheckCircle />
+                    <span>
+                      {isSchoolIT
+                        ? "Imported users stay students first. Officer access is granted only when a student is assigned from Manage SSG."
+                        : "Only the base auth roles stay here now: Admin, Campus Admin, and Student."}
+                    </span>
+                  </div>
+                  <div className="manage-users-rule-item">
+                    <FaCheckCircle />
+                    <span>
+                      Edit and delete actions now always target the correct user even while the list is filtered.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-xl-8">
+            <div className="card border-0 shadow-sm">
+              <div className="card-body p-4">
+                <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                  <div>
+                    <h2 className="h5 mb-1">User Directory</h2>
+                    <p className="text-muted mb-0">
+                      {isSchoolIT
+                        ? "Review profile details and maintain academic records for campus students."
+                        : "Review profile details, adjust roles, and maintain academic or SSG records."}
+                    </p>
+                  </div>
+                  <div className="manage-users-inline-meta">
+                    <span className="manage-users-inline-meta__pill">
+                      {filteredUsers.length} visible
+                    </span>
+                  </div>
+                </div>
+
+                {filteredUsers.length === 0 ? (
+                  <div className="manage-users-empty-state">
                     No matching users found. Try a different search term.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                  </div>
+                ) : (
+                  <div className="manage-users-table-wrap">
+                    <table className="manage-users-table">
+                      <thead>
+                        <tr>
+                          <th>User</th>
+                          <th>Roles</th>
+                          <th>Academic / Governance</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.map((user) => (
+                          <tr key={user.id}>
+                            <td data-label="User">
+                              <div className="manage-users-user-cell">
+                                <strong>{getFullName(user)}</strong>
+                                <span>{user.email}</span>
+                                <small>
+                                  Created {formatCreatedAt(user.created_at)}
+                                </small>
+                              </div>
+                            </td>
+                            <td data-label="Roles">
+                              <div className="manage-users-role-row">
+                                {user.roles.map((role, index) => (
+                                  <span key={`${user.id}-${role.role.name}-${index}`}>
+                                    {getRoleBadge(role)}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td data-label="Academic / Governance">
+                              <div className="manage-users-detail-stack">
+                                {user.student_profile?.student_id && (
+                                  <span>ID: {user.student_profile.student_id}</span>
+                                )}
+                                {user.student_profile?.year_level && (
+                                  <span>Year: {user.student_profile.year_level}</span>
+                                )}
+                                {user.student_profile?.program?.name && (
+                                  <span>
+                                    Program: {user.student_profile.program.name}
+                                  </span>
+                                )}
+                                {user.student_profile?.department?.name && (
+                                  <span>
+                                    Dept: {user.student_profile.department.name}
+                                  </span>
+                                )}
+                                {!user.student_profile && (
+                                  <span>No additional profile details</span>
+                                )}
+                              </div>
+                            </td>
+                            <td data-label="Status">
+                              <span
+                                className={`manage-users-status-pill ${
+                                  user.is_active ? "is-active" : "is-inactive"
+                                }`}
+                              >
+                                {user.is_active ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+                            <td data-label="Actions">
+                              <div className="manage-users-action-row">
+                                <button
+                                  className="btn btn-info"
+                                  onClick={() => handleEditClick(user)}
+                                  type="button"
+                                >
+                                  <FaEdit /> Edit
+                                </button>
+                                <button
+                                  className="btn btn-danger"
+                                  onClick={() => handleDeleteClick(user.id)}
+                                  type="button"
+                                >
+                                  <FaTrashAlt /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Edit User Modal */}
         <Modal
-          isOpen={editIndex !== null}
-          onRequestClose={() => {
-            setEditIndex(null);
-            setValidationErrors({});
-          }}
+          isOpen={editUserId !== null}
+          onRequestClose={closeEditModal}
           className="user-modal"
           overlayClassName="modal-overlay"
         >
           <div className="modal-header">
-            <h3>Edit User</h3>
+            <h3>Edit User Account</h3>
             <button
-              onClick={() => {
-                setEditIndex(null);
-                setValidationErrors({});
-              }}
+              onClick={closeEditModal}
               className="close-button"
+              type="button"
             >
               &times;
             </button>
@@ -914,79 +1071,55 @@ export const ManageUsers: React.FC = () => {
               </>
             )}
 
-            {/* SSG Profile Fields */}
-            {editedUser.roles?.some((r) => r.role.name === RoleEnum.SSG) && (
+            {canManageRoles ? (
               <div className="form-group">
-                <label htmlFor="editPosition">Position</label>
-                <select
-                  id="editPosition"
-                  value={editSSGProfile.position || ""}
-                  onChange={(e) =>
-                    setEditSSGProfile({
-                      ...editSSGProfile,
-                      position: e.target.value,
-                    })
-                  }
-                  className={validationErrors.position ? "input-error" : ""}
-                >
-                  <option value="">Select Position</option>
-                  {Object.values(SSGPositionEnum).map((pos) => (
-                    <option key={pos} value={pos}>
-                      {pos}
-                    </option>
-                  ))}
-                </select>
-                {validationErrors.position && (
-                  <div className="error-message">
-                    {validationErrors.position}
-                  </div>
+                <label>Roles</label>
+                <div className="role-selection">
+                  {editableRoles.map((role) => {
+                    return (
+                      <label key={role} className="role-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={
+                            editedUser.roles?.some((r) => r.role.name === role) ||
+                            false
+                          }
+                          onChange={() => toggleRoleSelection(role)}
+                        />
+                        <span className="checkmark"></span>
+                        {formatRoleLabel(role)}
+                      </label>
+                    );
+                  })}
+                </div>
+                {validationErrors.roles && (
+                  <div className="error-message">{validationErrors.roles}</div>
                 )}
               </div>
-            )}
-
-            <div className="form-group">
-              <label>Roles</label>
-              <div className="role-selection">
-                {editableRoles.map((role) => {
-                  const displayName =
-                    role === RoleEnum.EVENT_ORGANIZER
-                      ? "Event Organizer"
-                      : role === RoleEnum.SSG
-                      ? "SSG Officer"
-                      : role.charAt(0).toUpperCase() + role.slice(1);
-
-                  return (
-                    <label key={role} className="role-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={
-                          editedUser.roles?.some((r) => r.role.name === role) ||
-                          false
-                        }
-                        onChange={() => toggleRoleSelection(role)}
-                      />
-                      <span className="checkmark"></span>
-                      {displayName}
-                    </label>
-                  );
-                })}
+            ) : (
+              <div className="manage-users-callout">
+                <strong>Role changes are locked in Campus Admin.</strong>
+                <p className="mb-0">
+                  Imported users stay students here. Add or remove SSG officers from
+                  {" "}
+                  Manage SSG instead of editing roles in this screen.
+                </p>
               </div>
-              {validationErrors.roles && (
-                <div className="error-message">{validationErrors.roles}</div>
-              )}
-            </div>
+            )}
           </div>
           <div className="modal-footer">
             <button
               className="btn btn-secondary"
-              onClick={() => {
-                setEditIndex(null);
-                setValidationErrors({});
-              }}
+              onClick={closeEditModal}
+              type="button"
             >
               Cancel
             </button>
-            <button className="btn btn-primary" onClick={handleSaveChanges}>
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveChanges}
+              type="button"
+            >
               Save Changes
             </button>
           </div>
@@ -994,8 +1127,8 @@ export const ManageUsers: React.FC = () => {
 
         {/* Delete Confirmation Modal */}
         <Modal
-          isOpen={deleteIndex !== null}
-          onRequestClose={() => setDeleteIndex(null)}
+          isOpen={deleteUserId !== null}
+          onRequestClose={closeDeleteModal}
           className="confirmation-modal"
           overlayClassName="modal-overlay"
         >
@@ -1004,14 +1137,16 @@ export const ManageUsers: React.FC = () => {
           </div>
           <div className="modal-body">
             <p>Are you sure you want to delete this user?</p>
-            {deleteIndex !== null && (
+            {pendingDeletionUser && (
               <div className="user-to-delete">
                 <p>
-                  {getFullName(users[deleteIndex])} ({users[deleteIndex].email})
+                  {getFullName(pendingDeletionUser)} ({pendingDeletionUser.email})
                 </p>
                 <p>
                   Roles:{" "}
-                  {users[deleteIndex].roles.map((r) => r.role.name).join(", ")}
+                  {pendingDeletionUser.roles
+                    .map((r) => formatRoleLabel(r.role.name))
+                    .join(", ")}
                 </p>
               </div>
             )}
@@ -1019,16 +1154,21 @@ export const ManageUsers: React.FC = () => {
           <div className="modal-footer">
             <button
               className="btn btn-outline-secondary"
-              onClick={() => setDeleteIndex(null)}
+              onClick={closeDeleteModal}
+              type="button"
             >
               Cancel
             </button>
-            <button className="btn btn-danger" onClick={handleConfirmDelete}>
+            <button
+              className="btn btn-danger"
+              onClick={handleConfirmDelete}
+              type="button"
+            >
               Delete User
             </button>
           </div>
         </Modal>
-      </div>
+      </main>
     </div>
   );
 };

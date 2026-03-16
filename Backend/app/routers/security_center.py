@@ -10,10 +10,11 @@ from app.core.security import (
     ALGORITHM,
     SECRET_KEY,
     decode_token_to_token_data,
-    get_current_user_with_roles,
+    get_current_admin_or_campus_admin,
+    get_current_application_user,
     oauth2_scheme,
 )
-from app.database import get_db
+from app.core.dependencies import get_db
 from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.platform_features import UserSession
 from app.models.user import User
@@ -35,7 +36,6 @@ from app.schemas.security import (
 from app.services.auth_session import issue_full_access_token_response
 from app.services.security_service import (
     get_or_create_security_setting,
-    is_privileged_user,
     list_active_sessions,
     list_login_history_for_actor,
     record_login_history,
@@ -57,17 +57,9 @@ def _extract_current_jti(token: str) -> str | None:
         return None
 
 
-def _require_privileged_face_verification_user(current_user: User) -> None:
-    if not is_privileged_user(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or School IT access is required for face verification.",
-        )
-
-
 @router.get("/mfa-status", response_model=MfaStatusResponse)
 def get_mfa_status(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     setting = get_or_create_security_setting(db, current_user)
@@ -84,7 +76,7 @@ def get_mfa_status(
 @router.put("/mfa-status", response_model=MfaStatusResponse)
 def update_mfa_status(
     payload: MfaStatusUpdate,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     setting = get_or_create_security_setting(db, current_user)
@@ -104,7 +96,7 @@ def update_mfa_status(
 @router.get("/sessions", response_model=list[UserSessionItem])
 def get_active_sessions(
     token: str = Depends(oauth2_scheme),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     current_jti = _extract_current_jti(token)
@@ -128,7 +120,7 @@ def get_active_sessions(
 @router.post("/sessions/{session_id}/revoke", response_model=RevokeSessionResponse)
 def revoke_user_session(
     session_id: str,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     revoked = revoke_session(
@@ -146,7 +138,7 @@ def revoke_user_session(
 @router.post("/sessions/revoke-others")
 def revoke_all_other_sessions(
     token: str = Depends(oauth2_scheme),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     current_jti = _extract_current_jti(token)
@@ -174,7 +166,7 @@ def revoke_all_other_sessions(
 @router.get("/login-history", response_model=list[LoginHistoryItem])
 def get_login_history(
     limit: int = Query(default=100, ge=1, le=500),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     rows = list_login_history_for_actor(db, actor=current_user, limit=limit)
@@ -183,10 +175,9 @@ def get_login_history(
 
 @router.get("/face-status", response_model=SecurityFaceStatusResponse)
 def get_face_status(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _require_privileged_face_verification_user(current_user)
     profile = (
         db.query(UserFaceRecognitionProfile)
         .filter(UserFaceRecognitionProfile.user_id == current_user.id)
@@ -210,9 +201,8 @@ def get_face_status(
 @router.post("/face-liveness", response_model=SecurityFaceLivenessResponse)
 def check_face_liveness(
     payload: Base64ImageRequest,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
 ):
-    _require_privileged_face_verification_user(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     rgb_image = face_service.load_rgb_from_bytes(image_bytes)
     liveness = face_service.check_liveness(rgb_image)
@@ -222,10 +212,9 @@ def check_face_liveness(
 @router.post("/face-reference", response_model=SecurityFaceReferenceResponse)
 def save_face_reference(
     payload: Base64ImageRequest,
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _require_privileged_face_verification_user(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     encoding, liveness = face_service.extract_encoding_from_bytes(
         image_bytes,
@@ -264,10 +253,9 @@ def save_face_reference(
 
 @router.delete("/face-reference")
 def delete_face_reference(
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _require_privileged_face_verification_user(current_user)
     profile = (
         db.query(UserFaceRecognitionProfile)
         .filter(UserFaceRecognitionProfile.user_id == current_user.id)
@@ -284,10 +272,9 @@ def verify_face_reference(
     payload: SecurityFaceVerificationRequest,
     request: Request,
     token: str = Depends(oauth2_scheme),
-    current_user: User = Depends(get_current_user_with_roles),
+    current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _require_privileged_face_verification_user(current_user)
     profile = (
         db.query(UserFaceRecognitionProfile)
         .filter(UserFaceRecognitionProfile.user_id == current_user.id)
@@ -360,3 +347,4 @@ def verify_face_reference(
             else bool(token_data.face_pending and not comparison.matched)
         ),
     )
+

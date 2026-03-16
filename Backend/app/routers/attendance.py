@@ -1,35 +1,132 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case, and_, or_, text, String
 from datetime import datetime, timezone, date
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
 
 from app.models.user import User as UserModel
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.user import StudentProfile
 from app.schemas.attendance import AttendanceStatus, Attendance, AttendanceWithStudent, StudentAttendanceRecord, StudentAttendanceResponse, AttendanceReportResponse, StudentAttendanceSummary, StudentAttendanceDetail, StudentAttendanceReport, StudentListItem
-from app.models.attendance import Attendance as AttendanceModel
-from app.database import get_db
+from app.schemas.attendance_requests import BulkAttendanceRequest, ManualAttendanceRequest
+from app.core.dependencies import get_db
 from app.core.security import get_current_user, get_school_id_or_403, has_any_role
-from app.models.user import User  # Add this import
-from app.models.event import Event, EventStatus  # This imports your Event model
-from app.models.program import Program  # This imports your Event model
-from app.models.associations import event_program_association  # This imports your Event model
-from app.models.department import Department 
-from app.models.associations import event_program_association, event_department_association
+from app.models.user import User
+from app.models.event import Event, EventStatus
+from app.models.governance_hierarchy import GovernanceUnitType, PermissionCode
+from app.models.program import Program
 from app.services.attendance_status import (
     ATTENDED_STATUS_VALUES,
     empty_attendance_status_counts,
+    finalize_completed_attendance_status,
     is_attended_status,
     normalize_attendance_status,
-    resolve_time_in_status,
 )
-from app.services.event_time_status import get_attendance_decision
+from app.services.event_time_status import get_attendance_decision, get_sign_out_decision
 from app.services.event_workflow_status import sync_event_workflow_status
+from app.services import governance_hierarchy_service
 
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
+logger = logging.getLogger(__name__)
+
+
+def _get_attendance_governance_units(
+    db: Session,
+    *,
+    current_user: UserModel,
+    governance_context: GovernanceUnitType | None,
+):
+    if has_any_role(current_user, ["admin", "campus_admin"]):
+        return []
+
+    return governance_hierarchy_service.get_governance_units_with_permission(
+        db,
+        current_user=current_user,
+        permission_code=PermissionCode.MANAGE_ATTENDANCE,
+        unit_type=governance_context,
+    )
+
+
+def _apply_student_scope_filters(query, governance_units):
+    if not governance_units:
+        return query
+    if any(unit.department_id is None and unit.program_id is None for unit in governance_units):
+        return query
+
+    filters = []
+    for governance_unit in governance_units:
+        condition_parts = []
+        if governance_unit.department_id is not None:
+            condition_parts.append(StudentProfile.department_id == governance_unit.department_id)
+        if governance_unit.program_id is not None:
+            condition_parts.append(StudentProfile.program_id == governance_unit.program_id)
+        if condition_parts:
+            filters.append(and_(*condition_parts))
+
+    if not filters:
+        return query.filter(text("1=0"))
+    return query.filter(or_(*filters))
+
+
+def _event_matches_governance_units(event: Event, governance_units) -> bool:
+    if not governance_units:
+        return True
+
+    department_ids = {department.id for department in event.departments}
+    program_ids = {program.id for program in event.programs}
+    return any(
+        governance_hierarchy_service.governance_unit_matches_event_scope(
+            governance_unit,
+            department_ids=department_ids,
+            program_ids=program_ids,
+        )
+        for governance_unit in governance_units
+    )
+
+
+def _ensure_event_in_attendance_scope(event: Event, governance_units) -> None:
+    if governance_units and not _event_matches_governance_units(event, governance_units):
+        raise HTTPException(404, "Event not found")
+
+
+def _ensure_student_in_attendance_scope(student: StudentProfile, governance_units) -> None:
+    if governance_units and not governance_hierarchy_service.governance_units_match_student_scope(
+        governance_units,
+        department_id=student.department_id,
+        program_id=student.program_id,
+    ):
+        raise HTTPException(404, "Student not found")
+
+
+def _ensure_student_is_event_participant(student: StudentProfile, event: Event) -> None:
+    event_program_ids = {program.id for program in event.programs}
+    event_department_ids = {department.id for department in event.departments}
+    if event_program_ids and student.program_id not in event_program_ids:
+        raise HTTPException(400, "Student is outside the event program scope")
+    if event_department_ids and student.department_id not in event_department_ids:
+        raise HTTPException(400, "Student is outside the event department scope")
+
+
+def _get_event_ids_in_attendance_scope(db: Session, *, school_id: int, governance_units) -> list[int]:
+    if not governance_units:
+        return [
+            event_id
+            for (event_id,) in db.query(Event.id).filter(Event.school_id == school_id).all()
+        ]
+
+    events = (
+        db.query(Event)
+        .options(
+            joinedload(Event.departments),
+            joinedload(Event.programs),
+        )
+        .filter(Event.school_id == school_id)
+        .all()
+    )
+    return [event.id for event in events if _event_matches_governance_units(event, governance_units)]
 
 
 def _get_event_in_school_or_404(db: Session, event_id: int, school_id: int) -> Event:
@@ -47,41 +144,114 @@ def _get_event_attendance_decision(event: Event) -> dict[str, Any]:
     decision = get_attendance_decision(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
+        early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+        sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+        sign_out_override_until=getattr(event, "sign_out_override_until", None),
     )
+    return _serialize_attendance_decision(decision)
+
+
+def _get_event_sign_out_decision(event: Event) -> dict[str, Any]:
+    decision = get_sign_out_decision(
+        start_time=event.start_datetime,
+        end_time=event.end_datetime,
+        early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
+        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+        sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+        sign_out_override_until=getattr(event, "sign_out_override_until", None),
+    )
+    return _serialize_attendance_decision(decision)
+
+
+def _serialize_attendance_decision(decision) -> dict[str, Any]:
     payload = decision.to_dict()
-    for key in ("current_time", "start_time", "end_time", "late_threshold_time"):
-        value = payload.get(key)
+    for key, value in list(payload.items()):
         if isinstance(value, datetime):
             payload[key] = value.isoformat()
     return payload
 
-# Request models
-class ManualAttendanceRequest(BaseModel):
-    event_id: int
-    student_id: str  # Student ID string
-    notes: Optional[str] = None
 
-class BulkAttendanceRequest(BaseModel):
-    records: List[ManualAttendanceRequest]
+def _active_attendance_for_student_event(
+    db: Session,
+    *,
+    student_profile_id: int,
+    event_id: int,
+) -> AttendanceModel | None:
+    return (
+        db.query(AttendanceModel)
+        .filter(
+            AttendanceModel.student_id == student_profile_id,
+            AttendanceModel.event_id == event_id,
+            AttendanceModel.time_out.is_(None),
+        )
+        .order_by(AttendanceModel.time_in.desc(), AttendanceModel.id.desc())
+        .first()
+    )
 
-class StudentAttendanceFilter(BaseModel):
-    event_id: Optional[int] = None
-    status: Optional[AttendanceStatus] = None
+
+def _complete_attendance_sign_out(
+    attendance: AttendanceModel,
+    *,
+    recorded_at: datetime,
+) -> int:
+    attendance.time_out = recorded_at
+    attendance.check_out_status = "present"
+    attendance.status, final_note = finalize_completed_attendance_status(
+        check_in_status=attendance.check_in_status or attendance.status,
+        check_out_status=attendance.check_out_status,
+    )
+    attendance.notes = final_note
+    duration_seconds = (attendance.time_out - attendance.time_in).total_seconds()
+    return int(max(0, duration_seconds / 60))
+
+def _ensure_attendance_management_access(db: Session, current_user: UserModel) -> None:
+    if has_any_role(current_user, ["admin", "campus_admin"]):
+        return
+
+    if governance_hierarchy_service.get_user_governance_unit_types(
+        db,
+        current_user=current_user,
+    ):
+        governance_hierarchy_service.ensure_governance_permission(
+            db,
+            current_user=current_user,
+            permission_code=PermissionCode.MANAGE_ATTENDANCE,
+            detail=(
+                "This governance account has no attendance features yet. "
+                "Campus Admin must assign manage_attendance to the governance member."
+            ),
+        )
+        return
+
+    raise HTTPException(403, "Insufficient permissions")
 
 
-def _ensure_event_report_access(current_user: UserModel) -> None:
-    if not has_any_role(current_user, ["admin", "ssg", "event-organizer", "event_organizer"]):
-        raise HTTPException(403, "Insufficient permissions")
+def _ensure_event_report_access(db: Session, current_user: UserModel) -> None:
+    _ensure_attendance_management_access(db, current_user)
+
+
+def _ensure_attendance_report_access(db: Session, current_user: UserModel) -> None:
+    _ensure_attendance_management_access(db, current_user)
+
+
+def _ensure_attendance_operator_access(db: Session, current_user: UserModel) -> None:
+    _ensure_attendance_management_access(db, current_user)
 
 
 @router.get("/events/{event_id}/report", response_model=AttendanceReportResponse)
 def get_event_attendance_report(
     event_id: int,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_event_report_access(current_user)
+    _ensure_event_report_access(db, current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
     actor_school_id = None
     if not (has_any_role(current_user, ["admin"]) and getattr(current_user, "school_id", None) is None):
         actor_school_id = get_school_id_or_403(current_user)
@@ -100,6 +270,7 @@ def get_event_attendance_report(
 
     if not event:
         raise HTTPException(404, "Event not found")
+    _ensure_event_in_attendance_scope(event, governance_units)
     sync_result = sync_event_workflow_status(db, event)
     if sync_result.changed:
         db.commit()
@@ -223,7 +394,10 @@ def get_event_attendance_report(
     if program_ids_for_response:
         program_models = (
             db.query(Program)
-            .filter(Program.id.in_(program_ids_for_response))
+            .filter(
+                Program.school_id == school_id,
+                Program.id.in_(program_ids_for_response),
+            )
             .order_by(Program.name.asc())
             .all()
         )
@@ -287,19 +461,36 @@ async def get_students_attendance_overview(
     # NEW DATE RANGE FILTERS
     start_date: Optional[date] = Query(None, description="Filter events from this date"),
     end_date: Optional[date] = Query(None, description="Filter events until this date"),
+    governance_context: Optional[GovernanceUnitType] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get optimized overview of students with attendance stats with date range filtering"""
     
-    # Permission check
-    if not has_any_role(current_user, ["ssg", "admin", "event-organizer", "event_organizer"]):
-        raise HTTPException(403, "Insufficient permissions")
+    _ensure_attendance_report_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
+    allowed_event_ids = _get_event_ids_in_attendance_scope(
+        db,
+        school_id=school_id,
+        governance_units=governance_units,
+    )
 
     try:
-        print("Starting attendance overview query...")
-        print(f"Date range filter: {start_date} to {end_date}")
+        logger.debug(
+            "Building student attendance overview",
+            extra={
+                "start_date": str(start_date) if start_date else None,
+                "end_date": str(end_date) if end_date else None,
+                "department_id": department_id,
+                "program_id": program_id,
+                "search": search,
+            },
+        )
         
         # STEP 1: Simple base query without complex joins
         base_query = (
@@ -307,15 +498,14 @@ async def get_students_attendance_overview(
             .join(User, StudentProfile.user_id == User.id)
             .filter(User.school_id == school_id)
         )
+        base_query = _apply_student_scope_filters(base_query, governance_units)
 
         # Apply filters BEFORE joins to reduce dataset
         if department_id:
             base_query = base_query.filter(StudentProfile.department_id == department_id)
-            print(f"Filtered by department_id: {department_id}")
             
         if program_id:
             base_query = base_query.filter(StudentProfile.program_id == program_id)
-            print(f"Filtered by program_id: {program_id}")
 
         # Apply search filter
         if search:
@@ -330,11 +520,10 @@ async def get_students_attendance_overview(
                     ).ilike(search_filter)
                 )
             )
-            print(f"Applied search filter: {search}")
 
         # Get total count BEFORE adding joinedload (which can cause issues)
         total_students = base_query.count()
-        print(f"Total students found: {total_students}")
+        logger.debug("Student attendance overview matched %s students", total_students)
 
         # NOW add the relationships we need
         base_query = base_query.options(
@@ -345,14 +534,13 @@ async def get_students_attendance_overview(
 
         # LIMIT the query early to prevent large dataset issues
         students = base_query.offset(skip).limit(limit).all()
-        print(f"Students retrieved: {len(students)}")
+        logger.debug("Loaded %s students for attendance overview page", len(students))
         
         if not students:
             return []
 
         # STEP 2: Get attendance data in a single query WITH DATE FILTERING
         student_ids = [s.id for s in students]
-        print(f"Student IDs: {student_ids[:5]}...")  # Show first 5 for debugging
         
         attendance_stats = {}
         event_counts = {}
@@ -375,21 +563,28 @@ async def get_students_attendance_overview(
                 AttendanceModel.student_id.in_(student_ids),
                 Event.school_id == school_id,
             )
+            if governance_units:
+                if not allowed_event_ids:
+                    logger.debug("Attendance overview matched no in-scope events")
+                    attendance_results = []
+                else:
+                    attendance_query = attendance_query.filter(Event.id.in_(allowed_event_ids))
             
             # Apply date range filters
             if start_date:
                 start_datetime = datetime.combine(start_date, datetime.min.time())
                 attendance_query = attendance_query.filter(Event.start_datetime >= start_datetime)
-                print(f"Applied start_date filter: {start_datetime}")
                 
             if end_date:
                 end_datetime = datetime.combine(end_date, datetime.max.time())
                 attendance_query = attendance_query.filter(Event.start_datetime <= end_datetime)
-                print(f"Applied end_date filter: {end_datetime}")
             
-            attendance_results = attendance_query.group_by(AttendanceModel.student_id).all()
-            
-            print(f"Attendance query returned {len(attendance_results)} records")
+            if allowed_event_ids or not governance_units:
+                attendance_results = attendance_query.group_by(AttendanceModel.student_id).all()
+            logger.debug(
+                "Attendance overview aggregate query returned %s rows",
+                len(attendance_results),
+            )
             
             # Process results
             for student_id, total_attended, total_events, last_att in attendance_results:
@@ -399,8 +594,8 @@ async def get_students_attendance_overview(
                 }
                 event_counts[student_id] = total_events
                 
-        except Exception as e:
-            print(f"Error in attendance query: {str(e)}")
+        except Exception:
+            logger.exception("Attendance overview aggregate query failed")
             attendance_stats = {}
             event_counts = {}
 
@@ -439,18 +634,16 @@ async def get_students_attendance_overview(
                     last_attendance=last_attendance
                 ))
                 
-            except Exception as e:
-                print(f"Error processing student {student.id}: {str(e)}")
+            except Exception:
+                logger.exception("Failed to process attendance overview row", extra={"student_id": student.id})
                 continue
 
-        print(f"Returning {len(result)} students")
+        logger.debug("Returning %s student attendance overview rows", len(result))
         return result
 
-    except Exception as e:
-        print(f"MAIN ERROR in attendance overview: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(500, f"Database error: {str(e)}")
+    except Exception as exc:
+        logger.exception("Attendance overview request failed")
+        raise HTTPException(500, f"Database error: {str(exc)}") from exc
 
 # 2. Get detailed attendance report for a specific student - ENHANCED DATE FILTERING
 @router.get("/students/{student_id}/report", response_model=StudentAttendanceReport)
@@ -461,21 +654,34 @@ def get_student_attendance_report(
     # Additional filters
     status: Optional[AttendanceStatus] = Query(None, description="Filter by attendance status"),
     event_type: Optional[str] = Query(None, description="Filter by event type/category"),
+    governance_context: Optional[GovernanceUnitType] = Query(None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get detailed attendance report for a specific student with enhanced filtering"""
     
-    # Check permissions
-    user_roles = {role.role.name for role in current_user.roles}
-    if not has_any_role(current_user, ["ssg", "admin", "event-organizer", "event_organizer"]):
-        # Students can only view their own records
-        if "student" in user_roles and current_user.student_profile:
-            if current_user.student_profile.id != student_id:
-                raise HTTPException(403, "Can only view your own attendance")
-        else:
-            raise HTTPException(403, "Insufficient permissions")
+    can_view_own_records = (
+        has_any_role(current_user, ["student"])
+        and current_user.student_profile is not None
+        and current_user.student_profile.id == student_id
+    )
+    if not can_view_own_records:
+        _ensure_attendance_report_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = (
+        []
+        if can_view_own_records
+        else _get_attendance_governance_units(
+            db,
+            current_user=current_user,
+            governance_context=governance_context,
+        )
+    )
+    allowed_event_ids = _get_event_ids_in_attendance_scope(
+        db,
+        school_id=school_id,
+        governance_units=governance_units,
+    )
 
     # Get student
     student = db.query(StudentProfile).options(
@@ -489,33 +695,42 @@ def get_student_attendance_report(
     
     if not student:
         raise HTTPException(404, "Student not found")
+    _ensure_student_in_attendance_scope(student, governance_units)
     
     # Build attendance query with enhanced date filters
+    attendances: list[AttendanceModel] = []
     attendance_query = db.query(AttendanceModel).options(
         joinedload(AttendanceModel.event)
     ).join(Event, AttendanceModel.event_id == Event.id).filter(
         AttendanceModel.student_id == student_id,
         Event.school_id == school_id,
     )
+    if governance_units:
+        if not allowed_event_ids:
+            attendances = []
+            attendance_query = None
+        else:
+            attendance_query = attendance_query.filter(Event.id.in_(allowed_event_ids))
     
     # Apply date range filters
-    if start_date:
+    if attendance_query is not None and start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
         attendance_query = attendance_query.filter(Event.start_datetime >= start_datetime)
     
-    if end_date:
+    if attendance_query is not None and end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
         attendance_query = attendance_query.filter(Event.start_datetime <= end_datetime)
     
     # Apply status filter
-    if status:
+    if attendance_query is not None and status:
         attendance_query = attendance_query.filter(AttendanceModel.status == status)
     
     # Apply event type filter (assuming you have event_type or category field in Event model)
-    if event_type:
+    if attendance_query is not None and event_type:
         attendance_query = attendance_query.filter(Event.event_type == event_type)
     
-    attendances = attendance_query.order_by(Event.start_datetime.desc()).all()
+    if attendance_query is not None:
+        attendances = attendance_query.order_by(Event.start_datetime.desc()).all()
     
     # Calculate summary statistics
     total_attended = len([a for a in attendances if is_attended_status(a.status)])
@@ -565,6 +780,8 @@ def get_student_attendance_report(
             event_date=attendance.event.start_datetime,
             time_in=attendance.time_in,
             time_out=attendance.time_out,
+            check_in_status=attendance.check_in_status,
+            check_out_status=attendance.check_out_status,
             status=attendance.status,
             method=attendance.method,
             notes=attendance.notes,
@@ -608,14 +825,13 @@ def get_student_attendance_stats(
 ) -> Dict[str, Any]:
     """Get attendance statistics optimized for charts and visualizations with date filtering"""
     
-    # Check permissions (same as above)
-    user_roles = {role.role.name for role in current_user.roles}
-    if not has_any_role(current_user, ["ssg", "admin", "event-organizer", "event_organizer"]):
-        if "student" in user_roles and current_user.student_profile:
-            if current_user.student_profile.id != student_id:
-                raise HTTPException(403, "Can only view your own attendance")
-        else:
-            raise HTTPException(403, "Insufficient permissions")
+    can_view_own_records = (
+        has_any_role(current_user, ["student"])
+        and current_user.student_profile is not None
+        and current_user.student_profile.id == student_id
+    )
+    if not can_view_own_records:
+        _ensure_attendance_report_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
 
     student_in_school = db.query(StudentProfile.id).join(
@@ -722,9 +938,7 @@ def get_attendance_summary(
 ):
     """Get overall attendance summary with date range filtering for dashboard"""
     
-    # Permission check
-    if not has_any_role(current_user, ["ssg", "admin", "event-organizer", "event_organizer"]):
-        raise HTTPException(403, "Insufficient permissions")
+    _ensure_attendance_report_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
 
     # Base query
@@ -817,14 +1031,9 @@ def record_face_scan_attendance(
     db: Session = Depends(get_db)
 ):
     """Record attendance via face scan"""
-    # Fixed: Better role checking
-    if not has_any_role(current_user, ["ssg"]):
-        raise HTTPException(403, "Requires SSG role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     event = _get_event_in_school_or_404(db, event_id, school_id)
-    attendance_decision = _get_event_attendance_decision(event)
-    if not attendance_decision["attendance_allowed"]:
-        raise HTTPException(409, attendance_decision)
 
     student = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
@@ -836,24 +1045,49 @@ def record_face_scan_attendance(
     if not student:
         raise HTTPException(404, f"Student {student_id} not found")
     
-    # Check for existing attendance
-    existing = db.query(AttendanceModel).filter(
-        AttendanceModel.student_id == student.id,
-        AttendanceModel.event_id == event_id
-    ).first()
-    
-    if existing:
-        # Calculate time difference properly
-        time_diff = (datetime.utcnow() - existing.time_in).total_seconds()
-        if time_diff < 300:  # 5-minute cooldown
-            raise HTTPException(400, f"Duplicate scan detected. Last scan was {int(time_diff/60)} minutes ago.")
+    active_attendance = _active_attendance_for_student_event(
+        db,
+        student_profile_id=student.id,
+        event_id=event_id,
+    )
+    if active_attendance is not None:
+        sign_out_decision = _get_event_sign_out_decision(event)
+        if not sign_out_decision["attendance_allowed"]:
+            raise HTTPException(409, sign_out_decision)
+
+        duration_minutes = _complete_attendance_sign_out(
+            active_attendance,
+            recorded_at=datetime.utcnow(),
+        )
+        db.commit()
+        db.refresh(active_attendance)
+        return {
+            "message": f"Time out recorded successfully for {student_id}",
+            "attendance_id": active_attendance.id,
+            "student_id": student_id,
+            "time_in": active_attendance.time_in,
+            "time_out": active_attendance.time_out,
+            "duration_minutes": duration_minutes,
+        }
+
+    attendance_decision = _get_event_attendance_decision(event)
+    if not attendance_decision["attendance_allowed"]:
+        raise HTTPException(409, attendance_decision)
+
+    existing = (
+        db.query(AttendanceModel)
+        .filter(
+            AttendanceModel.student_id == student.id,
+            AttendanceModel.event_id == event_id,
+        )
+        .order_by(AttendanceModel.time_in.desc(), AttendanceModel.id.desc())
+        .first()
+    )
+    if existing and existing.time_out is not None:
+        raise HTTPException(400, f"Attendance already exists for student {student_id}")
 
     scanned_at = datetime.utcnow()
-    status_value = attendance_decision["attendance_status"] or resolve_time_in_status(
-        event_start=event.start_datetime,
-        time_in=scanned_at,
-        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
-    )
+    status_value = attendance_decision["attendance_status"] or "absent"
     
     # Create attendance record
     attendance = AttendanceModel(
@@ -862,6 +1096,8 @@ def record_face_scan_attendance(
         time_in=scanned_at,
         method="face_scan",
         status=status_value,
+        check_in_status=status_value,
+        check_out_status=None,
         verified_by=current_user.id
     )
     
@@ -880,18 +1116,20 @@ def record_face_scan_attendance(
 @router.post("/manual")
 def record_manual_attendance(
     data: ManualAttendanceRequest = Body(...),
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Record manual attendance"""
-    # Fixed: Better role checking
-    if not has_any_role(current_user, ["ssg"]):
-        raise HTTPException(403, "Requires SSG role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
     event = _get_event_in_school_or_404(db, data.event_id, school_id)
-    attendance_decision = _get_event_attendance_decision(event)
-    if not attendance_decision["attendance_allowed"]:
-        raise HTTPException(409, attendance_decision)
+    _ensure_event_in_attendance_scope(event, governance_units)
 
     student = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
@@ -902,22 +1140,50 @@ def record_manual_attendance(
     
     if not student:
         raise HTTPException(404, f"Student {data.student_id} not found")
+    _ensure_student_in_attendance_scope(student, governance_units)
+    _ensure_student_is_event_participant(student, event)
     
-    # Check for existing attendance
-    existing = db.query(AttendanceModel).filter(
-        AttendanceModel.student_id == student.id,
-        AttendanceModel.event_id == data.event_id
-    ).first()
-    
-    if existing:
+    active_attendance = _active_attendance_for_student_event(
+        db,
+        student_profile_id=student.id,
+        event_id=data.event_id,
+    )
+    if active_attendance is not None:
+        sign_out_decision = _get_event_sign_out_decision(event)
+        if not sign_out_decision["attendance_allowed"]:
+            raise HTTPException(409, sign_out_decision)
+
+        duration_minutes = _complete_attendance_sign_out(
+            active_attendance,
+            recorded_at=datetime.utcnow(),
+        )
+        db.commit()
+        db.refresh(active_attendance)
+        return {
+            "message": f"Recorded time out for {data.student_id}",
+            "attendance_id": active_attendance.id,
+            "action": "time_out",
+            "duration_minutes": duration_minutes,
+        }
+
+    attendance_decision = _get_event_attendance_decision(event)
+    if not attendance_decision["attendance_allowed"]:
+        raise HTTPException(409, attendance_decision)
+
+    existing = (
+        db.query(AttendanceModel)
+        .filter(
+            AttendanceModel.student_id == student.id,
+            AttendanceModel.event_id == data.event_id,
+        )
+        .order_by(AttendanceModel.time_in.desc(), AttendanceModel.id.desc())
+        .first()
+    )
+    if existing and existing.time_out is not None:
         raise HTTPException(400, f"Attendance already exists for student {data.student_id}")
 
     recorded_at = datetime.utcnow()
-    status_value = attendance_decision["attendance_status"] or resolve_time_in_status(
-        event_start=event.start_datetime,
-        time_in=recorded_at,
-        late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
-    )
+    status_value = attendance_decision["attendance_status"] or "absent"
     
     # Create attendance record
     attendance = AttendanceModel(
@@ -926,8 +1192,10 @@ def record_manual_attendance(
         time_in=recorded_at,
         method="manual",
         status=status_value,
+        check_in_status=status_value,
+        check_out_status=None,
         verified_by=current_user.id,
-        notes=data.notes
+        notes=data.notes or "Pending sign-out."
     )
     
     db.add(attendance)
@@ -936,19 +1204,26 @@ def record_manual_attendance(
     
     return {
         "message": f"Recorded attendance for {data.student_id}",
-        "attendance_id": attendance.id}
+        "attendance_id": attendance.id,
+        "action": "time_in",
+    }
 
 # 4. Bulk attendance
 @router.post("/bulk")
 def record_bulk_attendance(
     data: BulkAttendanceRequest,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Record multiple attendances at once"""
-    if not has_any_role(current_user, ["ssg"]):
-        raise HTTPException(403, "Requires SSG role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
 
     requested_event_ids = {record.event_id for record in data.records}
     allowed_events = {
@@ -971,6 +1246,9 @@ def record_bulk_attendance(
         if event is None:
             results.append({"student_id": record.student_id, "status": "event_not_in_school"})
             continue
+        if not _event_matches_governance_units(event, governance_units):
+            results.append({"student_id": record.student_id, "status": "event_not_in_scope"})
+            continue
         attendance_decision = _get_event_attendance_decision(event)
         if not attendance_decision["attendance_allowed"]:
             results.append(
@@ -991,6 +1269,18 @@ def record_bulk_attendance(
         if not student:
             results.append({"student_id": record.student_id, "status": "not_found"})
             continue
+        if governance_units and not governance_hierarchy_service.governance_units_match_student_scope(
+            governance_units,
+            department_id=student.department_id,
+            program_id=student.program_id,
+        ):
+            results.append({"student_id": record.student_id, "status": "student_not_in_scope"})
+            continue
+        try:
+            _ensure_student_is_event_participant(student, event)
+        except HTTPException:
+            results.append({"student_id": record.student_id, "status": "student_not_in_event_scope"})
+            continue
             
         existing = db.query(AttendanceModel).filter(
             AttendanceModel.student_id == student.id,
@@ -1007,13 +1297,11 @@ def record_bulk_attendance(
             event_id=record.event_id,
             time_in=recorded_at,
             method="manual",
-            status=attendance_decision["attendance_status"] or resolve_time_in_status(
-                event_start=event.start_datetime,
-                time_in=recorded_at,
-                late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
-            ),
+            status=attendance_decision["attendance_status"] or "absent",
+            check_in_status=attendance_decision["attendance_status"] or "absent",
+            check_out_status=None,
             verified_by=current_user.id,
-            notes=record.notes
+            notes=record.notes or "Pending sign-out."
         )
         db.add(attendance)
         results.append({"student_id": record.student_id, "status": "recorded"})
@@ -1027,14 +1315,20 @@ def mark_excused_attendance(
     event_id: int,
     student_ids: List[str],
     reason: str,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Mark students as excused for an event"""
-    if not has_any_role(current_user, ["ssg", "admin"]):
-        raise HTTPException(403, "Requires SSG/Admin role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
-    _get_event_in_school_or_404(db, event_id, school_id)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(event, governance_units)
 
     students = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
@@ -1044,6 +1338,8 @@ def mark_excused_attendance(
     ).all()
     
     for student in students:
+        _ensure_student_in_attendance_scope(student, governance_units)
+        _ensure_student_is_event_participant(student, event)
         attendance = db.query(AttendanceModel).filter(
             AttendanceModel.student_id == student.id,
             AttendanceModel.event_id == event_id
@@ -1073,14 +1369,22 @@ def get_event_attendees(
     status: Optional[AttendanceStatus] = None,
     skip: int = 0,
     limit: int = 100,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get attendees for an event"""
-    if not has_any_role(current_user, ["ssg", "admin"]):
-        raise HTTPException(403, "Requires SSG/Admin role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
-    _get_event_in_school_or_404(db, event_id, school_id)
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(
+        event,
+        _get_attendance_governance_units(
+            db,
+            current_user=current_user,
+            governance_context=governance_context,
+        ),
+    )
 
     query = db.query(AttendanceModel).filter(
         AttendanceModel.event_id == event_id
@@ -1099,13 +1403,12 @@ def get_event_attendees(
 @router.post("/{attendance_id}/time-out")
 def record_time_out(
     attendance_id: int,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Record time-out for an attendance record"""
-    # Check if user has permission
-    if not has_any_role(current_user, ["ssg", "admin"]):
-        raise HTTPException(403, "Requires SSG or Admin role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
 
     attendance = db.query(AttendanceModel).join(
@@ -1118,17 +1421,27 @@ def record_time_out(
     
     if not attendance:
         raise HTTPException(404, "Attendance record not found")
+    _ensure_event_in_attendance_scope(
+        attendance.event,
+        _get_attendance_governance_units(
+            db,
+            current_user=current_user,
+            governance_context=governance_context,
+        ),
+    )
     
     if attendance.time_out:
         raise HTTPException(400, "Time-out already recorded")
-    
-    # Record time-out
-    attendance.time_out = datetime.now(timezone.utc)
+
+    sign_out_decision = _get_event_sign_out_decision(attendance.event)
+    if not sign_out_decision["attendance_allowed"]:
+        raise HTTPException(409, sign_out_decision)
+
+    duration_minutes = _complete_attendance_sign_out(
+        attendance,
+        recorded_at=datetime.utcnow(),
+    )
     db.commit()
-    
-    # Calculate duration
-    duration_seconds = (attendance.time_out - attendance.time_in).total_seconds()
-    duration_minutes = int(duration_seconds / 60)
     
     return {
         "message": "Time-out recorded successfully",
@@ -1141,15 +1454,20 @@ def record_time_out(
 def record_face_scan_timeout(
     event_id: int,
     student_id: str,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
     """Record timeout via face scan"""
-    # Check permissions
-    if not has_any_role(current_user, ["ssg"]):
-        raise HTTPException(403, "Requires SSG role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
-    _get_event_in_school_or_404(db, event_id, school_id)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(event, governance_units)
 
     # Find student
     student = db.query(StudentProfile).join(
@@ -1161,6 +1479,8 @@ def record_face_scan_timeout(
     
     if not student:
         raise HTTPException(404, f"Student {student_id} not found")
+    _ensure_student_in_attendance_scope(student, governance_units)
+    _ensure_student_is_event_participant(student, event)
     
     # Find existing attendance record
     attendance = db.query(AttendanceModel).filter(
@@ -1175,14 +1495,16 @@ def record_face_scan_timeout(
     # Check if timeout already recorded
     if attendance.time_out:
         raise HTTPException(400, f"Timeout already recorded for this attendance")
-    
-    # Record timeout
-    attendance.time_out = datetime.utcnow()
+
+    sign_out_decision = _get_event_sign_out_decision(event)
+    if not sign_out_decision["attendance_allowed"]:
+        raise HTTPException(409, sign_out_decision)
+
+    duration_minutes = _complete_attendance_sign_out(
+        attendance,
+        recorded_at=datetime.utcnow(),
+    )
     db.commit()
-    
-    # Calculate duration
-    duration_seconds = (attendance.time_out - attendance.time_in).total_seconds()
-    duration_minutes = int(duration_seconds / 60)
     
     return {
         "message": "Face scan timeout recorded successfully",
@@ -1199,11 +1521,20 @@ def get_attendances_by_event(
     active_only: bool = Query(True, description="Only show active attendances (no time_out)"),
     skip: int = 0,
     limit: int = 100,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
     """Get all attendance records for a specific event with student details"""
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(event, governance_units)
 
     query = db.query(
         AttendanceModel,
@@ -1240,11 +1571,20 @@ def get_attendances_by_event_and_status(
     status: AttendanceStatus,
     skip: int = 0,
     limit: int = 100,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
     """Get attendance records for an event filtered by status"""
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(event, governance_units)
     return db.query(AttendanceModel)\
             .join(Event, AttendanceModel.event_id == Event.id)\
             .filter(
@@ -1260,11 +1600,20 @@ def get_attendances_by_event_and_status(
 @router.get("/events/{event_id}/attendances-with-students", response_model=List[AttendanceWithStudent])
 def get_attendances_with_students(
     event_id: int,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
     """Get attendance records with student information"""
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
+    event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(event, governance_units)
 
     results = db.query(
         AttendanceModel,
@@ -1300,11 +1649,9 @@ def get_all_student_attendance_records(
 ):
     """
     Get comprehensive attendance records for students with filtering options
-    Requires admin or ssg role
+    Requires campus admin, admin, or a governance member with attendance access
     """
-    # Check permissions
-    if not has_any_role(current_user, ["admin", "ssg"]):
-        raise HTTPException(status_code=403, detail="Requires admin or SSG role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
 
     # Base query joining all necessary tables
@@ -1353,6 +1700,8 @@ def get_all_student_attendance_records(
             event_name=event_name,
             time_in=attendance.time_in,
             time_out=attendance.time_out,
+            check_in_status=attendance.check_in_status,
+            check_out_status=attendance.check_out_status,
             status=attendance.status,
             method=attendance.method,
             notes=attendance.notes,
@@ -1438,6 +1787,8 @@ def get_student_attendance_records(
             event_name=event_name,
             time_in=attendance.time_in,
             time_out=attendance.time_out,
+            check_in_status=attendance.check_in_status,
+            check_out_status=attendance.check_out_status,
             status=attendance.status,
             method=attendance.method,
             notes=attendance.notes,
@@ -1523,17 +1874,22 @@ def get_my_attendance_records(
 @router.post("/mark-absent-no-timeout")
 def mark_absent_no_timeout(
     event_id: int,
+    governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Mark students as absent if they timed in but didn't time out"""
-    # Check permissions
-    if not has_any_role(current_user, ["ssg", "admin"]):
-        raise HTTPException(403, "Requires SSG or Admin role")
+    _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
+    governance_units = _get_attendance_governance_units(
+        db,
+        current_user=current_user,
+        governance_context=governance_context,
+    )
 
     # Find event
     event = _get_event_in_school_or_404(db, event_id, school_id)
+    _ensure_event_in_attendance_scope(event, governance_units)
     
     # Only process completed events
     if event.status != EventStatus.COMPLETED:
@@ -1549,8 +1905,14 @@ def mark_absent_no_timeout(
     
     updated_count = 0
     for attendance in attendances_to_update:
-        attendance.status = "absent"
-        attendance.notes = f"Auto-marked absent - no time-out recorded. {attendance.notes or ''}".strip()
+        attendance.check_out_status = "absent"
+        attendance.status, final_note = finalize_completed_attendance_status(
+            check_in_status=attendance.check_in_status or attendance.status,
+            check_out_status=attendance.check_out_status,
+        )
+        attendance.notes = (
+            f"Auto-marked absent - no sign-out recorded. {final_note or attendance.notes or ''}"
+        ).strip()
         updated_count += 1
     
     db.commit()

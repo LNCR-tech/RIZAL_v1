@@ -80,7 +80,7 @@ def test_password_hashing(test_db):
 
 # For running directly without pytest
 if __name__ == "__main__":
-    from app.database import SessionLocal
+    from app.core.database import SessionLocal
     import os
     
     def manual_test():

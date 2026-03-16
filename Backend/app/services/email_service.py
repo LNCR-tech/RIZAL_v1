@@ -5,6 +5,7 @@ from email.message import EmailMessage
 from typing import Optional
 
 from app.core.config import get_settings
+from app.services.password_change_policy import get_welcome_email_password_notice
 
 
 class EmailDeliveryError(Exception):
@@ -72,15 +73,18 @@ def send_welcome_email(
     first_name: Optional[str] = None,
     system_name: Optional[str] = None,
     login_url: Optional[str] = None,
+    password_is_temporary: bool = True,
 ) -> None:
     settings = get_settings()
 
     resolved_first_name = (first_name or "").strip() or "User"
     resolved_system_name = (system_name or "").strip() or "Valid8 Attendance Recognition System"
     resolved_login_url = (login_url or "").strip() or settings.login_url
+    password_label = "Temporary Password" if password_is_temporary else "Password"
+    credential_subject = "Temporary Login Credentials" if password_is_temporary else "Login Credentials"
 
     _send_email(
-        subject=f"Welcome to {resolved_system_name} – Temporary Login Credentials",
+        subject=f"Welcome to {resolved_system_name} - {credential_subject}",
         recipient_email=recipient_email,
         body=(
             f"Dear {resolved_first_name},\n\n"
@@ -89,14 +93,12 @@ def send_welcome_email(
             "Login Credentials:\n"
             "-----------------------------------\n"
             f"Email: {recipient_email}\n"
-            f"Temporary Password: {temporary_password}\n"
+            f"{password_label}: {temporary_password}\n"
             f"Login URL: {resolved_login_url}\n"
             "-----------------------------------\n\n"
-            "IMPORTANT:\n"
-            "For security reasons, this is a temporary password.\n"
-            "You are required to change your password immediately after your first login.\n\n"
+            f"{get_welcome_email_password_notice(password_is_temporary=password_is_temporary)}"
             "Do not share your login credentials with anyone.\n\n"
-            "If you experience issues, contact your School IT Administrator.\n\n"
+            "If you experience issues, contact your Campus Admin.\n\n"
             "Best regards,\n"
             f"{resolved_system_name} Team\n"
         ),
@@ -117,7 +119,7 @@ def send_password_reset_email(
     resolved_login_url = (login_url or "").strip() or settings.login_url
 
     _send_email(
-        subject=f"{resolved_system_name} – Password Reset Approved",
+        subject=f"{resolved_system_name} - Password Reset Approved",
         recipient_email=recipient_email,
         body=(
             f"Dear {resolved_first_name},\n\n"
@@ -146,7 +148,7 @@ def send_mfa_code_email(
     resolved_first_name = (first_name or "").strip() or "User"
     resolved_system_name = (system_name or "").strip() or "Valid8 Attendance Recognition System"
     _send_email(
-        subject=f"{resolved_system_name} – MFA Verification Code",
+        subject=f"{resolved_system_name} - MFA Verification Code",
         recipient_email=recipient_email,
         body=(
             f"Dear {resolved_first_name},\n\n"

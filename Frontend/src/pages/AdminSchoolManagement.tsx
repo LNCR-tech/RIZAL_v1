@@ -83,7 +83,7 @@ const AdminSchoolManagement = () => {
     try {
       const response = await adminCreateSchoolWithSchoolIT(form, logoFile);
       setSuccess(
-        `Created school "${response.school.school_name}" with SCHOOL_IT account ${response.school_it_email}.`
+        `Created school "${response.school.school_name}" with Campus Admin account ${response.school_it_email}.`
       );
       if (response.generated_temporary_password) {
         setGeneratedPassword(response.generated_temporary_password);
@@ -92,7 +92,7 @@ const AdminSchoolManagement = () => {
       setLogoFile(null);
       await refreshData();
     } catch (err) {
-      handleApiError(err, "Failed to create school and SCHOOL_IT");
+      handleApiError(err, "Failed to create school and Campus Admin");
     } finally {
       setSubmitting(false);
     }
@@ -105,7 +105,7 @@ const AdminSchoolManagement = () => {
       await adminSetSchoolItActiveStatus(account.user_id, !account.is_active);
       await refreshData();
     } catch (err) {
-      handleApiError(err, "Failed to update SCHOOL_IT status");
+      handleApiError(err, "Failed to update Campus Admin status");
     }
   };
 
@@ -118,7 +118,7 @@ const AdminSchoolManagement = () => {
       setSuccess(`Password reset for ${result.email}.`);
       setGeneratedPassword(result.temporary_password);
     } catch (err) {
-      handleApiError(err, "Failed to reset SCHOOL_IT password");
+      handleApiError(err, "Failed to reset Campus Admin password");
     }
   };
 
@@ -131,7 +131,7 @@ const AdminSchoolManagement = () => {
           <div className="col-lg-6">
             <div className="card border-0 shadow-sm">
               <div className="card-body">
-                <h4 className="mb-3">Create School + SCHOOL_IT</h4>
+                <h4 className="mb-3">Create School + Campus Admin</h4>
 
                 {error && <div className="alert alert-danger">{error}</div>}
                 {success && <div className="alert alert-success">{success}</div>}
@@ -190,7 +190,7 @@ const AdminSchoolManagement = () => {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">SCHOOL_IT Email</label>
+                    <label className="form-label">Campus Admin Email</label>
                     <input
                       className="form-control"
                       value={form.school_it_email}
@@ -198,7 +198,7 @@ const AdminSchoolManagement = () => {
                     />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">SCHOOL_IT Password (optional)</label>
+                    <label className="form-label">Campus Admin Password (optional)</label>
                     <input
                       className="form-control"
                       value={form.school_it_password || ""}
@@ -233,7 +233,7 @@ const AdminSchoolManagement = () => {
                 </div>
 
                 <button className="btn btn-primary mt-3" onClick={handleCreate} disabled={submitting}>
-                  {submitting ? "Creating..." : "Create School + SCHOOL_IT"}
+                  {submitting ? "Creating..." : "Create School + Campus Admin"}
                 </button>
               </div>
             </div>
@@ -272,7 +272,7 @@ const AdminSchoolManagement = () => {
 
             <div className="card border-0 shadow-sm">
               <div className="card-body">
-                <h5 className="mb-2">SCHOOL_IT Accounts</h5>
+                <h5 className="mb-2">Campus Admin Accounts</h5>
                 {loading ? (
                   <p className="text-muted mb-0">Loading...</p>
                 ) : (
@@ -324,3 +324,5 @@ const AdminSchoolManagement = () => {
 };
 
 export default AdminSchoolManagement;
+
+

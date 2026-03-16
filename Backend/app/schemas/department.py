@@ -24,12 +24,14 @@ class DepartmentUpdate(BaseModel):
 
 class Department(DepartmentBase):
     id: int = Field(..., description="Unique identifier of the department")
+    school_id: Optional[int] = Field(default=None, description="Owning school/campus identifier")
     
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={
             "example": {
                 "id": 1,
+                "school_id": 1,
                 "name": "Computer Science"
             }
         }

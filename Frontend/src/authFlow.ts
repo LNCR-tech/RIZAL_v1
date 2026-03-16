@@ -4,29 +4,38 @@ import {
   normalizeLogoUrl,
   type SchoolSettings,
 } from "./api/schoolSettingsApi";
-
-const normalizeRole = (role: string) => role.trim().toLowerCase().replace(/_/g, "-");
-
-const hasAnyRole = (roles: string[], ...roleNames: string[]) => {
-  const normalizedRoles = new Set(roles.map(normalizeRole));
-  return roleNames.some((roleName) => normalizedRoles.has(normalizeRole(roleName)));
-};
+import {
+  clearStudentFaceEnrollmentState,
+  fetchStudentFaceEnrollmentStatus,
+  isStudentFaceEnrollmentRequired,
+  setStudentFaceEnrollmentRequired,
+} from "./api/studentFaceEnrollmentApi";
+import { getStoredGovernanceAccess } from "./hooks/useGovernanceAccess";
+import { sanitizeRedirectPath } from "./utils/redirects";
+import { hasAnyRole } from "./utils/roleUtils";
 
 export const hasStudentRole = (roles: string[]) => hasAnyRole(roles, "student");
 
 export const resolveDashboardPath = (roles: string[]): string => {
-  const isStudent = hasStudentRole(roles);
-  const isSsg = hasAnyRole(roles, "ssg");
-  const isEventOrganizer = hasAnyRole(roles, "event-organizer");
+  let resolvedPath = "/";
+  if (hasAnyRole(roles, "admin")) {
+    resolvedPath = "/admin_dashboard";
+  } else if (hasAnyRole(roles, "campus_admin")) {
+    resolvedPath = "/campus_admin_dashboard";
+  } else {
+    const governanceAccess = getStoredGovernanceAccess();
+    if (governanceAccess?.units.some((unit) => unit.unit_type === "SSG")) {
+      resolvedPath = "/ssg_dashboard";
+    } else if (governanceAccess?.units.some((unit) => unit.unit_type === "SG")) {
+      resolvedPath = "/sg_dashboard";
+    } else if (governanceAccess?.units.some((unit) => unit.unit_type === "ORG")) {
+      resolvedPath = "/org_dashboard";
+    } else if (hasStudentRole(roles)) {
+      resolvedPath = "/student_dashboard";
+    }
+  }
 
-  if (hasAnyRole(roles, "admin")) return "/admin_dashboard";
-  if (hasAnyRole(roles, "school-it")) return "/school_it_dashboard";
-  if (isStudent && isSsg && isEventOrganizer) return "/student_ssg_eventorganizer_dashboard";
-  if (isStudent && isSsg) return "/student_ssg_dashboard";
-  if (isStudent) return "/student_dashboard";
-  if (isSsg) return "/ssg_dashboard";
-  if (isEventOrganizer) return "/event_organizer_dashboard";
-  return "/";
+  return sanitizeRedirectPath(resolvedPath, "/");
 };
 
 export const getRequiredFaceVerificationRole = (
@@ -35,28 +44,76 @@ export const getRequiredFaceVerificationRole = (
   if (hasAnyRole(roles, "admin")) {
     return "admin";
   }
-  if (hasAnyRole(roles, "school-it")) {
-    return "school_IT";
+  if (hasAnyRole(roles, "campus_admin")) {
+    return "campus_admin";
   }
   return null;
 };
 
-export const resolvePostAuthenticationPath = ({
+const resolveStudentPostAuthenticationPath = async ({
+  roles,
+  authToken,
+  userId,
+}: {
+  roles: string[];
+  authToken?: string | null;
+  userId?: number | null;
+}) => {
+  const fallbackDashboardPath = sanitizeRedirectPath(
+    resolveDashboardPath(roles),
+    "/student_dashboard"
+  );
+
+  try {
+    const status = await fetchStudentFaceEnrollmentStatus(authToken);
+    const resolvedUserId = status.userId ?? userId ?? null;
+    const resolvedRoles = status.roles.length > 0 ? status.roles : roles;
+
+    if (!status.hasStudentRole || !status.hasStudentProfile || status.faceRegistered) {
+      clearStudentFaceEnrollmentState(resolvedUserId);
+      return sanitizeRedirectPath(
+        resolveDashboardPath(resolvedRoles),
+        fallbackDashboardPath
+      );
+    }
+
+    if (resolvedUserId != null) {
+      setStudentFaceEnrollmentRequired(resolvedUserId, true);
+    }
+
+    return sanitizeRedirectPath("/student_face_registration", "/");
+  } catch {
+    if (isStudentFaceEnrollmentRequired(userId ?? null)) {
+      return sanitizeRedirectPath("/student_face_registration", "/");
+    }
+    return fallbackDashboardPath;
+  }
+};
+
+export const resolvePostAuthenticationPath = async ({
   roles,
   mustChangePassword,
+  authToken,
+  userId,
 }: {
   roles: string[];
   mustChangePassword: boolean;
+  authToken?: string | null;
+  userId?: number | null;
 }) => {
   if (mustChangePassword) {
-    return "/change-password";
+    return sanitizeRedirectPath("/change-password", "/");
   }
 
   if (hasStudentRole(roles)) {
-    return "/student_face_registration";
+    return resolveStudentPostAuthenticationPath({
+      roles,
+      authToken,
+      userId,
+    });
   }
 
-  return resolveDashboardPath(roles);
+  return sanitizeRedirectPath(resolveDashboardPath(roles), "/");
 };
 
 export const buildBrandingFromAuthSession = (
@@ -73,6 +130,9 @@ export const buildBrandingFromAuthSession = (
     logo_url: normalizeLogoUrl(session.logoUrl),
     primary_color: session.primaryColor || "#162F65",
     secondary_color: session.secondaryColor || "#2C5F9E",
+    event_default_early_check_in_minutes: 30,
+    event_default_late_threshold_minutes: 10,
+    event_default_sign_out_grace_minutes: 20,
     subscription_status: "trial",
     active_status: true,
   };

@@ -1,10 +1,7 @@
-# app/schemas/attendance.py
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, date
 from typing import Optional, List, Dict
 from enum import Enum
-from fastapi import Query
-from sqlalchemy import func, case
 
 class AttendanceMethod(str, Enum):
     FACE_SCAN = "face_scan"
@@ -37,6 +34,8 @@ class Attendance(AttendanceBase):
     id: int = Field(..., gt=0)
     student_id: int = Field(..., gt=0)
     time_out: Optional[datetime] = None
+    check_in_status: Optional[str] = None
+    check_out_status: Optional[str] = None
     verified_by: Optional[int] = Field(None, gt=0)
     notes: Optional[str] = None
     
@@ -64,6 +63,8 @@ class StudentAttendanceRecord(BaseModel):
     event_name: str  # We'll add this from the event model
     time_in: datetime
     time_out: Optional[datetime] = None
+    check_in_status: Optional[str] = None
+    check_out_status: Optional[str] = None
     status: AttendanceStatus
     method: AttendanceMethod
     notes: Optional[str] = None
@@ -123,6 +124,8 @@ class StudentAttendanceDetail(BaseModel):
     event_date: datetime
     time_in: Optional[datetime] = None
     time_out: Optional[datetime] = None
+    check_in_status: Optional[str] = None
+    check_out_status: Optional[str] = None
     status: AttendanceStatus
     method: str
     notes: Optional[str] = None

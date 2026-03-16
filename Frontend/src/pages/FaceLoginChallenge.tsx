@@ -15,6 +15,8 @@ import {
 } from "../authFlow";
 import PrivilegedFaceWorkspace from "../components/PrivilegedFaceWorkspace";
 import { useUser } from "../context/UserContext";
+import { primeGovernanceAccessCache } from "../hooks/useGovernanceAccess";
+import { sanitizeRedirectPath } from "../utils/redirects";
 import "../css/FacialVerification.css";
 
 const FaceLoginChallengeContent = ({
@@ -25,14 +27,14 @@ const FaceLoginChallengeContent = ({
   const navigate = useNavigate();
   const { setBranding } = useUser();
   const { session, rememberMe, faceRole } = pendingAuth;
-  const roleLabel = faceRole === "school_IT" ? "School IT" : "Admin";
+  const roleLabel = faceRole === "campus_admin" ? "Campus Admin" : "Admin";
   const subjectId = session.email || `${faceRole}:${session.id ?? "pending"}`;
   const subjectLabel =
     `${session.firstName ?? ""} ${session.lastName ?? ""}`.trim() ||
     session.email ||
     roleLabel;
 
-  const completeLogin = (result: VerificationResult) => {
+  const completeLogin = async (result: VerificationResult) => {
     const verifiedSession = result.authSessionPatch?.accessToken
       ? {
           ...session,
@@ -50,11 +52,14 @@ const FaceLoginChallengeContent = ({
     persistAuthSession(verifiedSession);
     setBranding(buildBrandingFromAuthSession(verifiedSession));
     syncRememberedEmail(verifiedSession.email, rememberMe);
+    await primeGovernanceAccessCache(true);
 
-    navigate(
+    navigate(sanitizeRedirectPath(
       verifiedSession.mustChangePassword
         ? "/change-password"
         : resolveDashboardPath(verifiedSession.roles || []),
+      "/"
+    ),
       { replace: true }
     );
   };

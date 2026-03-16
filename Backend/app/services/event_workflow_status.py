@@ -38,9 +38,9 @@ class EventWorkflowStatusSyncSummary:
 
 
 def map_time_status_to_workflow_status(time_status: str) -> ModelEventStatus:
-    if time_status == "upcoming":
+    if time_status in {"before_check_in", "early_check_in"}:
         return ModelEventStatus.UPCOMING
-    if time_status in {"open", "late"}:
+    if time_status in {"late_check_in", "absent_check_in", "sign_out_open"}:
         return ModelEventStatus.ONGOING
     return ModelEventStatus.COMPLETED
 
@@ -53,7 +53,10 @@ def get_expected_workflow_status(
     time_status = get_event_status(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
+        early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+        sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+        sign_out_override_until=getattr(event, "sign_out_override_until", None),
         current_time=current_time,
     )
     return map_time_status_to_workflow_status(time_status.event_status), time_status.event_status

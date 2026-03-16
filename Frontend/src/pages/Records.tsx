@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { FaSearch, FaSync, FaArrowLeft, FaFilter } from "react-icons/fa";
+import { NavbarAdmin } from "../components/NavbarAdmin";
+import NavbarSchoolIT from "../components/NavbarSchoolIT";
 import { NavbarStudent } from "../components/NavbarStudent";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
-import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
-import { NavbarSSG } from "../components/NavbarSSG";
+import SsgFeatureShell from "../components/SsgFeatureShell";
 import { useParams } from "react-router-dom";
 import { Bar, Pie } from "react-chartjs-2";
 import {
@@ -82,6 +83,12 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const Records: React.FC<RecordsProps> = ({ role }) => {
   const { student_id } = useParams();
+  const governanceContext =
+    role === "ssg" ? "SSG" : role === "sg" ? "SG" : role === "org" ? "ORG" : null;
+  const isGovernanceRole = Boolean(governanceContext);
+  const isCampusAdmin = role === "campus_admin";
+  const isAdmin = role === "admin";
+  const governanceUnitType = (governanceContext ?? "SSG") as "SSG" | "SG" | "ORG";
   const [overviewData, setOverviewData] = useState<StudentAttendanceRecord[]>(
     []
   );
@@ -109,6 +116,7 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     try {
       const token = localStorage.getItem("authToken");
       let url = `${BASE_URL}/attendance/students/overview?`;
+      if (governanceContext) url += `&governance_context=${governanceContext}`;
 
       // Add date range filters if they exist
       if (startDate) url += `&start_date=${startDate}`;
@@ -140,6 +148,7 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     try {
       const token = localStorage.getItem("authToken");
       let url = `${BASE_URL}/attendance/students/${id}/report?`;
+      if (governanceContext) url += `&governance_context=${governanceContext}`;
 
       // Add filters to the report request
       if (startDate) url += `&start_date=${startDate}`;
@@ -174,7 +183,7 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     } else if (student_id) {
       fetchStudentReport(student_id);
     }
-  }, [viewMode, student_id, startDate, endDate, statusFilter]);
+  }, [viewMode, student_id, startDate, endDate, statusFilter, governanceContext]);
 
   const handleResetFilters = () => {
     setStartDate("");
@@ -194,6 +203,20 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     reportData?.attendance_records.filter(
       (record) => statusFilter === "all" || record.status === statusFilter
     ) || [];
+
+  const getSsgStatusToneClass = (status: string) => {
+    switch (status) {
+      case "present":
+        return "ssg-badge--published";
+      case "late":
+        return "ssg-badge--draft";
+      case "absent":
+      case "excused":
+        return "ssg-badge--archived";
+      default:
+        return "ssg-badge--member";
+    }
+  };
 
   const formatTime = (timeString: string | null) => {
     if (!timeString) return "N/A";
@@ -598,14 +621,475 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
     );
   };
 
+  if (isGovernanceRole) {
+    const presentEvents =
+      statusFilter === "all"
+        ? Math.max(0, (reportData?.student.attended_events ?? 0) - (reportData?.student.late_events ?? 0))
+        : filteredAttendanceRecords.filter((record) => record.status === "present").length;
+    const attendedEvents =
+      statusFilter === "all"
+        ? reportData?.student.attended_events ?? 0
+        : filteredAttendanceRecords.filter(
+            (record) => record.status === "present" || record.status === "late"
+          ).length;
+    const lateEvents =
+      statusFilter === "all"
+        ? reportData?.student.late_events ?? 0
+        : filteredAttendanceRecords.filter((record) => record.status === "late").length;
+    const absentEvents =
+      statusFilter === "all"
+        ? reportData?.student.absent_events ?? 0
+        : filteredAttendanceRecords.filter((record) => record.status === "absent").length;
+    const excusedEvents =
+      statusFilter === "all"
+        ? reportData?.student.excused_events ?? 0
+        : filteredAttendanceRecords.filter((record) => record.status === "excused").length;
+
+    const monthlyLabels = Object.keys(reportData?.monthly_stats || {}).sort();
+    const statusDistributionData = {
+      labels: ["Present", "Late", "Absent", "Excused"],
+      datasets: [
+        {
+          data: [presentEvents, lateEvents, absentEvents, excusedEvents],
+          backgroundColor: ["#4CAF50", "#FFB74D", "#F44336", "#42A5F5"],
+          borderColor: ["#388E3C", "#F57C00", "#D32F2F", "#1E88E5"],
+          borderWidth: 1,
+        },
+      ],
+    };
+
+    const monthlyData = {
+      labels: monthlyLabels,
+      datasets: [
+        {
+          label: "Present",
+          data: monthlyLabels.map((month) =>
+            statusFilter === "all" || statusFilter === "present"
+              ? reportData?.monthly_stats[month]?.present || 0
+              : 0
+          ),
+          backgroundColor: "#4CAF50",
+        },
+        {
+          label: "Late",
+          data: monthlyLabels.map((month) =>
+            statusFilter === "all" || statusFilter === "late"
+              ? reportData?.monthly_stats[month]?.late || 0
+              : 0
+          ),
+          backgroundColor: "#FFB74D",
+        },
+        {
+          label: "Absent",
+          data: monthlyLabels.map((month) =>
+            statusFilter === "all" || statusFilter === "absent"
+              ? reportData?.monthly_stats[month]?.absent || 0
+              : 0
+          ),
+          backgroundColor: "#F44336",
+        },
+        {
+          label: "Excused",
+          data: monthlyLabels.map((month) =>
+            statusFilter === "all" || statusFilter === "excused"
+              ? reportData?.monthly_stats[month]?.excused || 0
+              : 0
+          ),
+          backgroundColor: "#42A5F5",
+        },
+      ],
+    };
+
+    const ssgStats =
+      viewMode === "overview"
+        ? [
+            {
+              label: "Total Students",
+              value: overviewData.length,
+              hint: "Students with attendance records in your visible scope",
+            },
+            {
+              label: "Filtered Results",
+              value: filteredRecords.length,
+              hint: "Students matching the current search",
+            },
+            {
+              label: "Date Filters",
+              value: startDate || endDate ? "Active" : "Off",
+              hint: "Overview date range filter state",
+            },
+            {
+              label: "View Mode",
+              value: "Overview",
+              hint: "Campus attendance directory",
+            },
+          ]
+        : [
+            {
+              label: "Attended",
+              value: attendedEvents,
+              hint: "Present and late events combined",
+            },
+            {
+              label: "Late",
+              value: lateEvents,
+              hint: "Late attendance records",
+            },
+            {
+              label: "Absent",
+              value: absentEvents,
+              hint: "Missed attendance records",
+            },
+            {
+              label: "Excused",
+              value: excusedEvents,
+              hint: "Excused attendance records",
+            },
+          ];
+
+    return (
+      <SsgFeatureShell
+        eyebrow={`${governanceContext} / Records`}
+        title={
+          viewMode === "overview"
+            ? governanceContext === "SSG"
+              ? "Attendance records overview"
+              : governanceContext === "SG"
+                ? "Department attendance overview"
+                : "Organization attendance overview"
+            : "Student attendance report"
+        }
+        description={
+          viewMode === "overview"
+            ? governanceContext === "SSG"
+              ? "Review campus attendance performance and open a detailed report for any student in your visible scope."
+              : governanceContext === "SG"
+                ? "Review department attendance performance and open a detailed report for any student in your SG scope."
+                : "Review organization attendance performance and open a detailed report for any student in your ORG scope."
+            : "Inspect detailed attendance data, charts, and record history for the selected student."
+        }
+        stats={ssgStats}
+        unitType={governanceUnitType}
+        actions={
+          <div className="ssg-inline-actions">
+            {viewMode === "detail" && (
+              <button type="button" className="btn btn-outline-light" onClick={() => setViewMode("overview")}>
+                <FaArrowLeft className="me-2" />
+                Back
+              </button>
+            )}
+            <button type="button" className="btn btn-outline-light" onClick={() => setShowFilters((current) => !current)}>
+              <FaFilter className="me-2" />
+              {showFilters ? "Hide Filters" : "Filters"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-light"
+              onClick={
+                viewMode === "overview"
+                  ? fetchOverviewData
+                  : () => student_id && fetchStudentReport(student_id)
+              }
+              disabled={isLoading}
+            >
+              <FaSync className={`me-2 ${isLoading ? "spin" : ""}`} />
+              {isLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+        }
+      >
+        {error && <div className="alert alert-danger mb-0">{error}</div>}
+
+        {showFilters && (
+          <section className="ssg-feature-card">
+            <div className="ssg-feature-card__header">
+              <div>
+                <h2 className="ssg-feature-card__title">Attendance filters</h2>
+                <p className="ssg-feature-card__subtitle">Filter the attendance scope by date and status.</p>
+              </div>
+            </div>
+            <div className="ssg-feature-filter-row">
+              <div className="ssg-feature-filter-group">
+                <label>Start Date</label>
+                <input className="ssg-feature-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="ssg-feature-filter-group">
+                <label>End Date</label>
+                <input
+                  className="ssg-feature-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                />
+              </div>
+              <div className="ssg-feature-filter-group">
+                <label>Status</label>
+                <select
+                  className="ssg-feature-select"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(
+                      e.target.value as "all" | "present" | "late" | "absent" | "excused"
+                    )
+                  }
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="present">Present Only</option>
+                  <option value="late">Late Only</option>
+                  <option value="absent">Absent Only</option>
+                  <option value="excused">Excused Only</option>
+                </select>
+              </div>
+              <button type="button" className="btn btn-outline-secondary" onClick={handleResetFilters}>
+                Reset Filters
+              </button>
+            </div>
+          </section>
+        )}
+
+        {viewMode === "overview" ? (
+          <section className="ssg-feature-card">
+            <div className="ssg-feature-card__header">
+              <div>
+                <h2 className="ssg-feature-card__title">Student attendance overview</h2>
+                <p className="ssg-feature-card__subtitle">
+                  Search by student ID or student name, then open a detailed report.
+                </p>
+              </div>
+            </div>
+
+            <div className="ssg-feature-controls">
+              <div className="ssg-feature-search">
+                <FaSearch />
+                <input
+                  type="text"
+                  placeholder="Search by student ID or name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="ssg-feature-empty">Loading records...</div>
+            ) : filteredRecords.length === 0 ? (
+              <div className="ssg-feature-empty">
+                {searchTerm ? "No matching records found." : "No attendance records available."}
+              </div>
+            ) : (
+              <div className="ssg-feature-table-card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Student ID</th>
+                      <th>Name</th>
+                      <th>Department</th>
+                      <th>Program</th>
+                      <th>Attendance</th>
+                      <th>Last Attendance</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecords.map((record) => (
+                      <tr key={record.id}>
+                        <td>{record.student_id}</td>
+                        <td>{record.full_name}</td>
+                        <td>{record.department_name || "N/A"}</td>
+                        <td>{record.program_name || "N/A"}</td>
+                        <td>{record.attendance_rate}%</td>
+                        <td>
+                          {record.last_attendance ? (
+                            <div className="ssg-feature-meta">
+                              <span>{formatTime(record.last_attendance)}</span>
+                              <small>{formatDate(record.last_attendance)}</small>
+                            </div>
+                          ) : (
+                            "No record"
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            onClick={() => {
+                              setViewMode("detail");
+                              fetchStudentReport(record.id.toString());
+                            }}
+                          >
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ) : (
+          <>
+            <section className="ssg-feature-card">
+              <div className="ssg-feature-card__header">
+                <div>
+                  <h2 className="ssg-feature-card__title">
+                    {reportData ? `${reportData.student.student_name} attendance report` : "Attendance report"}
+                  </h2>
+                  {reportData && (
+                    <p className="ssg-feature-card__subtitle">
+                      Student ID: {reportData.student.student_id}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="ssg-feature-summary-grid">
+                <div className="ssg-feature-summary-card">
+                  <strong>{filteredAttendanceRecords.length}</strong>
+                  <span>Total Events</span>
+                </div>
+                <div className="ssg-feature-summary-card">
+                  <strong>{attendedEvents}</strong>
+                  <span>Attended</span>
+                </div>
+                <div className="ssg-feature-summary-card">
+                  <strong>{lateEvents}</strong>
+                  <span>Late</span>
+                </div>
+                <div className="ssg-feature-summary-card">
+                  <strong>{absentEvents}</strong>
+                  <span>Absent</span>
+                </div>
+                <div className="ssg-feature-summary-card">
+                  <strong>{excusedEvents}</strong>
+                  <span>Excused</span>
+                </div>
+                <div className="ssg-feature-summary-card">
+                  <strong>
+                    {filteredAttendanceRecords.length > 0
+                      ? Math.round((attendedEvents / filteredAttendanceRecords.length) * 100)
+                      : 0}
+                    %
+                  </strong>
+                  <span>Attendance Rate</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="ssg-feature-chart-grid">
+              <article className="ssg-feature-chart-card">
+                <h3>Attendance distribution</h3>
+                <div className="ssg-feature-chart-wrap">
+                  <Pie
+                    data={statusDistributionData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: "bottom",
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </article>
+
+              <article className="ssg-feature-chart-card">
+                <h3>Monthly attendance trend</h3>
+                <div className="ssg-feature-chart-wrap">
+                  <Bar
+                    data={monthlyData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: "bottom",
+                        },
+                      },
+                      scales: {
+                        x: {
+                          stacked: true,
+                        },
+                        y: {
+                          stacked: true,
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </article>
+            </section>
+
+            <section className="ssg-feature-card">
+              <div className="ssg-feature-card__header">
+                <div>
+                  <h2 className="ssg-feature-card__title">
+                    Attendance records ({filteredAttendanceRecords.length})
+                  </h2>
+                  <p className="ssg-feature-card__subtitle">
+                    Detailed status, time in, time out, and duration for the selected student.
+                  </p>
+                </div>
+              </div>
+
+              {filteredAttendanceRecords.length === 0 ? (
+                <div className="ssg-feature-empty">
+                  No attendance records found for the selected filters.
+                </div>
+              ) : (
+                <div className="ssg-feature-table-card">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Event</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Time In</th>
+                        <th>Time Out</th>
+                        <th>Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAttendanceRecords.map((record) => (
+                        <tr key={record.id}>
+                          <td>{record.event_name}</td>
+                          <td>{formatDate(record.event_date)}</td>
+                          <td>{record.event_location}</td>
+                          <td>
+                            <span className={`ssg-badge ${getSsgStatusToneClass(record.status)}`}>
+                              {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                            </span>
+                          </td>
+                          <td>{formatTime(record.time_in)}</td>
+                          <td>{formatTime(record.time_out)}</td>
+                          <td>
+                            {record.duration_minutes !== null ? `${record.duration_minutes} mins` : "N/A"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </SsgFeatureShell>
+    );
+  }
+
   return (
     <div className="records-container">
-      {role === "student-ssg" ? (
+      {isAdmin ? (
+        <NavbarAdmin />
+      ) : isCampusAdmin ? (
+        <NavbarSchoolIT />
+      ) : role === "student-ssg" ? (
         <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
-      ) : role === "ssg" ? (
-        <NavbarSSG />
       ) : (
         <NavbarStudent />
       )}
@@ -614,10 +1098,14 @@ export const Records: React.FC<RecordsProps> = ({ role }) => {
         <div className="header">
           <h1>
             {viewMode === "overview"
-              ? "Student Attendance Overview"
+              ? isCampusAdmin
+                ? "Campus Attendance Monitor"
+                : isAdmin
+                  ? "Student Attendance Overview"
+                  : "Student Attendance Overview"
               : reportData
-              ? `${reportData.student.student_name}'s Attendance`
-              : "Student Attendance"}
+                ? `${reportData.student.student_name}'s Attendance`
+                : "Student Attendance"}
           </h1>
 
           <div className="controls">

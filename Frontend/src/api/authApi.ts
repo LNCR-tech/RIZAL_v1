@@ -1,6 +1,8 @@
 import type { FacialVerificationRole } from "./facialVerificationApi";
+import type { UpdateEventPayload } from "./eventsApi";
 import { applyTheme, clearBranding, saveTheme } from "./schoolSettingsApi";
 import { clearStudentFaceEnrollmentState } from "./studentFaceEnrollmentApi";
+import { clearGovernanceAccessCache } from "../hooks/useGovernanceAccess";
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const PENDING_FACE_AUTH_KEY = "valid8.pendingFaceAuth";
 const PENDING_FACE_AUTH_TTL_MS = 15 * 60 * 1000;
@@ -177,6 +179,7 @@ export const persistAuthSession = (session: AuthSession) => {
   localStorage.setItem("access_token", session.token);
   localStorage.setItem("user", JSON.stringify(session));
   persistUserData(session);
+  clearGovernanceAccessCache();
 
   if (session.primaryColor) {
     const theme = {
@@ -261,6 +264,7 @@ export const logout = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   localStorage.removeItem('userData');
+  clearGovernanceAccessCache();
   clearPendingFaceAuthSession();
   clearStudentFaceEnrollmentState();
   clearBranding();
@@ -335,7 +339,7 @@ export const requestForgotPassword = async (email: string): Promise<string> => {
 };
 
 // Example of how to use the token in API calls
-export const updateEvent = async (eventId: number, eventData: any) => {
+export const updateEvent = async (eventId: number, eventData: UpdateEventPayload) => {
   const response = await fetch(`${BASE_URL}/events/${eventId}`, {
     method: 'PATCH',
     headers: {

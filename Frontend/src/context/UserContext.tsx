@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import {
   fetchSchoolSettings,
@@ -44,7 +44,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  const refreshBranding = async () => {
+  const refreshBranding = useCallback(async () => {
     const token = localStorage.getItem("authToken") || localStorage.getItem("token");
     if (!token) return;
 
@@ -54,11 +54,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {
       // Branding fetch is best-effort so auth navigation is not blocked.
     }
-  };
+  }, []);
 
   useEffect(() => {
-    refreshBranding();
-  }, []);
+    void refreshBranding();
+  }, [refreshBranding]);
 
   const value = useMemo(
     () => ({
@@ -68,7 +68,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       setBranding,
       refreshBranding,
     }),
-    [avatar, branding]
+    [avatar, branding, refreshBranding]
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

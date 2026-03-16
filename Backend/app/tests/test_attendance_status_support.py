@@ -9,10 +9,10 @@ from app.schemas.attendance import (
 )
 from app.services.attendance_status import (
     ATTENDED_STATUS_VALUES,
-    finalize_completed_attendance_status,
     empty_attendance_status_counts,
-    is_late_arrival,
+    finalize_completed_attendance_status,
     is_attended_status,
+    is_late_arrival,
     normalize_attendance_status,
     resolve_time_in_status,
 )
@@ -68,21 +68,20 @@ def test_report_models_accept_late_fields() -> None:
     assert breakdown.late == 1
 
 
-def test_late_threshold_helpers() -> None:
+def test_late_threshold_helpers_follow_present_late_absent_windows() -> None:
     event_start = datetime(2026, 3, 11, 9, 0, 0)
-    on_time_scan = datetime(2026, 3, 11, 1, 5, 0)
-    late_scan = datetime(2026, 3, 11, 1, 11, 0)
+    present_scan = datetime(2026, 3, 11, 0, 55, 0, tzinfo=timezone.utc)
+    late_scan = datetime(2026, 3, 11, 1, 0, 0, tzinfo=timezone.utc)
+    absent_scan = datetime(2026, 3, 11, 1, 11, 0, tzinfo=timezone.utc)
 
-    assert is_late_arrival(
-        event_start=event_start,
-        time_in=on_time_scan,
-        late_threshold_minutes=10,
-    ) is False
-    assert is_late_arrival(
-        event_start=event_start,
-        time_in=late_scan,
-        late_threshold_minutes=10,
-    ) is True
+    assert (
+        resolve_time_in_status(
+            event_start=event_start,
+            time_in=present_scan,
+            late_threshold_minutes=10,
+        )
+        == "present"
+    )
     assert (
         resolve_time_in_status(
             event_start=event_start,
@@ -91,38 +90,83 @@ def test_late_threshold_helpers() -> None:
         )
         == "late"
     )
-
-
-def test_finalize_completed_attendance_status_respects_late_threshold() -> None:
-    status_value, note = finalize_completed_attendance_status(
-        event_start=datetime(2026, 3, 11, 9, 0, 0),
-        event_end=datetime(2026, 3, 11, 11, 0, 0),
-        time_in=datetime(2026, 3, 11, 1, 15, 0),
-        time_out=datetime(2026, 3, 11, 2, 0, 0),
-        late_threshold_minutes=10,
+    assert (
+        resolve_time_in_status(
+            event_start=event_start,
+            time_in=absent_scan,
+            late_threshold_minutes=10,
+        )
+        == "absent"
     )
 
-    assert status_value == "late"
-    assert note is None
+    assert (
+        is_late_arrival(
+            event_start=event_start,
+            time_in=present_scan,
+            late_threshold_minutes=10,
+        )
+        is False
+    )
+    assert (
+        is_late_arrival(
+            event_start=event_start,
+            time_in=late_scan,
+            late_threshold_minutes=10,
+        )
+        is True
+    )
+    assert (
+        is_late_arrival(
+            event_start=event_start,
+            time_in=absent_scan,
+            late_threshold_minutes=10,
+        )
+        is False
+    )
 
 
-def test_finalize_completed_attendance_status_marks_absent_without_overlap() -> None:
+def test_finalize_completed_attendance_status_uses_the_confirmed_matrix() -> None:
+    assert finalize_completed_attendance_status(
+        check_in_status="present",
+        check_out_status="present",
+    ) == ("present", None)
+    assert finalize_completed_attendance_status(
+        check_in_status="late",
+        check_out_status="present",
+    ) == ("late", None)
+    assert finalize_completed_attendance_status(
+        check_in_status="absent",
+        check_out_status="present",
+    ) == ("absent", None)
+
+
+def test_finalize_completed_attendance_status_marks_missing_sign_out_absent() -> None:
     status_value, note = finalize_completed_attendance_status(
-        event_start=datetime(2026, 3, 11, 9, 0, 0),
-        event_end=datetime(2026, 3, 11, 11, 0, 0),
-        time_in=datetime(2026, 3, 11, 3, 30, 0),
-        time_out=datetime(2026, 3, 11, 3, 45, 0),
-        late_threshold_minutes=10,
+        check_in_status="present",
+        check_out_status="absent",
     )
 
     assert status_value == "absent"
     assert note is not None
+    assert "sign-out was missing" in note
+
+
+def test_finalize_completed_attendance_status_marks_unknown_check_in_absent() -> None:
+    status_value, note = finalize_completed_attendance_status(
+        check_in_status=None,
+        check_out_status="present",
+    )
+
+    assert status_value == "absent"
+    assert note is not None
+    assert "sign-in status could not be determined" in note
 
 
 def test_late_threshold_helpers_support_aware_utc_timestamps() -> None:
     manila = ZoneInfo("Asia/Manila")
     event_start = datetime(2026, 3, 11, 9, 0, 0, tzinfo=manila)
-    late_scan = datetime(2026, 3, 11, 1, 20, 0, tzinfo=timezone.utc)
+    late_scan = datetime(2026, 3, 11, 1, 5, 0, tzinfo=timezone.utc)
+    absent_scan = datetime(2026, 3, 11, 1, 20, 0, tzinfo=timezone.utc)
 
     assert (
         resolve_time_in_status(
@@ -131,4 +175,12 @@ def test_late_threshold_helpers_support_aware_utc_timestamps() -> None:
             late_threshold_minutes=10,
         )
         == "late"
+    )
+    assert (
+        resolve_time_in_status(
+            event_start=event_start,
+            time_in=absent_scan,
+            late_threshold_minutes=10,
+        )
+        == "absent"
     )

@@ -23,9 +23,18 @@ from app.models.platform_features import (
     DataRequest,
     DataRetentionRunLog,
 )
+from app.models.governance_hierarchy import (
+    GovernanceAnnouncement,
+    GovernanceMember,
+    GovernanceMemberPermission,
+    GovernancePermission,
+    GovernanceStudentNote,
+    GovernanceUnit,
+    GovernanceUnitPermission,
+)
 
 from .role import Role
-from .user import User, UserRole, StudentProfile, SSGProfile
+from .user import User, UserRole, StudentProfile
 from .attendance import Attendance  # If you have this model
 
 __all__ = [
@@ -34,7 +43,6 @@ __all__ = [
     "User",
     "UserRole",
     "StudentProfile",
-    "SSGProfile",
     "Attendance",
     "School",
     "SchoolSetting",
@@ -57,4 +65,11 @@ __all__ = [
     "UserPrivacyConsent",
     "DataRequest",
     "DataRetentionRunLog",
+    "GovernanceUnit",
+    "GovernanceMember",
+    "GovernanceMemberPermission",
+    "GovernancePermission",
+    "GovernanceUnitPermission",
+    "GovernanceAnnouncement",
+    "GovernanceStudentNote",
 ]

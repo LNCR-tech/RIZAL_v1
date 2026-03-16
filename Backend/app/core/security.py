@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
-from app.database import get_db
+from app.core.dependencies import get_db
 from app.models.user import User, UserRole
 from app.schemas.auth import TokenData
 from app.services.security_service import assert_session_valid
@@ -28,6 +28,9 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 PASSWORD_CHANGE_ENDPOINT = "/auth/change-password"
+PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT = "/auth/password-change-prompt/dismiss"
+CAMPUS_ADMIN_DB_ROLE_NAME = "campus_admin"
+LEGACY_CAMPUS_ADMIN_DB_ROLE_NAME = "school_IT"
 EXEMPT_PATH_PREFIXES = {
     PASSWORD_CHANGE_ENDPOINT,
     "/login",
@@ -37,6 +40,8 @@ EXEMPT_PATH_PREFIXES = {
     "/openapi.json",
 }
 FACE_VERIFICATION_EXEMPT_PATH_PREFIXES = {
+    PASSWORD_CHANGE_ENDPOINT,
+    PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT,
     "/auth/security/face-status",
     "/auth/security/face-liveness",
     "/auth/security/face-reference",
@@ -47,11 +52,25 @@ FACE_VERIFICATION_EXEMPT_PATH_PREFIXES = {
 def normalize_role_name(role_name: str) -> str:
     """Normalize role spellings to a single comparison format."""
     normalized = (role_name or "").strip().lower().replace(" ", "-").replace("_", "-")
-    if normalized == "school-it":
-        return "school-it"
-    if normalized == "event-organizer":
-        return "event-organizer"
+    if normalized in {"school-it", "campus-admin"}:
+        return "campus-admin"
     return normalized
+
+
+def canonicalize_role_name_for_storage(role_name: str) -> str:
+    """Map accepted role spellings to the canonical database role name."""
+    normalized = normalize_role_name(role_name)
+    if normalized == "campus-admin":
+        return CAMPUS_ADMIN_DB_ROLE_NAME
+    return normalized
+
+
+def get_role_lookup_names(role_name: str) -> tuple[str, ...]:
+    """Return database role names that should be treated as equivalent."""
+    canonical_name = canonicalize_role_name_for_storage(role_name)
+    if canonical_name == CAMPUS_ADMIN_DB_ROLE_NAME:
+        return (CAMPUS_ADMIN_DB_ROLE_NAME, LEGACY_CAMPUS_ADMIN_DB_ROLE_NAME)
+    return (canonical_name,)
 
 
 def get_normalized_user_roles(user: User) -> set[str]:
@@ -66,6 +85,21 @@ def has_any_role(user: User, required_roles: List[str]) -> bool:
     user_roles = get_normalized_user_roles(user)
     required = {normalize_role_name(role_name) for role_name in required_roles}
     return bool(user_roles & required)
+
+
+def ensure_user_has_any_role(
+    user: User,
+    required_roles: List[str],
+    *,
+    detail: str,
+) -> User:
+    if not has_any_role(user, required_roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -204,7 +238,6 @@ async def get_current_user_with_roles(
         .options(
             joinedload(User.roles).joinedload(UserRole.role),
             joinedload(User.student_profile),
-            joinedload(User.ssg_profile),
         )
         .filter(User.email == token_data.email)
         .first()
@@ -222,6 +255,27 @@ async def get_current_user_with_roles(
     _enforce_face_verification_gate(token_data, request)
     _enforce_password_change_gate(user, request)
     return user
+
+
+def require_current_user_with_roles(
+    required_roles: List[str],
+    *,
+    detail: str,
+) -> Callable[..., User]:
+    async def dependency(
+        current_user: User = Depends(get_current_user_with_roles),
+    ) -> User:
+        return ensure_user_has_any_role(
+            current_user,
+            required_roles,
+            detail=detail,
+        )
+
+    dependency.__name__ = (
+        "require_"
+        + "_or_".join(normalize_role_name(role_name).replace("-", "_") for role_name in required_roles)
+    )
+    return dependency
 
 
 def get_school_id_or_403(user: User) -> int:
@@ -242,54 +296,47 @@ def ensure_same_school(current_user: User, target_school_id: Optional[int]) -> N
 
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    if not has_any_role(current_user, ["admin"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
-
-
-async def get_current_ssg(current_user: User = Depends(get_current_user_with_roles)) -> User:
-    if not has_any_role(current_user, ["ssg"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="SSG privileges required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
-
-
-async def get_current_event_organizer(current_user: User = Depends(get_current_user_with_roles)) -> User:
-    if not has_any_role(current_user, ["event-organizer", "event_organizer"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Event organizer privileges required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
+    return ensure_user_has_any_role(
+        current_user,
+        ["admin"],
+        detail="Admin privileges required",
+    )
 
 
 async def get_current_school_it(current_user: User = Depends(get_current_user_with_roles)) -> User:
-    if not has_any_role(current_user, ["school_IT", "school-it", "school_it"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="School IT privileges required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
+    return ensure_user_has_any_role(
+        current_user,
+        ["campus_admin", "school_IT", "school-it", "school_it"],
+        detail="Campus Admin privileges required",
+    )
+
+
+get_current_admin_or_campus_admin = require_current_user_with_roles(
+    ["admin", "campus_admin"],
+    detail="Insufficient permissions. Requires admin or Campus Admin role",
+)
+
+get_current_application_user = require_current_user_with_roles(
+    ["admin", "campus_admin", "student", "ssg", "sg", "org"],
+    detail=(
+        "A valid admin, Campus Admin, student, or governance role is "
+        "required for this resource"
+    ),
+)
+
+get_current_student_user = require_current_user_with_roles(
+    ["student"],
+    detail="Student role required",
+)
 
 
 async def get_user_with_required_roles(
     required_roles: List[str],
     current_user: User = Depends(get_current_user_with_roles),
 ) -> User:
-    if not has_any_role(current_user, required_roles):
-        role_str = ", ".join(required_roles)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Insufficient permissions. Required roles: {role_str}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
+    role_str = ", ".join(required_roles)
+    return ensure_user_has_any_role(
+        current_user,
+        required_roles,
+        detail=f"Insufficient permissions. Required roles: {role_str}",
+    )

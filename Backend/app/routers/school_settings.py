@@ -11,14 +11,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user_with_roles, has_any_role
-from app.database import get_db
+from app.core.event_defaults import resolve_school_event_default_values
+from app.core.security import (
+    canonicalize_role_name_for_storage,
+    get_current_admin_or_campus_admin,
+)
+from app.core.dependencies import get_db
 from app.models.associations import program_department_association
 from app.models.department import Department
 from app.models.program import Program
 from app.models.role import Role
 from app.models.school import School, SchoolAuditLog, SchoolSetting
-from app.models.user import SSGProfile, StudentProfile, User as UserModel, UserRole
+from app.models.user import StudentProfile, User as UserModel, UserRole
 from app.schemas.school_settings import (
     SchoolAuditLogResponse,
     SchoolSettingsResponse,
@@ -26,15 +30,18 @@ from app.schemas.school_settings import (
     UserImportRowResult,
     UserImportSummary,
 )
-from app.schemas.user import RoleEnum, SSGPositionEnum
+from app.schemas.user import RoleEnum
 from app.services.email_service import EmailDeliveryError, send_welcome_email
+from app.services.password_change_policy import (
+    must_change_password_for_new_account,
+    should_prompt_password_change_for_new_account,
+)
 from app.utils.passwords import generate_secure_password
 
 router = APIRouter(prefix="/school-settings", tags=["school-settings"])
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VALID_ROLE_VALUES = {role.value for role in RoleEnum}
-SSG_POSITION_MAP = {pos.value.lower(): pos.value for pos in SSGPositionEnum}
 ROW_HEADERS = [
     "email",
     "first_name",
@@ -48,19 +55,11 @@ ROW_HEADERS = [
     "ssg_position",
 ]
 ROLE_ALIASES = {
-    "school_it": "school_IT",
-    "school it": "school_IT",
-    "event_organizer": "event-organizer",
-    "event organizer": "event-organizer",
+    "campus_admin": "campus_admin",
+    "campus admin": "campus_admin",
+    "school_it": "campus_admin",
+    "school it": "campus_admin",
 }
-
-
-def _ensure_school_it_or_admin(current_user: UserModel) -> None:
-    if not has_any_role(current_user, ["school_IT", "admin"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="School IT or admin privileges required",
-        )
 
 
 def _resolve_current_school(db: Session, current_user: UserModel) -> School:
@@ -94,6 +93,11 @@ def _get_or_create_school_settings(db: Session, school_id: int) -> SchoolSetting
 
 
 def _build_settings_response(school: School, settings: SchoolSetting) -> SchoolSettingsResponse:
+    (
+        event_default_early_check_in_minutes,
+        event_default_late_threshold_minutes,
+        event_default_sign_out_grace_minutes,
+    ) = resolve_school_event_default_values(settings)
     return SchoolSettingsResponse(
         school_id=school.id,
         school_name=school.school_name or school.name,
@@ -101,6 +105,9 @@ def _build_settings_response(school: School, settings: SchoolSetting) -> SchoolS
         primary_color=school.primary_color or settings.primary_color,
         secondary_color=school.secondary_color or settings.secondary_color,
         accent_color=settings.accent_color,
+        event_default_early_check_in_minutes=event_default_early_check_in_minutes,
+        event_default_late_threshold_minutes=event_default_late_threshold_minutes,
+        event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
     )
 
 
@@ -124,7 +131,8 @@ def _write_audit_log(
 
 def _normalize_role_name(role_name: str) -> str:
     normalized = role_name.strip().lower()
-    return ROLE_ALIASES.get(normalized, normalized)
+    aliased = ROLE_ALIASES.get(normalized, normalized)
+    return canonicalize_role_name_for_storage(aliased)
 
 
 def _normalize_headers(raw_headers: List[str]) -> List[str]:
@@ -140,7 +148,7 @@ def _parse_roles(raw_roles: str) -> Tuple[List[str], List[str]]:
     role_values: List[str] = []
 
     if not raw_roles.strip():
-        return role_values, ["roles is required"]
+        return ["student"], []
 
     parts = [part.strip() for part in re.split(r"[;,|]", raw_roles) if part.strip()]
     if not parts:
@@ -226,10 +234,9 @@ def _to_optional_int(raw_value: str, field_name: str, errors: List[str]) -> Opti
 
 @router.get("/me", response_model=SchoolSettingsResponse)
 def get_my_school_settings(
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _ensure_school_it_or_admin(current_user)
     school = _resolve_current_school(db, current_user)
     settings = _get_or_create_school_settings(db, school.id)
     return _build_settings_response(school, settings)
@@ -238,10 +245,9 @@ def get_my_school_settings(
 @router.put("/me", response_model=SchoolSettingsResponse)
 def update_my_school_settings(
     payload: SchoolSettingsUpdate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _ensure_school_it_or_admin(current_user)
     school = _resolve_current_school(db, current_user)
     settings = _get_or_create_school_settings(db, school.id)
 
@@ -277,6 +283,27 @@ def update_my_school_settings(
         if payload.accent_color != settings.accent_color:
             changes["accent_color"] = {"from": settings.accent_color, "to": payload.accent_color}
         settings.accent_color = payload.accent_color
+    if payload.event_default_early_check_in_minutes is not None:
+        if payload.event_default_early_check_in_minutes != settings.event_default_early_check_in_minutes:
+            changes["event_default_early_check_in_minutes"] = {
+                "from": settings.event_default_early_check_in_minutes,
+                "to": payload.event_default_early_check_in_minutes,
+            }
+        settings.event_default_early_check_in_minutes = payload.event_default_early_check_in_minutes
+    if payload.event_default_late_threshold_minutes is not None:
+        if payload.event_default_late_threshold_minutes != settings.event_default_late_threshold_minutes:
+            changes["event_default_late_threshold_minutes"] = {
+                "from": settings.event_default_late_threshold_minutes,
+                "to": payload.event_default_late_threshold_minutes,
+            }
+        settings.event_default_late_threshold_minutes = payload.event_default_late_threshold_minutes
+    if payload.event_default_sign_out_grace_minutes is not None:
+        if payload.event_default_sign_out_grace_minutes != settings.event_default_sign_out_grace_minutes:
+            changes["event_default_sign_out_grace_minutes"] = {
+                "from": settings.event_default_sign_out_grace_minutes,
+                "to": payload.event_default_sign_out_grace_minutes,
+            }
+        settings.event_default_sign_out_grace_minutes = payload.event_default_sign_out_grace_minutes
 
     settings.updated_by_user_id = current_user.id
 
@@ -299,10 +326,9 @@ def update_my_school_settings(
 @router.get("/me/audit-logs", response_model=List[SchoolAuditLogResponse])
 def list_school_audit_logs(
     limit: int = 50,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _ensure_school_it_or_admin(current_user)
     school = _resolve_current_school(db, current_user)
     logs = (
         db.query(SchoolAuditLog)
@@ -316,10 +342,8 @@ def list_school_audit_logs(
 
 @router.get("/me/users/import-template")
 def download_user_import_template(
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
 ):
-    _ensure_school_it_or_admin(current_user)
-
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font
@@ -350,16 +374,16 @@ def download_user_import_template(
     )
     sheet.append(
         [
-            "ssg1@example.com",
+            "student2@example.com",
             "John",
             "",
             "Smith",
-            "ssg,event-organizer",
+            "student",
+            "STUD-0002",
+            "1",
+            "1",
+            "2",
             "",
-            "",
-            "",
-            "",
-            "President",
         ]
     )
 
@@ -368,12 +392,11 @@ def download_user_import_template(
 
     reference = workbook.create_sheet("Reference")
     reference.append(["Field", "Notes"])
-    reference.append(["roles", "Comma-separated values: student, ssg, event-organizer"])
+    reference.append(["roles", "Optional. Leave blank or set to student. School-scoped import creates student accounts only."])
     reference.append(["student_id", "Required when roles include student"])
     reference.append(["department_id/program_id/year_level", "Required when roles include student"])
-    reference.append(["ssg_position", "Required when roles include ssg"])
+    reference.append(["ssg_position", "No longer used. Assign officers from Manage SSG after the student import is complete."])
     reference.append(["temporary_password", "Auto-generated by the system and emailed to user"])
-    reference.append(["valid_ssg_positions", ", ".join(pos.value for pos in SSGPositionEnum)])
     for cell in reference[1]:
         cell.font = Font(bold=True)
 
@@ -391,10 +414,9 @@ def download_user_import_template(
 @router.post("/me/users/import", response_model=UserImportSummary)
 def import_users_from_excel(
     file: UploadFile = File(...),
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    _ensure_school_it_or_admin(current_user)
     school = _resolve_current_school(db, current_user)
 
     if not file.filename:
@@ -407,7 +429,8 @@ def import_users_from_excel(
 
     roles = db.query(Role).all()
     role_map = {role.name: role for role in roles}
-    missing_role_values = [name for name in VALID_ROLE_VALUES if name not in role_map]
+    required_import_role_values = {"student"}
+    missing_role_values = [name for name in required_import_role_values if name not in role_map]
     if missing_role_values:
         _write_audit_log(
             db=db,
@@ -449,16 +472,33 @@ def import_users_from_excel(
     }
 
     department_ids = {
-        department_id for (department_id,) in db.query(Department.id).all()
+        department_id
+        for (department_id,) in (
+            db.query(Department.id)
+            .filter(Department.school_id == school.id)
+            .all()
+        )
     }
     program_ids = {
-        program_id for (program_id,) in db.query(Program.id).all()
+        program_id
+        for (program_id,) in (
+            db.query(Program.id)
+            .filter(Program.school_id == school.id)
+            .all()
+        )
     }
     program_department_map: Dict[int, set] = {}
     for program_id, department_id in db.execute(
         select(
             program_department_association.c.program_id,
             program_department_association.c.department_id,
+        )
+        .select_from(program_department_association)
+        .join(Program, Program.id == program_department_association.c.program_id)
+        .join(Department, Department.id == program_department_association.c.department_id)
+        .where(
+            Program.school_id == school.id,
+            Department.school_id == school.id,
         )
     ).all():
         program_department_map.setdefault(program_id, set()).add(department_id)
@@ -499,11 +539,22 @@ def import_users_from_excel(
 
         parsed_roles, role_errors = _parse_roles(raw_roles)
         errors.extend(role_errors)
-        disallowed_school_scoped_roles = {"admin", "school_IT"}
+        disallowed_school_scoped_roles = {"admin", "campus_admin"}
         forbidden_roles = sorted(role for role in parsed_roles if role in disallowed_school_scoped_roles)
         if forbidden_roles:
             errors.append(
                 "school-scoped import cannot assign roles: " + ", ".join(forbidden_roles)
+            )
+        unsupported_roles = sorted(role for role in parsed_roles if role != "student")
+        if unsupported_roles:
+            errors.append(
+                "school-scoped import only supports the student role. "
+                "Assign officers later from Manage SSG."
+            )
+        if ssg_position:
+            errors.append(
+                "ssg_position is no longer supported in school-scoped imports. "
+                "Assign SSG officers from Manage SSG after importing students."
             )
 
         department_id = _to_optional_int(str(row.get("department_id", "")), "department_id", errors)
@@ -543,12 +594,6 @@ def import_users_from_excel(
             ):
                 errors.append("program_id is not linked to the provided department_id")
 
-        if "ssg" in parsed_roles:
-            if not ssg_position:
-                errors.append("ssg_position is required for ssg role")
-            elif ssg_position.lower() not in SSG_POSITION_MAP:
-                errors.append("ssg_position is invalid")
-
         if errors:
             results.append(
                 UserImportRowResult(
@@ -569,7 +614,8 @@ def import_users_from_excel(
                 first_name=first_name,
                 middle_name=middle_name,
                 last_name=last_name,
-                must_change_password=True,
+                must_change_password=must_change_password_for_new_account(),
+                should_prompt_password_change=should_prompt_password_change_for_new_account(),
             )
             db_user.set_password(temporary_password)
             db.add(db_user)
@@ -587,14 +633,6 @@ def import_users_from_excel(
                         department_id=department_id,
                         program_id=program_id,
                         year_level=year_level,
-                    )
-                )
-
-            if "ssg" in parsed_roles:
-                db.add(
-                    SSGProfile(
-                        user_id=db_user.id,
-                        position=SSG_POSITION_MAP[ssg_position.lower()],
                     )
                 )
 
@@ -681,3 +719,4 @@ def import_users_from_excel(
         failed_count=failed_count,
         results=results,
     )
+

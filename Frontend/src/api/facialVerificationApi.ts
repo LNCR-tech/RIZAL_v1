@@ -3,7 +3,7 @@ const HISTORY_LIMIT = 8;
 const PROFILE_PREFIX = "valid8.face.reference";
 const HISTORY_PREFIX = "valid8.face.history";
 
-export type FacialVerificationRole = "admin" | "school_IT";
+export type FacialVerificationRole = "admin" | "campus_admin";
 export type PersistAttemptMode = "always" | "matched" | "never";
 type ImageSource = string | Blob;
 

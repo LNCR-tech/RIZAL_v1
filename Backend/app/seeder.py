@@ -1,7 +1,7 @@
 # app/seeder.py
 from sqlalchemy.orm import Session
 from datetime import date
-from app.database import SessionLocal, engine
+from app.core.database import SessionLocal, engine
 from app.models.base import Base
 from app.models.role import Role
 from app.models.user import User, UserRole
@@ -21,9 +21,7 @@ def seed_roles(db: Session):
     """Seed roles table with required roles"""
     roles_data = [
         {"name": "student"},
-        {"name": "ssg"},
-        {"name": "event-organizer"},
-        {"name": "school_IT"},
+        {"name": "campus_admin"},
         {"name": "admin"}
     ]
     

@@ -9,6 +9,9 @@ export interface SchoolSettings {
   logo_url: string | null;
   primary_color: string;
   secondary_color: string | null;
+  event_default_early_check_in_minutes: number;
+  event_default_late_threshold_minutes: number;
+  event_default_sign_out_grace_minutes: number;
   subscription_status?: string;
   active_status?: boolean;
 }
@@ -18,6 +21,9 @@ export interface SchoolSettingsUpdatePayload {
   primary_color?: string;
   secondary_color?: string | null;
   school_code?: string | null;
+  event_default_early_check_in_minutes?: number;
+  event_default_late_threshold_minutes?: number;
+  event_default_sign_out_grace_minutes?: number;
 }
 
 export interface UserImportErrorItem {
@@ -221,6 +227,24 @@ const buildSchoolFormData = (
   if (payload.primary_color !== undefined) formData.append("primary_color", payload.primary_color);
   if (payload.secondary_color !== undefined) formData.append("secondary_color", payload.secondary_color || "");
   if (payload.school_code !== undefined) formData.append("school_code", payload.school_code || "");
+  if (payload.event_default_early_check_in_minutes !== undefined) {
+    formData.append(
+      "event_default_early_check_in_minutes",
+      `${payload.event_default_early_check_in_minutes}`
+    );
+  }
+  if (payload.event_default_late_threshold_minutes !== undefined) {
+    formData.append(
+      "event_default_late_threshold_minutes",
+      `${payload.event_default_late_threshold_minutes}`
+    );
+  }
+  if (payload.event_default_sign_out_grace_minutes !== undefined) {
+    formData.append(
+      "event_default_sign_out_grace_minutes",
+      `${payload.event_default_sign_out_grace_minutes}`
+    );
+  }
   if (logoFile) formData.append("logo", logoFile);
   return formData;
 };
@@ -421,7 +445,7 @@ export const adminCreateSchoolWithSchoolIT = async (
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.detail || "Failed to create school and SCHOOL_IT account");
+    throw new Error(body.detail || "Failed to create school and Campus Admin account");
   }
   return body as AdminSchoolItCreateResponse;
 };
@@ -445,7 +469,7 @@ export const adminListSchoolItAccounts = async (): Promise<SchoolITAccountSummar
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.detail || "Failed to fetch SCHOOL_IT accounts");
+    throw new Error(body.detail || "Failed to fetch Campus Admin accounts");
   }
   return body as SchoolITAccountSummary[];
 };
@@ -464,7 +488,7 @@ export const adminSetSchoolItActiveStatus = async (
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.detail || "Failed to update SCHOOL_IT status");
+    throw new Error(body.detail || "Failed to update Campus Admin status");
   }
   return body as SchoolITAccountSummary;
 };
@@ -478,7 +502,9 @@ export const adminResetSchoolItPassword = async (
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.detail || "Failed to reset SCHOOL_IT password");
+    throw new Error(body.detail || "Failed to reset Campus Admin password");
   }
   return body as { user_id: number; email: string; temporary_password: string; must_change_password: boolean };
 };
+
+

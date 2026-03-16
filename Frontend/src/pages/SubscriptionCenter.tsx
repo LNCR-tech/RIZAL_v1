@@ -8,8 +8,7 @@ import {
   SubscriptionSettings,
   updateSubscription,
 } from "../api/platformOpsApi";
-
-const normalizeRole = (role: string) => role.trim().toLowerCase().replace(/_/g, "-");
+import { isCampusAdminRole, normalizeRole } from "../utils/roleUtils";
 
 const getStoredUser = (): { roles: string[]; schoolId?: number | null } => {
   try {
@@ -27,7 +26,7 @@ const getStoredUser = (): { roles: string[]; schoolId?: number | null } => {
 
 const SubscriptionCenter = () => {
   const stored = getStoredUser();
-  const isSchoolIT = stored.roles.some((role) => normalizeRole(role) === "school-it");
+  const isSchoolIT = stored.roles.some(isCampusAdminRole);
   const isPlatformAdmin =
     stored.roles.some((role) => normalizeRole(role) === "admin") && !stored.schoolId;
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;

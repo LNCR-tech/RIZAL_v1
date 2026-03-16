@@ -11,6 +11,7 @@ import {
   setStudentFaceEnrollmentRequired,
 } from "../api/studentFaceEnrollmentApi";
 import { resolveDashboardPath } from "../authFlow";
+import { sanitizeRedirectPath } from "../utils/redirects";
 import "../css/FacialVerification.css";
 import "../css/StudentFaceEnrollment.css";
 
@@ -51,8 +52,8 @@ const StudentFaceEnrollment = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [studentLabel, setStudentLabel] = useState<string>("Student");
 
-  const fallbackRoles = storedUser?.roles || [];
-  const dashboardPath = resolveDashboardPath(fallbackRoles);
+  const fallbackRoles = useMemo(() => storedUser?.roles || [], [storedUser]);
+  const dashboardPath = sanitizeRedirectPath(resolveDashboardPath(fallbackRoles), "/student_dashboard");
   const displayName =
     `${storedUser?.firstName || storedUser?.first_name || ""} ${
       storedUser?.lastName || storedUser?.last_name || ""
@@ -82,16 +83,17 @@ const StudentFaceEnrollment = () => {
         const nextDashboardPath = resolveDashboardPath(
           status.roles.length > 0 ? status.roles : fallbackRoles
         );
+        const safeNextDashboardPath = sanitizeRedirectPath(nextDashboardPath, "/student_dashboard");
 
         if (!status.hasStudentRole || !status.hasStudentProfile) {
           clearStudentFaceEnrollmentState(status.userId ?? storedUser.id ?? null);
-          navigate(nextDashboardPath, { replace: true });
+          navigate(safeNextDashboardPath, { replace: true });
           return;
         }
 
         if (status.faceRegistered) {
           clearStudentFaceEnrollmentState(status.userId ?? storedUser.id ?? null);
-          navigate(nextDashboardPath, { replace: true });
+          navigate(safeNextDashboardPath, { replace: true });
           return;
         }
 
@@ -143,7 +145,7 @@ const StudentFaceEnrollment = () => {
       );
 
       redirectTimerRef.current = window.setTimeout(() => {
-        navigate(dashboardPath, { replace: true });
+        navigate(sanitizeRedirectPath(dashboardPath, "/student_dashboard"), { replace: true });
       }, 900);
     } catch (error) {
       setStatusError(toErrorMessage(error));

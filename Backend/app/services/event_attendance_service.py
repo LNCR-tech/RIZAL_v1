@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from datetime import timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel
 from app.models.user import StudentProfile, User as UserModel
-from app.services.attendance_status import normalize_attendance_status
+from app.services.attendance_status import (
+    finalize_completed_attendance_status,
+    normalize_attendance_status,
+)
+from app.services.event_time_status import get_effective_sign_out_close_time
+from app.services.event_time_status import normalize_event_datetime
 
 
 def get_event_participant_student_ids(db: Session, event: EventModel) -> list[int]:
@@ -31,6 +38,13 @@ def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[
     if not participant_ids:
         return {"created_absent": 0, "marked_absent_no_timeout": 0}
 
+    effective_sign_out_close = get_effective_sign_out_close_time(
+        event.end_datetime,
+        getattr(event, "sign_out_grace_minutes", 0),
+        getattr(event, "sign_out_override_until", None),
+    )
+    effective_sign_out_close_utc = effective_sign_out_close.astimezone(timezone.utc).replace(tzinfo=None)
+    event_start_utc = normalize_event_datetime(event.start_datetime).astimezone(timezone.utc).replace(tzinfo=None)
     existing_attendances = (
         db.query(AttendanceModel)
         .filter(
@@ -48,9 +62,14 @@ def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[
             continue
         if normalize_attendance_status(attendance.status) not in {"present", "late", "absent"}:
             continue
-        attendance.status = "absent"
+        attendance.time_out = effective_sign_out_close_utc
+        attendance.check_out_status = "absent"
+        attendance.status, final_note = finalize_completed_attendance_status(
+            check_in_status=attendance.check_in_status or attendance.status,
+            check_out_status=attendance.check_out_status,
+        )
         attendance.notes = (
-            f"Auto-marked absent - no time-out recorded. {attendance.notes or ''}"
+            f"Auto-marked absent - no sign-out recorded. {final_note or attendance.notes or ''}"
         ).strip()
         marked_absent_no_timeout += 1
 
@@ -60,10 +79,12 @@ def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[
             AttendanceModel(
                 student_id=student_id,
                 event_id=event.id,
-                time_in=event.start_datetime,
-                time_out=event.start_datetime,
+                time_in=event_start_utc,
+                time_out=effective_sign_out_close_utc,
                 method="manual",
                 status="absent",
+                check_in_status=None,
+                check_out_status="absent",
                 notes="Auto-marked absent - no sign-in recorded.",
             )
         )

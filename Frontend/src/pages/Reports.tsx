@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { NavbarAdmin } from "../components/NavbarAdmin";
+import NavbarSchoolIT from "../components/NavbarSchoolIT";
 import search_logo from "../assets/images/search_logo.png";
 import { FaDownload } from "react-icons/fa";
 import {
@@ -17,6 +18,7 @@ import {
 } from "recharts";
 import Modal from "react-modal";
 import { fetchAllEvents } from "../api/eventsApi";
+import { isCampusAdminRole } from "../utils/roleUtils";
 
 interface AttendanceReport {
   event_name: string;
@@ -51,6 +53,17 @@ const SECONDARY_COLOR = "var(--secondary-color, #2C5F9E)";
 const ACCENT_COLOR = "var(--accent-color, #4A90E2)";
 
 export const Reports: React.FC = () => {
+  const storedRoles = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as { roles?: string[] };
+      return Array.isArray(parsed.roles) ? parsed.roles : [];
+    } catch {
+      return [];
+    }
+  })();
+  const isCampusAdmin = storedRoles.some(isCampusAdminRole);
   const [searchTerm, setSearchTerm] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -363,7 +376,7 @@ export const Reports: React.FC = () => {
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <NavbarAdmin />
+      {isCampusAdmin ? <NavbarSchoolIT /> : <NavbarAdmin />}
       <div
         style={{
           width: "min(100%, var(--app-shell-max-width))",
@@ -383,7 +396,7 @@ export const Reports: React.FC = () => {
               color: PRIMARY_COLOR,
             }}
           >
-            Event Attendance Reports
+            {isCampusAdmin ? "Campus Attendance Reports" : "Event Attendance Reports"}
           </h2>
           <p
             style={{
@@ -391,7 +404,9 @@ export const Reports: React.FC = () => {
               marginTop: "0",
             }}
           >
-            View and download detailed attendance records for university events
+            {isCampusAdmin
+              ? "View and download school-scoped attendance reports for events across your campus"
+              : "View and download detailed attendance records for university events"}
           </p>
         </header>
 

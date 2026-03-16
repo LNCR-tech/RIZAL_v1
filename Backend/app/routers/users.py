@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from datetime import datetime
 from typing import List
 import logging
-import os
 from app.core.security import (
-    get_current_user_with_roles,
+    canonicalize_role_name_for_storage,
+    get_current_admin_or_campus_admin,
+    get_current_application_user,
     get_school_id_or_403,
+    get_role_lookup_names,
     has_any_role,
     normalize_role_name,
 )
@@ -18,29 +19,29 @@ from sqlalchemy import select
 from app.schemas.user import (
     UserCreate,
     User,
+    UserCreateResponse,
     UserWithRelations,
     StudentProfileCreate,
-    SSGProfileCreate,
-    SSGPositionEnum,
-    UserUpdate,          # New import
-    PasswordUpdate,      # New import
-    UserRoleUpdate,      # New import
-    StudentProfileBase,          # New import (if you're using it)
-    SSGProfileBase           # New import (if you're using it)
+    UserUpdate,
+    PasswordUpdate,
+    UserRoleUpdate,
+    StudentProfileBase,
 )
-from app.models.event import Event  # SQLAlchemy model ✅
-from app.schemas.event import Event as EventSchema  # Pydantic schema for response ✅
-from app.models.user import User as UserModel, UserRole, StudentProfile, SSGProfile
+from app.models.user import User as UserModel, UserRole, StudentProfile
 from app.models.role import Role
-from app.models.attendance import Attendance
+from app.models.governance_hierarchy import PermissionCode
 from app.services.email_service import EmailDeliveryError, send_welcome_email
+from app.services.password_change_policy import (
+    must_change_password_for_new_account,
+    must_change_password_for_temporary_reset,
+    should_prompt_password_change_for_new_account,
+    should_prompt_password_change_for_temporary_reset,
+)
 from app.utils.passwords import generate_secure_password
-from app.database import get_db
-from app.core.security import create_access_token
+from app.core.dependencies import get_db
 from sqlalchemy.orm import joinedload
 from app.models.associations import program_department_association
-from sqlalchemy.exc import SQLAlchemyError
-from fastapi import Body
+from app.services import governance_hierarchy_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 logger = logging.getLogger(__name__)
@@ -56,7 +57,18 @@ def _is_admin(user: UserModel) -> bool:
 
 
 def _is_school_it(user: UserModel) -> bool:
-    return has_required_roles(user, ["school_IT", "school_it", "school-it"])
+    return has_required_roles(user, ["campus_admin"])
+
+
+def _can_manage_student_profiles(db: Session, current_user: UserModel) -> bool:
+    if has_required_roles(current_user, ["admin", "campus_admin"]):
+        return True
+
+    return governance_hierarchy_service.user_has_governance_permission(
+        db,
+        current_user=current_user,
+        permission_code=PermissionCode.MANAGE_STUDENTS,
+    )
 
 
 def _target_has_admin_or_school_it(user: UserModel) -> bool:
@@ -65,21 +77,22 @@ def _target_has_admin_or_school_it(user: UserModel) -> bool:
         for role in user.roles
         if getattr(role, "role", None) and getattr(role.role, "name", None)
     }
-    return "admin" in target_roles or "school-it" in target_roles
+    return "admin" in target_roles or "campus-admin" in target_roles
 
 
 def _assert_school_it_assignable_roles(current_user: UserModel, role_names: List[str]) -> None:
     if not _is_school_it(current_user) or _is_admin(current_user):
         return
 
-    allowed_roles = {"student", "ssg", "event-organizer"}
+    allowed_roles = {"student"}
     normalized_requested = {normalize_role_name(name) for name in role_names}
     disallowed = sorted(normalized_requested - allowed_roles)
     if disallowed:
         raise HTTPException(
             status_code=403,
             detail=(
-                "SCHOOL_IT can only assign student, ssg, and event-organizer roles. "
+                "Campus Admin can only assign the student role from user management. "
+                "Use Manage SSG for officer assignments. "
                 f"Disallowed roles: {', '.join(disallowed)}"
             ),
         )
@@ -91,6 +104,14 @@ def _query_user_in_school(db: Session, user_id: int, school_id: int) -> UserMode
         .filter(UserModel.id == user_id, UserModel.school_id == school_id)
         .first()
     )
+
+
+def _get_role_by_name_or_alias(db: Session, role_name: str) -> Role | None:
+    for candidate in get_role_lookup_names(role_name):
+        role = db.query(Role).filter(Role.name == candidate).first()
+        if role is not None:
+            return role
+    return None
 
 
 def _is_platform_admin(user: UserModel) -> bool:
@@ -117,20 +138,59 @@ def _query_user_for_actor(db: Session, user_id: int, actor: UserModel) -> UserMo
     return _query_user_in_school(db, user_id, actor_school_id)
 
 
-@router.post("", response_model=User, include_in_schema=False)
-@router.post("/", response_model=User)
-def create_user(
-    user: UserCreate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
-    db: Session = Depends(get_db),
-):
-    required_roles = ["admin", "school_IT"]
-    if not has_required_roles(current_user, required_roles):
+def _get_department_and_program_for_school_or_400(
+    db: Session,
+    *,
+    school_id: int,
+    department_id: int,
+    program_id: int,
+) -> tuple[Department, Program]:
+    department = (
+        db.query(Department)
+        .filter(
+            Department.id == department_id,
+            Department.school_id == school_id,
+        )
+        .first()
+    )
+    program = (
+        db.query(Program)
+        .filter(
+            Program.id == program_id,
+            Program.school_id == school_id,
+        )
+        .first()
+    )
+
+    if not department or not program:
         raise HTTPException(
-            status_code=403,
-            detail="Insufficient permissions. Requires admin or School IT role",
+            status_code=400,
+            detail="Invalid department or program ID for this school",
         )
 
+    association_exists = db.execute(
+        select(program_department_association).where(
+            (program_department_association.c.department_id == department.id)
+            & (program_department_association.c.program_id == program.id)
+        )
+    ).first()
+
+    if not association_exists:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Program '{program.name}' is not offered by department '{department.name}'",
+        )
+
+    return department, program
+
+
+@router.post("", response_model=UserCreateResponse, include_in_schema=False)
+@router.post("/", response_model=UserCreateResponse)
+def create_user(
+    user: UserCreate,
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
+    db: Session = Depends(get_db),
+):
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
         raise HTTPException(
@@ -146,12 +206,14 @@ def create_user(
             detail = "Email already registered in another school"
         raise HTTPException(status_code=400, detail=detail)
 
-    role_names = [role.value for role in user.roles]
+    role_names = [canonicalize_role_name_for_storage(role.value) for role in user.roles]
     _assert_school_it_assignable_roles(current_user, role_names)
 
-    existing_roles = db.query(Role).filter(Role.name.in_(role_names)).all()
-    role_map = {role.name: role for role in existing_roles}
-    missing_roles = [role_name for role_name in role_names if role_name not in role_map]
+    role_map = {
+        role_name: _get_role_by_name_or_alias(db, role_name)
+        for role_name in role_names
+    }
+    missing_roles = [role_name for role_name, role in role_map.items() if role is None]
 
     if missing_roles:
         raise HTTPException(
@@ -160,7 +222,11 @@ def create_user(
         )
 
     try:
-        temporary_password = generate_secure_password(min_length=10, max_length=14)
+        generated_temporary_password = None
+        issued_password = user.password
+        if not issued_password:
+            generated_temporary_password = generate_secure_password(min_length=10, max_length=14)
+            issued_password = generated_temporary_password
 
         # Create user and role links in one transaction.
         db_user = UserModel(
@@ -169,9 +235,10 @@ def create_user(
             first_name=user.first_name,
             middle_name=user.middle_name,
             last_name=user.last_name,
-            must_change_password=True,
+            must_change_password=must_change_password_for_new_account(),
+            should_prompt_password_change=should_prompt_password_change_for_new_account(),
         )
-        db_user.set_password(temporary_password)
+        db_user.set_password(issued_password)
         db.add(db_user)
         db.flush()
 
@@ -180,6 +247,12 @@ def create_user(
 
         db.commit()
         db.refresh(db_user)
+        db_user = (
+            db.query(UserModel)
+            .options(joinedload(UserModel.roles).joinedload(UserRole.role))
+            .filter(UserModel.id == db_user.id)
+            .first()
+        )
 
         school = db.query(School).filter(School.id == school_id).first()
         system_name = None
@@ -189,9 +262,10 @@ def create_user(
         try:
             send_welcome_email(
                 recipient_email=db_user.email,
-                temporary_password=temporary_password,
+                temporary_password=issued_password,
                 first_name=db_user.first_name,
                 system_name=system_name,
+                password_is_temporary=generated_temporary_password is not None,
             )
         except EmailDeliveryError as exc:
             logger.warning(
@@ -201,7 +275,10 @@ def create_user(
                 str(exc),
             )
 
-        return User.from_orm(db_user)
+        return UserCreateResponse(
+            **User.from_orm(db_user).dict(),
+            generated_temporary_password=generated_temporary_password,
+        )
     except HTTPException:
         db.rollback()
         raise
@@ -212,16 +289,9 @@ def create_user(
 @router.post("/admin/students/", response_model=UserWithRelations)
 def create_student_profile(
     profile: StudentProfileCreate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
-    # Check if user has admin, school_IT, ssg, or event-organizer role
-    required_roles = ["admin", "school_IT", "ssg", "event-organizer", "event_organizer"]
-    if not has_required_roles(current_user, required_roles):
-        raise HTTPException(
-            status_code=403, 
-            detail="Insufficient permissions. Requires admin, SCHOOL_IT, SSG or event-organizer role"
-        )
     # 1. Verify target user exists
     target_user = _query_user_for_actor(db, profile.user_id, current_user)
     if not target_user:
@@ -239,27 +309,13 @@ def create_student_profile(
     ):
         raise HTTPException(status_code=400, detail="Student ID already in use")
     
-    # 3. Verify department and program exist
-    department = db.get(Department, profile.department_id)
-    program = db.get(Program, profile.program_id)
-    
-    if not department or not program:
-        raise HTTPException(status_code=400, detail="Invalid department or program ID")
-    
-    # 4. Verify program belongs to department (many-to-many check)
-    association_exists = db.execute(
-        select(program_department_association)
-        .where(
-            (program_department_association.c.department_id == department.id) &
-            (program_department_association.c.program_id == program.id)
-        )
-    ).first()
-
-    if not association_exists:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Program '{program.name}' is not offered by department '{department.name}'"
-        )
+    # 3. Verify department and program belong to the same school and academic pairing.
+    _get_department_and_program_for_school_or_400(
+        db,
+        school_id=target_school_id,
+        department_id=profile.department_id,
+        program_id=profile.program_id,
+    )
     
     # 5. Create profile
     try:
@@ -291,7 +347,7 @@ def create_student_profile(
 def get_all_users(
     skip: int = 0, 
     limit: int = 100,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
     """
@@ -306,13 +362,6 @@ def get_all_users(
     Returns:
         List of users with all related data
     """
-    # Allow admin, SCHOOL_IT, SSG, or event-organizer to access school-scoped users
-    required_roles = ["admin", "school_IT", "ssg", "event-organizer", "event_organizer"]
-    if not has_required_roles(current_user, required_roles):
-        raise HTTPException(
-            status_code=403, 
-            detail="Insufficient permissions. Requires admin, SCHOOL_IT, SSG or event-organizer role"
-        )
     # Get users with eager loading of relationships
     query = db.query(UserModel)
     query = _apply_user_scope(query, current_user)
@@ -325,7 +374,7 @@ def get_users_by_role(
     role_name: str,
     skip: int = 0,
     limit: int = 100,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
     """
@@ -341,72 +390,21 @@ def get_users_by_role(
     Returns:
         List of users with the specified role
     """
-    # Allow admin, SCHOOL_IT, SSG, or event-organizer to filter users by role
-    required_roles = ["admin", "school_IT", "ssg", "event-organizer", "event_organizer"]
-    if not has_required_roles(current_user, required_roles):
-        raise HTTPException(
-            status_code=403, 
-            detail="Insufficient permissions. Requires admin, SCHOOL_IT, SSG or event-organizer role"
-        )
     # Find all users with the specified role
     query = (
         db.query(UserModel)
         .join(UserRole)
         .join(Role)
-        .filter(Role.name == role_name)
+        .filter(Role.name.in_(get_role_lookup_names(role_name)))
     )
     query = _apply_user_scope(query, current_user)
     users = query.offset(skip).limit(limit).all()
     
     return [UserWithRelations.from_orm(user) for user in users]
 
-@router.get("/ssg-positions/", response_model=List[dict])
-def get_ssg_position_types():
-    """Get all valid SSG position types for dropdowns"""
-    return [{"value": e.value, "label": e.value} for e in SSGPositionEnum]
-
-
-@router.post("/ssg-profiles/", response_model=UserWithRelations)
-def create_ssg_profile(
-    profile: SSGProfileCreate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
-    db: Session = Depends(get_db)
-):
-    """Create SSG profile endpoint with validated position"""
-    required_roles = ["admin", "school_IT", "ssg", "event-organizer", "event_organizer"]
-    if not has_required_roles(current_user, required_roles):
-        raise HTTPException(
-            status_code=403, 
-            detail="Insufficient permissions"
-        )
-    # Get the target user
-    user = _query_user_for_actor(db, profile.user_id, current_user)
-    if not user:
-        raise HTTPException(404, "User not found")
-    
-    # Verify SSG role exists
-    if not any(role.role.name == "ssg" for role in user.roles):
-        raise HTTPException(400, "User does not have SSG role")
-    
-    # Check for existing profile
-    if user.ssg_profile:
-        raise HTTPException(400, "User already has an SSG profile")
-    
-    # Create the profile (position is automatically validated by Pydantic)
-    ssg_profile = SSGProfile(
-        user_id=user.id,
-        position=profile.position  # This is now an SSGPositionEnum value
-    )
-    
-    db.add(ssg_profile)
-    db.commit()
-    db.refresh(user)
-    return UserWithRelations.from_orm(user)
-
-
 @router.get("/me/", response_model=UserWithRelations)
 def get_current_user_profile(
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -418,40 +416,12 @@ def get_current_user_profile(
     return UserWithRelations.from_orm(current_user)
 
 
-@router.get("/ssg-members/", response_model=List[UserWithRelations])
-def get_ssg_members(
-    skip: int = 0,
-    limit: int = 100,
-    include_profiles: bool = True,
-    current_user: UserModel = Depends(get_current_user_with_roles),
-    db: Session = Depends(get_db)
-):
-    """Get all SSG members with their positions"""
-    query = (
-        db.query(UserModel)
-        .join(UserRole)
-        .join(Role)
-        .filter(Role.name == "ssg")
-        .order_by(UserModel.last_name)
-    )
-    query = _apply_user_scope(query, current_user)
-    
-    if include_profiles:
-        query = query.options(
-            joinedload(UserModel.roles).joinedload(UserRole.role),
-            joinedload(UserModel.ssg_profile)
-        )
-    
-    ssg_members = query.offset(skip).limit(limit).all()
-    
-    return [UserWithRelations.from_orm(user) for user in ssg_members]
-
 # Add these endpoints to your existing router
 @router.patch("/{user_id}", response_model=UserWithRelations)
 def update_user(
     user_id: int,
     user_update: UserUpdate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -466,8 +436,8 @@ def update_user(
     Returns:
         Updated user with all related data
     """
-    # Allow admin or SCHOOL_IT to update other users in the same school, or users can update themselves.
-    if current_user.id != user_id and not has_required_roles(current_user, ["admin", "school_IT"]):
+    # Allow admin or Campus Admin to update other users in the same school, or users can update themselves.
+    if current_user.id != user_id and not has_required_roles(current_user, ["admin", "campus_admin"]):
         raise HTTPException(
             status_code=403,
             detail="Insufficient permissions to update this user"
@@ -478,12 +448,12 @@ def update_user(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # SCHOOL_IT cannot modify admin/school_IT accounts.
+    # Campus Admin cannot modify admin or campus-admin accounts.
     if _is_school_it(current_user) and not _is_admin(current_user):
         if current_user.id != db_user.id and _target_has_admin_or_school_it(db_user):
             raise HTTPException(
                 status_code=403,
-                detail="SCHOOL_IT cannot modify admin or SCHOOL_IT accounts.",
+                detail="Campus Admin cannot modify admin or Campus Admin accounts.",
             )
     
     # Only update fields that are provided in the request
@@ -523,7 +493,7 @@ def update_user(
 @router.delete("/{user_id}", status_code=204)
 def delete_user(
     user_id: int,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
     """
@@ -534,12 +504,6 @@ def delete_user(
         current_user: Current authenticated user
         db: Database session
     """
-    # Admin and SCHOOL_IT can delete users in their own school scope.
-    if not has_required_roles(current_user, ["admin", "school_IT"]):
-        raise HTTPException(
-            status_code=403,
-            detail="Insufficient permissions. Admin or SCHOOL_IT role required."
-        )
     # Get the user to delete
     db_user = _query_user_for_actor(db, user_id, current_user)
     if not db_user:
@@ -547,11 +511,11 @@ def delete_user(
 
     if _is_school_it(current_user) and not _is_admin(current_user):
         if current_user.id == db_user.id:
-            raise HTTPException(status_code=403, detail="SCHOOL_IT cannot delete their own account.")
+            raise HTTPException(status_code=403, detail="Campus Admin cannot delete their own account.")
         if _target_has_admin_or_school_it(db_user):
             raise HTTPException(
                 status_code=403,
-                detail="SCHOOL_IT cannot delete admin or SCHOOL_IT accounts.",
+                detail="Campus Admin cannot delete admin or Campus Admin accounts.",
             )
     
     # Delete the user
@@ -565,7 +529,7 @@ def delete_user(
 def update_student_profile(
     profile_id: int,
     profile_update: StudentProfileBase,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -580,12 +544,10 @@ def update_student_profile(
     Returns:
         User with updated student profile
     """
-    # Allow admin, SCHOOL_IT, SSG, or event-organizer to update student profiles
-    required_roles = ["admin", "school_IT", "ssg", "event-organizer", "event_organizer"]
-    if not has_required_roles(current_user, required_roles):
+    if not _can_manage_student_profiles(db, current_user):
         raise HTTPException(
             status_code=403,
-            detail="Insufficient permissions. Requires admin, SCHOOL_IT, SSG or event-organizer role"
+            detail="Insufficient permissions to manage student profiles"
         )
     # Get the profile to update
     profile_query = (
@@ -625,26 +587,12 @@ def update_student_profile(
         department_id = profile_update.department_id if profile_update.department_id is not None else profile.department_id
         program_id = profile_update.program_id if profile_update.program_id is not None else profile.program_id
         
-        department = db.get(Department, department_id)
-        program = db.get(Program, program_id)
-        
-        if not department or not program:
-            raise HTTPException(status_code=400, detail="Invalid department or program ID")
-        
-        # Verify program belongs to department (many-to-many check)
-        association_exists = db.execute(
-            select(program_department_association)
-            .where(
-                (program_department_association.c.department_id == department.id) &
-                (program_department_association.c.program_id == program.id)
-            )
-        ).first()
-
-        if not association_exists:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Program '{program.name}' is not offered by department '{department.name}'"
-            )
+        _get_department_and_program_for_school_or_400(
+            db,
+            school_id=profile.school_id,
+            department_id=department_id,
+            program_id=program_id,
+        )
         
         if profile_update.department_id is not None:
             profile.department_id = profile_update.department_id
@@ -667,7 +615,7 @@ def update_student_profile(
 @router.delete("/student-profiles/{profile_id}", status_code=204)
 def delete_student_profile(
     profile_id: int,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
     """
@@ -678,12 +626,6 @@ def delete_student_profile(
         current_user: Current authenticated user
         db: Database session
     """
-    # Admin and SCHOOL_IT can delete student profiles in their school.
-    if not has_required_roles(current_user, ["admin", "school_IT"]):
-        raise HTTPException(
-            status_code=403,
-            detail="Insufficient permissions. Admin or SCHOOL_IT role required."
-        )
     # Get the profile to delete
     profile_query = (
         db.query(StudentProfile)
@@ -704,103 +646,11 @@ def delete_student_profile(
     return None
 
 
-@router.put("/ssg-profiles/{profile_id}", response_model=UserWithRelations)
-def update_ssg_profile(
-    profile_id: int,
-    profile_update: SSGProfileBase,
-    current_user: UserModel = Depends(get_current_user_with_roles),
-    db: Session = Depends(get_db)
-):
-    """
-    Update an SSG profile.
-    
-    Args:
-        profile_id: ID of the SSG profile to update
-        profile_update: Updated profile data
-        current_user: Current authenticated user
-        db: Database session
-        
-    Returns:
-        User with updated SSG profile
-    """
-    # Allow admin, SCHOOL_IT, or SSG to update SSG profiles
-    required_roles = ["admin", "school_IT", "ssg"]
-    if not has_required_roles(current_user, required_roles):
-        raise HTTPException(
-            status_code=403,
-            detail="Insufficient permissions. Requires admin, SCHOOL_IT or SSG role"
-        )
-    # Get the profile to update
-    profile_query = (
-        db.query(SSGProfile)
-        .join(UserModel, SSGProfile.user_id == UserModel.id)
-        .filter(SSGProfile.id == profile_id)
-    )
-    actor_school_id = _actor_school_scope_id(current_user)
-    if actor_school_id is not None:
-        profile_query = profile_query.filter(UserModel.school_id == actor_school_id)
-    profile = profile_query.first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="SSG profile not found")
-    
-    # Update profile fields (position is validated by Pydantic)
-    profile.position = profile_update.position
-    
-    db.commit()
-    db.refresh(profile)
-    
-    # Return the full user with updated profile
-    user = _query_user_for_actor(db, profile.user_id, current_user)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return UserWithRelations.from_orm(user)
-
-
-@router.delete("/ssg-profiles/{profile_id}", status_code=204)
-def delete_ssg_profile(
-    profile_id: int,
-    current_user: UserModel = Depends(get_current_user_with_roles),
-    db: Session = Depends(get_db)
-):
-    """
-    Delete an SSG profile.
-    
-    Args:
-        profile_id: ID of the SSG profile to delete
-        current_user: Current authenticated user
-        db: Database session
-    """
-    # Admin and SCHOOL_IT can delete SSG profiles in their school.
-    if not has_required_roles(current_user, ["admin", "school_IT"]):
-        raise HTTPException(
-            status_code=403,
-            detail="Insufficient permissions. Admin or SCHOOL_IT role required."
-        )
-    # Get the profile to delete
-    profile_query = (
-        db.query(SSGProfile)
-        .join(UserModel, SSGProfile.user_id == UserModel.id)
-        .filter(SSGProfile.id == profile_id)
-    )
-    actor_school_id = _actor_school_scope_id(current_user)
-    if actor_school_id is not None:
-        profile_query = profile_query.filter(UserModel.school_id == actor_school_id)
-    profile = profile_query.first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="SSG profile not found")
-    
-    # Delete the profile
-    db.delete(profile)
-    db.commit()
-    
-    return None
-
-
 @router.put("/{user_id}/roles", response_model=UserWithRelations)
 def update_user_roles(
     user_id: int,
     role_update: UserRoleUpdate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
     """
@@ -815,35 +665,37 @@ def update_user_roles(
     Returns:
         User with updated roles
     """
-    # Admin and SCHOOL_IT can update roles inside their school scope.
-    if not has_required_roles(current_user, ["admin", "school_IT"]):
-        raise HTTPException(
-            status_code=403,
-            detail="Insufficient permissions. Admin or SCHOOL_IT role required."
-        )
     # Get the user to update
     user = _query_user_for_actor(db, user_id, current_user)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    requested_role_values = [role_name.value for role_name in role_update.roles]
+    requested_role_values = [canonicalize_role_name_for_storage(role_name.value) for role_name in role_update.roles]
+    if _is_school_it(current_user) and not _is_admin(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Campus Admin cannot change user roles from Manage Users. "
+                "Imported users stay students, and SSG access is managed from Manage SSG."
+            ),
+        )
     _assert_school_it_assignable_roles(current_user, requested_role_values)
     if _is_school_it(current_user) and not _is_admin(current_user) and _target_has_admin_or_school_it(user):
         raise HTTPException(
             status_code=403,
-            detail="SCHOOL_IT cannot update roles for admin or SCHOOL_IT accounts.",
+            detail="Campus Admin cannot update roles for admin or Campus Admin accounts.",
         )
     
     # Delete existing roles
     db.query(UserRole).filter(UserRole.user_id == user_id).delete()
     
     # Add new roles
-    for role_name in role_update.roles:
-        role = db.query(Role).filter(Role.name == role_name.value).first()
+    for role_name in requested_role_values:
+        role = _get_role_by_name_or_alias(db, role_name)
         if not role:
             raise HTTPException(
                 status_code=400,
-                detail=f"Role '{role_name.value}' does not exist in database"
+                detail=f"Role '{role_name}' does not exist in database"
             )
         db.add(UserRole(user_id=user.id, role_id=role.id))
     
@@ -856,7 +708,7 @@ def update_user_roles(
 @router.get("/{user_id}", response_model=UserWithRelations)
 def get_user_by_id(
     user_id: int,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -870,9 +722,9 @@ def get_user_by_id(
     Returns:
         User with all related data
     """
-    # Allow users to get their own profile or admin/SCHOOL_IT/SSG/event-organizer to get any profile in-school.
+    # Allow users to get their own profile or admin/Campus Admin to get any profile in-school.
     if current_user.id != user_id and not has_required_roles(
-        current_user, ["admin", "school_IT", "ssg", "event-organizer", "event_organizer"]
+        current_user, ["admin", "campus_admin"]
     ):
         raise HTTPException(
             status_code=403,
@@ -891,7 +743,7 @@ def get_user_by_id(
 def reset_user_password(
     user_id: int,
     password_update: PasswordUpdate,
-    current_user: UserModel = Depends(get_current_user_with_roles),
+    current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -903,8 +755,8 @@ def reset_user_password(
         current_user: Current authenticated user
         db: Database session
     """
-    # Admin and SCHOOL_IT can reset passwords in school scope, or users can reset their own.
-    if current_user.id != user_id and not has_required_roles(current_user, ["admin", "school_IT"]):
+    # Admin and Campus Admin can reset passwords in school scope, or users can reset their own.
+    if current_user.id != user_id and not has_required_roles(current_user, ["admin", "campus_admin"]):
         raise HTTPException(
             status_code=403,
             detail="Insufficient permissions to reset this user's password"
@@ -919,78 +771,15 @@ def reset_user_password(
         if current_user.id != user.id and _target_has_admin_or_school_it(user):
             raise HTTPException(
                 status_code=403,
-                detail="SCHOOL_IT cannot reset password for admin or SCHOOL_IT accounts.",
+                detail="Campus Admin cannot reset password for admin or Campus Admin accounts.",
             )
     
     # Update password
     user.set_password(password_update.password)
-    user.must_change_password = True
+    user.must_change_password = must_change_password_for_temporary_reset()
+    user.should_prompt_password_change = should_prompt_password_change_for_temporary_reset()
     db.commit()
     
     return None    
 
-@router.post("/events/{event_id}/ssg-members", response_model=EventSchema)
-def assign_ssg_members_to_event(
-    event_id: int,
-    ssg_member_ids: List[int] = Body(..., embed=True),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_with_roles)
-):
-    """Assign SSG members to an event"""
-    try:
-        # Check permissions
-        required_roles = ["admin", "event-organizer"]
-        if not has_required_roles(current_user, required_roles):
-            raise HTTPException(403, "Insufficient permissions")
-        actor_school_id = _actor_school_scope_id(current_user)
 
-        # Get the event - using MODEL class
-        event_query = db.query(Event).options(
-            joinedload(Event.ssg_members)
-        ).filter(Event.id == event_id)
-        if actor_school_id is not None:
-            event_query = event_query.filter(Event.school_id == actor_school_id)
-        event = event_query.first()
-        
-        if not event:
-            raise HTTPException(404, "Event not found")
-        event_school_id = getattr(event, "school_id", None)
-        if event_school_id is None:
-            raise HTTPException(400, "Event is not linked to a school")
-
-        # Verify all SSG members exist
-        existing_members = db.query(SSGProfile.id).join(
-            UserModel, SSGProfile.user_id == UserModel.id
-        ).filter(
-            SSGProfile.id.in_(ssg_member_ids),
-            UserModel.school_id == event_school_id,
-        ).all()
-        
-        existing_ids = {m[0] for m in existing_members}
-        missing_ids = set(ssg_member_ids) - existing_ids
-        
-        if missing_ids:
-            raise HTTPException(400, f"Invalid SSG member IDs: {missing_ids}")
-
-        # Clear existing and assign new members
-        event.ssg_members = []
-        for member_id in ssg_member_ids:
-            member = db.query(SSGProfile).join(
-                UserModel, SSGProfile.user_id == UserModel.id
-            ).filter(
-                SSGProfile.id == member_id,
-                UserModel.school_id == event_school_id,
-            ).first()
-            if member:
-                event.ssg_members.append(member)
-
-        db.commit()
-        db.refresh(event)
-        return event
-        
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(500, "Database error") from e
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(500, str(e)) from e

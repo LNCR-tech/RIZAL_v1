@@ -2,23 +2,23 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { NavbarStudent } from "../components/NavbarStudent";
 import { NavbarStudentSSG } from "../components/NavbarStudentSSG";
-import { NavbarStudentSSGEventOrganizer } from "../components/NavbarStudentSSGEventOrganizer";
 import { FaArrowRight, FaSearch } from "react-icons/fa";
 import {
-  fetchEventsByStatus,
+  fetchAllEvents,
   fetchMyAttendanceRecords,
   type AttendanceRecord,
   type Event,
 } from "../api/eventsApi";
+import {
+  formatManilaDateTime,
+  getStudentEventActionState,
+} from "../utils/eventAttendanceWindow";
+import { formatEventDepartments, formatEventPrograms } from "../utils/eventScopeLabels";
 import "../css/UpcomingEvents.css";
 
 interface UpcomingEventsProps {
   role: string;
 }
-
-type Department = NonNullable<Event["departments"]>[number];
-type Program = NonNullable<Event["programs"]>[number];
-type AttendanceActionState = "sign_in" | "sign_out" | "done";
 
 export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
   const navigate = useNavigate();
@@ -34,14 +34,14 @@ export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
     const loadEvents = async () => {
       setIsLoading(true);
       try {
-        const [ongoingEvents, upcomingEvents, myAttendanceRecords] =
-          await Promise.all([
-          fetchEventsByStatus("ongoing"),
-          fetchEventsByStatus("upcoming"),
+        const [allEvents, myAttendanceRecords] = await Promise.all([
+          fetchAllEvents(true),
           fetchMyAttendanceRecords(),
         ]);
 
-        const mergedEvents = [...ongoingEvents, ...upcomingEvents].sort(
+        const mergedEvents = allEvents
+          .filter((event) => event.status === "ongoing" || event.status === "upcoming")
+          .sort(
           (left, right) => {
             if (left.status !== right.status) {
               return left.status === "ongoing" ? -1 : 1;
@@ -52,7 +52,7 @@ export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
               new Date(right.start_datetime).getTime()
             );
           }
-        );
+          );
 
         setEvents(mergedEvents);
         setAttendanceRecords(myAttendanceRecords);
@@ -87,24 +87,7 @@ export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
   }, [attendanceRecords]);
 
   const formatDateTime = (datetime: string) => {
-    const date = new Date(datetime);
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatDepartments = (departments?: Department[]) => {
-    const safeDepartments = departments ?? [];
-    return safeDepartments.map((d) => d.name).join(", ") || "N/A";
-  };
-
-  const formatPrograms = (programs?: Program[]) => {
-    const safePrograms = programs ?? [];
-    return safePrograms.map((p) => p.name).join(", ") || "N/A";
+    return formatManilaDateTime(datetime);
   };
 
   const hasGeofence = (event: Event) =>
@@ -117,25 +100,10 @@ export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
       event.name.toLowerCase().includes(deferredSearchTerm.toLowerCase())
   );
 
-  const getAttendanceActionState = (event: Event): AttendanceActionState => {
-    const latestRecord = latestAttendanceByEvent.get(event.id);
-    if (!latestRecord) {
-      return "sign_in";
-    }
-
-    if (latestRecord.time_out) {
-      return "done";
-    }
-
-    return "sign_out";
-  };
-
   return (
     <div className="upcoming-page">
       {role === "student-ssg" ? (
         <NavbarStudentSSG />
-      ) : role === "student-ssg-eventorganizer" ? (
-        <NavbarStudentSSGEventOrganizer />
       ) : (
         <NavbarStudent />
       )}
@@ -182,10 +150,10 @@ export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
                   <tr key={event.id}>
                     <td data-label="Event Name">{event.name}</td>
                     <td data-label="Department(s)">
-                      {formatDepartments(event.departments)}
+                      {formatEventDepartments(event.departments)}
                     </td>
                     <td data-label="Program(s)">
-                      {formatPrograms(event.programs)}
+                      {formatEventPrograms(event.programs)}
                     </td>
                     <td data-label="Date & Time">
                       {formatDateTime(event.start_datetime)} -{" "}
@@ -199,43 +167,59 @@ export const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ role }) => {
                       </span>
                     </td>
                     <td data-label="Action">
-                      {event.status === "ongoing" ? (
-                        hasGeofence(event) ? (
-                          getAttendanceActionState(event) === "done" ? (
-                            <span className="upcoming-action-placeholder">
-                              Done
-                            </span>
-                          ) : (
+                      {(() => {
+                        const actionState = getStudentEventActionState(
+                          event,
+                          latestAttendanceByEvent.get(event.id)
+                        );
+                        const isActionable =
+                          actionState === "sign_in" || actionState === "sign_out";
+
+                        if (!hasGeofence(event) && isActionable) {
+                          return (
+                            <button
+                              type="button"
+                              className="upcoming-action-button"
+                              disabled
+                            >
+                              <FaArrowRight />
+                              Unavailable
+                            </button>
+                          );
+                        }
+
+                        if (isActionable) {
+                          return (
                             <button
                               type="button"
                               className="upcoming-action-button"
                               onClick={() =>
-                                navigate(
-                                  `/student_event_checkin?eventId=${event.id}`
-                                )
+                                navigate(`/student_event_checkin?eventId=${event.id}`)
                               }
                             >
                               <FaArrowRight />
-                              {getAttendanceActionState(event) === "sign_out"
-                                ? "Sign Out"
-                                : "Sign In"}
+                              {actionState === "sign_out" ? "Sign Out" : "Sign In"}
                             </button>
-                          )
-                        ) : (
-                          <button
-                            type="button"
-                            className="upcoming-action-button"
-                            disabled
-                          >
-                            <FaArrowRight />
-                            Unavailable
-                          </button>
-                        )
-                      ) : (
-                        <span className="upcoming-action-placeholder">
-                          Opens when ongoing
-                        </span>
-                      )}
+                          );
+                        }
+
+                        const placeholder =
+                          actionState === "done"
+                            ? "Done"
+                            : actionState === "not_open"
+                              ? "Opens Soon"
+                              : actionState === "waiting_sign_out"
+                                ? "Waiting Sign-Out"
+                                : actionState === "missed_check_in"
+                                  ? "Check-In Closed"
+                                  : "Closed";
+
+                        return (
+                          <span className="upcoming-action-placeholder">
+                            {placeholder}
+                          </span>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))

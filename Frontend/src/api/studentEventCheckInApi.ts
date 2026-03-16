@@ -14,23 +14,48 @@ export interface EventLocationVerificationResponse {
   radius_m: number;
   accuracy_m?: number | null;
   time_status?: {
-    event_status: "upcoming" | "open" | "late" | "closed";
+    event_status:
+      | "before_check_in"
+      | "early_check_in"
+      | "late_check_in"
+      | "absent_check_in"
+      | "sign_out_open"
+      | "closed";
     current_time: string;
+    check_in_opens_at: string;
     start_time: string;
     end_time: string;
     late_threshold_time: string;
+    sign_out_opens_at: string;
+    normal_sign_out_closes_at: string;
+    effective_sign_out_closes_at: string;
+    sign_out_override_until?: string | null;
+    sign_out_override_active: boolean;
     timezone_name: string;
   } | null;
   attendance_decision?: {
-    event_status: "upcoming" | "open" | "late" | "closed";
+    action: "check_in" | "sign_out";
+    event_status:
+      | "before_check_in"
+      | "early_check_in"
+      | "late_check_in"
+      | "absent_check_in"
+      | "sign_out_open"
+      | "closed";
     attendance_allowed: boolean;
     attendance_status?: "present" | "late" | "absent" | null;
     reason_code?: string | null;
     message: string;
     current_time: string;
+    check_in_opens_at: string;
     start_time: string;
     end_time: string;
     late_threshold_time: string;
+    sign_out_opens_at: string;
+    normal_sign_out_closes_at: string;
+    effective_sign_out_closes_at: string;
+    sign_out_override_until?: string | null;
+    sign_out_override_active: boolean;
     timezone_name: string;
   } | null;
 }

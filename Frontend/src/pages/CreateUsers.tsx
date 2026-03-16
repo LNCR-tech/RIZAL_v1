@@ -22,11 +22,6 @@ interface StudentProfileCreate {
   // Face encoding will be handled separately with image
 }
 
-interface SSGProfileCreate {
-  user_id: number;
-  position: string;
-}
-
 interface Department {
   id: number;
   name: string;
@@ -42,15 +37,11 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const USER_API = `${BASE_URL}/users`;
 const DEPARTMENT_API = `${BASE_URL}/departments/`;
 const PROGRAM_API = `${BASE_URL}/programs/`;
-const SSG_POSITIONS_API = `${BASE_URL}/users/ssg-positions/`;
-console.log("Fetching SSG positions from:", SSG_POSITIONS_API);
 
 // Match backend role values
 const availableRoles = [
   { value: "student", label: "Student" },
-  { value: "ssg", label: "SSG Officer" },
-  { value: "event-organizer", label: "Event Organizer" },
-  { value: "school_IT", label: "School IT" },
+  { value: "campus_admin", label: "Campus Admin" },
   { value: "admin", label: "Admin" },
 ];
 
@@ -83,21 +74,15 @@ export const CreateUsers: React.FC = () => {
   const [yearLevel, setYearLevel] = useState<number>(1);
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [programId, setProgramId] = useState<number | null>(null);
-  const [ssgPosition, setSSGPosition] = useState("");
-
   // Data from API
   const [departments, setDepartments] = useState<Department[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [ssgPositions, setSSGPositions] = useState<
-    { value: string; label: string }[]
-  >([]);
   const [filteredPrograms, setFilteredPrograms] = useState<Program[]>([]);
 
   // Dropdown states
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
   const [programDropdownOpen, setProgramDropdownOpen] = useState(false);
-  const [positionDropdownOpen, setPositionDropdownOpen] = useState(false);
 
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem("authToken");
@@ -140,7 +125,7 @@ export const CreateUsers: React.FC = () => {
           } else if (typeof errorData === "object") {
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (e) {
+        } catch {
           console.error("API Error (non-JSON):", errorText);
           errorMessage = errorText || errorMessage;
         }
@@ -155,7 +140,7 @@ export const CreateUsers: React.FC = () => {
     }
   };
 
-  // Fetch departments, programs, and ssg positions on mount
+  // Fetch departments and programs on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -169,10 +154,6 @@ export const CreateUsers: React.FC = () => {
         const programData = await programResponse.json();
         setPrograms(programData);
 
-        // Fetch SSG positions with authentication
-        const ssgPositionsResponse = await fetchWithAuth(SSG_POSITIONS_API);
-        const positionsData = await ssgPositionsResponse.json();
-        setSSGPositions(positionsData);
       } catch (error) {
         console.error("Error fetching data:", error);
         setError(
@@ -242,11 +223,6 @@ export const CreateUsers: React.FC = () => {
         errors.program = "Program is required";
       }
     }
-
-    if (user.roles.includes("ssg") && !ssgPosition) {
-      errors.position = "Position is required for SSG Officers";
-    }
-
     return errors;
   };
 
@@ -310,27 +286,6 @@ export const CreateUsers: React.FC = () => {
         }
       }
 
-      // Step 3: If user is an SSG officer, create SSG profile
-      if (user.roles.includes("ssg") && !hasErrors) {
-        try {
-          const ssgProfileData: SSGProfileCreate = {
-            user_id: userId,
-            position: ssgPosition,
-          };
-
-          await fetchWithAuth(`${USER_API}/ssg-profiles/`, {
-            method: "POST",
-            body: JSON.stringify(ssgProfileData),
-          });
-        } catch (err) {
-          console.error("Error creating SSG profile:", err);
-          hasErrors = true;
-          errorMessage = hasErrors
-            ? errorMessage + " Also failed to create SSG profile."
-            : "User created but failed to create SSG profile.";
-        }
-      }
-
       // Set success or partial success message
       if (hasErrors) {
         setSuccessMessage(
@@ -352,7 +307,6 @@ export const CreateUsers: React.FC = () => {
         setYearLevel(1);
         setDepartmentId(null);
         setProgramId(null);
-        setSSGPosition("");
       }
     } catch (err) {
       console.error("Create user error:", err);
@@ -704,57 +658,6 @@ export const CreateUsers: React.FC = () => {
             </section>
           )}
 
-          {user.roles.includes("ssg") && (
-            <section className="form-section compact-section">
-              <h3 className="section-title">SSG Officer Details</h3>
-              <div className="form-group compact-group">
-                <label>
-                  Position <span className="required">*</span>
-                </label>
-                <div className="dropdown-wrapper compact-dropdown">
-                  <div className="dropdown">
-                    <button
-                      type="button"
-                      className={`dropdown-btn compact-btn ${
-                        validationErrors.position ? "input-error" : ""
-                      }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setPositionDropdownOpen(!positionDropdownOpen);
-                      }}
-                    >
-                      {ssgPosition || "Select Position"}
-                      <span className="icon">
-                        {positionDropdownOpen ? "▲" : "▼"}
-                      </span>
-                    </button>
-                    {validationErrors.position && (
-                      <div className="error-message compact-error">
-                        {validationErrors.position}
-                      </div>
-                    )}
-                    {positionDropdownOpen && (
-                      <div className="dropdown-content compact-content">
-                        {ssgPositions.map((pos) => (
-                          <div
-                            key={pos.value}
-                            className="dropdown-item compact-item"
-                            onClick={() => {
-                              setSSGPosition(pos.value);
-                              setPositionDropdownOpen(false);
-                            }}
-                          >
-                            {pos.label}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
           <div className="form-actions compact-actions">
             <Link to="/manage-users" className="btn btn-secondary compact-btn">
               Cancel
@@ -785,3 +688,5 @@ export const CreateUsers: React.FC = () => {
 };
 
 export default CreateUsers;
+
+

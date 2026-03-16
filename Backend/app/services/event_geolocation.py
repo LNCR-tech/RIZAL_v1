@@ -51,7 +51,10 @@ def build_event_time_status_info(event: EventModel) -> EventTimeStatusInfo:
     time_status = get_event_status(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
+        early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+        sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+        sign_out_override_until=getattr(event, "sign_out_override_until", None),
     )
     return EventTimeStatusInfo(**time_status.to_dict())
 
@@ -60,7 +63,10 @@ def build_event_attendance_decision_info(event: EventModel) -> EventAttendanceDe
     decision = get_attendance_decision(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
+        early_check_in_minutes=getattr(event, "early_check_in_minutes", 0),
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
+        sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
+        sign_out_override_until=getattr(event, "sign_out_override_until", None),
     )
     return EventAttendanceDecisionInfo(**decision.to_dict())
 

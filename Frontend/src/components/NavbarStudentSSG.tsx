@@ -14,11 +14,13 @@ import {
 import logoValid8 from "../assets/images/logo-valid83.webp";
 import userprofile from "../assets/images/userprofile.png";
 import { useRoleSidebarLayout } from "../hooks/useRoleSidebarLayout";
+import { useGovernanceAccess } from "../hooks/useGovernanceAccess";
 import "../css/NavbarStudentSSG.css";
 
 export const NavbarStudentSSG = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const { hasPermission, loading } = useGovernanceAccess();
 
   useRoleSidebarLayout({ isExpanded, sidebarOpen });
 
@@ -29,6 +31,55 @@ export const NavbarStudentSSG = () => {
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
   };
+
+  const navLinks = [
+    {
+      path: "/studentssg_home",
+      icon: <FaHome />,
+      text: "Home",
+      visible: true,
+    },
+    {
+      path: "/studentssg_upcoming_events",
+      icon: <FaCalendarAlt />,
+      text: "Upcoming Events",
+      visible: true,
+    },
+    {
+      path: "/student_event_checkin",
+      icon: <FaUserCheck />,
+      text: "Event Sign In",
+      visible: true,
+    },
+    {
+      path: "/studentssg_events_attended",
+      icon: <FaClipboardCheck />,
+      text: "Events Attended",
+      visible: true,
+    },
+    {
+      path: "/studentssg_events",
+      icon: <FaRegListAlt />,
+      text: "Events",
+      visible: hasPermission("manage_events"),
+    },
+    {
+      path: "/studentssg_records",
+      icon: <FaClipboard />,
+      text: "Records",
+      visible: hasPermission("manage_attendance"),
+    },
+    {
+      path: "/studentssg_manual_attendance",
+      icon: <FaUserCheck />,
+      text: "Manual Attendance",
+      visible: hasPermission("manage_attendance"),
+    },
+  ].filter((item) => item.visible);
+
+  const hasGovernanceFeatures = navLinks.some((item) =>
+    ["/studentssg_events", "/studentssg_records", "/studentssg_manual_attendance"].includes(item.path)
+  );
 
   return (
     <>
@@ -81,100 +132,29 @@ export const NavbarStudentSSG = () => {
                 <span className="nav-text">Menu</span>
               </button>
             </li>
-
-            <li>
-              <NavLink
-                to="/studentssg_home"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Home"
-              >
-                <FaHome className="nav-icon" />
-                <span className="nav-text">Home</span>
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/studentssg_upcoming_events"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Upcoming Events"
-              >
-                <FaCalendarAlt className="nav-icon" />
-                <span className="nav-text">Upcoming Events</span>
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/student_event_checkin"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Event Sign In"
-              >
-                <FaUserCheck className="nav-icon" />
-                <span className="nav-text">Event Sign In</span>
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/studentssg_events_attended"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Events Attended"
-              >
-                <FaClipboardCheck className="nav-icon" />
-                <span className="nav-text">Events Attended</span>
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/studentssg_events"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Events"
-              >
-                <FaRegListAlt className="nav-icon" />
-                <span className="nav-text">Events</span>
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/studentssg_records"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Records"
-              >
-                <FaClipboard className="nav-icon" />
-                <span className="nav-text">Records</span>
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/studentssg_manual_attendance"
-                className={({ isActive }) =>
-                  isActive ? "ssg-nav-link active" : "ssg-nav-link"
-                }
-                onClick={() => setSidebarOpen(false)}
-                title="Manual Attendance"
-              >
-                <FaUserCheck className="nav-icon" />
-                <span className="nav-text">Manual Attendance</span>
-              </NavLink>
-            </li>
+            {navLinks.map((item) => (
+              <li key={item.path}>
+                <NavLink
+                  to={item.path}
+                  className={({ isActive }) =>
+                    isActive ? "ssg-nav-link active" : "ssg-nav-link"
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                  title={item.text}
+                >
+                  <div className="nav-icon">{item.icon}</div>
+                  <span className="nav-text">{item.text}</span>
+                </NavLink>
+              </li>
+            ))}
           </ul>
         </nav>
+
+        {!loading && !hasGovernanceFeatures && (
+          <div className="px-3 pb-3 text-light small">
+            No SSG governance features are assigned yet. Ask Campus Admin to grant permissions.
+          </div>
+        )}
 
         {/* User Profile Section */}
         <div className="ssg-sidebar-footer">

@@ -8,16 +8,19 @@ import {
 } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import {
+  FaArrowLeft,
   FaCalendarAlt,
   FaCheckCircle,
   FaCompass,
   FaExclamationTriangle,
+  FaHistory,
+  FaHome,
   FaMapMarkerAlt,
   FaShieldAlt,
 } from "react-icons/fa";
 
 import type { Event } from "../api/eventsApi";
-import { fetchAllEvents } from "../api/eventsApi";
+import { fetchAllEvents, fetchMyAttendanceRecords, type AttendanceRecord } from "../api/eventsApi";
 import {
   describeStudentEventCheckInError,
   type EventLocationVerificationResponse,
@@ -33,6 +36,12 @@ import {
 } from "../api/studentFaceEnrollmentApi";
 import { resolveDashboardPath } from "../authFlow";
 import CameraFeed from "../components/CameraFeed";
+import {
+  formatManilaDateTime,
+  getEventWindowStage,
+  getStudentEventActionState,
+} from "../utils/eventAttendanceWindow";
+import { sanitizeRedirectPath } from "../utils/redirects";
 import "../css/FacialVerification.css";
 import "../css/StudentEventCheckIn.css";
 
@@ -58,6 +67,12 @@ const GEOLOCATION_MAX_INPUT_ACCURACY_M = 5000;
 const normalizeRole = (role: string) =>
   role.trim().toLowerCase().replace(/_/g, "-");
 
+const resolveStudentUpcomingEventsPath = () =>
+  sanitizeRedirectPath("/student_upcoming_events", "/student_dashboard");
+
+const resolveStudentEventsAttendedPath = () =>
+  sanitizeRedirectPath("/student_events_attended", "/student_dashboard");
+
 const parseStoredUser = (): StoredUser | null => {
   const raw = localStorage.getItem("user");
   if (!raw) {
@@ -77,13 +92,7 @@ const hasGeofence = (event: Event) =>
   event.geo_radius_m != null;
 
 const formatEventDateTime = (value: string) =>
-  new Date(value).toLocaleString("en-PH", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  formatManilaDateTime(value);
 
 const toProgressPercent = (value: number, target: number) =>
   Math.max(0, Math.min(100, Math.round((value / target) * 100)));
@@ -376,6 +385,7 @@ const StudentEventCheckIn = () => {
   );
   const [studentLabel, setStudentLabel] = useState("Student");
   const [events, setEvents] = useState<Event[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [locationPhase, setLocationPhase] = useState<LocationPhase>("checking");
@@ -387,10 +397,31 @@ const StudentEventCheckIn = () => {
   const [locationCheck, setLocationCheck] =
     useState<EventLocationVerificationResponse | null>(null);
 
+  const latestAttendanceByEvent = useMemo(() => {
+    const recordsByEvent = new Map<number, AttendanceRecord>();
+
+    for (const record of attendanceRecords) {
+      const existing = recordsByEvent.get(record.event_id);
+      if (!existing) {
+        recordsByEvent.set(record.event_id, record);
+        continue;
+      }
+
+      if (new Date(record.time_in).getTime() > new Date(existing.time_in).getTime()) {
+        recordsByEvent.set(record.event_id, record);
+      }
+    }
+
+    return recordsByEvent;
+  }, [attendanceRecords]);
+
   const availableEvents = useMemo(
     () =>
       events
-        .filter((event) => event.status === "ongoing" && hasGeofence(event))
+        .filter(
+          (event) =>
+            hasGeofence(event) && (event.status === "ongoing" || event.status === "upcoming")
+        )
         .sort(
           (left, right) =>
             new Date(left.start_datetime).getTime() -
@@ -406,16 +437,47 @@ const StudentEventCheckIn = () => {
       null,
     [availableEvents, selectedEventId]
   );
+  const selectedEventAttendance = useMemo(
+    () => (selectedEvent ? latestAttendanceByEvent.get(selectedEvent.id) ?? null : null),
+    [latestAttendanceByEvent, selectedEvent]
+  );
+  const selectedEventWindowStage = useMemo(
+    () => (selectedEvent ? getEventWindowStage(selectedEvent) : null),
+    [selectedEvent]
+  );
+  const selectedEventActionState = useMemo(
+    () =>
+      selectedEvent
+        ? getStudentEventActionState(selectedEvent, selectedEventAttendance)
+        : null,
+    [selectedEvent, selectedEventAttendance]
+  );
 
   const progressPercent = toProgressPercent(
     scanProgressFrames,
     VERIFY_PROGRESS_FRAMES
   );
   const scanLabel =
-    phase === "submitting" ? "Finalizing sign in..." : "Verifying face...";
+    phase === "submitting"
+      ? selectedEventActionState === "sign_out"
+        ? "Finalizing sign out..."
+        : "Finalizing sign in..."
+      : "Verifying face...";
   const subjectLabel = selectedEvent
     ? `${studentLabel} • ${selectedEvent.name}`
     : studentLabel;
+  const dashboardPath = useMemo(
+    () => sanitizeRedirectPath(resolveDashboardPath(normalizedRoles), "/student_dashboard"),
+    [normalizedRoles]
+  );
+  const upcomingEventsPath = useMemo(
+    () => resolveStudentUpcomingEventsPath(),
+    []
+  );
+  const attendedEventsPath = useMemo(
+    () => resolveStudentEventsAttendedPath(),
+    []
+  );
 
   const clearProgressAnimation = () => {
     if (progressAnimationRef.current) {
@@ -520,9 +582,13 @@ const StudentEventCheckIn = () => {
         const nextDashboardPath = resolveDashboardPath(
           faceStatus.roles.length > 0 ? faceStatus.roles : normalizedRoles
         );
+        const safeNextDashboardPath = sanitizeRedirectPath(
+          nextDashboardPath,
+          "/student_dashboard"
+        );
 
         if (!faceStatus.hasStudentRole || !faceStatus.hasStudentProfile) {
-          navigate(nextDashboardPath, { replace: true });
+          navigate(safeNextDashboardPath, { replace: true });
           return;
         }
 
@@ -536,9 +602,13 @@ const StudentEventCheckIn = () => {
 
         setStudentLabel(faceStatus.studentId || "Student");
 
-        setLoadingMessage("Loading ongoing events...");
-        const allEvents = await fetchAllEvents(true);
+        setLoadingMessage("Loading attendance windows...");
+        const [allEvents, myAttendanceRecords] = await Promise.all([
+          fetchAllEvents(true),
+          fetchMyAttendanceRecords(),
+        ]);
         setEvents(allEvents);
+        setAttendanceRecords(myAttendanceRecords);
         setPageReady(true);
       } catch (error) {
         setPageReady(false);
@@ -623,6 +693,15 @@ const StudentEventCheckIn = () => {
           setLocationCheck(result.geo);
         }
 
+        void fetchMyAttendanceRecords()
+          .then((records) => {
+            if (scanSessionRef.current !== sessionId) {
+              return;
+            }
+            setAttendanceRecords(records);
+          })
+          .catch(() => undefined);
+
         setPhase("success");
         setStatusText(
           result.action === "time_in"
@@ -664,8 +743,33 @@ const StudentEventCheckIn = () => {
     if (!selectedEvent) {
       cancelScanSession();
       setPhase("empty");
-      setStatusText("No ongoing geofenced event is available for sign-in.");
+      setStatusText("No geofenced event is currently available for attendance.");
       setResultMessage(null);
+      return;
+    }
+
+    if (
+      selectedEventActionState !== "sign_in" &&
+      selectedEventActionState !== "sign_out"
+    ) {
+      cancelScanSession();
+      setPhase("empty");
+      setResultMessage(null);
+      setLocationCheck(null);
+      setLocationInfo(null);
+      setLocationPhase("checking");
+      setLocationMessage("Attendance is not active.");
+      setStatusText(
+        selectedEventActionState === "not_open"
+          ? "Check-in has not opened yet for this event."
+          : selectedEventActionState === "waiting_sign_out"
+            ? "You are already checked in. Sign-out opens when the event reaches its sign-out window."
+            : selectedEventActionState === "missed_check_in"
+              ? "Check-in is already closed. Only students with an active attendance can sign out now."
+              : selectedEventActionState === "done"
+                ? "Attendance is already complete for this event."
+                : "Attendance is already closed for this event."
+      );
       return;
     }
 
@@ -674,7 +778,15 @@ const StudentEventCheckIn = () => {
 
     setPhase("scanning");
     setStreamEnabled(true);
-    setStatusText("Starting camera and checking event location...");
+    setStatusText(
+      selectedEventActionState === "sign_out"
+        ? "Sign-out is open. Starting camera and checking event location..."
+        : selectedEventWindowStage === "early_check_in"
+          ? "Early check-in is open. Starting camera and checking event location..."
+          : selectedEventWindowStage === "late_check_in"
+            ? "Late check-in is open. Starting camera and checking event location..."
+            : "Absent check-in is active. Starting camera and checking event location..."
+    );
     setResultMessage(null);
     setLocationPhase("checking");
     setLocationMessage("Checking event location...");
@@ -743,7 +855,14 @@ const StudentEventCheckIn = () => {
         throw error;
       }
     })();
-  }, [availableEvents.length, cancelScanSession, pageReady, selectedEvent]);
+  }, [
+    availableEvents.length,
+    cancelScanSession,
+    pageReady,
+    selectedEvent,
+    selectedEventActionState,
+    selectedEventWindowStage,
+  ]);
 
   const handleFrame = useCallback(
     async (blob: Blob) => {
@@ -784,6 +903,18 @@ const StudentEventCheckIn = () => {
   const eventSubtitle = selectedEvent
     ? `${formatEventDateTime(selectedEvent.start_datetime)} • ${selectedEvent.location}`
     : "Select an ongoing event from the event list.";
+  const eventModeLabel =
+    selectedEventActionState === "sign_out" ? "Event Sign Out" : "Event Attendance";
+  const attendanceWindowHint =
+    selectedEventActionState === "sign_out"
+      ? "Sign-out is currently open for your active attendance record."
+      : selectedEventWindowStage === "early_check_in"
+        ? "Early check-in is open and valid scans will be marked present."
+        : selectedEventWindowStage === "late_check_in"
+          ? "The event is inside the late window and valid scans will be marked late."
+          : selectedEventWindowStage === "absent_check_in"
+            ? "Check-in is still allowed, but new scans will be marked absent."
+            : "Attendance will open based on the configured event window.";
 
   if (!storedUser) {
     return <Navigate to="/" replace />;
@@ -792,6 +923,33 @@ const StudentEventCheckIn = () => {
   return (
     <div className="student-event-checkin-page">
       <main className="student-event-checkin-shell">
+        <div className="student-event-checkin-toolbar">
+          <button
+            type="button"
+            className="student-event-checkin-toolbar__button student-event-checkin-toolbar__button--primary"
+            onClick={() => navigate(dashboardPath)}
+          >
+            <FaArrowLeft />
+            Exit
+          </button>
+          <button
+            type="button"
+            className="student-event-checkin-toolbar__button"
+            onClick={() => navigate(upcomingEventsPath)}
+          >
+            <FaCalendarAlt />
+            Upcoming Events
+          </button>
+          <button
+            type="button"
+            className="student-event-checkin-toolbar__button"
+            onClick={() => navigate(attendedEventsPath)}
+          >
+            <FaHistory />
+            Events Attended
+          </button>
+        </div>
+
         {phase === "loading" ? (
           <section className="face-flow-shell student-event-checkin-flow">
             <article className="face-flow-card student-event-checkin-card">
@@ -809,6 +967,32 @@ const StudentEventCheckIn = () => {
                   <FaExclamationTriangle />
                 </div>
                 <p>{statusText}</p>
+                <div className="student-event-checkin-empty-actions">
+                  <button
+                    type="button"
+                    className="student-event-checkin-empty-action student-event-checkin-empty-action--primary"
+                    onClick={() => navigate(upcomingEventsPath)}
+                  >
+                    <FaCalendarAlt />
+                    View Upcoming Events
+                  </button>
+                  <button
+                    type="button"
+                    className="student-event-checkin-empty-action"
+                    onClick={() => navigate(attendedEventsPath)}
+                  >
+                    <FaHistory />
+                    Events Attended
+                  </button>
+                  <button
+                    type="button"
+                    className="student-event-checkin-empty-action"
+                    onClick={() => navigate(dashboardPath)}
+                  >
+                    <FaHome />
+                    Go to Dashboard
+                  </button>
+                </div>
               </div>
             </article>
           </section>
@@ -818,9 +1002,10 @@ const StudentEventCheckIn = () => {
               <div className="student-event-checkin-header">
                 <span className="student-event-checkin-badge">
                   <FaShieldAlt />
-                  Event Sign In
+                  {eventModeLabel}
                 </span>
                 <h1>{selectedEvent?.name || "Ongoing Event"}</h1>
+                <p className="student-event-checkin-subtitle">{attendanceWindowHint}</p>
                 <div className="student-event-checkin-meta">
                   <span>
                     <FaCalendarAlt />
@@ -858,8 +1043,16 @@ const StudentEventCheckIn = () => {
                           if (phase === "scanning") {
                             setStatusText(
                               isOn
-                                ? "Verifying face and location..."
-                                : "Starting camera and checking event location..."
+                                ? selectedEventActionState === "sign_out"
+                                  ? "Verifying sign-out face and location..."
+                                  : selectedEventWindowStage === "early_check_in"
+                                    ? "Verifying early check-in face and location..."
+                                    : selectedEventWindowStage === "late_check_in"
+                                      ? "Verifying late check-in face and location..."
+                                      : "Verifying absent check-in face and location..."
+                                : selectedEventActionState === "sign_out"
+                                  ? "Starting camera for sign-out and checking event location..."
+                                  : "Starting camera and checking event location..."
                             );
                           }
                         }}
@@ -925,6 +1118,24 @@ const StudentEventCheckIn = () => {
                       GPS accuracy {Math.round(locationInfo.accuracyM || 0)}m
                     </div>
                   ) : null}
+                  <div className="student-event-checkin-empty-actions">
+                    <button
+                      type="button"
+                      className="student-event-checkin-empty-action student-event-checkin-empty-action--primary"
+                      onClick={() => navigate(attendedEventsPath)}
+                    >
+                      <FaHistory />
+                      Review Events Attended
+                    </button>
+                    <button
+                      type="button"
+                      className="student-event-checkin-empty-action"
+                      onClick={() => navigate(dashboardPath)}
+                    >
+                      <FaHome />
+                      Back to Dashboard
+                    </button>
+                  </div>
                 </div>
               )}
             </article>

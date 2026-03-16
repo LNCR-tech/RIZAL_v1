@@ -1,6 +1,9 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const EVENTS_CACHE_TTL_MS = 60_000;
 
+export type GovernanceContext = "SSG" | "SG" | "ORG";
+export type EventStatus = "upcoming" | "ongoing" | "completed" | "cancelled";
+
 export interface Event {
   id: number;
   name: string;
@@ -10,13 +13,33 @@ export interface Event {
   geo_radius_m?: number | null;
   geo_required?: boolean;
   geo_max_accuracy_m?: number | null;
+  early_check_in_minutes?: number;
   late_threshold_minutes?: number;
+  sign_out_grace_minutes?: number;
+  sign_out_override_until?: string | null;
   start_datetime: string;
   end_datetime: string;
   status: EventStatus;
   departments?: Department[];
   programs?: Program[];
-  ssg_members?: SSGProfile[];
+}
+
+export interface CreateEventPayload {
+  name: string;
+  location: string;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
+  geo_radius_m?: number | null;
+  geo_required?: boolean;
+  geo_max_accuracy_m?: number | null;
+  early_check_in_minutes?: number;
+  late_threshold_minutes?: number;
+  sign_out_grace_minutes?: number;
+  start_datetime: string;
+  end_datetime: string;
+  status?: EventStatus;
+  department_ids?: number[];
+  program_ids?: number[];
 }
 
 export interface AttendanceRecord {
@@ -25,9 +48,41 @@ export interface AttendanceRecord {
   event_name: string;
   time_in: string;
   time_out: string | null;
+  check_in_status?: "present" | "late" | "absent" | null;
+  check_out_status?: "present" | "absent" | null;
   status: "present" | "late" | "absent" | "excused";
   method: "face_scan" | "manual";
   duration_minutes: number | null;
+}
+
+export interface EventAttendanceWithStudent {
+  attendance: {
+    id: number;
+    event_id: number;
+    student_id: number;
+    time_in: string;
+    time_out?: string | null;
+    check_in_status?: "present" | "late" | "absent" | null;
+    check_out_status?: "present" | "absent" | null;
+    method: "face_scan" | "manual";
+    status: "present" | "late" | "absent" | "excused";
+    notes?: string | null;
+  };
+  student_id: string;
+  student_name: string;
+}
+
+export interface EventStatsResponse {
+  total: number;
+  statuses: Partial<
+    Record<
+      "present" | "late" | "absent" | "excused",
+      {
+        count: number;
+        percentage: number;
+      }
+    >
+  >;
 }
 
 interface Department {
@@ -40,21 +95,24 @@ interface Program {
   name: string;
 }
 
-interface SSGProfile {
-  id: number;
-  user_id: number;
-  position: string;
-  user: User;
+export interface UpdateEventPayload {
+  name?: string;
+  location?: string;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
+  geo_radius_m?: number | null;
+  geo_required?: boolean;
+  geo_max_accuracy_m?: number | null;
+  early_check_in_minutes?: number;
+  late_threshold_minutes?: number;
+  sign_out_grace_minutes?: number;
+  sign_out_override_until?: string | null;
+  start_datetime?: string;
+  end_datetime?: string;
+  status?: EventStatus;
+  department_ids?: number[];
+  program_ids?: number[];
 }
-
-interface User {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-}
-
-type EventStatus = "upcoming" | "ongoing" | "completed" | "cancelled";
 
 type EventCacheEntry = {
   data: Event[];
@@ -62,6 +120,27 @@ type EventCacheEntry = {
 };
 
 const eventsCache = new Map<string, EventCacheEntry>();
+
+const parseError = async (response: Response, fallback: string): Promise<string> => {
+  const raw = await response.text().catch(() => "");
+  if (!raw.trim()) {
+    return fallback;
+  }
+
+  try {
+    const body = JSON.parse(raw) as { detail?: unknown; message?: unknown };
+    if (typeof body.detail === "string" && body.detail.trim()) {
+      return body.detail;
+    }
+    if (typeof body.message === "string" && body.message.trim()) {
+      return body.message;
+    }
+  } catch {
+    return raw.trim() || fallback;
+  }
+
+  return raw.trim() || fallback;
+};
 
 const getAuthHeaders = (): HeadersInit => {
   const token =
@@ -99,7 +178,14 @@ const setCachedEvents = (key: string, data: Event[]) => {
   });
 };
 
-const hydrateStatusCache = (events: Event[]) => {
+const clearEventsCache = () => {
+  eventsCache.clear();
+};
+
+const buildGovernanceContextQuery = (governanceContext?: GovernanceContext) =>
+  governanceContext ? `?governance_context=${encodeURIComponent(governanceContext)}` : "";
+
+const hydrateStatusCache = (events: Event[], governanceContext?: GovernanceContext) => {
   const statuses: EventStatus[] = [
     "upcoming",
     "ongoing",
@@ -109,27 +195,31 @@ const hydrateStatusCache = (events: Event[]) => {
 
   for (const status of statuses) {
     setCachedEvents(
-      `status:${status}`,
+      governanceContext ? `status:${status}:${governanceContext}` : `status:${status}`,
       events.filter((event) => event.status === status)
     );
   }
 };
 
-export const fetchAllEvents = async (forceRefresh = false): Promise<Event[]> => {
-  const cacheKey = "all";
+export const fetchAllEvents = async (
+  forceRefresh = false,
+  governanceContext?: GovernanceContext
+): Promise<Event[]> => {
+  const cacheKey = governanceContext ? `all:${governanceContext}` : "all";
   const cachedEvents = forceRefresh ? null : getCachedEvents(cacheKey);
   if (cachedEvents) {
     return cachedEvents;
   }
 
-  const response = await fetch(`${BASE_URL}/events/`, {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${query}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error("Network error");
 
   const data = (await response.json()) as Event[];
   setCachedEvents(cacheKey, data);
-  hydrateStatusCache(data);
+  hydrateStatusCache(data, governanceContext);
   return data;
 };
 
@@ -137,24 +227,196 @@ export const fetchUpcomingEvents = async (): Promise<Event[]> => {
   return fetchEventsByStatus("upcoming");
 };
 
+export const createEvent = async (
+  payload: CreateEventPayload,
+  governanceContext?: GovernanceContext
+): Promise<Event> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${query}`, {
+    method: "POST",
+    headers: {
+      ...getAuthHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status: "upcoming",
+      geo_required: false,
+      department_ids: [],
+      program_ids: [],
+      ...payload,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to create event"));
+  }
+
+  clearEventsCache();
+  return (await response.json()) as Event;
+};
+
+export const updateEvent = async (
+  eventId: number,
+  payload: UpdateEventPayload,
+  governanceContext?: GovernanceContext
+): Promise<Event> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${eventId}${query}`, {
+    method: "PATCH",
+    headers: {
+      ...getAuthHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to update event"));
+  }
+
+  clearEventsCache();
+  return (await response.json()) as Event;
+};
+
+export const updateEventStatus = async (
+  eventId: number,
+  status: EventStatus,
+  governanceContext?: GovernanceContext
+): Promise<Event> => {
+  const query = new URLSearchParams({ status });
+  if (governanceContext) {
+    query.set("governance_context", governanceContext);
+  }
+
+  const response = await fetch(`${BASE_URL}/events/${eventId}/status?${query.toString()}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to update event status"));
+  }
+
+  clearEventsCache();
+  return (await response.json()) as Event;
+};
+
+export const deleteEvent = async (
+  eventId: number,
+  governanceContext?: GovernanceContext
+): Promise<void> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${eventId}${query}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to delete event"));
+  }
+
+  clearEventsCache();
+};
+
+export const openSignOutOverride = async (
+  eventId: number,
+  overrideMinutes: number,
+  governanceContext?: GovernanceContext
+): Promise<Event> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${eventId}/sign-out-override/open${query}`, {
+    method: "POST",
+    headers: {
+      ...getAuthHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      override_minutes: overrideMinutes,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to open the sign-out override"));
+  }
+
+  clearEventsCache();
+  return (await response.json()) as Event;
+};
+
+export const fetchEventById = async (
+  eventId: number,
+  governanceContext?: GovernanceContext
+): Promise<Event> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${eventId}${query}`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to fetch event details"));
+  }
+
+  return (await response.json()) as Event;
+};
+
+export const fetchEventStats = async (
+  eventId: number,
+  governanceContext?: GovernanceContext
+): Promise<EventStatsResponse> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(`${BASE_URL}/events/${eventId}/stats${query}`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to fetch event statistics"));
+  }
+
+  return (await response.json()) as EventStatsResponse;
+};
+
+export const fetchEventAttendancesWithStudents = async (
+  eventId: number,
+  governanceContext?: GovernanceContext
+): Promise<EventAttendanceWithStudent[]> => {
+  const query = buildGovernanceContextQuery(governanceContext);
+  const response = await fetch(
+    `${BASE_URL}/attendance/events/${eventId}/attendances-with-students${query}`,
+    {
+      headers: getAuthHeaders(),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to fetch event attendee records"));
+  }
+
+  return (await response.json()) as EventAttendanceWithStudent[];
+};
+
 export const fetchEventsByStatus = async (
   status: EventStatus,
-  forceRefresh = false
+  forceRefresh = false,
+  governanceContext?: GovernanceContext
 ): Promise<Event[]> => {
-  const cacheKey = `status:${status}`;
+  const cacheKey = governanceContext ? `status:${status}:${governanceContext}` : `status:${status}`;
   const cachedEvents = forceRefresh ? null : getCachedEvents(cacheKey);
   if (cachedEvents) {
     return cachedEvents;
   }
 
-  const allEvents = forceRefresh ? null : getCachedEvents("all");
+  const allEvents = forceRefresh ? null : getCachedEvents(governanceContext ? `all:${governanceContext}` : "all");
   if (allEvents) {
     const filteredEvents = allEvents.filter((event) => event.status === status);
     setCachedEvents(cacheKey, filteredEvents);
     return filteredEvents;
   }
 
-  const response = await fetch(`${BASE_URL}/events/?status=${status}`, {
+  const query = new URLSearchParams({ status });
+  if (governanceContext) {
+    query.set("governance_context", governanceContext);
+  }
+  const response = await fetch(`${BASE_URL}/events/?${query.toString()}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error("Network error");

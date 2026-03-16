@@ -2,301 +2,237 @@
 
 ## Purpose
 
-This guide explains the dynamic event time-status layer that was added to the backend.
+This guide documents the computed attendance-window logic that now drives event check-in, sign-out, and workflow auto-sync.
 
-The goal is:
+The backend keeps two related concepts:
 
-- keep the stored event workflow status (`upcoming`, `ongoing`, `completed`, `cancelled`) for organizers
-- add a computed attendance-window status (`upcoming`, `open`, `late`, `closed`) for verification flows
-- keep the attendance-window status computed while also syncing the stored workflow status safely on backend access
+- stored workflow status on `events.status`: `upcoming`, `ongoing`, `completed`, `cancelled`
+- computed time-window status used for attendance decisions
 
-This keeps the feature safe for the current repo while making attendance decisions automatic.
+The computed layer is the source of truth for attendance behavior.
 
-## Logic Summary
+## Event Timing Fields
 
-For attendance verification, the backend now computes a separate event time status from:
+Per-event timing is now configured with:
 
 - `start_datetime`
 - `end_datetime`
+- `early_check_in_minutes`
 - `late_threshold_minutes`
-- current time in `Asia/Manila`
+- `sign_out_grace_minutes`
+- `sign_out_override_until`
 
-Computed rules:
+Default values for newly created events:
 
-1. before `start_datetime` -> `upcoming`
-2. from `start_datetime` through `start_datetime + late_threshold_minutes` -> `open`
-3. after the late threshold but before `end_datetime` -> `late`
-4. at or after `end_datetime` -> `closed`
+- `early_check_in_minutes = 30`
+- `late_threshold_minutes = 10`
+- `sign_out_grace_minutes = 20`
 
-Attendance decision rules:
+Existing events keep whatever values are already stored.
 
-- `upcoming` -> reject attendance verification
-- `open` -> allow and mark as `present`
-- `late` -> allow and mark as `late`
-- `closed` -> reject new attendance verification
+## Default Source For New Events
 
-Important behavior in this repo:
+New event requests can now omit the three attendance-window values and let the backend fill them from settings.
 
-- this computed time status is still the source of truth for attendance decisions
-- the stored event `status` is now auto-synced by Celery Beat and by relevant backend request paths
-- student face sign-out is still allowed when an active attendance already exists
+Resolution order:
 
-## Main Files
+1. explicit per-event request values
+2. `ORG` override defaults on the matching `governance_unit`
+3. `SG` override defaults on the matching `governance_unit`
+4. school defaults on `school_settings`
+5. hard fallback `30 / 10 / 20`
 
-- `Backend/app/services/event_time_status.py`
-- `Backend/app/services/event_workflow_status.py`
-- `Backend/app/services/attendance_status.py`
+Stored default-setting fields:
+
+- school-wide:
+  - `school_settings.event_default_early_check_in_minutes`
+  - `school_settings.event_default_late_threshold_minutes`
+  - `school_settings.event_default_sign_out_grace_minutes`
+- SG/ORG override:
+  - `governance_units.event_default_early_check_in_minutes`
+  - `governance_units.event_default_late_threshold_minutes`
+  - `governance_units.event_default_sign_out_grace_minutes`
+
+Important rules:
+
+- `SSG` does not store its own override layer
+- `SSG` event creation uses the school default
+- `SG` and `ORG` event creation can use a unit override when the route resolves that governance scope
+- resetting an SG/ORG override to `null` returns future events to school-default behavior
+
+Stored on:
+
+- `Backend/app/models/event.py`
+- `Backend/app/schemas/event.py`
+- migration `Backend/alembic/versions/e4b7c1d9f6a2_add_event_attendance_window_controls.py`
+- migration `Backend/alembic/versions/f5d2c8a1b4e9_add_school_and_governance_event_defaults.py`
+
+## Computed Time Statuses
+
+The service in `Backend/app/services/event_time_status.py` computes one of these states:
+
+- `before_check_in`
+- `early_check_in`
+- `late_check_in`
+- `absent_check_in`
+- `sign_out_open`
+- `closed`
+
+### Window rules
+
+Given:
+
+- `check_in_opens_at = start_datetime - early_check_in_minutes`
+- `late_threshold_time = start_datetime + late_threshold_minutes`
+- `normal_sign_out_closes_at = end_datetime + sign_out_grace_minutes`
+- `effective_sign_out_closes_at = max(normal_sign_out_closes_at, sign_out_override_until)`
+
+The computed status is:
+
+1. before `check_in_opens_at` -> `before_check_in`
+2. during an active override -> `sign_out_open`
+3. from `check_in_opens_at` until just before `start_datetime` -> `early_check_in`
+4. from exact `start_datetime` through `late_threshold_time` -> `late_check_in`
+5. after `late_threshold_time` until `end_datetime` -> `absent_check_in`
+6. from `end_datetime` through `effective_sign_out_closes_at` -> `sign_out_open`
+7. after `effective_sign_out_closes_at` -> `closed`
+
+Important business rule:
+
+- exact event start is already `late`
+
+## Attendance Decisions
+
+### Check-in
+
+`get_attendance_decision()` returns:
+
+- `before_check_in` -> reject
+- `early_check_in` -> allow, mark `present`
+- `late_check_in` -> allow, mark `late`
+- `absent_check_in` -> allow, mark `absent`
+- `sign_out_open` -> reject new check-in
+- `closed` -> reject
+
+### Sign-out
+
+`get_sign_out_decision()` returns:
+
+- allow only during:
+  - the normal sign-out window
+  - an active early sign-out override
+- reject before sign-out opens
+- reject after the effective sign-out close
+
+## Early Sign-Out Override
+
+The backend exposes:
+
+- `POST /events/{event_id}/sign-out-override/open`
+
+Behavior:
+
+- permission requirement matches event attendance management access
+- the event must already have started
+- cancelled events cannot open sign-out
+- completed events cannot reopen sign-out
+- the request body now requires `override_minutes`
+- opening the override sets `sign_out_override_until = now + override_minutes`
+- while override is active, new check-ins are blocked and open attendances may sign out
+- if the override expires before the scheduled end, sign-out closes again until the normal sign-out window opens
+- if the override overlaps the normal sign-out window, sign-out stays open until the later close time
+
+Example request body:
+
+```json
+{
+  "override_minutes": 12
+}
+```
+
+Implementation:
+
 - `Backend/app/routers/events.py`
-- `Backend/app/routers/face_recognition.py`
-- `Backend/app/routers/attendance.py`
-- `Backend/app/worker/celery_app.py`
-- `Backend/app/worker/tasks.py`
-- `Backend/app/tests/test_event_time_status.py`
-- `Backend/app/tests/test_event_workflow_status.py`
-- `Backend/app/tests/test_attendance_status_support.py`
 
-## Step-By-Step Implementation
+## Workflow Auto-Sync Mapping
 
-## 1. Add the reusable time-status service
+The workflow sync service maps computed time status to stored event status like this:
 
-`Backend/app/services/event_time_status.py` now contains:
+- `before_check_in` -> `upcoming`
+- `early_check_in` -> `upcoming`
+- `late_check_in` -> `ongoing`
+- `absent_check_in` -> `ongoing`
+- `sign_out_open` -> `ongoing`
+- `closed` -> `completed`
 
-- `get_event_status()`
-- `get_attendance_decision()`
+So an event stays `ongoing` until all sign-out availability has ended.
 
-Why this was added:
+Main file:
 
-- the logic can now be reused by FastAPI routes, Flask views, Django views, Celery tasks, or plain service code
-- there is no dependency on FastAPI request objects or database sessions
+- `Backend/app/services/event_workflow_status.py`
 
-## 2. Normalize datetimes safely
-
-The service treats event schedule datetimes as event-local datetimes in `Asia/Manila`.
-
-If a datetime is already timezone-aware, it is converted safely.
-
-If a datetime is naive:
-
-- event schedule values are treated as `Asia/Manila`
-- attendance timestamps recorded by the backend are normalized from UTC in `Backend/app/services/attendance_status.py`
-
-This matches the repo's current pattern:
-
-- events are created from local schedule times
-- attendance timestamps are usually recorded from server time
-
-## 3. Keep the attendance-window status computed and sync the workflow status safely
-
-The computed attendance-window status is still not stored in the database.
-
-Instead:
-
-- the backend computes the time status every time it needs it
-- that computed status now drives both periodic scheduler syncing and request-time syncing of the stored workflow status
-
-Current workflow sync behavior:
-
-- `upcoming` -> stored `upcoming`
-- `open` / `late` -> stored `ongoing`
-- `closed` -> stored `completed`
-
-Safety rules:
-
-- `cancelled` stays manual
-- `completed` is treated as sticky during automatic sync so it is not reopened accidentally
-
-## 4. Expose the computed status in routes
-
-The backend now exposes:
+## Routes That Use The Computed Decision
 
 - `GET /events/{event_id}/time-status`
 - `POST /events/{event_id}/verify-location`
-
-`POST /events/{event_id}/verify-location` now returns:
-
-- geofence result
-- computed event time status
-- attendance decision
-
-Related workflow auto-sync is now applied in the event, attendance, and face route helpers before those routes continue.
-
-The same workflow sync logic is also called by the Celery Beat periodic task:
-
-- `app.worker.tasks.sync_event_workflow_statuses`
-
-## 5. Use the decision in attendance routes
-
-The dynamic time decision is now used in:
-
-- `POST /face/face-scan-with-recognition`
-- `POST /attendance/face-scan`
+- `POST /events/{event_id}/sign-out-override/open`
 - `POST /attendance/manual`
-- `POST /attendance/bulk`
+- `POST /attendance/face-scan`
+- `POST /attendance/{attendance_id}/time-out`
+- `POST /attendance/face-scan-timeout`
+- `POST /face/face-scan-with-recognition`
 
-Current behavior:
+The manual and operator face-scan attendance routes now branch in this order:
 
-- new check-ins are rejected when the event is still `upcoming`
-- new check-ins are rejected when the event is already `closed`
-- successful check-ins during `open` become `present`
-- successful check-ins during `late` become `late`
+1. if the student already has an active attendance with no `time_out`, treat the request as sign-out
+2. otherwise evaluate the check-in window
 
-## Python Implementation
+That ordering is required so early sign-out override works correctly.
 
-Core usage:
+## Response Fields
 
-```python
-from datetime import datetime
-from app.services.event_time_status import get_event_status, get_attendance_decision
-
-time_status = get_event_status(
-    start_time=event.start_datetime,
-    end_time=event.end_datetime,
-    late_threshold_minutes=event.late_threshold_minutes,
-)
-
-decision = get_attendance_decision(
-    start_time=event.start_datetime,
-    end_time=event.end_datetime,
-    late_threshold_minutes=event.late_threshold_minutes,
-)
-```
-
-Returned fields from `get_event_status()`:
+`get_event_status()` and the public route serializers now include:
 
 - `event_status`
 - `current_time`
+- `check_in_opens_at`
 - `start_time`
 - `end_time`
 - `late_threshold_time`
+- `sign_out_opens_at`
+- `normal_sign_out_closes_at`
+- `effective_sign_out_closes_at`
+- `sign_out_override_until`
+- `sign_out_override_active`
 - `timezone_name`
 
-Returned fields from `get_attendance_decision()`:
+## Example
 
-- `event_status`
-- `attendance_allowed`
-- `attendance_status`
-- `reason_code`
-- `message`
-- `current_time`
-- `start_time`
-- `end_time`
-- `late_threshold_time`
-- `timezone_name`
+If an event is:
 
-## Example FastAPI Integration
+- start: `1:00 PM`
+- end: `2:00 PM`
+- early check-in: `10`
+- late threshold: `10`
+- sign-out grace: `10`
 
-Example pattern used in this repo:
+then:
 
-```python
-from fastapi import HTTPException
-from app.services.event_time_status import get_attendance_decision
+- `12:50 PM` to `12:59 PM` -> early check-in, status `present`
+- `1:00 PM` to `1:10 PM` -> late check-in, status `late`
+- `1:11 PM` to `1:59 PM` -> absent check-in, status `absent`
+- `2:00 PM` to `2:10 PM` -> sign-out open
+- after `2:10 PM` -> closed
 
-decision = get_attendance_decision(
-    start_time=event.start_datetime,
-    end_time=event.end_datetime,
-    late_threshold_minutes=event.late_threshold_minutes,
-)
+## Testing
 
-if not decision.attendance_allowed:
-    raise HTTPException(
-        status_code=403,
-        detail={
-            "code": decision.reason_code,
-            "message": decision.message,
-            "event_status": decision.event_status,
-        },
-    )
+Recommended checks:
 
-attendance_status = decision.attendance_status
-```
-
-This same service can be reused in Flask or Django because it is plain Python.
-
-## Example API Flow
-
-1. User sends GPS coordinates.
-2. Backend checks the geofence.
-3. Backend computes the dynamic event time status.
-4. Backend decides whether attendance is allowed.
-5. Backend returns the result.
-
-## Example JSON Request
-
-`POST /events/12/verify-location`
-
-```json
-{
-  "latitude": 8.1575,
-  "longitude": 123.8431,
-  "accuracy_m": 20
-}
-```
-
-## Example JSON Response
-
-```json
-{
-  "ok": true,
-  "reason": null,
-  "distance_m": 11.284,
-  "effective_distance_m": 31.284,
-  "radius_m": 100.0,
-  "accuracy_m": 20.0,
-  "time_status": {
-    "event_status": "late",
-    "current_time": "2026-03-11T09:23:00+08:00",
-    "start_time": "2026-03-11T09:00:00+08:00",
-    "end_time": "2026-03-11T11:00:00+08:00",
-    "late_threshold_time": "2026-03-11T09:10:00+08:00",
-    "timezone_name": "Asia/Manila"
-  },
-  "attendance_decision": {
-    "event_status": "late",
-    "attendance_allowed": true,
-    "attendance_status": "late",
-    "reason_code": null,
-    "message": "Attendance is still allowed, but it will be marked late.",
-    "current_time": "2026-03-11T09:23:00+08:00",
-    "start_time": "2026-03-11T09:00:00+08:00",
-    "end_time": "2026-03-11T11:00:00+08:00",
-    "late_threshold_time": "2026-03-11T09:10:00+08:00",
-    "timezone_name": "Asia/Manila"
-  }
-}
-```
-
-## Suggested Production Improvements
-
-- automatic attendance closing
-  - run a worker task after `end_datetime` to finalize incomplete attendances without waiting for a manual event-status change
-
-- timezone-safe scheduling
-  - store event datetimes in UTC internally and convert at the edges
-  - add an explicit event timezone field if schools may span multiple zones
-
-- background validation
-  - Celery Beat now calls the workflow sync service automatically; if you later move to managed cloud scheduling, reuse the same task/service logic
-
-- preventing early or late check-ins
-  - keep using `get_attendance_decision()` for every new attendance creation path
-  - optionally add a configurable grace period before `start_datetime`
-
-- handling server time drift
-  - sync servers with NTP
-  - centralize time reads in one helper
-  - log the computed current time and timezone in attendance audit trails
-
-- automatic attendance closing
-  - extend the worker to mark lingering no-timeout attendances as `absent` after the event ends if business rules require it
-
-## Test Files
-
-- `Backend/app/tests/test_event_time_status.py`
-- `Backend/app/tests/test_attendance_status_support.py`
-
-These tests cover:
-
-- status transitions across `upcoming`, `open`, `late`, and `closed`
-- attendance decision mapping
-- invalid schedule handling
-- timezone normalization for late-threshold checks
+1. Run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_time_status.py Backend/app/tests/test_event_workflow_status.py`.
+2. As Campus Admin, update the school defaults and then create a new event without sending attendance-window fields.
+3. As SG or ORG with `manage_events`, save a unit override and create a new event without sending attendance-window fields.
+4. Confirm the created event stores the effective resolved values before checking time-status behavior.
+5. Call `GET /events/{event_id}/time-status` before check-in opens, during early check-in, during late check-in, during absent check-in, during sign-out, and after close.
+6. Call `POST /events/{event_id}/sign-out-override/open` with `{"override_minutes": 12}` after the event has started and confirm `sign_out_override_until` is returned.
+7. Verify that `POST /events/{event_id}/verify-location` includes the new time-window metadata.
+8. Confirm the stored event `status` stays `ongoing` during sign-out and only becomes `completed` after the effective sign-out close.

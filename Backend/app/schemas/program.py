@@ -26,6 +26,7 @@ class ProgramUpdate(BaseModel):
 
 class Program(ProgramBase):
     id: int
+    school_id: Optional[int] = None
     departments: List[Department] = Field(default_factory=list)
     
     @computed_field
