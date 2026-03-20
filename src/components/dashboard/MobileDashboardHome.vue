@@ -5,7 +5,7 @@
         class="mobile-dashboard__profile"
         type="button"
         aria-label="Open profile"
-        @click="router.push({ name: 'Profile' })"
+        @click="router.push({ name: preview ? 'PreviewDashboardProfile' : 'Profile' })"
       >
         <img
           v-if="avatarUrl"
@@ -83,7 +83,7 @@
             :aria-expanded="isAiOpen ? 'true' : 'false'"
             @click="toggleAi"
           >
-            <img :src="activeAuraLogo" alt="Aura" class="mobile-dashboard__ai-logo">
+            <img :src="secondaryAuraLogo" alt="Aura" class="mobile-dashboard__ai-logo">
             <span class="mobile-dashboard__ai-copy">Talk to<br>Aura Ai</span>
           </button>
         </div>
@@ -173,10 +173,18 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Search, Send } from 'lucide-vue-next'
-import { activeAuraLogo, surfaceAuraLogo } from '@/config/theme.js'
+import { secondaryAuraLogo, surfaceAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { resolveDashboardAiOverview } from '@/services/dashboardAiOverview.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -192,20 +200,23 @@ const tabs = [
 
 const { currentUser, events, attendanceRecords, hasAttendanceForEvent } = useDashboardSession()
 const { messages, inputText, isTyping, scrollEl, sendMessage, closeAll } = useChat()
+const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
+const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
+const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
 
 const schoolEvents = computed(() => {
-  const schoolId = Number(currentUser.value?.school_id)
-  return events.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
+  const schoolId = Number(activeUser.value?.school_id)
+  return activeEvents.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
 })
 
 const eventLookup = computed(() => Object.fromEntries(schoolEvents.value.map((event) => [Number(event.id), event])))
-const displayName = computed(() => [currentUser.value?.first_name, currentUser.value?.middle_name, currentUser.value?.last_name].filter(Boolean).join(' ') || currentUser.value?.email?.split('@')[0] || 'User Full Name')
+const displayName = computed(() => [activeUser.value?.first_name, activeUser.value?.middle_name, activeUser.value?.last_name].filter(Boolean).join(' ') || activeUser.value?.email?.split('@')[0] || 'User Full Name')
 const initials = computed(() => {
   const parts = displayName.value.split(' ').filter(Boolean)
   return parts.length >= 2 ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase() : displayName.value.slice(0, 2).toUpperCase()
 })
-const avatarUrl = computed(() => currentUser.value?.student_profile?.photo_url || currentUser.value?.student_profile?.avatar_url || currentUser.value?.avatar_url || '')
+const avatarUrl = computed(() => activeUser.value?.student_profile?.photo_url || activeUser.value?.student_profile?.avatar_url || activeUser.value?.avatar_url || '')
 const searchableEvents = computed(() => schoolEvents.value.filter((event) => ['upcoming', 'ongoing'].includes(normalizeStatus(event.status))))
 const filteredEvents = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -214,7 +225,7 @@ const filteredEvents = computed(() => {
 })
 
 const latestAnalyticsEntries = computed(() => {
-  const records = [...attendanceRecords.value]
+  const records = [...activeAttendanceRecords.value]
     .map((record) => {
       const raw = record?.time_in || record?.created_at || record?.updated_at
       const parsed = raw ? new Date(raw) : null
@@ -266,7 +277,7 @@ const analyticsSearchResults = computed(() => {
   )
 })
 
-const summary = computed(() => attendanceRecords.value.reduce((acc, record) => {
+const summary = computed(() => activeAttendanceRecords.value.reduce((acc, record) => {
   const status = String(record?.status ?? '').toLowerCase()
   if (status === 'present') acc.present += 1
   if (status === 'late') acc.late += 1
@@ -289,7 +300,7 @@ const statCards = computed(() => {
 })
 
 const chartTitle = computed(() => activeTab.value === 'missed' ? 'Monthly Missed Events' : activeTab.value === 'late' ? 'Monthly Late Arrival' : 'Monthly Attendance')
-const chartBars = computed(() => buildChartBars(attendanceRecords.value, activeTab.value))
+const chartBars = computed(() => buildChartBars(activeAttendanceRecords.value, activeTab.value))
 
 watch(isAiOpen, (open) => {
   if (open) {
@@ -308,11 +319,11 @@ function toggleAi() {
 
 function openEvent(event) {
   if (!event?.id) return
-  if (normalizeStatus(event.status) === 'ongoing' && !hasAttendanceForEvent(event.id)) {
+  if (!props.preview && normalizeStatus(event.status) === 'ongoing' && !hasAttendanceForEvent(event.id)) {
     router.push(`/dashboard/schedule/${event.id}/attendance`)
     return
   }
-  router.push(`/dashboard/schedule/${event.id}`)
+  router.push(props.preview ? `/exposed/dashboard/schedule/${event.id}` : `/dashboard/schedule/${event.id}`)
 }
 
 function normalizeStatus(status) {
@@ -448,7 +459,7 @@ function startOfWeek(date) {
   flex-shrink: 0;
   align-self: center;
 }
-.mobile-dashboard__ai-pill { width: 118px; min-height: 60px; border: none; border-radius: 999px; background: var(--color-primary); color: var(--color-banner-text); display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 14px; flex-shrink: 0; }
+.mobile-dashboard__ai-pill { width: 118px; min-height: 60px; border: none; border-radius: 999px; background: var(--color-search-pill-bg); color: var(--color-search-pill-text); display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 14px; flex-shrink: 0; }
 .mobile-dashboard__ai-logo { width: 32px; height: 32px; object-fit: contain; }
 .mobile-dashboard__ai-copy { font-size: 13px; font-weight: 700; line-height: 0.98; text-align: left; }
 .mobile-dashboard__search-results { overflow: hidden; min-height: 0; }
@@ -476,7 +487,7 @@ function startOfWeek(date) {
 .mobile-dashboard__tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .mobile-dashboard__tabs::-webkit-scrollbar { display: none; }
 .mobile-dashboard__tab { min-width: 96px; min-height: 52px; padding: 0 20px; border: none; border-radius: 999px; background: var(--color-surface); color: var(--color-text-always-dark); font-size: 15px; font-weight: 500; flex-shrink: 0; }
-.mobile-dashboard__tab--active { background: var(--color-primary); color: var(--color-banner-text); }
+.mobile-dashboard__tab--active { background: var(--color-pill-row-active-bg); color: var(--color-pill-row-active-text); }
 .mobile-dashboard__panel-stack { display: flex; flex-direction: column; gap: 18px; }
 .mobile-dashboard__panel-card { will-change: transform, opacity; }
 .mobile-dashboard__panel-card--stats { animation: mobile-dashboard-card-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: 30ms; }

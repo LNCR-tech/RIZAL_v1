@@ -452,9 +452,20 @@ export function normalizeGovernanceUnitDetail(unit = null) {
 export function normalizeGovernanceSsgSetup(payload = null) {
     if (!payload || typeof payload !== 'object') return null
 
+    const unitPayload = payload.unit
+        || payload.governance_unit
+        || payload.ssg_unit
+        || (
+            payload.id != null ||
+            payload.unit_code != null ||
+            payload.unit_name != null
+                ? payload
+                : null
+        )
+
     return {
         ...payload,
-        unit: normalizeGovernanceUnitDetail(payload.unit),
+        unit: normalizeGovernanceUnitDetail(unitPayload),
         total_imported_students: toOptionalNumber(payload.total_imported_students, 0),
     }
 }

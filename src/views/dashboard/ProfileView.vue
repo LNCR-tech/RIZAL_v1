@@ -270,18 +270,40 @@ import {
 } from 'lucide-vue-next'
 
 import { defaultTheme } from '@/config/theme.js'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 // ── Router ───────────────────────────────────────────────────────────
 const router = useRouter()
 
 // ── Auth ─────────────────────────────────────────────────────────────
 const { logout } = useAuth()
-const { currentUser, schoolSettings, attendanceRecords, saveCurrentUserProfile } = useDashboardSession()
+const {
+  currentUser: sessionCurrentUser,
+  schoolSettings: sessionSchoolSettings,
+  attendanceRecords: sessionAttendanceRecords,
+  saveCurrentUserProfile,
+} = useDashboardSession()
 
-const user = currentUser
-const schoolName = computed(() => schoolSettings.value?.school_name ?? 'University Name')
+const previewUser = ref(JSON.parse(JSON.stringify(studentDashboardPreviewData.user)))
+const previewSchoolSettings = ref(studentDashboardPreviewData.schoolSettings)
+const previewAttendanceRecords = ref(studentDashboardPreviewData.attendanceRecords)
+
+const user = computed(() => props.preview ? previewUser.value : sessionCurrentUser.value)
+const activeSchoolSettings = computed(() => props.preview ? previewSchoolSettings.value : sessionSchoolSettings.value)
+const activeAttendanceRecords = computed(() => props.preview ? previewAttendanceRecords.value : sessionAttendanceRecords.value)
+const schoolName = computed(() => activeSchoolSettings.value?.school_name ?? 'University Name')
+
+usePreviewTheme(() => props.preview, activeSchoolSettings)
 
 // ── Derived ───────────────────────────────────────────────────────────
 const fullName = computed(() =>
@@ -301,7 +323,7 @@ const avatarError  = ref(false)
 const avatarPreview = ref(null) // shown on main view after successful save
 
 // School logo for the readonly field
-const schoolLogo = computed(() => schoolSettings.value?.logo_url ?? null)
+const schoolLogo = computed(() => activeSchoolSettings.value?.logo_url ?? null)
 const schoolLogoError = ref(false)
 const schoolLogoUnavailable = ref(false)
 const schoolLogoSrc = computed(() => (
@@ -311,13 +333,13 @@ const schoolLogoSrc = computed(() => (
 ))
 
 const eventsAttended = computed(() =>
-  attendanceRecords.value.filter((attendance) => {
+  activeAttendanceRecords.value.filter((attendance) => {
     const status = String(attendance?.status ?? '').toLowerCase()
     return status === 'present' || status === 'late'
   }).length
 )
 const eventsMissed = computed(() =>
-  attendanceRecords.value.filter((attendance) => String(attendance?.status ?? '').toLowerCase() === 'absent').length
+  activeAttendanceRecords.value.filter((attendance) => String(attendance?.status ?? '').toLowerCase() === 'absent').length
 )
 
 // ── Custom slider logic ────────────────────────────────────────────────
@@ -515,6 +537,20 @@ function onPhotoSelected(e) {
 async function saveProfile() {
   isSaving.value = true
   try {
+    if (props.preview) {
+      previewUser.value = {
+        ...previewUser.value,
+        email: editForm.value.email.trim(),
+        first_name: editForm.value.firstName.trim(),
+        last_name: editForm.value.lastName.trim(),
+        middle_name: editForm.value.middleName.trim() || null,
+      }
+      if (editPreview.value) previewUser.value.avatar_url = editPreview.value
+      if (editPreview.value) avatarPreview.value = editPreview.value
+      isEditing.value = false
+      return
+    }
+
     await saveCurrentUserProfile({
       email: editForm.value.email.trim(),
       first_name: editForm.value.firstName.trim(),
@@ -531,10 +567,15 @@ async function saveProfile() {
 
 // ── Handlers ──────────────────────────────────────────────────────────
 function handleSecurity() {
+  if (props.preview) return
   router.push({ name: 'ProfileSecurity' })
 }
 
 async function handleSignOut() {
+  if (props.preview) {
+    router.replace('/exposed/dashboard')
+    return
+  }
   await logout()
   router.replace('/')
 }

@@ -1,39 +1,14 @@
 <template>
   <section class="student-council-view">
     <div class="student-council-view__shell">
-      <header class="student-council-view__header dashboard-enter dashboard-enter--1">
-        <div class="student-council-view__header-main">
-          <button
-            class="student-council-view__profile"
-            :class="{ 'student-council-view__profile--expanded': isProfileExpanded }"
-            type="button"
-            aria-label="Account actions"
-            @click="isProfileExpanded = !isProfileExpanded"
-          >
-            <span class="student-council-view__profile-main">
-              <span class="student-council-view__avatar-wrap">
-                <img v-if="avatarUrl" :src="avatarUrl" :alt="displayName" class="student-council-view__avatar">
-                <span v-else class="student-council-view__avatar student-council-view__avatar--fallback">{{ initials }}</span>
-                <span class="student-council-view__status-dot" aria-hidden="true" />
-              </span>
-
-              <span class="student-council-view__profile-copy">
-                <span class="student-council-view__eyebrow">Welcome Back</span>
-                <span class="student-council-view__name">{{ displayName }}</span>
-              </span>
-            </span>
-
-            <span class="student-council-view__signout" @click.stop="handleLogout">
-              <LogOut :size="18" color="#D92D20" :stroke-width="2.4" />
-              <span class="student-council-view__signout-label">Sign Out</span>
-            </span>
-          </button>
-        </div>
-
-        <button class="student-council-view__notify" type="button" aria-label="Notifications">
-          <Bell :size="19" :stroke-width="2" />
-        </button>
-      </header>
+      <SchoolItTopHeader
+        class="dashboard-enter dashboard-enter--1"
+        :avatar-url="avatarUrl"
+        :school-name="activeSchoolSettings?.school_name || activeUser?.school_name || ''"
+        :display-name="displayName"
+        :initials="initials"
+        @logout="handleLogout"
+      />
 
       <div class="student-council-view__body">
         <template v-if="isLoadingCouncilState">
@@ -137,23 +112,8 @@
               <div class="student-council-view__stage-pane">
                 <Transition name="student-council-stage" mode="out-in">
                   <div :key="currentPrimaryStage" class="student-council-view__stage-content">
-                    <section v-if="currentPrimaryStage === 'intro'" class="student-council-view__intro">
-                      <h1 class="student-council-view__stage-title">Student<br>Council</h1>
-                      <p class="student-council-view__stage-copy">
-                        The central governing body overseeing all students and campus organizations
-                        (only one per university/campus).
-                      </p>
-
-                      <button class="student-council-view__primary-pill" type="button" @click="setupStage = 'setup'">
-                        <span class="student-council-view__primary-pill-icon">
-                          <SquarePlus :size="18" />
-                        </span>
-                        Add Student Council
-                      </button>
-                    </section>
-
                     <StudentCouncilSetupStage
-                      v-else-if="currentPrimaryStage === 'setup'"
+                      v-if="currentPrimaryStage === 'setup'"
                       :draft="councilDraft"
                       :submit-label="isSavingCouncil ? 'Creating Council...' : 'Add Student Council'"
                       :submit-disabled="isSavingCouncil || !canSubmitCouncilDraft(councilDraft)"
@@ -344,9 +304,11 @@ import {
   watch,
 } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, LogOut, Search, SquarePen, SquarePlus, X } from 'lucide-vue-next'
+import { Search, SquarePen, SquarePlus, X } from 'lucide-vue-next'
+import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import StudentCouncilMemberStage from '@/components/council/StudentCouncilMemberStage.vue'
 import StudentCouncilSetupStage from '@/components/council/StudentCouncilSetupStage.vue'
+import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
@@ -366,6 +328,7 @@ import {
   createEmptyCouncilMemberDraft,
   createStudentCouncilStorageKey,
   defaultStudentCouncilPermissionCatalog,
+  buildStudentCouncilCandidates,
   loadStudentCouncilState,
   formatGovernancePermissionLabel,
   mapGovernanceMemberToCouncilMember,
@@ -373,6 +336,7 @@ import {
   mapGovernanceUnitToCouncilRecord,
   mapUiPermissionIdsToBackend,
   normalizePermissionCatalog,
+  resolveStudentCouncilAcronym,
   saveStudentCouncilState,
 } from '@/services/studentCouncilManagement.js'
 
@@ -392,7 +356,6 @@ const {
 } = useSchoolItWorkspaceData()
 const { logout } = useAuth()
 
-const isProfileExpanded = ref(false)
 const councilDraft = ref(createEmptyCouncilDraft())
 const councilSheetDraft = ref(createEmptyCouncilDraft())
 const memberDraft = ref({
@@ -405,7 +368,8 @@ const councilMembers = ref([])
 const candidateResults = ref([])
 const isCandidateSearchOpen = ref(false)
 const showPermissions = ref(false)
-const setupStage = ref('intro')
+const setupStage = ref('setup')
+const isInitialSetupFlow = ref(false)
 const stageMessage = ref('')
 const stageError = ref(false)
 const isSavingCouncil = ref(false)
@@ -444,27 +408,40 @@ const selectedStudent = computed(() => {
     || null
 })
 const hasCouncil = computed(() => Boolean(currentCouncil.value?.id))
-const hasCouncilMembers = computed(() => councilMembers.value.length > 0)
+const councilAcronym = computed(() => resolveStudentCouncilAcronym(currentCouncil.value))
+const hasCouncilAcronym = computed(() => councilAcronym.value.length > 0)
+const hasAssignedCouncilMembers = computed(() => (
+  councilMembers.value.some((member) => member?.isActive !== false)
+))
+const previewCandidatePool = computed(() => (
+  props.preview
+    ? buildStudentCouncilCandidates({
+      users: schoolItPreviewData.users,
+      programs: schoolItPreviewData.programs,
+      departments: schoolItPreviewData.departments,
+    })
+    : []
+))
 const currentPrimaryStage = computed(() => {
-  if (!hasCouncil.value) return setupStage.value
-  if (!hasCouncilMembers.value) return 'member'
-  return setupStage.value === 'member' ? 'member' : 'dashboard'
+  if (isInitialSetupFlow.value && setupStage.value === 'member') return 'member'
+  if (!hasCouncil.value) return 'setup'
+  return 'dashboard'
 })
 const showDashboard = computed(() => currentPrimaryStage.value === 'dashboard')
 const dashboardTitle = computed(() => {
-  const acronym = String(currentCouncil.value?.acronym || '').trim()
+  const acronym = councilAcronym.value
   return acronym ? `${acronym} Management` : 'Acronym Management'
 })
 const membersHeading = computed(() => {
-  const acronym = String(currentCouncil.value?.acronym || '').trim()
+  const acronym = councilAcronym.value
   return acronym ? `${acronym} Members` : 'Acronym Members'
 })
 const loadingTitle = computed(() => {
-  const acronym = String(currentCouncil.value?.acronym || '').trim()
+  const acronym = councilAcronym.value
   return acronym ? `${acronym} Management` : 'Acronym Management'
 })
 const loadingMembersHeading = computed(() => {
-  const acronym = String(currentCouncil.value?.acronym || '').trim()
+  const acronym = councilAcronym.value
   return acronym ? `${acronym} Members` : 'Acronym Members'
 })
 const candidateSearchQuery = computed(() => memberDraft.value.searchQuery.trim())
@@ -560,9 +537,11 @@ function applyCouncilSetup(setup) {
   councilMembers.value = Array.isArray(setup?.unit?.members)
     ? setup.unit.members.map(mapGovernanceMemberToCouncilMember)
     : []
-  setupStage.value = currentCouncil.value
-    ? (councilMembers.value.length > 0 ? 'dashboard' : 'member')
-    : 'intro'
+  councilDraft.value = currentCouncil.value
+    ? createCouncilDraftFromRecord(currentCouncil.value)
+    : createEmptyCouncilDraft()
+  setupStage.value = currentCouncil.value?.id ? 'dashboard' : 'setup'
+  isInitialSetupFlow.value = false
 }
 
 async function fetchLatestCouncilSetup(token) {
@@ -591,9 +570,11 @@ async function loadCouncilState(resolvedApiBaseUrl) {
       if (requestId !== councilLoadRequestId) return
       currentCouncil.value = stored?.council || null
       councilMembers.value = Array.isArray(stored?.members) ? stored.members : []
-      setupStage.value = currentCouncil.value
-        ? (councilMembers.value.length > 0 ? 'dashboard' : 'member')
-        : 'intro'
+      councilDraft.value = currentCouncil.value
+        ? createCouncilDraftFromRecord(currentCouncil.value)
+        : createEmptyCouncilDraft()
+      setupStage.value = currentCouncil.value?.id ? 'dashboard' : 'setup'
+      isInitialSetupFlow.value = false
       return
     }
 
@@ -606,9 +587,11 @@ async function loadCouncilState(resolvedApiBaseUrl) {
     if (requestId !== councilLoadRequestId) return
     const isMissingCouncil = error instanceof BackendApiError && error.status === 404
 
-    if (isMissingCouncil) {
+    if (isMissingCouncil && !sharedSetup?.unit) {
       setCampusSsgSetupSnapshot(null)
       applyCouncilSetup(null)
+    } else if (sharedSetup?.unit) {
+      applyCouncilSetup(sharedSetup)
     }
 
     setStageMessage(error?.message || 'Unable to load Student Council data right now.', true)
@@ -620,7 +603,11 @@ async function loadCouncilState(resolvedApiBaseUrl) {
 
 async function fetchCandidateResults(query) {
   if (props.preview) {
-    candidateResults.value = []
+    const normalizedQuery = String(query || '').trim().toLowerCase()
+    candidateResults.value = previewCandidatePool.value
+      .filter((candidate) => !normalizedQuery || candidate.searchText.includes(normalizedQuery))
+      .filter((candidate) => !councilMembers.value.some((member) => member.userId === candidate.userId))
+      .slice(0, 12)
     return
   }
 
@@ -673,9 +660,10 @@ async function handleCreateCouncil() {
 
   clearStageMessage()
   isSavingCouncil.value = true
+  const wasExistingCouncil = Boolean(currentCouncil.value?.id)
 
   try {
-    const savedCouncil = await saveCouncilRecord(councilDraft.value)
+    const savedCouncil = await saveInitialCouncilRecord(councilDraft.value)
     currentCouncil.value = savedCouncil
     if (!props.preview) {
       setCampusSsgSetupSnapshot({
@@ -690,10 +678,16 @@ async function handleCreateCouncil() {
         },
       })
     }
-    councilDraft.value = createEmptyCouncilDraft()
+    councilDraft.value = createCouncilDraftFromRecord(savedCouncil)
     resetMemberStage()
+    isInitialSetupFlow.value = true
     setupStage.value = 'member'
-    setStageMessage('Student Council created. Add the first officer next.', false)
+    setStageMessage(
+      wasExistingCouncil
+        ? 'Student Council saved. Add the first officer next.'
+        : 'Student Council created. Add the first officer next.',
+      false
+    )
   } catch (error) {
     setStageMessage(error?.message || 'Unable to create the Student Council right now.', true)
   } finally {
@@ -728,6 +722,7 @@ async function handleCouncilSheetSubmit() {
       councilDraft.value = createEmptyCouncilDraft()
       closeCouncilSheet()
       resetMemberStage()
+      isInitialSetupFlow.value = true
       setupStage.value = 'member'
       setStageMessage('Student Council created. Add the first officer next.', false)
     } catch (error) {
@@ -811,7 +806,8 @@ async function handleCouncilSheetDelete() {
     closeOfficerSheet()
     closeMemberDetail()
     closeCouncilSheet()
-    setupStage.value = 'intro'
+    setupStage.value = 'setup'
+    isInitialSetupFlow.value = false
     setStageMessage('Student Council deleted.', false)
     if (!props.preview) {
       await router.replace({ name: 'SchoolItUsers' })
@@ -847,6 +843,7 @@ async function handleMemberSubmit() {
 
     resetMemberStage()
     isOfficerSheetOpen.value = false
+    isInitialSetupFlow.value = false
     setupStage.value = 'dashboard'
     setStageMessage(isEditing ? 'Officer updated.' : 'Officer added to the Student Council.', false)
   } catch (error) {
@@ -1280,6 +1277,22 @@ async function saveCouncilRecord(draft) {
   return mapGovernanceUnitToCouncilRecord(response)
 }
 
+async function saveInitialCouncilRecord(draft) {
+  if (!currentCouncil.value?.id || props.preview) {
+    return await saveCouncilRecord(draft)
+  }
+
+  const token = localStorage.getItem('aura_token') || ''
+  const response = await updateGovernanceUnit(
+    apiBaseUrl.value,
+    token,
+    Number(currentCouncil.value.id),
+    buildGovernanceUnitPayload(draft)
+  )
+
+  return mapGovernanceUnitToCouncilRecord(response)
+}
+
 async function handleLogout() {
   await logout()
 }
@@ -1288,22 +1301,6 @@ async function handleLogout() {
 <style scoped>
 .student-council-view{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif;background:var(--color-bg)}
 .student-council-view__shell{width:100%;max-width:1120px;margin:0 auto}
-.student-council-view__header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
-.student-council-view__header-main{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0}
-.student-council-view__profile{display:inline-flex;align-items:center;min-height:56px;padding:8px 14px 8px 8px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);transition:all .3s ease;cursor:pointer}
-.student-council-view__profile-main{display:inline-flex;align-items:center;gap:12px;min-width:0}
-.student-council-view__avatar-wrap{position:relative;display:inline-flex;flex-shrink:0}
-.student-council-view__avatar{width:42px;height:42px;border-radius:999px;object-fit:cover;flex-shrink:0}
-.student-council-view__avatar--fallback{display:inline-flex;align-items:center;justify-content:center;background:var(--color-nav);color:var(--color-nav-text);font-size:14px;font-weight:700}
-.student-council-view__status-dot{position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:999px;background:var(--color-primary);border:2px solid var(--color-surface)}
-.student-council-view__profile-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1}
-.student-council-view__eyebrow{font-size:10px;font-weight:500;color:var(--color-text-muted)}
-.student-council-view__name{margin-top:2px;font-size:14px;font-weight:700;line-height:1.08;color:var(--color-text-always-dark)}
-.student-council-view__signout{display:inline-flex;align-items:center;overflow:hidden;max-width:0;opacity:0;margin-left:0;white-space:nowrap;transition:all .3s ease-in-out;color:#D92D20;cursor:pointer}
-.student-council-view__signout-label{margin-left:8px;font-size:14px;font-weight:500;letter-spacing:-.02em}
-.student-council-view__profile:hover .student-council-view__signout,.student-council-view__profile--expanded .student-council-view__signout{max-width:150px;opacity:1;margin-left:24px;margin-right:4px}
-.student-council-view__notify{width:44px;height:44px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .16s ease}
-.student-council-view__notify:active{transform:scale(.95)}
 .student-council-view__body{display:flex;flex-direction:column;gap:18px;margin-top:24px}
 .student-council-view__stage-shell{display:flex;flex-direction:column;align-items:center;gap:18px;padding-top:74px}
 .student-council-view__stage-frame{width:min(100%,690px);min-height:380px;padding:28px 28px 40px;border-radius:34px;background:var(--color-surface);overflow:hidden}
@@ -1370,7 +1367,6 @@ async function handleLogout() {
   .student-council-view__stage-frame{min-height:420px;padding:40px 54px 52px}
   .student-council-view__intro{min-height:330px}
   .student-council-view__dashboard{max-width:720px}
-  .student-council-view__header-main{gap:16px}
   .student-council-view__dashboard-secondary{min-height:56px}
   .student-council-view__member-detail-actions{flex-direction:row}
 }

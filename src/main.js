@@ -4,8 +4,10 @@ import App from './App.vue'
 import './assets/css/main.css'
 
 import { loadTheme, applyTheme } from '@/config/theme.js'
-import { initializeDashboardSession } from '@/composables/useDashboardSession.js'
+import { clearDashboardSession, initializeDashboardSession } from '@/composables/useDashboardSession.js'
 import { startDocumentBrandingSync } from '@/services/documentBranding.js'
+import { hasPrivilegedPendingFace } from '@/services/localAuth.js'
+import { SESSION_EXPIRED_EVENT } from '@/services/sessionExpiry.js'
 
 applyTheme(loadTheme())
 
@@ -15,4 +17,16 @@ app.mount('#app')
 
 startDocumentBrandingSync(router)
 
-initializeDashboardSession().catch(() => null)
+if (typeof window !== 'undefined') {
+  window.addEventListener(SESSION_EXPIRED_EVENT, () => {
+    clearDashboardSession()
+
+    if (router.currentRoute.value?.name !== 'Login') {
+      router.replace({ name: 'Login' }).catch(() => null)
+    }
+  })
+}
+
+if (localStorage.getItem('aura_token') && !hasPrivilegedPendingFace()) {
+  initializeDashboardSession().catch(() => null)
+}

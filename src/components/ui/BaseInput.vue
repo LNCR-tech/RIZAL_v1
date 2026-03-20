@@ -7,7 +7,8 @@
       :placeholder="placeholder"
       :disabled="disabled"
       :autocomplete="autocomplete"
-      class="w-full bg-[var(--color-surface)] border border-[var(--color-surface-border-strong)] rounded-full px-5 py-4 text-[15px] font-medium text-[var(--color-surface-text)] placeholder-[var(--color-surface-text-muted)] outline-none transition-all duration-150 focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pr-12"
+      :style="inputStyleVars"
+      class="base-input w-full bg-[var(--color-surface)] border border-[var(--field-border-color)] rounded-full px-5 py-4 text-[15px] font-medium text-[var(--color-surface-text)] placeholder-[var(--color-surface-text-muted)] outline-none transition-all duration-150 focus:border-[var(--field-focus-color)] focus:ring-2 focus:ring-[var(--field-focus-color)] focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pr-12"
       @input="$emit('update:modelValue', $event.target.value)"
       @keyup.enter="$emit('enter')"
     />
@@ -61,6 +62,10 @@ const props = defineProps({
     type: String,
     default: 'off',
   },
+  tone: {
+    type: String,
+    default: 'accent',
+  },
 })
 
 defineEmits(['update:modelValue', 'enter'])
@@ -74,7 +79,37 @@ const inputType = computed(() => {
   return props.type
 })
 
+const inputStyleVars = computed(() => {
+  const isNeutralTone = props.tone === 'neutral'
+
+  return {
+    '--field-border-color': isNeutralTone
+      ? 'var(--color-text-primary)'
+      : 'var(--color-surface-border-strong)',
+    '--field-focus-color': isNeutralTone
+      ? 'var(--color-text-primary)'
+      : 'var(--color-primary)',
+  }
+})
+
 function togglePasswordVisibility() {
   showPassword.value = !showPassword.value
 }
 </script>
+
+<style scoped>
+.base-input:-webkit-autofill,
+.base-input:-webkit-autofill:hover,
+.base-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-surface-text);
+  caret-color: var(--color-surface-text);
+  border-color: var(--field-focus-color);
+  -webkit-box-shadow:
+    0 0 0 1000px var(--color-surface) inset,
+    0 0 0 2px var(--field-focus-color);
+  box-shadow:
+    0 0 0 1000px var(--color-surface) inset,
+    0 0 0 2px var(--field-focus-color);
+  transition: background-color 9999s ease-out 0s;
+}
+</style>

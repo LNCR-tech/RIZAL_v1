@@ -49,13 +49,12 @@ const router = useRouter()
 const route = useRoute()
 const navItems = computed(() => getNavigationItemsForPath(route.path))
 const bottomNavStyle = computed(() => ({
-  background: 'var(--color-nav)',
   '--nav-count': String(navItems.value.length),
 }))
 
 function isActive(item) {
   const path = item?.route
-  if (path === '/dashboard' || path === '/workspace' || path === '/preview/workspace') {
+  if (path === '/dashboard' || path === '/exposed/dashboard' || path === '/workspace' || path === '/exposed/workspace') {
     return route.path === path || route.path === `${path}/`
   }
 
@@ -71,12 +70,39 @@ function navigate(path) {
 
 <style scoped>
 .bottom-nav__shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 12px 16px;
   border-radius: 999px;
-  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.22);
+  background: var(--color-nav-glass-bg);
+  border: 1px solid var(--color-nav-glass-border);
+  box-shadow: var(--color-nav-glass-shadow);
+}
+
+.bottom-nav__shell::before,
+.bottom-nav__shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.bottom-nav__shell::before {
+  z-index: -2;
+  background: var(--color-nav-glass-layer);
+  box-shadow: inset 0 1px 0 var(--color-nav-glass-inset);
+}
+
+.bottom-nav__shell::after {
+  z-index: -1;
+  background:
+    var(--color-nav-glass-light),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0.06) 100%);
 }
 
 .bottom-nav__button {
@@ -123,6 +149,19 @@ function navigate(path) {
   height: 6px;
   border-radius: 999px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottom-nav__shell {
+    -webkit-backdrop-filter: blur(var(--nav-glass-blur)) saturate(135%);
+    backdrop-filter: blur(var(--nav-glass-blur)) saturate(135%);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottom-nav__shell {
+    background: var(--color-nav-glass-bg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

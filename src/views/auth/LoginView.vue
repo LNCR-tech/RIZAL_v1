@@ -26,6 +26,7 @@
             type="email"
             placeholder="Gmail"
             autocomplete="email"
+            tone="neutral"
             :disabled="isLoading"
           />
 
@@ -36,14 +37,15 @@
             type="password"
             placeholder="Password"
             autocomplete="current-password"
+            tone="neutral"
             :disabled="isLoading"
             @enter="handleLogin"
           />
 
           <!-- Error message -->
           <Transition name="fade">
-            <p v-if="error" class="text-red-500 text-xs text-center mt-1">
-              {{ error }}
+            <p v-if="visibleMessage" class="text-red-500 text-xs text-center mt-1">
+              {{ visibleMessage }}
             </p>
           </Transition>
 
@@ -94,23 +96,28 @@
 </template>
 
 <script setup>
-import { ref, onBeforeMount, onMounted } from 'vue'
+import { computed, ref, onBeforeMount, onMounted } from 'vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
+import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'
 
 const email = ref('')
 const password = ref('')
 const isMounted = ref(false)
+const sessionNotice = ref('')
 
 const { login, isLoading, error } = useAuth()
+const visibleMessage = computed(() => error.value || sessionNotice.value)
 
 onBeforeMount(() => {
   applyTheme(loadUnbrandedTheme())
 })
 
 onMounted(() => {
+  sessionNotice.value = consumeSessionExpiredNotice()
+
   // Wait a tiny bit on load to ensure the browser paints the initial opacity-0 state
   // before we flip it to mount the animation, making it extremely crisp.
   setTimeout(() => {

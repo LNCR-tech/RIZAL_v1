@@ -172,12 +172,30 @@ export function mapGovernanceStudentCandidateToCouncilCandidate(candidate = {}) 
   }
 }
 
+export function resolveStudentCouncilAcronym(council = {}) {
+  const explicitAcronym = String(
+    council?.acronym
+    || council?.unit_code
+    || council?.organization_acronym
+    || ''
+  ).trim()
+
+  if (explicitAcronym) return explicitAcronym
+
+  return buildAcronym(
+    council?.name
+    || council?.unit_name
+    || council?.organization_name
+    || ''
+  )
+}
+
 export function mapGovernanceUnitToCouncilRecord(unit = {}) {
   if (!unit || typeof unit !== 'object') return null
 
   return {
     id: Number(unit.id),
-    acronym: String(unit.unit_code || '').trim(),
+    acronym: resolveStudentCouncilAcronym(unit),
     name: String(unit.unit_name || '').trim(),
     description: String(unit.description || '').trim(),
     memberCount: Array.isArray(unit.members) ? unit.members.length : 0,
@@ -261,6 +279,7 @@ export function mapGovernanceMemberToCouncilMember(member = {}) {
     fullName: [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || user.email || 'Student',
     position: String(member.position_title || 'Officer').trim(),
     permissionIds: permissions,
+    isActive: member.is_active !== false,
   }
 }
 

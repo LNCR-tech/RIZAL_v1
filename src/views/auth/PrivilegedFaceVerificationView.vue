@@ -92,9 +92,10 @@ import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
 const router = useRouter()
 const { logout } = useAuth()
 
+const initialAuthMeta = getStoredAuthMeta()
 const apiBaseUrl = ref(resolveApiBaseUrl())
 const step = ref('intro')
-const mode = ref('register')
+const mode = ref(initialAuthMeta?.faceReferenceEnrolled ? 'verify' : 'register')
 const statusState = ref('loading')
 const statusMessage = ref('')
 const capturedPreview = ref('')
@@ -102,7 +103,7 @@ const videoEl = ref(null)
 const mediaStream = ref(null)
 const videoReady = ref(false)
 const cameraState = ref('idle')
-const authMeta = ref(getStoredAuthMeta())
+const authMeta = ref(initialAuthMeta)
 const faceStatus = ref(null)
 
 let detectorInstance = null
@@ -392,7 +393,7 @@ async function ensureFaceDetector() {
       minSuppressionThreshold: faceDetectorSuppression,
       runningMode: 'VIDEO',
     })
-    return true
+    return Boolean(detectorInstance)
   } catch {
     detectorInstance = null
     resetFaceScanDetector()

@@ -115,6 +115,21 @@ const routes = [
                 component: () => import('@/views/dashboard/SchoolItUsersView.vue'),
             },
             {
+                path: 'users/import',
+                name: 'SchoolItImportStudents',
+                component: () => import('@/views/dashboard/SchoolItImportStudentsView.vue'),
+            },
+            {
+                path: 'users/department/:departmentId',
+                name: 'SchoolItDepartmentPrograms',
+                component: () => import('@/views/dashboard/SchoolItDepartmentProgramsView.vue'),
+            },
+            {
+                path: 'users/department/:departmentId/program/:programId',
+                name: 'SchoolItProgramStudents',
+                component: () => import('@/views/dashboard/SchoolItProgramStudentsView.vue'),
+            },
+            {
                 path: 'student-council',
                 name: 'SchoolItStudentCouncil',
                 component: () => import('@/views/dashboard/SchoolItStudentCouncilView.vue'),
@@ -131,16 +146,114 @@ const routes = [
             {
                 path: 'settings',
                 name: 'SchoolItSettings',
-                component: () => import('@/views/dashboard/WorkspacePlaceholderView.vue'),
-                props: {
-                    title: 'Settings',
-                    description: 'School branding, departments, and program setup will be managed from this screen.',
-                },
+                component: () => import('@/views/dashboard/SchoolItSettingsView.vue'),
             },
             {
                 path: 'profile',
                 name: 'SchoolItProfile',
                 component: ProfileView,
+            },
+        ],
+    },
+    {
+        path: '/exposed/workspace',
+        component: AppLayout,
+        children: [
+            {
+                path: '',
+                name: 'PreviewSchoolItHome',
+                component: () => import('@/views/dashboard/SchoolItHomeView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'users',
+                name: 'PreviewSchoolItUsers',
+                component: () => import('@/views/dashboard/SchoolItUsersView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'users/import',
+                name: 'PreviewSchoolItImportStudents',
+                component: () => import('@/views/dashboard/SchoolItImportStudentsView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'users/department/:departmentId',
+                name: 'PreviewSchoolItDepartmentPrograms',
+                component: () => import('@/views/dashboard/SchoolItDepartmentProgramsView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'users/department/:departmentId/program/:programId',
+                name: 'PreviewSchoolItProgramStudents',
+                component: () => import('@/views/dashboard/SchoolItProgramStudentsView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'student-council',
+                name: 'PreviewSchoolItStudentCouncil',
+                component: () => import('@/views/dashboard/SchoolItStudentCouncilView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'schedule',
+                name: 'PreviewSchoolItSchedule',
+                component: () => import('@/views/dashboard/WorkspacePlaceholderView.vue'),
+                props: {
+                    title: 'Schedule',
+                    description: 'School IT schedule controls will live here once the event operations UI is ready.',
+                },
+            },
+            {
+                path: 'settings',
+                name: 'PreviewSchoolItSettings',
+                component: () => import('@/views/dashboard/SchoolItSettingsView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'profile',
+                name: 'PreviewSchoolItProfile',
+                component: () => import('@/views/dashboard/WorkspacePlaceholderView.vue'),
+                props: {
+                    title: 'Profile',
+                    description: 'Profile controls will stay on the real authenticated workspace once the backend is available again.',
+                },
+            },
+        ],
+    },
+    {
+        path: '/exposed/dashboard',
+        component: AppLayout,
+        children: [
+            {
+                path: '',
+                name: 'PreviewHome',
+                component: HomeView,
+                props: { preview: true },
+            },
+            {
+                path: 'schedule',
+                name: 'PreviewDashboardSchedule',
+                component: ScheduleView,
+                props: { preview: true },
+            },
+            {
+                path: 'schedule/:id',
+                name: 'PreviewEventDetail',
+                component: EventDetailView,
+                props: { preview: true },
+            },
+            {
+                path: 'analytics',
+                name: 'PreviewDashboardAnalytics',
+                component: AnalyticsView,
+                props: { preview: true },
+            },
+            {
+                path: 'profile',
+                name: 'PreviewDashboardProfile',
+                component: ProfileView,
+                props: { preview: true },
             },
         ],
     },

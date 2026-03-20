@@ -1,6 +1,12 @@
 import { resolveBackendMediaUrl } from '@/services/backendMedia.js'
 
 const AUTH_META_KEY = 'aura_auth_meta'
+export const AUTH_META_CHANGED_EVENT = 'aura-auth-meta-changed'
+
+function notifyAuthMetaChanged() {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent(AUTH_META_CHANGED_EVENT))
+}
 
 function normalizeRoleName(role) {
     const normalized = String(role || '')
@@ -58,6 +64,7 @@ export function storeAuthMeta(tokenPayload = {}) {
     }
 
     localStorage.setItem(AUTH_META_KEY, JSON.stringify(authMeta))
+    notifyAuthMetaChanged()
     return authMeta
 }
 
@@ -97,11 +104,13 @@ export function patchStoredAuthMeta(patch = {}) {
     }
 
     localStorage.setItem(AUTH_META_KEY, JSON.stringify(nextValue))
+    notifyAuthMetaChanged()
     return nextValue
 }
 
 export function clearStoredAuthMeta() {
     localStorage.removeItem(AUTH_META_KEY)
+    notifyAuthMetaChanged()
 }
 
 export function needsStoredPasswordChange() {

@@ -3,7 +3,7 @@
     <!-- TopBar -->
     <TopBar
       class="dashboard-enter dashboard-enter--1"
-      :user="currentUser"
+      :user="activeUser"
       :unread-count="unreadAnnouncements"
       @toggle-notifications="showNotifications = !showNotifications"
     />
@@ -60,7 +60,6 @@
           v-show="!searchActive"
           class="ai-pill md:hidden"
           :class="{ 'ai-pill--open': isMobileAiOpen }"
-          style="background: var(--color-primary);"
           aria-label="Talk to Aura AI"
           :aria-expanded="isMobileAiOpen ? 'true' : 'false'"
           aria-controls="mobile-ai-panel"
@@ -68,13 +67,13 @@
           @click="toggleMobileAi"
         >
           <img
-            :src="activeAuraLogo"
+            :src="secondaryAuraLogo"
             alt="Aura"
             class="w-4 h-4 object-contain opacity-90"
           />
           <span
             class="text-[9px] font-extrabold text-left leading-[1.1]"
-            style="color: var(--color-banner-text);"
+            style="color: var(--color-search-pill-text);"
           >
             Talk to<br>Aura Ai
           </span>
@@ -152,8 +151,9 @@
       <Transition name="card-slide" appear>
         <UniversityBanner
           class="md:flex-1"
-          :school-name="schoolSettings?.school_name"
-          :school-logo="schoolSettings?.logo_url"
+          :school-name="resolvedSchoolName"
+          :school-logo="resolvedSchoolLogoCandidates[0] || null"
+          :school-logo-candidates="resolvedSchoolLogoCandidates"
           @announcement-click="handleAnnouncementClick"
         />
       </Transition>
@@ -225,9 +225,19 @@ import TopBar from '@/components/dashboard/TopBar.vue'
 import UniversityBanner from '@/components/dashboard/UniversityBanner.vue'
 import EventsCard from '@/components/dashboard/EventsCard.vue'
 
-import { activeAuraLogo } from '@/config/theme.js'
+import { applyTheme, loadTheme, secondaryAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+import { resolveBackendMediaCandidates } from '@/services/backendMedia.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 // --- State ---
 const searchQuery = ref('')
@@ -236,10 +246,28 @@ const isMobileAiOpen = ref(false)
 const mobileInputEl = ref(null)
 const router = useRouter()
 const { currentUser, schoolSettings, events, hasAttendanceForEvent } = useDashboardSession()
+const authMeta = useStoredAuthMeta()
+const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
+const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : schoolSettings.value)
+const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
+
+const resolvedSchoolName = computed(() => (
+  activeSchoolSettings.value?.school_name ||
+  activeUser.value?.school_name ||
+  authMeta.value?.schoolName ||
+  'University Name'
+))
+
+const resolvedSchoolLogoCandidates = computed(() => (
+  resolveBackendMediaCandidates([
+    activeSchoolSettings.value?.logo_url,
+    authMeta.value?.logoUrl,
+  ])
+))
 
 const schoolEvents = computed(() => {
-  const schoolId = Number(currentUser.value?.school_id)
-  return events.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
+  const schoolId = Number(activeUser.value?.school_id)
+  return activeEvents.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
 })
 
 const statusRank = {
@@ -343,6 +371,15 @@ watch(searchActive, (active) => {
   if (active) isMobileAiOpen.value = false
 })
 
+watch(
+  [() => props.preview, activeSchoolSettings],
+  ([preview, nextSchoolSettings]) => {
+    if (!preview || !nextSchoolSettings) return
+    applyTheme(loadTheme(nextSchoolSettings))
+  },
+  { immediate: true }
+)
+
 const filteredEvents = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return displayEvents.value
@@ -424,12 +461,13 @@ function normalizeStatus(status) {
 
 // --- Handlers ---
 function handleAnnouncementClick() {
+  if (props.preview) return
   // TODO: navigate to announcements page or open modal
   console.log('Announcement clicked')
 }
 
 function handleSeeEvent(event) {
-  if (!event?.id) return
+  if (props.preview || !event?.id) return
   if (event.status === 'ongoing' && !hasAttendanceForEvent(event.id)) {
     router.push(`/dashboard/schedule/${event.id}/attendance`)
     return
@@ -511,6 +549,8 @@ function formatSearchMeta(event) {
   height: clamp(50px, 14vw, 52px);
   border-radius: 26px;
   border: none;
+  background: var(--color-search-pill-bg);
+  color: var(--color-search-pill-text);
   cursor: pointer;
   transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.25s ease;
 }

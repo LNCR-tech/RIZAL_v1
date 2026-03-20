@@ -299,7 +299,7 @@ async function ensureFaceDetector() {
       minSuppressionThreshold: faceDetectorSuppression,
       runningMode: 'VIDEO',
     })
-    return true
+    return Boolean(detectorInstance)
   } catch {
     detectorInstance = null
     resetFaceScanDetector()

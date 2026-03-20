@@ -9,12 +9,12 @@ import {
 } from '@/services/backendApi.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
 
-const SCHOOL_IT_WORKSPACE_CACHE_KEY = 'aura_school_it_workspace_cache_v1'
-
 const state = reactive({
     apiBaseUrl: resolveApiBaseUrl(),
     schoolId: null,
     userId: null,
+    tokenSuffix: null,
+    sessionId: null,
     initialized: false,
     loading: false,
     departments: [],
@@ -30,76 +30,71 @@ const state = reactive({
 })
 
 let initPromise = null
+let fetchSequence = 0
 
-function buildIdentity(authMeta = getStoredAuthMeta()) {
-    return {
-        sessionId: authMeta?.sessionId || null,
-        userId: Number.isFinite(Number(authMeta?.userId)) ? Number(authMeta.userId) : null,
-        schoolId: Number.isFinite(Number(authMeta?.schoolId)) ? Number(authMeta.schoolId) : null,
-        email: authMeta?.email || null,
+function hasResolvedCouncilUnit(setup = null) {
+    return Number.isFinite(Number(setup?.unit?.id))
+}
+
+function resolveNumericIdentityValue(value) {
+    const normalized = Number(value)
+    return Number.isFinite(normalized) ? normalized : null
+}
+
+function resolveTokenSuffix(token = localStorage.getItem('aura_token') || '') {
+    const normalizedToken = String(token || '').trim()
+    return normalizedToken ? normalizedToken.slice(-24) : null
+}
+
+function hasMatchingIdentity(authMeta = getStoredAuthMeta()) {
+    return (
+        state.userId === resolveNumericIdentityValue(authMeta?.userId)
+        && state.schoolId === resolveNumericIdentityValue(authMeta?.schoolId)
+        && state.sessionId === (authMeta?.sessionId || null)
+        && state.tokenSuffix === resolveTokenSuffix()
+    )
+}
+
+function resetWorkspaceState() {
+    state.departments = []
+    state.programs = []
+    state.users = []
+    state.campusSsgSetup = null
+    state.schoolId = null
+    state.userId = null
+    state.tokenSuffix = null
+    state.sessionId = null
+    state.initialized = false
+    state.statuses = {
+        departments: 'idle',
+        programs: 'idle',
+        users: 'idle',
+        council: 'idle',
     }
-}
-
-function readCache() {
-    try {
-        const raw = localStorage.getItem(SCHOOL_IT_WORKSPACE_CACHE_KEY)
-        if (!raw) return null
-        return JSON.parse(raw)
-    } catch {
-        localStorage.removeItem(SCHOOL_IT_WORKSPACE_CACHE_KEY)
-        return null
-    }
-}
-
-function identitiesMatch(left, right) {
-    if (!left || !right) return false
-    return ['sessionId', 'userId', 'schoolId', 'email'].every((key) => {
-        const expected = right[key]
-        if (expected == null || expected === '') return true
-        return left[key] === expected
-    })
-}
-
-function persistCache() {
-    const identity = buildIdentity()
-    if (!identity.userId && !identity.schoolId) return
-
-    localStorage.setItem(SCHOOL_IT_WORKSPACE_CACHE_KEY, JSON.stringify({
-        version: 1,
-        identity,
-        snapshot: {
-            departments: state.departments,
-            programs: state.programs,
-            users: state.users,
-            campusSsgSetup: state.campusSsgSetup,
-            statuses: state.statuses,
-        },
-    }))
 }
 
 function setCampusSsgSetupSnapshot(setup) {
-    state.campusSsgSetup = setup ?? null
-    state.statuses.council = setup?.unit ? 'ready' : 'absent'
+    state.campusSsgSetup = hasResolvedCouncilUnit(setup) ? setup : null
+    state.statuses.council = hasResolvedCouncilUnit(setup) ? 'ready' : 'absent'
     state.initialized = true
-    persistCache()
 }
 
-function hydrateCache() {
-    const cached = readCache()
-    if (!cached?.snapshot || !identitiesMatch(cached.identity, buildIdentity())) return false
-
-    state.departments = Array.isArray(cached.snapshot.departments) ? cached.snapshot.departments : []
-    state.programs = Array.isArray(cached.snapshot.programs) ? cached.snapshot.programs : []
-    state.users = Array.isArray(cached.snapshot.users) ? cached.snapshot.users : []
-    state.campusSsgSetup = cached.snapshot.campusSsgSetup ?? null
-    state.statuses = {
-        departments: cached.snapshot.statuses?.departments || 'idle',
-        programs: cached.snapshot.statuses?.programs || 'idle',
-        users: cached.snapshot.statuses?.users || 'idle',
-        council: cached.snapshot.statuses?.council || 'idle',
-    }
+function setDepartmentsSnapshot(departments) {
+    state.departments = Array.isArray(departments) ? departments : []
+    state.statuses.departments = 'ready'
     state.initialized = true
-    return true
+}
+
+function setProgramsSnapshot(programs) {
+    state.programs = Array.isArray(programs) ? programs : []
+    state.statuses.programs = 'ready'
+    state.initialized = true
+}
+
+function setUsersSnapshot(users) {
+    state.users = Array.isArray(users) ? users : []
+    state.statuses.users = 'ready'
+    state.initialized = true
 }
 
 function classifyFailure(error) {
@@ -110,9 +105,25 @@ function classifyFailure(error) {
     return 'error'
 }
 
+function hasReusableWorkspaceSnapshot() {
+    return (
+        state.initialized &&
+        state.statuses.departments === 'ready' &&
+        state.statuses.programs === 'ready' &&
+        state.statuses.users === 'ready' &&
+        state.statuses.council === 'ready'
+    )
+}
+
 function setResolvedCollection(key, result) {
     if (result.status === 'fulfilled') {
         state[key] = Array.isArray(result.value) ? result.value : []
+        state.statuses[key] = 'ready'
+        return
+    }
+
+    const existingItems = Array.isArray(state[key]) ? state[key] : []
+    if (existingItems.length) {
         state.statuses[key] = 'ready'
         return
     }
@@ -123,8 +134,13 @@ function setResolvedCollection(key, result) {
 
 function setResolvedCouncil(result) {
     if (result.status === 'fulfilled') {
-        state.campusSsgSetup = result.value ?? null
-        state.statuses.council = result.value ? 'ready' : 'absent'
+        state.campusSsgSetup = hasResolvedCouncilUnit(result.value) ? result.value : null
+        state.statuses.council = hasResolvedCouncilUnit(result.value) ? 'ready' : 'absent'
+        return
+    }
+
+    if (hasResolvedCouncilUnit(state.campusSsgSetup)) {
+        state.statuses.council = 'ready'
         return
     }
 
@@ -134,14 +150,19 @@ function setResolvedCouncil(result) {
 
 async function fetchSchoolItWorkspaceData() {
     const authMeta = getStoredAuthMeta()
-    const schoolId = Number(authMeta?.schoolId)
-    const userId = Number(authMeta?.userId)
+    const schoolId = resolveNumericIdentityValue(authMeta?.schoolId)
+    const userId = resolveNumericIdentityValue(authMeta?.userId)
+    const token = localStorage.getItem('aura_token') || ''
+    const sessionId = authMeta?.sessionId || null
 
     state.apiBaseUrl = resolveApiBaseUrl()
-    state.schoolId = Number.isFinite(schoolId) ? schoolId : null
-    state.userId = Number.isFinite(userId) ? userId : null
+    state.schoolId = schoolId
+    state.userId = userId
+    state.tokenSuffix = resolveTokenSuffix(token)
+    state.sessionId = sessionId
 
-    if (!hydrateCache()) {
+    const currentFetchSequence = ++fetchSequence
+    if (!state.initialized) {
         state.statuses = {
             departments: 'loading',
             programs: 'loading',
@@ -150,20 +171,9 @@ async function fetchSchoolItWorkspaceData() {
         }
     }
 
-    const token = localStorage.getItem('aura_token') || ''
     if (!token) {
-        state.departments = []
-        state.programs = []
-        state.users = []
-        state.campusSsgSetup = null
-        state.initialized = false
+        resetWorkspaceState()
         state.loading = false
-        state.statuses = {
-            departments: 'idle',
-            programs: 'idle',
-            users: 'idle',
-            council: 'idle',
-        }
         return state
     }
 
@@ -177,22 +187,32 @@ async function fetchSchoolItWorkspaceData() {
             getCampusSsgSetup(state.apiBaseUrl, token),
         ])
 
+        if (currentFetchSequence !== fetchSequence) {
+            return state
+        }
+
         setResolvedCollection('departments', departmentsResult)
         setResolvedCollection('programs', programsResult)
         setResolvedCollection('users', usersResult)
         setResolvedCouncil(councilResult)
 
         state.initialized = true
-        persistCache()
         return state
     } finally {
-        state.loading = false
+        if (currentFetchSequence === fetchSequence) {
+            state.loading = false
+        }
     }
 }
 
 export async function initializeSchoolItWorkspaceData(force = false) {
     if (initPromise && !force) return initPromise
-    if (!force && state.initialized) return state
+
+    if (!hasMatchingIdentity()) {
+        resetWorkspaceState()
+    }
+
+    if (!force && hasReusableWorkspaceSnapshot()) return state
 
     initPromise = fetchSchoolItWorkspaceData().finally(() => {
         initPromise = null
@@ -216,5 +236,8 @@ export function useSchoolItWorkspaceData() {
         initializeSchoolItWorkspaceData,
         refreshSchoolItWorkspaceData,
         setCampusSsgSetupSnapshot,
+        setDepartmentsSnapshot,
+        setProgramsSnapshot,
+        setUsersSnapshot,
     }
 }

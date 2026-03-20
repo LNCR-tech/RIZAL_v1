@@ -1,39 +1,14 @@
 <template>
   <section class="school-it-home">
     <div class="school-it-home__shell">
-      <header class="school-it-home__header dashboard-enter dashboard-enter--1">
-        <button
-          class="school-it-home__profile"
-          :class="{ 'school-it-home__profile--expanded': isProfileExpanded }"
-          type="button"
-          aria-label="Account actions"
-          @click="isProfileExpanded = !isProfileExpanded"
-        >
-          <span class="school-it-home__profile-main">
-            <span class="school-it-home__avatar-wrap">
-              <img v-if="avatarUrl" :src="avatarUrl" :alt="displayName" class="school-it-home__avatar">
-              <span v-else class="school-it-home__avatar school-it-home__avatar--fallback">{{ initials }}</span>
-              <span class="school-it-home__status-dot" aria-hidden="true" />
-            </span>
-            <span class="school-it-home__profile-copy">
-              <span class="school-it-home__eyebrow">Welcome Back</span>
-              <span class="school-it-home__name">{{ displayName }}</span>
-            </span>
-          </span>
-
-          <span class="school-it-home__signout" @click.stop="handleLogout">
-            <LogOut :size="18" color="#D92D20" :stroke-width="2.4" />
-            <span class="school-it-home__signout-label">Sign Out</span>
-          </span>
-        </button>
-
-        <div class="school-it-home__header-actions">
-          <span class="school-it-home__header-orb" aria-hidden="true" />
-          <button class="school-it-home__notify" type="button" aria-label="Notifications">
-            <Bell :size="19" :stroke-width="2" />
-          </button>
-        </div>
-      </header>
+      <SchoolItTopHeader
+        class="dashboard-enter dashboard-enter--1"
+        :avatar-url="avatarUrl"
+        :school-name="schoolName"
+        :display-name="displayName"
+        :initials="initials"
+        @logout="handleLogout"
+      />
 
       <div class="school-it-home__body">
         <h1 class="school-it-home__title dashboard-enter dashboard-enter--2">Home</h1>
@@ -82,7 +57,7 @@
               aria-controls="school-it-ai-panel"
               @click="toggleAiPanel"
             >
-              <img :src="activeAuraLogo" alt="Aura" class="school-it-home__ai-logo">
+              <img :src="secondaryAuraLogo" alt="Aura" class="school-it-home__ai-logo">
               <span class="school-it-home__ai-copy">Talk to<br>Aura Ai</span>
             </button>
           </div>
@@ -242,14 +217,20 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Bell, LogOut, Search, Send } from 'lucide-vue-next'
+import { ArrowRight, Search, Send } from 'lucide-vue-next'
+import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import SchoolItMetricRing from '@/components/dashboard/SchoolItMetricRing.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
-import { activeAuraLogo, defaultTheme } from '@/config/theme.js'
+import { secondaryAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
 import { getAttendanceSummary, getDepartments, getPrograms } from '@/services/backendApi.js'
+import { hasPrivilegedPendingFace } from '@/services/localAuth.js'
+import { resolveBackendMediaCandidates, withMediaCacheKey } from '@/services/backendMedia.js'
+import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 
 const props = defineProps({
   preview: {
@@ -260,14 +241,14 @@ const props = defineProps({
 
 const router = useRouter()
 const searchQuery = ref('')
-const isProfileExpanded = ref(false)
 const isAiOpen = ref(false)
 const aiInputEl = ref(null)
 const departments = ref([])
 const programs = ref([])
 const remoteAttendanceSummary = ref(null)
-const heroLogoError = ref(false)
 const heroLogoUnavailable = ref(false)
+const heroLogoCandidateIndex = ref(0)
+const heroLogoRetryKey = ref(0)
 
 const { currentUser, schoolSettings, apiBaseUrl, events } = useDashboardSession()
 const {
@@ -279,26 +260,56 @@ const {
   sendMessage,
 } = useChat()
 const { logout } = useAuth()
+const authMeta = useStoredAuthMeta()
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
 const activeUser = computed(() => props.preview ? schoolItPreviewData.user : currentUser.value)
 const activeSchoolSettings = computed(() => props.preview ? schoolItPreviewData.schoolSettings : schoolSettings.value)
 const activeEvents = computed(() => props.preview ? schoolItPreviewData.events : events.value)
 
-const schoolId = computed(() => Number(activeUser.value?.school_id ?? activeSchoolSettings.value?.school_id))
-const schoolName = computed(() => activeSchoolSettings.value?.school_name || activeUser.value?.school_name || 'University Name')
+usePreviewTheme(() => props.preview, activeSchoolSettings)
+
+const schoolId = computed(() => Number(
+  activeUser.value?.school_id
+  ?? activeSchoolSettings.value?.school_id
+  ?? authMeta.value?.schoolId
+))
+const schoolName = computed(() => (
+  activeSchoolSettings.value?.school_name
+  || activeUser.value?.school_name
+  || authMeta.value?.schoolName
+  || 'University Name'
+))
+const rawSchoolLogoCandidates = computed(() => (
+  props.preview
+    ? [schoolItPreviewData.schoolSettings?.logo_url]
+    : [
+      activeSchoolSettings.value?.logo_url,
+      authMeta.value?.logoUrl,
+    ]
+))
 const avatarUrl = computed(() => activeUser.value?.avatar_url || '')
+const heroLogoCandidates = computed(() => (
+  resolveBackendMediaCandidates(rawSchoolLogoCandidates.value, apiBaseUrl.value)
+))
 const heroLogoSrc = computed(() => (
-  heroLogoError.value
-    ? defaultTheme.schoolLogo
-    : activeSchoolSettings.value?.logo_url || defaultTheme.schoolLogo
+  heroLogoUnavailable.value
+    ? null
+    : withMediaCacheKey(
+      heroLogoCandidates.value[heroLogoCandidateIndex.value] || null,
+      heroLogoRetryKey.value || ''
+    )
 ))
 
 const displayName = computed(() => {
   const first = activeUser.value?.first_name || ''
   const middle = activeUser.value?.middle_name || ''
   const last = activeUser.value?.last_name || ''
-  return [first, middle, last].filter(Boolean).join(' ') || activeUser.value?.email?.split('@')[0] || 'School IT'
+  return [first, middle, last].filter(Boolean).join(' ')
+    || [authMeta.value?.firstName, authMeta.value?.lastName].filter(Boolean).join(' ')
+    || activeUser.value?.email?.split('@')[0]
+    || authMeta.value?.email?.split('@')[0]
+    || 'School IT'
 })
 
 const initials = computed(() => buildInitials(displayName.value))
@@ -310,9 +321,9 @@ const activeDepartments = computed(() => props.preview ? schoolItPreviewData.dep
 const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : programs.value)
 const activeAttendanceSummary = computed(() => props.preview ? schoolItPreviewData.attendanceSummary : remoteAttendanceSummary.value)
 
-const filteredDepartments = computed(() => filterEntitiesBySchool(activeDepartments.value, schoolId.value))
-const filteredPrograms = computed(() => filterEntitiesBySchool(activePrograms.value, schoolId.value))
-const filteredEvents = computed(() => filterEntitiesBySchool(activeEvents.value, schoolId.value))
+const filteredDepartments = computed(() => filterWorkspaceEntitiesBySchool(activeDepartments.value, schoolId.value))
+const filteredPrograms = computed(() => filterWorkspaceEntitiesBySchool(activePrograms.value, schoolId.value))
+const filteredEvents = computed(() => filterWorkspaceEntitiesBySchool(activeEvents.value, schoolId.value))
 
 const departmentCountLabel = computed(() => String(filteredDepartments.value.length))
 const programCountLabel = computed(() => String(filteredPrograms.value.length))
@@ -409,13 +420,21 @@ watch(searchActive, (active) => {
   if (active) isAiOpen.value = false
 })
 
-watch(() => activeSchoolSettings.value?.logo_url, () => {
-  heroLogoError.value = false
+watch(() => heroLogoCandidates.value.join('|'), () => {
   heroLogoUnavailable.value = false
+  heroLogoCandidateIndex.value = 0
+  heroLogoRetryKey.value = 0
 })
 
 async function loadSchoolItHomeData(resolvedApiBaseUrl) {
   const token = localStorage.getItem('aura_token') || ''
+  if (!token || hasPrivilegedPendingFace()) {
+    departments.value = []
+    programs.value = []
+    remoteAttendanceSummary.value = null
+    return
+  }
+
   const [departmentResult, programResult, attendanceSummaryResult] = await Promise.allSettled([
     getDepartments(resolvedApiBaseUrl, token),
     getPrograms(resolvedApiBaseUrl, token),
@@ -504,12 +523,6 @@ function buildEventAttendanceSummary(items) {
   }
 }
 
-function filterEntitiesBySchool(items, activeSchoolId) {
-  if (!Array.isArray(items)) return []
-  if (!Number.isFinite(activeSchoolId)) return items
-  return items.filter((item) => Number(item?.school_id) === activeSchoolId)
-}
-
 function countStatus(items, targetStatus) {
   return items.filter((item) => String(item?.status ?? '').toLowerCase() === targetStatus).length
 }
@@ -536,10 +549,16 @@ function formatStatusLabel(status) {
 }
 
 function handleHeroLogoError() {
-  if (!heroLogoError.value) {
-    heroLogoError.value = true
+  if (heroLogoCandidateIndex.value < heroLogoCandidates.value.length - 1) {
+    heroLogoCandidateIndex.value += 1
     return
   }
+
+  if (!heroLogoRetryKey.value) {
+    heroLogoRetryKey.value = Date.now()
+    return
+  }
+
   heroLogoUnavailable.value = true
 }
 
@@ -607,24 +626,6 @@ async function handleLogout() {
 <style scoped>
 .school-it-home{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
 .school-it-home__shell{width:100%;max-width:1120px;margin:0 auto}
-.school-it-home__header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
-.school-it-home__profile{display:inline-flex;align-items:center;min-height:56px;padding:8px 14px 8px 8px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);transition:all .3s ease;cursor:pointer}
-.school-it-home__profile-main{display:inline-flex;align-items:center;gap:12px;min-width:0}
-.school-it-home__avatar-wrap{position:relative;display:inline-flex;flex-shrink:0}
-.school-it-home__avatar{width:42px;height:42px;border-radius:999px;object-fit:cover;flex-shrink:0}
-.school-it-home__avatar--fallback{display:inline-flex;align-items:center;justify-content:center;background:var(--color-nav);color:var(--color-nav-text);font-size:14px;font-weight:700}
-.school-it-home__status-dot{position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:999px;background:var(--color-primary);border:2px solid var(--color-surface)}
-.school-it-home__profile-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1}
-.school-it-home__eyebrow{font-size:10px;font-weight:500;color:var(--color-text-muted)}
-.school-it-home__name{margin-top:2px;font-size:14px;font-weight:700;line-height:1.08;color:var(--color-text-always-dark)}
-.school-it-home__signout{display:inline-flex;align-items:center;overflow:hidden;max-width:0;opacity:0;margin-left:0;white-space:nowrap;transition:all .3s ease-in-out;color:#D92D20;cursor:pointer}
-.school-it-home__signout-label{margin-left:8px;font-size:14px;font-weight:500;letter-spacing:-.02em}
-.school-it-home__profile:hover .school-it-home__signout,.school-it-home__profile--expanded .school-it-home__signout{max-width:150px;opacity:1;margin-left:24px;margin-right:4px}
-.school-it-home__header-actions{display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:2px}
-.school-it-home__header-orb,.school-it-home__notify{width:44px;height:44px;border-radius:999px;background:var(--color-surface);flex-shrink:0}
-.school-it-home__header-orb{opacity:.9}
-.school-it-home__notify{border:none;color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;transition:transform .16s ease}
-.school-it-home__notify:active{transform:scale(.95)}
 .school-it-home__body{display:flex;flex-direction:column;gap:18px;margin-top:24px}
 .school-it-home__title{margin:0;font-size:22px;font-weight:800;line-height:1;letter-spacing:-.05em;color:var(--color-text-primary)}
 .school-it-home__search{display:flex;flex-direction:column;gap:10px}
@@ -644,7 +645,7 @@ async function handleLogout() {
 .school-it-home__search-result-name{font-size:14px;font-weight:700;color:var(--color-text-always-dark)}
 .school-it-home__search-result-type{min-height:28px;padding:0 12px;border-radius:999px;background:color-mix(in srgb,var(--color-primary) 18%,white);color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.02em;flex-shrink:0}
 .school-it-home__search-result-meta,.school-it-home__empty{font-size:12px;color:var(--color-text-muted)}
-.school-it-home__ai-pill{width:clamp(108px,30vw,122px);min-height:clamp(56px,15vw,60px);padding:0 clamp(12px,4vw,14px);border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;justify-content:center;gap:clamp(8px,2.6vw,10px);flex-shrink:0;transition:opacity .2s ease,transform .2s ease,box-shadow .25s ease,filter .22s ease}
+.school-it-home__ai-pill{width:clamp(108px,30vw,122px);min-height:clamp(56px,15vw,60px);padding:0 clamp(12px,4vw,14px);border:none;border-radius:999px;background:var(--color-search-pill-bg);color:var(--color-search-pill-text);display:inline-flex;align-items:center;justify-content:center;gap:clamp(8px,2.6vw,10px);flex-shrink:0;transition:opacity .2s ease,transform .2s ease,box-shadow .25s ease,filter .22s ease}
 .school-it-home__ai-pill:hover{filter:brightness(1.08);transform:scale(1.04)}
 .school-it-home__ai-pill:active{transform:scale(.96)}
 .school-it-home__ai-pill--open{box-shadow:0 12px 24px rgba(0,0,0,.14);transform:translateY(1px) scale(.98)}
@@ -708,8 +709,6 @@ async function handleLogout() {
 .school-it-home__status-panel{min-height:222px;border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 10px 14px}
 @media (min-width:768px){
   .school-it-home{padding:40px 36px 56px}
-  .school-it-home__profile{padding-right:18px}
-  .school-it-home__header-actions{gap:16px}
   .school-it-home__body{margin-top:30px;gap:22px}
   .school-it-home__title{font-size:28px}
   .school-it-home__search-row{max-width:780px}

@@ -39,6 +39,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from 'lucide-vue-next'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 
 defineProps({
   title: {
@@ -54,9 +55,14 @@ defineProps({
 const router = useRouter()
 const route = useRoute()
 const { schoolSettings } = useDashboardSession()
-const homeRouteName = computed(() => route.path.startsWith('/preview/workspace') ? 'PreviewSchoolItHome' : 'SchoolItHome')
+const isExposedWorkspace = computed(() => route.path.startsWith('/exposed/workspace'))
+const homeRouteName = computed(() => isExposedWorkspace.value ? 'PreviewSchoolItHome' : 'SchoolItHome')
 
-const schoolName = computed(() => schoolSettings.value?.school_name || 'School workspace')
+const schoolName = computed(() => (
+  isExposedWorkspace.value
+    ? schoolItPreviewData.schoolSettings?.school_name || 'School workspace'
+    : schoolSettings.value?.school_name || 'School workspace'
+))
 </script>
 
 <style scoped>

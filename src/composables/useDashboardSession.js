@@ -31,6 +31,7 @@ const state = reactive({
     faceStatus: null,
     initialized: false,
     loading: false,
+    limitedMode: false,
     error: '',
 })
 
@@ -76,7 +77,10 @@ function isCacheFresh(savedAt) {
 }
 
 function persistDashboardSnapshot() {
-    if (!state.token || !state.user) return
+    if (!state.token || !state.user || state.limitedMode) {
+        clearDashboardSnapshot()
+        return
+    }
 
     const authMeta = getStoredAuthMeta()
     const payload = {
@@ -89,6 +93,7 @@ function persistDashboardSnapshot() {
             events: state.events,
             attendanceRecords: state.attendanceRecords,
             faceStatus: state.faceStatus,
+            limitedMode: false,
         },
     }
 
@@ -119,6 +124,7 @@ function applyDashboardSnapshot(snapshot, token = state.token) {
     state.events = Array.isArray(snapshot.events) ? sortEvents(snapshot.events.map(normalizeEvent).filter(Boolean)) : []
     state.attendanceRecords = Array.isArray(snapshot.attendanceRecords) ? snapshot.attendanceRecords : []
     state.faceStatus = snapshot.faceStatus ?? null
+    state.limitedMode = Boolean(snapshot.limitedMode)
     state.initialized = true
     state.initializedToken = String(token || '')
     state.loading = false
@@ -254,6 +260,7 @@ function resetDashboardState() {
     state.initialized = false
     state.initializedToken = ''
     state.loading = false
+    state.limitedMode = false
     state.error = ''
     applyActiveTheme()
 }
@@ -388,6 +395,7 @@ async function fetchDashboardData() {
             : {
                 face_reference_enrolled: resolveStudentFaceRegistered(user, authMeta, null),
             }
+        state.limitedMode = usingFallbackUser
         state.initialized = true
         state.initializedToken = state.token
         syncUserAttendanceRecords()
@@ -410,6 +418,7 @@ async function fetchDashboardData() {
             state.faceStatus = {
                 face_reference_enrolled: resolveStudentFaceRegistered(fallbackUser, authMeta, null),
             }
+            state.limitedMode = true
             state.initialized = true
             state.initializedToken = state.token
             syncUserAttendanceRecords()
@@ -494,6 +503,14 @@ export async function refreshAttendanceRecords(params = {}) {
     return state.attendanceRecords
 }
 
+export async function refreshSchoolSettings() {
+    if (!state.token) return null
+
+    const nextSchoolSettings = await getSchoolSettings(state.apiBaseUrl, state.token)
+    applySchoolSettingsSnapshot(nextSchoolSettings)
+    return state.schoolSettings
+}
+
 export async function refreshFaceStatus() {
     if (!state.token) return null
 
@@ -569,6 +586,13 @@ export function markCurrentUserFaceRegistered() {
     return state.user
 }
 
+export function applySchoolSettingsSnapshot(nextSchoolSettings) {
+    state.schoolSettings = nextSchoolSettings ? { ...nextSchoolSettings } : null
+    applyActiveTheme()
+    persistDashboardSnapshot()
+    return state.schoolSettings
+}
+
 export function clearDashboardSession() {
     localStorage.removeItem('aura_token')
     localStorage.removeItem('aura_user_roles')
@@ -576,6 +600,10 @@ export function clearDashboardSession() {
     clearDashboardSnapshot()
     setToken('')
     resetDashboardState()
+}
+
+export function sessionUsesLimitedMode() {
+    return Boolean(state.limitedMode)
 }
 
 export function getDashboardEventById(eventId) {
@@ -648,20 +676,25 @@ export function useDashboardSession() {
     return {
         dashboardState: readonly(state),
         apiBaseUrl: computed(() => state.apiBaseUrl),
+        token: computed(() => state.token),
         currentUser: computed(() => state.user),
         schoolSettings: computed(() => state.schoolSettings),
         events: computed(() => state.events),
         attendanceRecords: computed(() => state.attendanceRecords),
         faceStatus: computed(() => state.faceStatus),
+        limitedMode: computed(() => state.limitedMode),
         needsFaceRegistration: computed(() => sessionNeedsFaceRegistration()),
         unreadAnnouncements: computed(() => 0),
         initializeDashboardSession,
         refreshAttendanceRecords,
+        refreshSchoolSettings,
         refreshFaceStatus,
         ensureDashboardEvent,
         saveCurrentUserProfile,
         markCurrentUserFaceRegistered,
+        applySchoolSettingsSnapshot,
         clearDashboardSession,
+        sessionUsesLimitedMode,
         getDashboardEventById,
         hasAttendanceForEvent,
         getLatestAttendanceForEvent,

@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import defaultSchoolLogo from '@/data/jrmsu_icon.png'
+const defaultSchoolLogo = '/logos/aura.png'
 
 /**
  * Global Dark Mode State
@@ -7,6 +7,7 @@ import defaultSchoolLogo from '@/data/jrmsu_icon.png'
 export const isDarkMode = ref(false)
 export const activeAuraLogo = ref('/logos/aura_logo_black.png')
 export const surfaceAuraLogo = ref('/logos/aura_logo_black.png')
+export const secondaryAuraLogo = ref('/logos/aura_logo_black.png')
 let currentActiveTheme = null
 
 function updateDocumentThemeColor(color) {
@@ -27,6 +28,8 @@ export const defaultTheme = {
     primaryColor: '#AAFF00',       // Lime green - the accent/brand color
     primaryDark: '#88CC00',        // Slightly darker for hover states
     primaryText: '#0A0A0A',        // Text on primary colored backgrounds
+    secondaryColor: '#AAFF00',
+    secondaryText: '#0A0A0A',
     schoolName: 'University Name',
     schoolSlogan: 'Slogan Goes Here',
     schoolLogo: defaultSchoolLogo,
@@ -46,6 +49,8 @@ export const unbrandedTheme = {
     primaryColor: '#0A0A0A',
     primaryDark: '#000000',
     primaryText: '#FFFFFF',
+    secondaryColor: '#0A0A0A',
+    secondaryText: '#FFFFFF',
     navActiveColor: '#0A0A0A',
 }
 
@@ -112,12 +117,22 @@ export function loadTheme(schoolSettings = null) {
         schoolSettings.primary_text ?? getContrastYIQ(primaryColor),
         defaultTheme.primaryText
     )
+    const secondaryColor = normalizeHexColor(
+        schoolSettings.secondary_color ?? primaryColor,
+        primaryColor
+    )
+    const secondaryText = normalizeHexColor(
+        schoolSettings.secondary_text ?? getContrastYIQ(secondaryColor),
+        getContrastYIQ(secondaryColor)
+    )
 
     return {
         ...defaultTheme,
         primaryColor,
         primaryDark,
         primaryText,
+        secondaryColor,
+        secondaryText,
         schoolName: schoolSettings.school_name ?? defaultTheme.schoolName,
         schoolSlogan: schoolSettings.slogan ?? defaultTheme.schoolSlogan,
         schoolLogo: schoolSettings.logo_url ?? defaultTheme.schoolLogo,
@@ -221,6 +236,18 @@ export function applyTheme(theme) {
     const navTextColor = getContrastYIQ(theme.navColor)
     const navPillTextColor = getContrastYIQ(navPillBg)
     const primaryTextColor = normalizeHexColor(theme.primaryText ?? getContrastYIQ(theme.primaryColor), '#0A0A0A')
+    const secondaryColor = normalizeHexColor(theme.secondaryColor ?? theme.primaryColor, theme.primaryColor)
+    const secondaryTextColor = normalizeHexColor(
+        theme.secondaryText ?? getContrastYIQ(secondaryColor),
+        getContrastYIQ(secondaryColor)
+    )
+    const navColorRgb = hexToRgb(theme.navColor)
+    const navGlassBg = `rgba(${navColorRgb.r}, ${navColorRgb.g}, ${navColorRgb.b}, 0.72)`
+    const navGlassLayer = `linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 48%, rgba(0, 0, 0, 0.12) 100%)`
+    const navGlassLight = `radial-gradient(70% 92% at 88% 38%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 32%, rgba(255, 255, 255, 0) 72%)`
+    const navGlassBorder = `rgba(255, 255, 255, 0.16)`
+    const navGlassInset = `rgba(255, 255, 255, 0.09)`
+    const navGlassShadow = '0 18px 32px rgba(0, 0, 0, 0.22), 0 2px 10px rgba(0, 0, 0, 0.12)'
 
     const bgSecondaryText = mixHexColors(bgTextColor, bgColor, 0.68)
     const bgMutedText = mixHexColors(bgTextColor, bgColor, 0.48)
@@ -244,6 +271,8 @@ export function applyTheme(theme) {
     root.style.setProperty('--color-primary', theme.primaryColor)
     root.style.setProperty('--color-primary-dark', theme.primaryDark)
     root.style.setProperty('--color-primary-text', primaryTextColor)
+    root.style.setProperty('--color-secondary', secondaryColor)
+    root.style.setProperty('--color-secondary-text', secondaryTextColor)
     root.style.setProperty('--color-bg', bgColor)
     root.style.setProperty('--color-surface', surfaceColor) // White cards
     root.style.setProperty('--color-profile-bg', profileBg)
@@ -253,6 +282,13 @@ export function applyTheme(theme) {
     root.style.setProperty('--color-nav-text-secondary', navSecondaryText)
     root.style.setProperty('--color-nav-pill-text', navPillTextColor)
     root.style.setProperty('--color-nav-active', theme.navActiveColor)
+    root.style.setProperty('--color-nav-glass-bg', navGlassBg)
+    root.style.setProperty('--color-nav-glass-layer', navGlassLayer)
+    root.style.setProperty('--color-nav-glass-light', navGlassLight)
+    root.style.setProperty('--color-nav-glass-border', navGlassBorder)
+    root.style.setProperty('--color-nav-glass-inset', navGlassInset)
+    root.style.setProperty('--color-nav-glass-shadow', navGlassShadow)
+    root.style.setProperty('--nav-glass-blur', '12px')
     root.style.setProperty('--color-text-primary', bgTextColor || textPrimary)
     root.style.setProperty('--color-text-secondary', isDarkMode.value ? '#A0A0A0' : bgSecondaryText)
     root.style.setProperty('--color-text-muted', bgMutedText)
@@ -273,6 +309,11 @@ export function applyTheme(theme) {
     root.style.setProperty('--color-ai-send-bg-hover', aiSendBgHover)
     root.style.setProperty('--color-ai-user-bubble-bg', aiUserBubbleBg)
     root.style.setProperty('--color-ai-user-bubble-text', aiUserBubbleText)
+    root.style.setProperty('--color-search-pill-bg', secondaryColor)
+    root.style.setProperty('--color-search-pill-text', secondaryTextColor)
+    root.style.setProperty('--color-pill-row-active-bg', secondaryColor)
+    root.style.setProperty('--color-pill-row-active-text', secondaryTextColor)
+    root.style.setProperty('--color-pill-row-outline', secondaryColor)
 
     // Backwards-compatible alias for existing white-card text references.
     root.style.setProperty('--color-text-always-dark', surfaceTextColor)
@@ -283,5 +324,6 @@ export function applyTheme(theme) {
     // Automatically serve the correct Aura logo color based on banner contrast
     activeAuraLogo.value = resolveAuraLogoForBackground(theme.primaryColor)
     surfaceAuraLogo.value = resolveAuraLogoForBackground(surfaceColor)
+    secondaryAuraLogo.value = resolveAuraLogoForBackground(secondaryColor)
     updateDocumentThemeColor(bgColor)
 }

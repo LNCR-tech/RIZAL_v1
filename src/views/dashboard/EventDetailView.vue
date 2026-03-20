@@ -88,16 +88,29 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowUpRight, Bell } from 'lucide-vue-next'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const route = useRoute()
 const router = useRouter()
 const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
 
 const eventId = computed(() => Number(route.params.id))
-const event = computed(() => getDashboardEventById(eventId.value))
+const previewEvent = computed(() => studentDashboardPreviewData.events.find((entry) => Number(entry?.id) === eventId.value) ?? null)
+const event = computed(() => props.preview ? previewEvent.value : getDashboardEventById(eventId.value))
+
+usePreviewTheme(() => props.preview, () => studentDashboardPreviewData.schoolSettings)
 
 onMounted(() => {
+  if (props.preview) return
   ensureDashboardEvent(eventId.value).catch(() => null)
 })
 

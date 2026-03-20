@@ -294,7 +294,7 @@ function onPermissionsAfterLeave(element) {
 .student-council-member-stage__permission-label{margin:0;font-size:14px;font-weight:500;color:var(--color-text-always-dark)}
 .student-council-member-stage__permission-pills{display:flex;flex-wrap:wrap;gap:8px}
 .student-council-member-stage__permission-pill{min-height:42px;padding:0 20px;border:none;border-radius:999px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 14%, transparent);font-size:13px;font-weight:500;color:var(--color-text-always-dark);transition:background .22s ease,color .22s ease,transform .18s ease,box-shadow .22s ease}
-.student-council-member-stage__permission-pill--selected{background:var(--color-primary);color:var(--color-banner-text)}
+.student-council-member-stage__permission-pill--selected{background:var(--color-pill-row-active-bg);color:var(--color-pill-row-active-text)}
 .student-council-member-stage__permission-pill:active{transform:scale(.97)}
 .student-council-member-stage__actions{display:flex;flex-direction:column;gap:12px;margin-top:auto;padding-top:8px}
 .student-council-member-stage__actions--danger{flex-direction:row;align-items:center}

@@ -1,44 +1,22 @@
 <template>
   <section class="school-it-users">
     <div class="school-it-users__shell">
-      <header class="school-it-users__header dashboard-enter dashboard-enter--1">
-        <button
-          class="school-it-users__profile"
-          :class="{ 'school-it-users__profile--expanded': isProfileExpanded }"
-          type="button"
-          aria-label="Account actions"
-          @click="isProfileExpanded = !isProfileExpanded"
-        >
-          <span class="school-it-users__profile-main">
-            <span class="school-it-users__avatar-wrap">
-              <img v-if="avatarUrl" :src="avatarUrl" :alt="displayName" class="school-it-users__avatar">
-              <span v-else class="school-it-users__avatar school-it-users__avatar--fallback">{{ initials }}</span>
-              <span class="school-it-users__status-dot" aria-hidden="true" />
-            </span>
-            <span class="school-it-users__profile-copy">
-              <span class="school-it-users__eyebrow">Welcome Back</span>
-              <span class="school-it-users__name">{{ displayName }}</span>
-            </span>
-          </span>
-
-          <span class="school-it-users__signout" @click.stop="handleLogout">
-            <LogOut :size="18" color="#D92D20" :stroke-width="2.4" />
-            <span class="school-it-users__signout-label">Sign Out</span>
-          </span>
-        </button>
-
-        <button class="school-it-users__notify" type="button" aria-label="Notifications">
-          <Bell :size="19" :stroke-width="2" />
-        </button>
-      </header>
+      <SchoolItTopHeader
+        class="dashboard-enter dashboard-enter--1"
+        :avatar-url="avatarUrl"
+        :school-name="activeSchoolSettings?.school_name || activeUser?.school_name || ''"
+        :display-name="displayName"
+        :initials="initials"
+        @logout="handleLogout"
+      />
 
       <div class="school-it-users__body">
         <h1 class="school-it-users__title dashboard-enter dashboard-enter--2">Students</h1>
 
         <section class="school-it-users__search dashboard-enter dashboard-enter--3">
-          <div class="school-it-users__search-row">
-            <div class="school-it-users__search-wrap">
-              <div class="school-it-users__search-shell" :class="{ 'school-it-users__search-shell--open': searchActive }">
+            <div class="school-it-users__search-row">
+              <div class="school-it-users__search-wrap">
+                <div class="school-it-users__search-shell" :class="{ 'school-it-users__search-shell--open': searchActive }">
                 <div class="school-it-users__search-input-row">
                   <input
                     v-model="searchQuery"
@@ -67,95 +45,87 @@
                         </div>
                         <span class="school-it-users__search-result-meta">{{ result.meta }}</span>
                       </button>
-                      <p v-if="!searchResults.length" class="school-it-users__empty">No matching school data found.</p>
+                      <p v-if="!searchResults.length" class="school-it-users__empty">No matching colleges found.</p>
                     </template>
                   </div>
                 </div>
+                </div>
               </div>
-            </div>
 
             <button
-              v-show="!searchActive"
-              class="school-it-users__ai-pill"
-              :class="{ 'school-it-users__ai-pill--open': isAiOpen }"
+              v-show="!searchActive && !isAddCollegeOpen"
+              class="school-it-users__add-college-pill"
               type="button"
-              aria-label="Talk to Aura AI"
-              :aria-expanded="isAiOpen ? 'true' : 'false'"
-              aria-controls="school-it-users-ai-panel"
-              @click="toggleAiPanel"
+              aria-label="Add College"
+              :aria-expanded="isAddCollegeOpen ? 'true' : 'false'"
+              aria-controls="school-it-users-college-panel"
+              @click="openAddCollegePanel"
             >
-              <img :src="activeAuraLogo" alt="Aura" class="school-it-users__ai-logo">
-              <span class="school-it-users__ai-copy">Talk to<br>Aura Ai</span>
+              <Plus :size="18" :stroke-width="2.4" />
+              <span class="school-it-users__add-college-copy">Add<br>College</span>
             </button>
           </div>
 
           <Transition
-            name="school-it-users-ai-panel"
-            @before-enter="onAiPanelBeforeEnter"
-            @enter="onAiPanelEnter"
-            @after-enter="onAiPanelAfterEnter"
-            @before-leave="onAiPanelBeforeLeave"
-            @leave="onAiPanelLeave"
-            @after-leave="onAiPanelAfterLeave"
+            name="school-it-users-college-panel"
+            @before-enter="onCollegePanelBeforeEnter"
+            @enter="onCollegePanelEnter"
+            @after-enter="onCollegePanelAfterEnter"
+            @before-leave="onCollegePanelBeforeLeave"
+            @leave="onCollegePanelLeave"
+            @after-leave="onCollegePanelAfterLeave"
           >
             <div
-              v-if="isAiOpen && !searchActive"
-              id="school-it-users-ai-panel"
-              class="school-it-users__ai-panel"
+              v-if="isAddCollegeOpen && !searchActive"
+              id="school-it-users-college-panel"
+              class="school-it-users__college-panel"
               role="region"
-              aria-label="Aura AI chat"
+              aria-label="Add college"
             >
-              <div class="school-it-users__ai-panel-inner">
-                <div class="school-it-users__ai-shell">
-                  <div ref="scrollEl" class="school-it-users__ai-messages">
-                    <TransitionGroup name="school-it-users-bubble" tag="div" class="school-it-users__ai-messages-inner">
-                      <div
-                        v-for="message in messages"
-                        :key="message.id"
-                        :class="[
-                          'school-it-users__bubble',
-                          message.sender === 'ai'
-                            ? 'school-it-users__bubble--ai'
-                            : 'school-it-users__bubble--user',
-                        ]"
-                      >
-                        {{ message.text }}
-                      </div>
-
-                      <div
-                        v-if="isTyping"
-                        key="typing"
-                        class="school-it-users__bubble school-it-users__bubble--ai school-it-users__bubble--typing"
-                      >
-                        <span class="school-it-users__typing-dot" style="animation-delay: 0ms" />
-                        <span class="school-it-users__typing-dot" style="animation-delay: 150ms" />
-                        <span class="school-it-users__typing-dot" style="animation-delay: 300ms" />
-                      </div>
-                    </TransitionGroup>
+              <div class="school-it-users__college-panel-inner">
+                <div class="school-it-users__college-shell">
+                  <div class="school-it-users__college-header">
+                    <button
+                      class="school-it-users__college-close"
+                      type="button"
+                      aria-label="Close add college"
+                      @click="closeAddCollegePanel"
+                    >
+                      <X :size="18" :stroke-width="2.4" />
+                    </button>
+                    <span class="school-it-users__college-title">Add College</span>
                   </div>
 
-                  <div class="school-it-users__ai-input">
-                    <div class="school-it-users__ai-input-row">
+                  <div class="school-it-users__college-form">
+                    <div class="school-it-users__college-input-shell">
                       <input
-                        ref="aiInputEl"
-                        v-model="inputText"
-                        class="school-it-users__ai-input-field"
+                        ref="collegeInputEl"
+                        v-model="collegeDraftName"
+                        class="school-it-users__college-input"
                         type="text"
-                        placeholder="Ask Aura..."
-                        :disabled="isTyping"
-                        @keyup.enter="sendMessage"
+                        placeholder="e.g., College of Engineering"
+                        :disabled="isSavingCollege"
+                        @keyup.enter="submitCollege"
                       >
-                      <button
-                        class="school-it-users__ai-send"
-                        type="button"
-                        aria-label="Send message"
-                        :disabled="!inputText.trim() || isTyping"
-                        @click="sendMessage"
-                      >
-                        <Send :size="15" />
-                      </button>
                     </div>
+
+                    <button
+                      class="school-it-users__college-submit"
+                      type="button"
+                      :disabled="collegeSubmitDisabled"
+                      @click="submitCollege"
+                    >
+                      Enter
+                    </button>
                   </div>
+
+                  <p
+                    v-if="collegePanelMessage"
+                    class="school-it-users__college-message"
+                    :class="{ 'school-it-users__college-message--error': collegePanelError }"
+                  >
+                    {{ collegePanelMessage }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -196,47 +166,29 @@
 
         <section
           class="school-it-users__alert dashboard-enter dashboard-enter--5"
-          :class="{
-            'school-it-users__alert--management': hasStudentCouncilAssigned,
-          }"
         >
-          <template v-if="hasStudentCouncilAssigned">
-            <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
-              <h2 class="school-it-users__alert-org-name">{{ studentCouncilDisplayText }}</h2>
-            </div>
-
-            <button
-              class="school-it-users__action-pill"
-              type="button"
-              @click="openCouncilManagement"
+          <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
+            <h2
+              class="school-it-users__alert-org-name"
+              :class="{ 'school-it-users__alert-org-name--placeholder': !hasStudentCouncilAssigned }"
             >
-              <span class="school-it-users__action-pill-icon">
-                <ArrowRight :size="18" />
-              </span>
-              Manage
-            </button>
-          </template>
+              {{ studentCouncilEntryText }}
+            </h2>
+          </div>
 
-          <template v-else>
-            <div class="school-it-users__alert-copy">
-              <p class="school-it-users__alert-kicker">{{ studentCouncilStatus.kicker }}</p>
-              <p class="school-it-users__alert-message">{{ studentCouncilStatus.message }}</p>
-            </div>
-
-            <button
-              class="school-it-users__action-pill"
-              type="button"
-              @click="openCouncilManagement"
-            >
-              <span class="school-it-users__action-pill-icon">
-                <ArrowRight :size="18" />
-              </span>
-              {{ studentCouncilStatus.cta }}
-            </button>
-          </template>
+          <button
+            class="school-it-users__action-pill"
+            type="button"
+            @click="openCouncilManagement"
+          >
+            <span class="school-it-users__action-pill-icon">
+              <ArrowRight :size="18" />
+            </span>
+            Manage
+          </button>
         </section>
 
-        <section class="school-it-users__department-list">
+        <section v-if="departmentCards.length" class="school-it-users__department-list">
           <article
             v-for="(department, index) in departmentCards"
             :key="department.id"
@@ -258,8 +210,8 @@
             </div>
 
             <div class="school-it-users__department-panel">
-              <p class="school-it-users__department-label">Departments:</p>
-              <ul class="school-it-users__program-list">
+              <p class="school-it-users__department-label">Programs:</p>
+              <ul v-if="department.programs.length" class="school-it-users__program-list">
                 <li
                   v-for="program in department.programs"
                   :key="program.id"
@@ -268,9 +220,14 @@
                   {{ program.name }}
                 </li>
               </ul>
+              <p v-else class="school-it-users__program-empty">No programs yet.</p>
             </div>
           </article>
         </section>
+
+        <p v-else class="school-it-users__department-empty dashboard-enter dashboard-enter--6">
+          {{ departmentEmptyMessage }}
+        </p>
       </div>
     </div>
   </section>
@@ -279,14 +236,20 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Bell, LogOut, Search, Send } from 'lucide-vue-next'
-import { activeAuraLogo } from '@/config/theme.js'
+import { ArrowRight, Plus, Search, X } from 'lucide-vue-next'
+import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { useAuth } from '@/composables/useAuth.js'
-import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
-import { createStudentCouncilStorageKey, loadStudentCouncilState } from '@/services/studentCouncilManagement.js'
+import { BackendApiError, createDepartment } from '@/services/backendApi.js'
+import {
+  createStudentCouncilStorageKey,
+  loadStudentCouncilState,
+  resolveStudentCouncilAcronym,
+} from '@/services/studentCouncilManagement.js'
+import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 
 const props = defineProps({
   preview: {
@@ -297,9 +260,13 @@ const props = defineProps({
 
 const router = useRouter()
 const searchQuery = ref('')
-const isProfileExpanded = ref(false)
-const isAiOpen = ref(false)
-const aiInputEl = ref(null)
+const isAddCollegeOpen = ref(false)
+const collegeInputEl = ref(null)
+const collegeDraftName = ref('')
+const collegePanelMessage = ref('')
+const collegePanelError = ref(false)
+const isSavingCollege = ref(false)
+const previewDepartmentOverrides = ref([])
 
 const { currentUser, schoolSettings, apiBaseUrl } = useDashboardSession()
 const {
@@ -309,22 +276,18 @@ const {
   campusSsgSetup,
   statuses: workspaceStatuses,
   initializeSchoolItWorkspaceData,
+  setDepartmentsSnapshot,
 } = useSchoolItWorkspaceData()
 const { logout } = useAuth()
-const {
-  closeAll,
-  inputText,
-  isTyping,
-  messages,
-  scrollEl,
-  sendMessage,
-} = useChat()
 
 const activeUser = computed(() => props.preview ? schoolItPreviewData.user : currentUser.value)
 const activeSchoolSettings = computed(() => props.preview ? schoolItPreviewData.schoolSettings : schoolSettings.value)
-const activeDepartments = computed(() => props.preview ? schoolItPreviewData.departments : departments.value)
+const activeDepartments = computed(() => props.preview ? previewDepartments.value : departments.value)
 const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : programs.value)
 const activeUsers = computed(() => props.preview ? schoolItPreviewData.users : users.value)
+
+usePreviewTheme(() => props.preview, activeSchoolSettings)
+const departmentsStatus = computed(() => props.preview ? 'ready' : workspaceStatuses.value?.departments || 'idle')
 
 const schoolId = computed(() => Number(activeUser.value?.school_id ?? activeSchoolSettings.value?.school_id))
 const avatarUrl = computed(() => activeUser.value?.avatar_url || '')
@@ -335,18 +298,29 @@ const displayName = computed(() => {
   return [first, middle, last].filter(Boolean).join(' ') || activeUser.value?.email?.split('@')[0] || 'School IT'
 })
 const initials = computed(() => buildInitials(displayName.value))
-const settingsRouteName = computed(() => props.preview ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
+const importRouteName = computed(() => props.preview ? 'PreviewSchoolItImportStudents' : 'SchoolItImportStudents')
 const councilRouteName = computed(() => props.preview ? 'PreviewSchoolItStudentCouncil' : 'SchoolItStudentCouncil')
 const usersRouteName = computed(() => props.preview ? 'PreviewSchoolItUsers' : 'SchoolItUsers')
+const departmentProgramsRouteName = computed(() => props.preview ? 'PreviewSchoolItDepartmentPrograms' : 'SchoolItDepartmentPrograms')
 const previewCouncilState = computed(() => (
   props.preview
     ? loadStudentCouncilState(createStudentCouncilStorageKey(schoolId.value, true))
     : null
 ))
+const previewDepartmentStorageKey = computed(() => (
+  Number.isFinite(schoolId.value)
+    ? `aura_exposed_departments_${schoolId.value}`
+    : 'aura_exposed_departments'
+))
+const previewDepartments = computed(() => (
+  previewDepartmentOverrides.value.length
+    ? previewDepartmentOverrides.value
+    : schoolItPreviewData.departments
+))
 
-const filteredDepartments = computed(() => filterEntitiesBySchool(activeDepartments.value, schoolId.value))
-const filteredPrograms = computed(() => filterEntitiesBySchool(activePrograms.value, schoolId.value))
-const filteredUsers = computed(() => filterEntitiesBySchool(activeUsers.value, schoolId.value))
+const filteredDepartments = computed(() => filterWorkspaceEntitiesBySchool(activeDepartments.value, schoolId.value))
+const filteredPrograms = computed(() => filterWorkspaceEntitiesBySchool(activePrograms.value, schoolId.value))
+const filteredUsers = computed(() => filterWorkspaceEntitiesBySchool(activeUsers.value, schoolId.value))
 const studentUsers = computed(() => filteredUsers.value.filter(isStudentUser))
 const pendingResetUsers = computed(() => studentUsers.value.filter((user) => user.must_change_password))
 const pendingResetsCountLabel = computed(() => String(pendingResetUsers.value.length))
@@ -361,7 +335,7 @@ const overviewCards = computed(() => ([
     titleHtml: 'Import<br>User',
     variant: 'primary',
     actionLabel: 'Import',
-    route: { name: settingsRouteName.value, query: { focus: 'import-users' } },
+    route: { name: importRouteName.value },
     meta: '',
   },
   {
@@ -377,68 +351,33 @@ const studentCouncilRecord = computed(() => {
   if (props.preview) return previewCouncilState.value?.council || null
   return campusSsgSetup.value?.unit || null
 })
+const studentCouncilAssignedMemberCount = computed(() => {
+  if (props.preview) {
+    return Array.isArray(previewCouncilState.value?.members)
+      ? previewCouncilState.value.members.length
+      : 0
+  }
+
+  const rawMembers = Array.isArray(campusSsgSetup.value?.unit?.members)
+    ? campusSsgSetup.value.unit.members
+    : []
+
+  return rawMembers.filter((member) => member?.is_active !== false).length
+})
 const studentCouncilState = computed(() => (
   props.preview
     ? (studentCouncilRecord.value?.id ? 'ready' : 'absent')
     : workspaceStatuses.value?.council || 'idle'
 ))
 const hasStudentCouncilAssigned = computed(() => (
-  studentCouncilState.value === 'ready' && Boolean(studentCouncilRecord.value?.id)
+  studentCouncilState.value === 'ready'
+  && Boolean(studentCouncilRecord.value?.id)
+  && studentCouncilAssignedMemberCount.value > 0
 ))
-const studentCouncilDisplayText = computed(() => {
-  const acronym = String(
-    studentCouncilRecord.value?.acronym
-    || studentCouncilRecord.value?.unit_code
-    || ''
-  ).trim()
-  const fallbackName = String(
-    studentCouncilRecord.value?.name
-    || studentCouncilRecord.value?.unit_name
-    || 'Student Council'
-  ).trim()
-
-  const displayValue = acronym || fallbackName
-  return `${displayValue} is set`
-})
-
-const studentCouncilStatus = computed(() => {
-  if (hasStudentCouncilAssigned.value) {
-    return {
-      kicker: 'READY',
-      message: 'Student Council is already assigned to this Campus',
-      cta: 'View Setup',
-    }
-  }
-
-  if (studentCouncilState.value === 'loading' || studentCouncilState.value === 'idle') {
-    return {
-      kicker: 'CHECKING',
-      message: 'Checking Student Council setup for this Campus',
-      cta: 'Open Setup',
-    }
-  }
-
-  if (studentCouncilState.value === 'blocked') {
-    return {
-      kicker: 'RESTRICTED',
-      message: 'Student Council setup is unavailable until privileged verification is completed',
-      cta: 'Open Setup',
-    }
-  }
-
-  if (studentCouncilState.value === 'error') {
-    return {
-      kicker: 'UNAVAILABLE',
-      message: 'Student Council setup could not be loaded right now',
-      cta: 'Open Setup',
-    }
-  }
-
-  return {
-    kicker: 'URGENT',
-    message: 'No Student Council assigned to this Campus',
-    cta: 'Assign Now',
-  }
+const studentCouncilEntryText = computed(() => {
+  const acronym = resolveStudentCouncilAcronym(studentCouncilRecord.value)
+  if (!acronym) return 'Student Council'
+  return hasStudentCouncilAssigned.value ? `${acronym} is set` : acronym
 })
 
 const departmentCards = computed(() => (
@@ -449,23 +388,37 @@ const departmentCards = computed(() => (
         .filter((program) => Array.isArray(program.department_ids) && program.department_ids.includes(Number(department.id)))
         .slice(0, 3),
     }))
-    .filter((department) => department.programs.length)
+    .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
 ))
+const departmentEmptyMessage = computed(() => {
+  if (['idle', 'loading'].includes(departmentsStatus.value)) {
+    return 'Loading departments...'
+  }
+
+  if (departmentsStatus.value === 'blocked') {
+    return 'Departments are unavailable until privileged verification is completed.'
+  }
+
+  if (departmentsStatus.value === 'error') {
+    return 'Departments could not be loaded right now.'
+  }
+
+  return 'No departments please add.'
+})
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
+const collegeSubmitDisabled = computed(() => {
+  const normalizedName = collegeDraftName.value.trim()
+  return isSavingCollege.value || normalizedName.length < 2
+})
+const departmentNameLookup = computed(() => new Set(
+  activeDepartments.value
+    .map((department) => String(department?.name || '').trim().toLowerCase())
+    .filter(Boolean)
+))
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return []
-
-  const userResults = studentUsers.value
-    .filter((user) => `${user.first_name} ${user.last_name}`.toLowerCase().includes(query) || String(user.email || '').toLowerCase().includes(query))
-    .map((user) => ({
-      key: `user-${user.id}`,
-      name: `${user.first_name} ${user.last_name}`.trim() || user.email,
-      type: 'Student',
-      meta: user.student_profile?.student_id || user.email,
-      action: () => router.push({ name: settingsRouteName.value, query: { student: user.id } }),
-    }))
 
   const departmentResults = filteredDepartments.value
     .filter((department) => department.name.toLowerCase().includes(query))
@@ -477,17 +430,7 @@ const searchResults = computed(() => {
       action: () => openDepartment(department),
     }))
 
-  const programResults = filteredPrograms.value
-    .filter((program) => program.name.toLowerCase().includes(query))
-    .map((program) => ({
-      key: `program-${program.id}`,
-      name: program.name,
-      type: 'Program',
-      meta: 'Program setup',
-      action: () => router.push({ name: settingsRouteName.value, query: { program: program.id } }),
-    }))
-
-  return [...userResults, ...departmentResults, ...programResults].slice(0, 8)
+  return departmentResults.slice(0, 8)
 })
 
 const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFrame(callback))
@@ -495,31 +438,32 @@ const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFram
 watch([apiBaseUrl, () => activeUser.value?.id, schoolId, () => props.preview], async ([resolvedApiBaseUrl, userId, , preview]) => {
   if (preview) return
   if (!resolvedApiBaseUrl || !userId) return
-  await initializeSchoolItWorkspaceData(true)
+  await initializeSchoolItWorkspaceData()
 }, { immediate: true })
 
-watch(isAiOpen, (open) => {
+watch(() => props.preview, (preview) => {
+  if (!preview) {
+    previewDepartmentOverrides.value = []
+    return
+  }
+  previewDepartmentOverrides.value = readPreviewDepartments()
+}, { immediate: true })
+
+watch(isAddCollegeOpen, (open) => {
   if (!open) return
-  closeAll()
   nextTick(() => {
-    setTimeout(() => aiInputEl.value?.focus(), 220)
+    setTimeout(() => collegeInputEl.value?.focus(), 220)
   })
 })
 
 watch(searchActive, (active) => {
-  if (active) isAiOpen.value = false
+  if (active) isAddCollegeOpen.value = false
 })
 
 function buildInitials(value) {
   const parts = String(value || '').split(' ').filter(Boolean)
   if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
   return String(value || '').slice(0, 2).toUpperCase()
-}
-
-function filterEntitiesBySchool(items, activeSchoolId) {
-  if (!Array.isArray(items)) return []
-  if (!Number.isFinite(activeSchoolId)) return items
-  return items.filter((item) => Number(item?.school_id) === activeSchoolId)
 }
 
 function isStudentUser(user) {
@@ -535,7 +479,13 @@ function openSearchResult(result) {
 }
 
 function openDepartment(department) {
-  router.push({ name: settingsRouteName.value, query: { department: department.id } })
+  if (!department?.id) return
+  router.push({
+    name: departmentProgramsRouteName.value,
+    params: {
+      departmentId: department.id,
+    },
+  })
 }
 
 function openCouncilManagement() {
@@ -547,20 +497,75 @@ function handleOverviewAction(card) {
   router.push(card.route)
 }
 
-function toggleAiPanel() {
-  isAiOpen.value = !isAiOpen.value
+function openAddCollegePanel() {
+  collegePanelMessage.value = ''
+  collegePanelError.value = false
+  isAddCollegeOpen.value = true
 }
 
-function onAiPanelBeforeEnter(element) {
+function closeAddCollegePanel() {
+  isAddCollegeOpen.value = false
+  collegePanelMessage.value = ''
+  collegePanelError.value = false
+  collegeDraftName.value = ''
+}
+
+async function submitCollege() {
+  if (collegeSubmitDisabled.value) return
+
+  const normalizedName = collegeDraftName.value.trim()
+  if (departmentNameLookup.value.has(normalizedName.toLowerCase())) {
+    collegePanelError.value = true
+    collegePanelMessage.value = `${normalizedName} already exists.`
+    return
+  }
+
+  isSavingCollege.value = true
+  collegePanelMessage.value = ''
+  collegePanelError.value = false
+
+  try {
+    const createdDepartment = props.preview
+      ? createPreviewDepartment(normalizedName)
+      : await createDepartment(apiBaseUrl.value, localStorage.getItem('aura_token') || '', {
+        name: normalizedName,
+      })
+
+    const nextDepartments = sortDepartmentsByName([
+      ...activeDepartments.value.filter((department) => Number(department.id) !== Number(createdDepartment.id)),
+      createdDepartment,
+    ])
+
+    if (props.preview) {
+      previewDepartmentOverrides.value = nextDepartments
+      persistPreviewDepartments(nextDepartments)
+    } else {
+      setDepartmentsSnapshot(nextDepartments)
+    }
+
+    collegePanelMessage.value = `${createdDepartment.name} added successfully.`
+    collegeDraftName.value = ''
+    window.setTimeout(() => {
+      closeAddCollegePanel()
+    }, 420)
+  } catch (error) {
+    collegePanelError.value = true
+    collegePanelMessage.value = resolveCreateCollegeErrorMessage(error)
+  } finally {
+    isSavingCollege.value = false
+  }
+}
+
+function onCollegePanelBeforeEnter(element) {
   element.style.height = '0px'
   element.style.opacity = '0'
   element.style.transform = 'translateY(-8px)'
   element.style.willChange = 'height, opacity, transform'
 }
 
-function onAiPanelEnter(element) {
+function onCollegePanelEnter(element) {
   const height = element.scrollHeight
-  element.style.transition = 'height 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)'
+  element.style.transition = 'height 560ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1)'
   nextFrame(() => {
     element.style.height = `${height}px`
     element.style.opacity = '1'
@@ -568,20 +573,20 @@ function onAiPanelEnter(element) {
   })
 }
 
-function onAiPanelAfterEnter(element) {
+function onCollegePanelAfterEnter(element) {
   element.style.height = 'auto'
   element.style.transition = ''
   element.style.willChange = ''
 }
 
-function onAiPanelBeforeLeave(element) {
+function onCollegePanelBeforeLeave(element) {
   element.style.height = `${element.scrollHeight}px`
   element.style.opacity = '1'
   element.style.transform = 'translateY(0)'
   element.style.willChange = 'height, opacity, transform'
 }
 
-function onAiPanelLeave(element) {
+function onCollegePanelLeave(element) {
   element.style.transition = 'height 420ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms ease, transform 300ms ease'
   nextFrame(() => {
     element.style.height = '0px'
@@ -590,12 +595,55 @@ function onAiPanelLeave(element) {
   })
 }
 
-function onAiPanelAfterLeave(element) {
+function onCollegePanelAfterLeave(element) {
   element.style.transition = ''
   element.style.height = ''
   element.style.opacity = ''
   element.style.transform = ''
   element.style.willChange = ''
+}
+
+function createPreviewDepartment(name) {
+  return {
+    id: Date.now(),
+    school_id: schoolId.value,
+    name,
+  }
+}
+
+function sortDepartmentsByName(items) {
+  return [...items].sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
+}
+
+function readPreviewDepartments() {
+  try {
+    const raw = localStorage.getItem(previewDepartmentStorageKey.value)
+    if (!raw) return schoolItPreviewData.departments
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? sortDepartmentsByName(parsed) : schoolItPreviewData.departments
+  } catch {
+    return schoolItPreviewData.departments
+  }
+}
+
+function persistPreviewDepartments(items) {
+  localStorage.setItem(previewDepartmentStorageKey.value, JSON.stringify(items))
+}
+
+function resolveCreateCollegeErrorMessage(error) {
+  if (!(error instanceof BackendApiError)) {
+    return 'Unable to add this college right now.'
+  }
+
+  if (error.status === 422) {
+    return 'College name must be between 2 and 100 characters.'
+  }
+
+  if (error.status === 403) {
+    return 'This session is not allowed to add colleges right now.'
+  }
+
+  return error.message || 'Unable to add this college right now.'
 }
 
 async function handleLogout() {
@@ -606,21 +654,6 @@ async function handleLogout() {
 <style scoped>
 .school-it-users{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
 .school-it-users__shell{width:100%;max-width:1120px;margin:0 auto}
-.school-it-users__header{display:flex;align-items:center;justify-content:space-between;gap:18px}
-.school-it-users__profile{display:inline-flex;align-items:center;min-height:56px;padding:8px 14px 8px 8px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);transition:all .3s ease;cursor:pointer}
-.school-it-users__profile-main{display:inline-flex;align-items:center;gap:12px;min-width:0}
-.school-it-users__avatar-wrap{position:relative;display:inline-flex;flex-shrink:0}
-.school-it-users__avatar{width:42px;height:42px;border-radius:999px;object-fit:cover;flex-shrink:0}
-.school-it-users__avatar--fallback{display:inline-flex;align-items:center;justify-content:center;background:var(--color-nav);color:var(--color-nav-text);font-size:14px;font-weight:700}
-.school-it-users__status-dot{position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:999px;background:var(--color-primary);border:2px solid var(--color-surface)}
-.school-it-users__profile-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1}
-.school-it-users__eyebrow{font-size:10px;font-weight:500;color:var(--color-text-muted)}
-.school-it-users__name{margin-top:2px;font-size:14px;font-weight:700;line-height:1.08;color:var(--color-text-always-dark)}
-.school-it-users__signout{display:inline-flex;align-items:center;overflow:hidden;max-width:0;opacity:0;margin-left:0;white-space:nowrap;transition:all .3s ease-in-out;color:#D92D20;cursor:pointer}
-.school-it-users__signout-label{margin-left:8px;font-size:14px;font-weight:500;letter-spacing:-.02em}
-.school-it-users__profile:hover .school-it-users__signout,.school-it-users__profile--expanded .school-it-users__signout{max-width:150px;opacity:1;margin-left:24px;margin-right:4px}
-.school-it-users__notify{width:44px;height:44px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;transition:transform .16s ease;flex-shrink:0}
-.school-it-users__notify:active{transform:scale(.95)}
 .school-it-users__body{display:flex;flex-direction:column;gap:18px;margin-top:24px}
 .school-it-users__title{margin:0;font-size:22px;font-weight:800;line-height:1;letter-spacing:-.05em;color:var(--color-text-primary)}
 .school-it-users__search{display:flex;flex-direction:column;gap:10px}
@@ -640,31 +673,25 @@ async function handleLogout() {
 .school-it-users__search-result-name{font-size:14px;font-weight:700;color:var(--color-text-always-dark)}
 .school-it-users__search-result-type{min-height:28px;padding:0 12px;border-radius:999px;background:color-mix(in srgb,var(--color-primary) 18%,white);color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.02em;flex-shrink:0}
 .school-it-users__search-result-meta,.school-it-users__empty{font-size:12px;color:var(--color-text-muted)}
-.school-it-users__ai-pill{width:clamp(108px,30vw,122px);min-height:clamp(56px,15vw,60px);padding:0 clamp(12px,4vw,14px);border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;justify-content:center;gap:clamp(8px,2.6vw,10px);flex-shrink:0;transition:opacity .2s ease,transform .2s ease,box-shadow .25s ease,filter .22s ease}
-.school-it-users__ai-pill:hover{filter:brightness(1.08);transform:scale(1.04)}
-.school-it-users__ai-pill:active{transform:scale(.96)}
-.school-it-users__ai-pill--open{box-shadow:0 12px 24px rgba(0,0,0,.14);transform:translateY(1px) scale(.98)}
-.school-it-users__ai-logo{width:clamp(28px,8vw,32px);height:clamp(28px,8vw,32px);object-fit:contain}
-.school-it-users__ai-copy{font-size:clamp(12px,3.4vw,13px);font-weight:700;line-height:.98;text-align:left}
-.school-it-users__ai-panel{overflow:hidden;transform-origin:top center}
-.school-it-users__ai-panel-inner{overflow:hidden}
-.school-it-users__ai-shell{position:relative;display:flex;flex-direction:column;gap:10px;padding:14px;background:var(--color-ai-surface);border-radius:28px;box-shadow:0 18px 40px rgba(0,0,0,.14);overflow:hidden}
-.school-it-users__ai-messages{position:relative;z-index:1;display:flex;flex-direction:column;gap:10px;min-height:clamp(110px,22vh,180px);max-height:min(46vh,320px);overflow-y:auto;padding:6px 6px 0;scrollbar-width:none}
-.school-it-users__ai-messages::-webkit-scrollbar{display:none}
-.school-it-users__ai-messages-inner{display:flex;flex-direction:column;gap:10px}
-.school-it-users__bubble{max-width:88%;padding:12px 16px;border-radius:24px;font-size:13px;font-weight:600;line-height:1.6;font-family:'Manrope',sans-serif;word-break:break-word}
-.school-it-users__bubble--ai{align-self:flex-start;background:#FFFFFF;color:#0A0A0A;box-shadow:0 8px 18px rgba(0,0,0,.08)}
-.school-it-users__bubble--user{align-self:flex-end;background:var(--color-ai-user-bubble-bg);color:var(--color-ai-user-bubble-text);border:1px solid var(--color-ai-input-border)}
-.school-it-users__bubble--typing{display:flex;align-items:center;gap:6px;padding:12px 16px}
-.school-it-users__typing-dot{width:6px;height:6px;border-radius:999px;background:color-mix(in srgb,var(--color-ai-surface-text) 50%, transparent);animation:schoolItUsersDotBounce 1s infinite ease-in-out}
-.school-it-users__ai-input{position:relative;z-index:1}
-.school-it-users__ai-input-row{display:flex;align-items:center;gap:8px;height:44px;padding:0 8px 0 16px;border:1.4px solid var(--color-ai-input-border);border-radius:999px;background:var(--color-ai-input-bg);transition:border-color .2s ease,background .2s ease}
-.school-it-users__ai-input-row:focus-within{background:var(--color-ai-input-bg-focus);border-color:color-mix(in srgb,var(--color-ai-surface-text) 22%, var(--color-ai-surface))}
-.school-it-users__ai-input-field{flex:1;min-width:0;border:none;outline:none;background:transparent;color:var(--color-ai-surface-text);font-size:12.5px;font-weight:600}
-.school-it-users__ai-input-field::placeholder{color:var(--color-ai-surface-text);opacity:.55}
-.school-it-users__ai-send{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:none;border-radius:999px;background:var(--color-ai-send-bg);color:var(--color-ai-surface-text);cursor:pointer;flex-shrink:0;transition:background .18s ease,transform .15s ease,opacity .18s ease}
-.school-it-users__ai-send:hover:not(:disabled){background:var(--color-ai-send-bg-hover);transform:scale(1.08)}
-.school-it-users__ai-send:disabled{opacity:.45;cursor:not-allowed}
+.school-it-users__add-college-pill{width:clamp(118px,31vw,134px);min-height:clamp(56px,15vw,60px);padding:0 clamp(14px,4vw,16px);border:none;border-radius:999px;background:var(--color-search-pill-bg);color:var(--color-search-pill-text);display:inline-flex;align-items:center;justify-content:center;gap:clamp(8px,2.8vw,10px);flex-shrink:0;transition:opacity .2s ease,transform .22s ease,box-shadow .28s ease,filter .22s ease}
+.school-it-users__add-college-pill:hover{filter:brightness(1.06);transform:translateY(-1px)}
+.school-it-users__add-college-pill:active{transform:scale(.96)}
+.school-it-users__add-college-copy{font-size:clamp(12px,3.4vw,13px);font-weight:700;line-height:.98;text-align:left}
+.school-it-users__college-panel{overflow:hidden;transform-origin:top center}
+.school-it-users__college-panel-inner{overflow:hidden}
+.school-it-users__college-shell{display:flex;flex-direction:column;gap:20px;padding:18px clamp(18px,5vw,24px) 22px;border-radius:34px;background:var(--color-primary);color:var(--color-banner-text);box-shadow:0 18px 36px rgba(0,0,0,.12)}
+.school-it-users__college-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.school-it-users__college-close{width:34px;height:34px;border:none;border-radius:999px;background:transparent;color:var(--color-banner-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.school-it-users__college-title{font-size:clamp(17px,4.6vw,20px);font-weight:700;line-height:1;color:var(--color-banner-text)}
+.school-it-users__college-form{display:flex;flex-direction:column;gap:18px}
+.school-it-users__college-input-shell{min-height:64px;padding:0 22px;border-radius:999px;background:var(--color-surface);display:flex;align-items:center}
+.school-it-users__college-input{width:100%;border:none;background:transparent;outline:none;font-size:14px;font-weight:500;color:var(--color-text-always-dark)}
+.school-it-users__college-input::placeholder{color:var(--color-text-muted)}
+.school-it-users__college-submit{width:min(100%,144px);min-height:54px;margin:0 auto;border:1.4px solid color-mix(in srgb,var(--color-text-always-dark) 24%, transparent);border-radius:999px;background:transparent;color:var(--color-text-always-dark);font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;transition:transform .18s ease,background .2s ease}
+.school-it-users__college-submit:disabled{opacity:.5;cursor:not-allowed}
+.school-it-users__college-submit:not(:disabled):active{transform:scale(.97)}
+.school-it-users__college-message{margin:0;font-size:13px;font-weight:600;line-height:1.35;color:var(--color-banner-text)}
+.school-it-users__college-message--error{color:#7A130E}
 .school-it-users__overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .school-it-users__hero-card{position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:188px;padding:26px 22px 20px;border-radius:32px;overflow:hidden}
 .school-it-users__hero-card--primary{background:var(--color-primary);color:var(--color-banner-text)}
@@ -675,17 +702,18 @@ async function handleLogout() {
 .school-it-users__hero-card-pill{width:fit-content;min-height:52px;padding:0 18px 0 6px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;gap:12px;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
 .school-it-users__hero-card-pill--surface{background:var(--color-surface);color:var(--color-text-always-dark)}
 .school-it-users__hero-card-pill-icon{width:40px;height:40px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-users__alert{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 20px;border-radius:28px;background:var(--color-surface)}
-.school-it-users__alert--management{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;padding:24px 22px;gap:20px;min-height:124px}
+.school-it-users__alert{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:24px 22px;min-height:124px;border-radius:28px;background:var(--color-surface)}
 .school-it-users__alert-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
-.school-it-users__alert-copy--management{gap:0;max-width:none;align-items:center;justify-self:stretch;text-align:center}
-.school-it-users__alert-org-name{margin:0;font-size:clamp(24px,7.2vw,40px);line-height:.94;letter-spacing:-.06em;font-weight:700;color:var(--color-text-always-dark);text-align:center}
+.school-it-users__alert-copy--management{gap:0;max-width:none;align-items:flex-start;justify-self:stretch;text-align:left}
+.school-it-users__alert-org-name{margin:0;max-width:11ch;font-size:clamp(24px,7.2vw,40px);line-height:.94;letter-spacing:-.06em;font-weight:700;color:var(--color-text-always-dark);text-align:left}
+.school-it-users__alert-org-name--placeholder{color:var(--color-primary)}
 .school-it-users__alert-kicker{margin:0;font-size:clamp(18px,5vw,28px);line-height:1;font-weight:800;letter-spacing:-.05em;color:#FF2D20}
 .school-it-users__alert-message{margin:0;max-width:16ch;font-size:15px;line-height:1.05;color:var(--color-text-always-dark)}
 .school-it-users__action-pill{width:fit-content;min-height:52px;padding:0 18px 0 6px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;gap:12px;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;flex-shrink:0}
 .school-it-users__action-pill--inline{min-height:54px;padding-right:18px;font-size:13px}
 .school-it-users__action-pill-icon{width:40px;height:40px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .school-it-users__department-list{display:flex;flex-direction:column;gap:18px}
+.school-it-users__department-empty{margin:0;padding:10px 6px;font-size:15px;font-weight:600;line-height:1.35;color:var(--color-text-muted);text-align:center}
 .school-it-users__department-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(138px,.9fr);gap:8px;padding:8px;border-radius:32px;background:var(--color-surface)}
 .school-it-users__department-main{display:flex;flex-direction:column;justify-content:space-between;min-height:194px;padding:20px 14px 14px}
 .school-it-users__department-title{margin:0;max-width:7ch;font-size:clamp(28px,8vw,52px);line-height:.92;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
@@ -693,34 +721,19 @@ async function handleLogout() {
 .school-it-users__department-label{margin:0;font-size:12px;font-weight:700;line-height:1.1;color:var(--color-primary)}
 .school-it-users__program-list{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
 .school-it-users__program-item{font-size:14px;line-height:1.15;color:var(--color-text-always-dark)}
-.school-it-users-bubble-enter-active{animation:schoolItUsersBubblePop .45s cubic-bezier(.34,1.56,.64,1) both}
-.school-it-users__bubble--ai.school-it-users-bubble-enter-active{transform-origin:bottom left}
-.school-it-users__bubble--user.school-it-users-bubble-enter-active{transform-origin:bottom right}
-
+.school-it-users__program-empty{margin:0;font-size:13px;line-height:1.3;color:var(--color-text-muted)}
 @media (min-width:768px){
   .school-it-users{padding:40px 36px 56px}
   .school-it-users__body{margin-top:30px;gap:22px}
   .school-it-users__title{font-size:28px}
-  .school-it-users__search-row,.school-it-users__ai-panel{max-width:780px}
+  .school-it-users__search-row,.school-it-users__college-panel{max-width:780px}
   .school-it-users__overview{max-width:780px}
-  .school-it-users__alert{max-width:780px}
-  .school-it-users__alert--management{padding:28px 26px}
+  .school-it-users__alert{max-width:780px;padding:28px 26px}
   .school-it-users__department-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .school-it-users__ai-pill,.school-it-users__ai-send,.school-it-users-bubble-enter-active{transition:none;animation:none}
+  .school-it-users__add-college-pill,.school-it-users__college-submit{transition:none;animation:none}
 }
 
-@keyframes schoolItUsersDotBounce{
-  0%,100%{transform:translateY(0)}
-  40%{transform:translateY(-4px)}
-}
-
-@keyframes schoolItUsersBubblePop{
-  0%{opacity:0;transform:scale(.55)}
-  65%{opacity:1;transform:scale(1.04)}
-  82%{transform:scale(.97)}
-  100%{transform:scale(1)}
-}
 </style>

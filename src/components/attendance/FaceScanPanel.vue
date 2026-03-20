@@ -1,6 +1,6 @@
 <template>
   <section class="face-scan-section">
-    <p class="step-caption">{{ props.caption }}</p>
+    <p v-if="props.caption" class="step-caption">{{ props.caption }}</p>
 
     <div class="face-scan">
       <div class="scan-ring">
@@ -12,7 +12,7 @@
             :r="circleRadius"
             :stroke-width="props.strokeWidth"
           />
-          <g class="scan-ring-arc">
+          <g class="scan-ring-arc" :class="{ 'scan-ring-arc--orbit': isSweepAnimating }">
             <circle
               class="scan-ring-progress"
               cx="50"
@@ -110,9 +110,17 @@ const props = defineProps({
     type: Function,
     default: undefined,
   },
+  visualState: {
+    type: String,
+    default: '',
+  },
   startAngle: {
     type: Number,
     default: -90,
+  },
+  sweepLength: {
+    type: Number,
+    default: 78,
   },
   strokeWidth: {
     type: Number,
@@ -135,14 +143,21 @@ const props = defineProps({
 defineEmits(['retry'])
 
 const normalizedProgress = computed(() => Math.min(100, Math.max(0, props.progress)))
+const animatedStates = new Set(['starting', 'detecting', 'capturing', 'submitting'])
+const isSweepAnimating = computed(() => animatedStates.has(props.visualState))
+const displayProgress = computed(() => (
+  isSweepAnimating.value
+    ? Math.max(Math.min(100, Math.max(0, props.sweepLength)), normalizedProgress.value)
+    : normalizedProgress.value
+))
 const circleRadius = computed(() => {
   if (typeof props.ringRadius === 'number') return props.ringRadius
   return 50 - props.strokeWidth / 2
 })
 
 const progressStyle = computed(() => ({
-  strokeDasharray: `${normalizedProgress.value} 100`,
-  opacity: normalizedProgress.value <= 0 ? 0 : 1,
+  strokeDasharray: `${displayProgress.value} 100`,
+  opacity: displayProgress.value <= 0 ? 0 : 1,
   transform: `rotate(${props.startAngle}deg)`,
 }))
 
@@ -151,7 +166,7 @@ const startPoint = computed(() =>
 )
 
 const endPoint = computed(() => {
-  const angle = props.startAngle + (normalizedProgress.value / 100) * 360
+  const angle = props.startAngle + (displayProgress.value / 100) * 360
   return polarToCartesian(50, 50, circleRadius.value, angle)
 })
 
@@ -247,12 +262,17 @@ function polarToCartesian(cx, cy, r, angleDeg) {
   transform-origin: 50px 50px;
 }
 
+.scan-ring-arc--orbit {
+  animation: scan-ring-orbit 2.2s cubic-bezier(0.37, 0, 0.18, 1) infinite;
+}
+
 .scan-ring-progress {
   fill: none;
   stroke: var(--color-primary);
   stroke-linecap: round;
   stroke-dashoffset: 0;
   transform-origin: 50% 50%;
+  transition: stroke-dasharray 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
 }
 
 .scan-ring-dot {
@@ -302,5 +322,14 @@ function polarToCartesian(cx, cy, r, angleDeg) {
   align-items: center;
   justify-content: center;
   color: #8b8b8b;
+}
+
+@keyframes scan-ring-orbit {
+  0% {
+    transform: rotate(-8deg);
+  }
+  100% {
+    transform: rotate(352deg);
+  }
 }
 </style>

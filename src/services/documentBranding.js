@@ -1,6 +1,6 @@
 import { watch } from 'vue'
 import { resolveBackendMediaUrl } from '@/services/backendMedia.js'
-import { getStoredAuthMeta } from '@/services/localAuth.js'
+import { AUTH_META_CHANGED_EVENT, getStoredAuthMeta } from '@/services/localAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 
@@ -101,6 +101,13 @@ export function applyDocumentBranding({ routeName, user, schoolSettings }) {
 
 export function startDocumentBrandingSync(router) {
     const { currentUser, schoolSettings } = useDashboardSession()
+    const applyCurrentBranding = () => {
+        applyDocumentBranding({
+            routeName: router.currentRoute.value.name,
+            user: currentUser.value,
+            schoolSettings: schoolSettings.value,
+        })
+    }
 
     watch(
         [
@@ -108,16 +115,19 @@ export function startDocumentBrandingSync(router) {
             currentUser,
             schoolSettings,
         ],
-        ([routeName, user, activeSchoolSettings]) => {
-            applyDocumentBranding({
-                routeName,
-                user,
-                schoolSettings: activeSchoolSettings,
-            })
-        },
+        applyCurrentBranding,
         {
             immediate: true,
             deep: true,
         }
     )
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener(AUTH_META_CHANGED_EVENT, applyCurrentBranding)
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'aura_auth_meta') {
+                applyCurrentBranding()
+            }
+        })
+    }
 }

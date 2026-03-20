@@ -6,7 +6,8 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const proxyTarget = String(env.VITE_BACKEND_PROXY_TARGET || '').trim().replace(/\/+$/, '')
+  const rawProxyTarget = String(env.VITE_BACKEND_PROXY_TARGET || '').trim().replace(/\/+$/, '')
+  const proxyTarget = normalizeProxyTarget(rawProxyTarget)
 
   return {
     plugins: [
@@ -40,3 +41,18 @@ export default defineConfig(({ mode }) => {
         },
   }
 })
+
+function normalizeProxyTarget(target) {
+  if (!target) return ''
+
+  try {
+    const url = new URL(target)
+    if (url.pathname === '/api') {
+      url.pathname = ''
+      return url.toString().replace(/\/+$/, '')
+    }
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return target
+  }
+}

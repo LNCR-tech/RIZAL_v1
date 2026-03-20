@@ -4,8 +4,8 @@
     <!-- ── Header ─────────────────────────────────────────────────────── -->
     <TopBar
       class="dashboard-enter dashboard-enter--1"
-      :user="currentUser"
-      :unread-count="unreadAnnouncements"
+      :user="activeUser"
+      :unread-count="activeUnreadAnnouncements"
       @toggle-notifications="showNotifications = !showNotifications"
     />
 
@@ -58,6 +58,15 @@ import EventCard from '@/components/dashboard/EventCard.vue'
 import TopBar from '@/components/dashboard/TopBar.vue'
 
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const {
   currentUser,
@@ -69,11 +78,18 @@ const {
 const showNotifications = ref(false)
 
 const router = useRouter()
+const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
+const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
+const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : [])
+const activeUnreadAnnouncements = computed(() => props.preview ? 0 : unreadAnnouncements.value)
+const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : null)
+
+usePreviewTheme(() => props.preview, activeSchoolSettings)
 
 // ── Filters & Events Logic ────────────────────────────────────────────
 const schoolEvents = computed(() => {
-  const schoolId = Number(currentUser.value?.school_id)
-  return events.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
+  const schoolId = Number(activeUser.value?.school_id)
+  return activeEvents.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
 })
 const filters = [
   { id: 'all', label: 'All' },
@@ -112,23 +128,43 @@ const filteredEvents = computed(() => {
 
 function handleEventClick(event) {
   if (!event?.id) return
-  if (event.status === 'ongoing' && !isEventAttended(event)) {
+  if (!props.preview && event.status === 'ongoing' && !isEventAttended(event)) {
     router.push(`/dashboard/schedule/${event.id}/attendance`)
     return
   }
-  router.push(`/dashboard/schedule/${event.id}`)
+  router.push(props.preview ? `/exposed/dashboard/schedule/${event.id}` : `/dashboard/schedule/${event.id}`)
 }
 
 function handleOpenDetail(event) {
   if (!event?.id) return
-  router.push(`/dashboard/schedule/${event.id}`)
+  router.push(props.preview ? `/exposed/dashboard/schedule/${event.id}` : `/dashboard/schedule/${event.id}`)
 }
 
 function isEventAttended(event) {
+  if (props.preview) {
+    return activeAttendanceRecords.value.some((attendance) => {
+      const status = String(attendance?.status ?? '').toLowerCase()
+      const hasTimeIn = Boolean(attendance?.time_in)
+      return Number(attendance?.event_id) === Number(event?.id) && (
+        status === 'present' ||
+        status === 'late' ||
+        hasTimeIn
+      )
+    })
+  }
   return hasAttendanceForEvent(event?.id)
 }
 
 function getAttendanceRecord(event) {
+  if (props.preview) {
+    return activeAttendanceRecords.value
+      .filter((attendance) => Number(attendance?.event_id) === Number(event?.id))
+      .sort((left, right) => {
+        const leftTime = new Date(left?.time_in || left?.created_at || 0).getTime()
+        const rightTime = new Date(right?.time_in || right?.created_at || 0).getTime()
+        return rightTime - leftTime
+      })[0] ?? null
+  }
   return getLatestAttendanceForEvent(event?.id)
 }
 </script>
@@ -190,14 +226,14 @@ function getAttendanceRecord(event) {
 }
 
 .filter-pill--active {
-  background: var(--color-primary); /* Lime */
-  border-color: var(--color-primary);
-  color: var(--color-banner-text);
+  background: var(--color-pill-row-active-bg);
+  border-color: var(--color-pill-row-active-bg);
+  color: var(--color-pill-row-active-text);
   font-weight: 600;
 }
 
 .filter-pill--outline {
-  border-color: var(--color-primary);
+  border-color: var(--color-pill-row-outline);
 }
 
 .filter-pill:active {

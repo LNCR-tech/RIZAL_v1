@@ -1,14 +1,14 @@
 <template>
   <div class="analytics-page">
     <div class="md:hidden">
-      <MobileDashboardHome />
+      <MobileDashboardHome :preview="preview" />
     </div>
 
     <div class="analytics-desktop hidden md:block">
       <TopBar
         class="dashboard-enter dashboard-enter--1"
-        :user="currentUser"
-        :unread-count="unreadAnnouncements"
+        :user="activeUser"
+        :unread-count="activeUnreadAnnouncements"
         @toggle-notifications="showNotifications = !showNotifications"
       />
 
@@ -156,7 +156,16 @@ import TopBar from '@/components/dashboard/TopBar.vue'
 import MobileDashboardHome from '@/components/dashboard/MobileDashboardHome.vue'
 import { surfaceAuraLogo } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { resolveDashboardAiOverview } from '@/services/dashboardAiOverview.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const showNotifications = ref(false)
 const {
@@ -164,10 +173,16 @@ const {
   attendanceRecords,
   unreadAnnouncements,
 } = useDashboardSession()
+const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
+const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
+const activeUnreadAnnouncements = computed(() => props.preview ? 0 : unreadAnnouncements.value)
+const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : null)
+
+usePreviewTheme(() => props.preview, activeSchoolSettings)
 
 const aiOverview = computed(() => resolveDashboardAiOverview())
 
-const attendanceSummary = computed(() => attendanceRecords.value.reduce((summary, record) => {
+const attendanceSummary = computed(() => activeAttendanceRecords.value.reduce((summary, record) => {
   const status = String(record?.status ?? '').toLowerCase()
   if (status === 'present') summary.present += 1
   if (status === 'late') summary.late += 1
@@ -210,7 +225,7 @@ const statCards = computed(() => [
   },
 ])
 
-const trendWeeks = computed(() => buildWeeklyTrend(attendanceRecords.value, 6))
+const trendWeeks = computed(() => buildWeeklyTrend(activeAttendanceRecords.value, 6))
 
 const bestWeek = computed(() => {
   if (!trendWeeks.value.length) {

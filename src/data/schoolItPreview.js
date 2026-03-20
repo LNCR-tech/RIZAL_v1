@@ -1,4 +1,4 @@
-import defaultSchoolLogo from '@/data/jrmsu_icon.png'
+const defaultSchoolLogo = '/logos/aura.png'
 import {
   normalizeDepartment,
   normalizeEvent,
@@ -223,7 +223,7 @@ function createRawPreviewPayload() {
       school_code: 'UNI',
       logo_url: defaultSchoolLogo,
       primary_color: '#AAFF00',
-      secondary_color: '#0A0A0A',
+      secondary_color: '#64748B',
       accent_color: '#0A0A0A',
     },
     departments: [

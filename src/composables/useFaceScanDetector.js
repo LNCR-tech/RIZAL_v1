@@ -2,12 +2,37 @@ import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision'
 
 let detectorPromise = null
 let detectorInstance = null
+let detectorLoadVersion = 0
+
+function withTimeout(promise, timeoutMs, message) {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise
+
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(message))
+        }, timeoutMs)
+
+        promise.then(
+            (value) => {
+                clearTimeout(timer)
+                resolve(value)
+            },
+            (error) => {
+                clearTimeout(timer)
+                reject(error)
+            }
+        )
+    })
+}
 
 export async function initFaceScanDetector(options) {
     if (detectorInstance) return detectorInstance
     if (detectorPromise) return detectorPromise
 
-    detectorPromise = (async () => {
+    const loadVersion = ++detectorLoadVersion
+    const timeoutMs = Number(options?.timeoutMs ?? 4500)
+
+    const createPromise = (async () => {
         const wasmBaseUrl = options?.wasmBaseUrl
         const modelAssetPath = options?.modelAssetPath
 
@@ -23,14 +48,50 @@ export async function initFaceScanDetector(options) {
             minSuppressionThreshold: options?.minSuppressionThreshold,
         })
 
-        detectorInstance = detector
         return detector
     })()
+
+    createPromise.then((detector) => {
+        if (loadVersion !== detectorLoadVersion || detectorPromise == null) {
+            try {
+                detector?.close?.()
+            } catch {
+                // ignore cleanup errors for abandoned detector loads
+            }
+        }
+    }).catch(() => {
+        // ignore deferred create errors; the active caller handles them below
+    })
+
+    detectorPromise = withTimeout(
+        createPromise,
+        timeoutMs,
+        'Face detector initialization timed out.'
+    ).then((detector) => {
+        if (loadVersion !== detectorLoadVersion) {
+            try {
+                detector?.close?.()
+            } catch {
+                // ignore cleanup errors for superseded detector loads
+            }
+            throw new Error('Face detector initialization was superseded.')
+        }
+
+        detectorInstance = detector
+        return detector
+    }).catch((error) => {
+        if (loadVersion === detectorLoadVersion) {
+            detectorPromise = null
+            detectorInstance = null
+        }
+        throw error
+    })
 
     return detectorPromise
 }
 
 export function resetFaceScanDetector() {
+    detectorLoadVersion += 1
     try {
         detectorInstance?.close?.()
     } catch {

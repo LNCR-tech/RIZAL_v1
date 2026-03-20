@@ -5,9 +5,11 @@ import {
     clearDashboardSession,
     getDefaultAuthenticatedRoute,
     initializeDashboardSession,
+    sessionUsesLimitedMode,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
 import { hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
+import { clearSessionExpiredNotice } from '@/services/sessionExpiry.js'
 
 export function useAuth() {
     const router = useRouter()
@@ -22,6 +24,8 @@ export function useAuth() {
             if (!email || !password) {
                 throw new Error('Please enter your email and password.')
             }
+
+            clearSessionExpiredNotice()
 
             const apiBaseUrl = resolveApiBaseUrl()
             const tokenPayload = await loginForAccessToken(apiBaseUrl, {
@@ -48,7 +52,10 @@ export function useAuth() {
                 return
             }
 
-            await initializeDashboardSession(true)
+            const initializedSession = await initializeDashboardSession(true)
+            if (!initializedSession?.user || sessionUsesLimitedMode()) {
+                throw new Error('The backend did not return a complete user session. Please try again once the backend is stable.')
+            }
             router.push(
                 sessionNeedsFaceRegistration()
                     ? { name: 'FaceRegistration' }

@@ -52,13 +52,16 @@
         @error="onLogoError"
       />
     </div>
+    <div v-else class="logo-fallback" aria-hidden="true">
+      {{ schoolInitials }}
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { ArrowRight } from 'lucide-vue-next'
-import { defaultTheme } from '@/config/theme.js'
+import { withMediaCacheKey } from '@/services/backendMedia.js'
 
 const props = defineProps({
   schoolName: {
@@ -69,35 +72,64 @@ const props = defineProps({
     type: String,
     default: '/logos/university_logo.svg',
   },
+  schoolLogoCandidates: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 defineEmits(['announcement-click'])
 
-const logoFailed = ref(false)
 const logoUnavailable = ref(false)
+const logoCandidateIndex = ref(0)
+const logoRetryKey = ref(0)
+const schoolInitials = computed(() => buildInitials(props.schoolName))
+const resolvedLogoCandidates = computed(() => {
+  const candidates = props.schoolLogoCandidates.length
+    ? props.schoolLogoCandidates
+    : [props.schoolLogo]
+
+  return candidates
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+})
 const resolvedLogoSrc = computed(() => (
-  logoFailed.value
-    ? defaultTheme.schoolLogo
-    : props.schoolLogo || defaultTheme.schoolLogo
+  logoUnavailable.value
+    ? null
+    : withMediaCacheKey(
+      resolvedLogoCandidates.value[logoCandidateIndex.value] || null,
+      logoRetryKey.value || ''
+    )
 ))
 
-function onLogoError(e) {
-  if (!logoFailed.value) {
-    logoFailed.value = true
+function onLogoError() {
+  if (logoCandidateIndex.value < resolvedLogoCandidates.value.length - 1) {
+    logoCandidateIndex.value += 1
+    return
+  }
+
+  if (!logoRetryKey.value) {
+    logoRetryKey.value = Date.now()
     return
   }
 
   logoUnavailable.value = true
-  e.target.style.display = 'none'
 }
 
 watch(
-  () => props.schoolLogo,
+  () => resolvedLogoCandidates.value.join('|'),
   () => {
-    logoFailed.value = false
     logoUnavailable.value = false
+    logoCandidateIndex.value = 0
+    logoRetryKey.value = 0
   }
 )
+
+function buildInitials(value) {
+  const parts = String(value || '').split(' ').filter(Boolean)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  return String(value || '').slice(0, 2).toUpperCase()
+}
 </script>
 
 <style scoped>
@@ -123,11 +155,36 @@ watch(
   height: 140px;
 }
 
+.logo-fallback {
+  position: absolute;
+  right: -20px;
+  top: 68%;
+  transform: translateY(-50%);
+  width: 140px;
+  height: 140px;
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-banner-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  z-index: 1;
+}
+
 @media (min-width: 768px) {
   .logo-wrap {
     right: -24px;
   }
   .logo-img {
+    width: 165px;
+    height: 165px;
+  }
+  .logo-fallback {
+    right: -24px;
     width: 165px;
     height: 165px;
   }
