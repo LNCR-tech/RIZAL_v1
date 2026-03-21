@@ -1,9 +1,12 @@
-"""add event late threshold minutes
+"""Use: Implements the database change for add event late threshold minutes.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add event late threshold minutes
 
 Revision ID: b45c67d89e01
 Revises: a12b34c56d78
 Create Date: 2026-03-11 13:40:00.000000
-
 """
 
 from typing import Sequence, Union

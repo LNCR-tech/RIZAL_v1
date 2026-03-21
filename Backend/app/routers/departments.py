@@ -1,3 +1,8 @@
+"""Use: Handles department management API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs department management features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 

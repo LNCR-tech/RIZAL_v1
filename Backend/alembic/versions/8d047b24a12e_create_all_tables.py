@@ -1,10 +1,14 @@
-"""Create all tables
+"""Use: Implements the database change for create all tables.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+Create all tables
 
 Revision ID: 8d047b24a12e
 Revises: 
 Create Date: 2025-05-25 05:55:39.350419
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

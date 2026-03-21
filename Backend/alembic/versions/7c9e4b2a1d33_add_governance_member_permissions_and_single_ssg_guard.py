@@ -1,9 +1,12 @@
-"""add governance member permissions and single ssg guard
+"""Use: Implements the database change for add governance member permissions and single ssg guard.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add governance member permissions and single ssg guard
 
 Revision ID: 7c9e4b2a1d33
 Revises: 6f8c1234ab56
 Create Date: 2026-03-15 20:10:00.000000
-
 """
 
 from typing import Sequence, Union

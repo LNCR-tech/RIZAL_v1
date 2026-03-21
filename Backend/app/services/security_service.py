@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for security center actions and session tracking.
+Where to use: Use this from routers, workers, or other services when security center actions and session tracking logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta

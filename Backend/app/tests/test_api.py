@@ -1,3 +1,8 @@
+"""Use: Tests main API flows across the backend.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 import json
 from datetime import datetime, timedelta
 

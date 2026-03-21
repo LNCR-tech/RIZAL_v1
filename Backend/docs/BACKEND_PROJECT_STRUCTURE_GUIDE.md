@@ -45,6 +45,17 @@ Backend/app/
 - `utils/`
   - small reusable helpers with no domain ownership
 
+## Current Backend Conventions
+
+- new SQLAlchemy ORM base definitions should import `declarative_base` from `sqlalchemy.orm`
+- new Pydantic schemas should prefer:
+  - `model_config = ConfigDict(...)`
+  - `field_validator(...)`
+  - `model_validate(..., from_attributes=True)` for ORM-to-schema conversion
+  - `model_dump()` or `model_copy(...)` instead of older v1 serialization helpers
+- schema example values should be declared through `json_schema_extra`
+- forward-reference-heavy schemas should finish with `model_rebuild()` instead of `update_forward_refs()`
+
 ## Key Refactors Applied
 
 - database engine, session factory, and shared DB dependency now live in:

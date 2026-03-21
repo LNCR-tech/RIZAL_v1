@@ -1,9 +1,12 @@
-"""normalize attendance status enum labels to lowercase
+"""Use: Implements the database change for normalize attendance status enum case.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+normalize attendance status enum labels to lowercase
 
 Revision ID: d4f6a8b0c2e4
 Revises: c3d4e5f6a7b8
 Create Date: 2026-03-06 20:25:00.000000
-
 """
 
 from typing import Sequence, Union

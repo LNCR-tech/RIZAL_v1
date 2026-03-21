@@ -1,9 +1,15 @@
+"""Use: Builds the database engine, session factory, and pool settings.
+Where to use: Use this when the backend needs a database session or engine setup.
+Role: Core setup layer. It manages database connections for the app.
+"""
+
 from __future__ import annotations
 
 import logging
 import os
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -38,8 +44,19 @@ SessionLocal = sessionmaker(
 )
 
 
-def get_database_pool_snapshot() -> dict[str, int | str | float | None]:
-    pool = engine.pool
+def _resolve_engine(bind: Engine | Connection | None) -> Engine:
+    if bind is None:
+        return engine
+    if isinstance(bind, Connection):
+        return bind.engine
+    return bind
+
+
+def get_database_pool_snapshot(
+    bind: Engine | Connection | None = None,
+) -> dict[str, int | str | float | None]:
+    resolved_engine = _resolve_engine(bind)
+    pool = resolved_engine.pool
     snapshot: dict[str, int | str | float | None] = {
         "pool_class": type(pool).__name__,
     }

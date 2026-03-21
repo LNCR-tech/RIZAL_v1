@@ -1,9 +1,12 @@
-"""add governance announcements and student notes
+"""Use: Implements the database change for add governance announcements and student .
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add governance announcements and student notes
 
 Revision ID: f2a6b8c9d0e1
 Revises: d8e2f4c1b7aa
 Create Date: 2026-03-16 18:40:00.000000
-
 """
 
 from __future__ import annotations

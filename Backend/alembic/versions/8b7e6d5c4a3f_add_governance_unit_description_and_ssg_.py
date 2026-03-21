@@ -1,9 +1,12 @@
-"""add governance unit description and ssg setup defaults
+"""Use: Implements the database change for add governance unit description and ssg .
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add governance unit description and ssg setup defaults
 
 Revision ID: 8b7e6d5c4a3f
 Revises: 7c9e4b2a1d33
 Create Date: 2026-03-15 18:20:00.000000
-
 """
 
 from typing import Sequence, Union

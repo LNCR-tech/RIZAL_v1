@@ -1,9 +1,12 @@
-"""add school and governance event defaults
+"""Use: Implements the database change for add school and governance event defaults.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add school and governance event defaults
 
 Revision ID: f5d2c8a1b4e9
 Revises: e4b7c1d9f6a2
 Create Date: 2026-03-16 23:45:00.000000
-
 """
 
 from __future__ import annotations

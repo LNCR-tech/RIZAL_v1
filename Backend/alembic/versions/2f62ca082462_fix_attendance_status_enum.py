@@ -1,10 +1,14 @@
-"""fix_attendance_status_enum
+"""Use: Implements the database change for fix attendance status enum.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+fix_attendance_status_enum
 
 Revision ID: 2f62ca082462
 Revises: b684c7d7623b
 Create Date: 2025-05-25 06:11:25.984941
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

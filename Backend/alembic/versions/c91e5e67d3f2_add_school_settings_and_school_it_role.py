@@ -1,10 +1,14 @@
-"""add_school_settings_and_school_it_role
+"""Use: Implements the database change for add school settings and school it role.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_school_settings_and_school_it_role
 
 Revision ID: c91e5e67d3f2
 Revises: 2a615b0b9a09
 Create Date: 2026-03-03 10:00:00.000000
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

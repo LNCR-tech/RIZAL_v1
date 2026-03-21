@@ -1,3 +1,8 @@
+"""Use: Defines database models for many-to-many link tables.
+Where to use: Use this when the backend needs to store or load many-to-many link tables data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 # app/models/associations.py
 from sqlalchemy import Table, Column, Integer, ForeignKey
 from app.models.base import Base

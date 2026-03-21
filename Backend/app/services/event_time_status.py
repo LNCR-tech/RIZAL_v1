@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for computed event time windows.
+Where to use: Use this from routers, workers, or other services when computed event time windows logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass

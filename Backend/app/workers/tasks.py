@@ -1,3 +1,8 @@
+"""Use: Defines the main backend background tasks.
+Where to use: Use this when work should run outside the request cycle, such as imports or scheduled jobs.
+Role: Worker execution layer. It runs long or scheduled backend work.
+"""
+
 from __future__ import annotations
 
 import logging

@@ -1,3 +1,8 @@
+"""Use: Helps run backend database migration tasks.
+Where to use: Use this script when working with schema changes outside the normal app request flow.
+Role: Script layer. It supports database migration work.
+"""
+
 # migration_script.py
 # This script can be run to fix existing relationships in the database
 from sqlalchemy import create_engine, MetaData, Table, select, insert

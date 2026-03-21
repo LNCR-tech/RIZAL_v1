@@ -1,3 +1,8 @@
+"""Use: Seeds backend tables with starter records.
+Where to use: Use this from setup scripts or local development when you need sample app data.
+Role: Data setup layer. It prepares initial records for the app.
+"""
+
 # app/seeder.py
 from sqlalchemy.orm import Session
 from datetime import date

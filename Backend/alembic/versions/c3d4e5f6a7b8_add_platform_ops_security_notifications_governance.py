@@ -1,9 +1,12 @@
-"""add platform ops, security, notifications, subscription and governance tables
+"""Use: Implements the database change for add platform ops security notifications governance.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add platform ops, security, notifications, subscription and governance tables
 
 Revision ID: c3d4e5f6a7b8
 Revises: b7f8c9d0e1f2
 Create Date: 2026-03-06 19:10:00.000000
-
 """
 
 from typing import Sequence, Union

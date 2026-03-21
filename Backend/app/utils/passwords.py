@@ -1,3 +1,8 @@
+"""Use: Provides small password helper functions.
+Where to use: Use this when the backend needs simple reusable password-related helpers.
+Role: Utility layer. It keeps small helper logic separate from main business code.
+"""
+
 import secrets
 import string
 

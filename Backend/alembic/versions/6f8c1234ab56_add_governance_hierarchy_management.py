@@ -1,9 +1,12 @@
-"""add governance hierarchy management
+"""Use: Implements the database change for add governance hierarchy management.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add governance hierarchy management
 
 Revision ID: 6f8c1234ab56
 Revises: 1e5b4a7c9d01
 Create Date: 2026-03-15 12:30:00.000000
-
 """
 
 from typing import Sequence, Union

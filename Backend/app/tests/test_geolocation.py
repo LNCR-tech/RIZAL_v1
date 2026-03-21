@@ -1,3 +1,8 @@
+"""Use: Tests geolocation helpers and edge cases.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 import pytest
 
 from app.services.geolocation import (
@@ -12,8 +17,6 @@ from app.services.geolocation import (
     REASON_OUTSIDE_GEOFENCE_BUFFERED,
     geofence_check,
     haversine_m,
-    is_accuracy_ok,
-    recommended_accuracy_limit_m,
 )
 
 
@@ -173,22 +176,3 @@ def test_geofence_check_reports_plain_outside_reason_without_accuracy():
     assert result.ok is False
     assert result.reason == REASON_OUTSIDE_GEOFENCE
 
-
-def test_is_accuracy_ok_returns_false_for_invalid_values():
-    assert is_accuracy_ok("bad-value") is False
-    assert is_accuracy_ok(-1) is False
-    assert is_accuracy_ok(15, max_allowed_accuracy_m=20) is True
-    assert is_accuracy_ok(25, max_allowed_accuracy_m=20) is False
-
-
-@pytest.mark.parametrize(
-    ("radius_m", "expected_limit"),
-    [
-        (20.0, 10.0),
-        (50.0, 20.0),
-        (120.0, 35.0),
-        (250.0, 50.0),
-    ],
-)
-def test_recommended_accuracy_limit_matches_practical_ranges(radius_m, expected_limit):
-    assert recommended_accuracy_limit_m(radius_m) == expected_limit

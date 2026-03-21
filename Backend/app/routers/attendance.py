@@ -1,3 +1,8 @@
+"""Use: Handles attendance check-in, check-out, and reports API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs attendance check-in, check-out, and reports features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Query

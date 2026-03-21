@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for school logo file storage.
+Where to use: Use this from routers, workers, or other services when school logo file storage logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 import io

@@ -1,3 +1,8 @@
+"""Use: Creates the main Celery app for backend background jobs.
+Where to use: Use this when starting Celery workers or beat with the current worker package path.
+Role: Worker setup layer. It configures background task execution.
+"""
+
 from celery import Celery
 
 from app.core.config import get_settings

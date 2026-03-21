@@ -1,3 +1,8 @@
+"""Use: Marks `models` as a Python package and groups related backend files.
+Where to use: Used automatically when Python imports modules from `models`.
+Role: Package layer. It helps the backend treat this folder as one importable package.
+"""
+
 # Import all models here so they can be imported elsewhere with a single import 
 # The order of imports is important here - import base first
 from app.models.base import Base

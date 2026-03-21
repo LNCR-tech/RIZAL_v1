@@ -1,3 +1,8 @@
+"""Use: Handles user notifications API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs user notifications features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status

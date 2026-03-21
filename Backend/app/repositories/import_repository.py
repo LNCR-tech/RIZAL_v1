@@ -1,3 +1,8 @@
+"""Use: Handles database reads and writes for bulk import jobs.
+Where to use: Use this from import routes, services, or workers when working with import job records.
+Role: Repository layer. It keeps import-job database access in one place.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta

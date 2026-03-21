@@ -1,10 +1,14 @@
-"""add_year_level_and_ssg_event_association
+"""Use: Implements the database change for add year level and ssg event association.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_year_level_and_ssg_event_association
 
 Revision ID: 004714171a2f
 Revises: 2f62ca082462
 Create Date: 2025-05-25 06:13:10.667988
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

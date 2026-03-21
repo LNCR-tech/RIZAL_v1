@@ -1,4 +1,9 @@
-from pydantic import BaseModel, Field, field_validator
+"""Use: Defines request and response data shapes for attendance API data.
+Where to use: Use this in routers and services when validating or returning attendance API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime, date
 from typing import Optional, List, Dict
 from enum import Enum
@@ -25,8 +30,7 @@ class AttendanceBase(BaseModel):
             return v.lower()  # Ensure lowercase
         return v
     
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 class AttendanceCreate(AttendanceBase):
     pass
 
@@ -47,9 +51,10 @@ class Attendance(AttendanceBase):
             raise ValueError("time_out must be after time_in")
         return v
     
-    class Config:
-        from_attributes = True
-        use_enum_values = True  # Serializes enum to their values
+    model_config = ConfigDict(
+        from_attributes=True,
+        use_enum_values=True,
+    )
 
 class AttendanceWithStudent(BaseModel):
     attendance: Attendance
@@ -70,8 +75,7 @@ class StudentAttendanceRecord(BaseModel):
     notes: Optional[str] = None
     duration_minutes: Optional[int] = None  # Calculated field
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class StudentAttendanceResponse(BaseModel):
     student_id: str

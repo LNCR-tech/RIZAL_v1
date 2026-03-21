@@ -1,9 +1,12 @@
-"""cleanup legacy role records
+"""Use: Implements the database change for cleanup legacy role records.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+cleanup legacy role records
 
 Revision ID: b4c8f12d9e77
 Revises: 9c4d2e7f1a8b
 Create Date: 2026-03-15 23:55:00.000000
-
 """
 
 from typing import Sequence, Union

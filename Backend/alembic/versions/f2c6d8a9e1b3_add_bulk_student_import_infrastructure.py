@@ -1,9 +1,12 @@
-"""add_bulk_student_import_infrastructure
+"""Use: Implements the database change for add bulk student import infrastructure.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_bulk_student_import_infrastructure
 
 Revision ID: f2c6d8a9e1b3
 Revises: d8a0b2d7f8c1
 Create Date: 2026-03-04 09:05:00.000000
-
 """
 
 from typing import Sequence, Union

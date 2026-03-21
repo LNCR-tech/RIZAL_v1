@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for geolocation checks and distance decisions.
+Where to use: Use this from routers, workers, or other services when geolocation checks and distance decisions logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 import math
@@ -101,27 +106,6 @@ def normalize_accuracy_limit_m(max_allowed_accuracy_m: object) -> float:
     return normalized_limit
 
 
-def recommended_accuracy_limit_m(radius_m: float) -> float:
-    """
-    Practical default for school attendance geofences.
-
-    Small geofences need tighter GPS accuracy; larger geofences can tolerate more.
-    """
-    normalized_radius, reason = normalize_radius_m(radius_m)
-    if normalized_radius is None:
-        raise ValueError(reason or REASON_INVALID_GEOFENCE_RADIUS)
-
-    if normalized_radius <= 30:
-        return 10.0
-    if normalized_radius <= 75:
-        return 20.0
-    if normalized_radius <= 150:
-        return 35.0
-    if normalized_radius <= 300:
-        return 50.0
-    return min(100.0, max(60.0, normalized_radius * 0.25))
-
-
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
@@ -134,17 +118,6 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     )
     c = 2 * math.asin(math.sqrt(a))
     return EARTH_RADIUS_M * c
-
-
-def is_accuracy_ok(
-    accuracy_m: float,
-    max_allowed_accuracy_m: float = DEFAULT_MAX_ALLOWED_ACCURACY_M,
-) -> bool:
-    normalized_accuracy, reason = normalize_accuracy_m(accuracy_m)
-    if reason is not None or normalized_accuracy is None:
-        return False
-
-    return normalized_accuracy <= normalize_accuracy_limit_m(max_allowed_accuracy_m)
 
 
 def geofence_check(

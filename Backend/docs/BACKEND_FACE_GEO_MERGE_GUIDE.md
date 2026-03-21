@@ -48,6 +48,8 @@ Geolocation is used in event attendance, not in privileged login.
   - face detection and encoding
   - face comparison
   - ONNX anti-spoof model loading and liveness checks
+  - current live routes use the database-backed encoding flow
+  - previously retained local-file helpers were removed after confirming they were not used by the frontend or active backend routes
 
 - `Backend/app/services/event_geolocation.py`
   - event geofence field validation
@@ -395,6 +397,11 @@ Recommended behavior:
 5. calculate distance
 6. apply buffered or unbuffered geofence decision
 7. return a stable reason code
+
+Current live-path note:
+
+- the active runtime flow uses `geofence_check()` and `haversine_m()`
+- previously retained utility-only helpers `recommended_accuracy_limit_m()` and `is_accuracy_ok()` were removed after confirming they were not part of the current frontend-backed routes or router workflow
 
 Current reason codes include:
 

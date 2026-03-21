@@ -1,3 +1,8 @@
+"""Use: Defines request and response data shapes for bulk import API data.
+Where to use: Use this in routers and services when validating or returning bulk import API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field

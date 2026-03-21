@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for attendance status decisions and counters.
+Where to use: Use this from routers, workers, or other services when attendance status decisions and counters logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for bulk import header and row validation.
+Where to use: Use this from routers, workers, or other services when bulk import header and row validation logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

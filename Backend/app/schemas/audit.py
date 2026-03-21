@@ -1,7 +1,12 @@
+"""Use: Defines request and response data shapes for audit log API data.
+Where to use: Use this in routers and services when validating or returning audit log API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SchoolAuditLogSearchItem(BaseModel):
@@ -14,8 +19,7 @@ class SchoolAuditLogSearchItem(BaseModel):
     details_json: Optional[dict[str, Any]] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SchoolAuditLogSearchResponse(BaseModel):

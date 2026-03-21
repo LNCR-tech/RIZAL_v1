@@ -1,7 +1,12 @@
+"""Use: Defines request and response data shapes for subscription API data.
+Where to use: Use this in routers and services when validating or returning subscription API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SubscriptionUsageMetrics(BaseModel):
@@ -28,8 +33,7 @@ class SchoolSubscriptionResponse(BaseModel):
     updated_at: datetime
     metrics: SubscriptionUsageMetrics
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SchoolSubscriptionUpdate(BaseModel):

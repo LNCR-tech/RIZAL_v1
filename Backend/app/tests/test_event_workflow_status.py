@@ -1,3 +1,8 @@
+"""Use: Tests automatic event workflow status syncing.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 from datetime import datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo

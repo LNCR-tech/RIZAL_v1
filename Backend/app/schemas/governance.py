@@ -1,7 +1,12 @@
+"""Use: Defines request and response data shapes for governance settings and member API data.
+Where to use: Use this in routers and services when validating or returning governance settings and member API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DataGovernanceSettingResponse(BaseModel):
@@ -12,8 +17,7 @@ class DataGovernanceSettingResponse(BaseModel):
     auto_delete_enabled: bool
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DataGovernanceSettingUpdate(BaseModel):
@@ -40,8 +44,7 @@ class PrivacyConsentItem(BaseModel):
     source: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DataRequestCreate(BaseModel):
@@ -71,8 +74,7 @@ class DataRequestItem(BaseModel):
     created_at: datetime
     resolved_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RetentionRunRequest(BaseModel):

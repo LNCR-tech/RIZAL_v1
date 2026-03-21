@@ -1,3 +1,8 @@
+"""Use: Handles face recognition and face-based attendance API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs face recognition and face-based attendance features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime

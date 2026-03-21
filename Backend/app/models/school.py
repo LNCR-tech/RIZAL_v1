@@ -1,3 +1,8 @@
+"""Use: Defines database models for schools, school settings, and school audit logs.
+Where to use: Use this when the backend needs to store or load schools, school settings, and school audit logs data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text

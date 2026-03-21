@@ -1,3 +1,8 @@
+"""Use: Starts the FastAPI app and registers all backend routers.
+Where to use: Use this file when running the API server because it is the main application entry point.
+Role: Application entry layer. It wires the app, middleware, static files, and routes together.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

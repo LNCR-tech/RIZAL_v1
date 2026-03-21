@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for program creation and update rules.
+Where to use: Use this from routers, workers, or other services when program creation and update rules logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 import logging

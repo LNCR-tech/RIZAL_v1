@@ -1,3 +1,8 @@
+"""Use: Handles event management and event timing actions API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs event management and event timing actions features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from datetime import datetime, timedelta
 import logging
 from typing import Optional

@@ -1,9 +1,12 @@
-"""add event attendance window controls
+"""Use: Implements the database change for add event attendance window controls.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add event attendance window controls
 
 Revision ID: e4b7c1d9f6a2
 Revises: f2a6b8c9d0e1
 Create Date: 2026-03-16 22:10:00.000000
-
 """
 
 from __future__ import annotations

@@ -1,3 +1,8 @@
+"""Use: Tests governance hierarchy API behavior.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -1017,6 +1022,7 @@ def test_ssg_member_can_edit_sg_unit_with_create_sg_permission(client, test_db):
 def test_sg_cannot_create_org_outside_parent_department_scope(client, test_db):
     school = _create_school(test_db, code="ORG-SCOPE")
     school_it_role = _create_role(test_db, name="school_IT")
+    student_role = _create_role(test_db, name="student")
     ssg_role = _create_role(test_db, name="ssg")
 
     school_it_user = _create_user(
@@ -1035,6 +1041,7 @@ def test_sg_cannot_create_org_outside_parent_department_scope(client, test_db):
         test_db,
         email="sg.member@example.com",
         school_id=school.id,
+        role_ids=[student_role.id],
     )
 
     engineering = Department(name="Engineering Scope", school_id=school.id)
@@ -1246,6 +1253,7 @@ def test_only_one_org_unit_is_allowed_per_program(client, test_db):
 def test_sg_cannot_create_org_with_program_outside_effective_department_scope(client, test_db):
     school = _create_school(test_db, code="ORG-PROGRAM")
     school_it_role = _create_role(test_db, name="school_IT")
+    student_role = _create_role(test_db, name="student")
     ssg_role = _create_role(test_db, name="ssg")
 
     school_it_user = _create_user(
@@ -1264,6 +1272,7 @@ def test_sg_cannot_create_org_with_program_outside_effective_department_scope(cl
         test_db,
         email="sg.program@example.com",
         school_id=school.id,
+        role_ids=[student_role.id],
     )
 
     engineering = Department(name="Engineering Program Scope", school_id=school.id)
@@ -1353,6 +1362,7 @@ def test_sg_cannot_create_org_with_program_outside_effective_department_scope(cl
 def test_org_must_include_program_scope(client, test_db):
     school = _create_school(test_db, code="ORG-REQUIRES-PROGRAM")
     school_it_role = _create_role(test_db, name="school_IT")
+    student_role = _create_role(test_db, name="student")
     ssg_role = _create_role(test_db, name="ssg")
 
     school_it_user = _create_user(
@@ -1371,6 +1381,7 @@ def test_org_must_include_program_scope(client, test_db):
         test_db,
         email="sg.org.required@example.com",
         school_id=school.id,
+        role_ids=[student_role.id],
     )
 
     engineering = Department(name="Engineering ORG Required", school_id=school.id)
@@ -1858,11 +1869,13 @@ def test_get_accessible_students_filters_by_governance_scope(test_db):
 def test_accessible_students_endpoint_returns_governance_scoped_students(client, test_db):
     school = _create_school(test_db, code="STUDENT-SCOPE-API")
     school_it_role = _create_role(test_db, name="school_IT")
+    student_role = _create_role(test_db, name="student")
 
     viewer = _create_user(
         test_db,
         email="scope.viewer.api@example.com",
         school_id=school.id,
+        role_ids=[student_role.id],
     )
     school_it_user = _create_user(
         test_db,
@@ -1884,11 +1897,13 @@ def test_accessible_students_endpoint_returns_governance_scoped_students(client,
         test_db,
         email="eng.student.api@example.com",
         school_id=school.id,
+        role_ids=[student_role.id],
     )
     arts_student_user = _create_user(
         test_db,
         email="arts.student.api@example.com",
         school_id=school.id,
+        role_ids=[student_role.id],
     )
 
     test_db.add_all(

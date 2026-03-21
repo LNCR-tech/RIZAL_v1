@@ -1,3 +1,8 @@
+"""Use: Handles subscription and billing state API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs subscription and billing state features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta

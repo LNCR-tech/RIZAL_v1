@@ -1,3 +1,8 @@
+"""Use: Handles audit log viewing API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs audit log viewing features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from __future__ import annotations
 
 import json

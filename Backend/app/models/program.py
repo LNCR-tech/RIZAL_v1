@@ -1,3 +1,8 @@
+"""Use: Defines database models for academic programs.
+Where to use: Use this when the backend needs to store or load academic programs data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 # app/models/program.py
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship

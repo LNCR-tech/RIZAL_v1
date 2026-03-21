@@ -1,3 +1,8 @@
+"""Use: Handles school and Campus Admin management API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs school and Campus Admin management features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from __future__ import annotations
 
 import json

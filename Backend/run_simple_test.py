@@ -1,6 +1,8 @@
+"""Use: Runs a small backend smoke test.
+Where to use: Use this script for quick manual checks when you do not want the full test suite.
+Role: Script layer. It gives a fast sanity check for the backend.
 """
-Simple test runner that loads .env.test and runs pytest
-"""
+
 import os
 import subprocess
 from dotenv import load_dotenv

@@ -1,3 +1,8 @@
+"""Use: Handles authentication, tokens, and role checks.
+Where to use: Use this in routers and services when the backend must verify identity or permissions.
+Role: Core security layer. It protects access to backend features.
+"""
+
 from datetime import datetime, timedelta
 from typing import Callable, List, Optional
 

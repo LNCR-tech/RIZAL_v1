@@ -1,3 +1,8 @@
+"""Use: Tests attendance status support and helpers.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 

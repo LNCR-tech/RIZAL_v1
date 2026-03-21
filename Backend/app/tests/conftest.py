@@ -1,3 +1,8 @@
+"""Use: Tests shared pytest fixtures and test app setup.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 from collections.abc import Generator
 
 import pytest

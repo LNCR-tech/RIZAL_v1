@@ -1,3 +1,8 @@
+"""Use: Handles bulk student import API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs bulk student import features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from __future__ import annotations
 
 import io
@@ -47,6 +52,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin-import"])
 def get_current_admin_or_school_it(
     current_user: User = Depends(get_current_user_with_roles),
 ) -> User:
+    """Allow only Admin or Campus Admin users to use import routes."""
     if not has_any_role(current_user, ["admin", "campus_admin"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -63,6 +69,7 @@ def _append_import_audit_log(
     details: dict,
     action: str = "student_bulk_import_attempt",
 ) -> None:
+    """Save an audit log entry for this import action when the user has a school."""
     school_id = getattr(current_user, "school_id", None)
     if school_id is None:
         return
@@ -79,6 +86,7 @@ def _append_import_audit_log(
 
 
 def _ensure_user_school(current_user: User) -> int:
+    """Every import job belongs to one school, so stop if the user has no school."""
     school_id = getattr(current_user, "school_id", None)
     if school_id is None:
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
@@ -92,6 +100,7 @@ def _validate_upload_basics(
     db: Session,
     settings,
 ) -> tuple[str, int]:
+    """Check the file name, type, and size before we read the Excel file."""
     filename = (file.filename or "").strip()
     if not filename:
         _append_import_audit_log(
@@ -156,6 +165,7 @@ def _queue_import_job_from_file_bytes(
     size_bytes: int,
     retried_from_job_id: str | None = None,
 ) -> ImportJobCreateResponse:
+    """Store the upload, create the job row, and send the heavy work to Celery."""
     repo = ImportRepository(db)
     recent_job_count = repo.count_recent_jobs(
         created_by_user_id=current_user.id,
@@ -182,6 +192,7 @@ def _queue_import_job_from_file_bytes(
     target_school_id = _ensure_user_school(current_user)
     storage_dir = Path(settings.import_storage_dir) / "uploads"
     storage_dir.mkdir(parents=True, exist_ok=True)
+    # Save the uploaded file first so the worker can read it later.
     stored_file_path = storage_dir / f"{job_id}.xlsx"
     stored_file_path.write_bytes(file_bytes)
 
@@ -208,6 +219,7 @@ def _queue_import_job_from_file_bytes(
         action="student_bulk_import_retry" if retried_from_job_id else "student_bulk_import_attempt",
     )
     db.commit()
+    # Queue the background job after the database row is safely saved.
     celery_app.send_task("app.workers.tasks.process_student_import_job", args=[job_id])
 
     return ImportJobCreateResponse(
@@ -218,6 +230,7 @@ def _queue_import_job_from_file_bytes(
 
 
 def _build_validation_context(db: Session, target_school_id: int) -> ValidationContext:
+    """Build simple name-to-id maps used when we validate each row."""
     department_lookup = {
         name.strip().lower(): department_id
         for department_id, name in (
@@ -245,10 +258,12 @@ def _build_validation_context(db: Session, target_school_id: int) -> ValidationC
 def download_import_students_template(
     current_user: User = Depends(get_current_admin_or_school_it),
 ):
+    """Download the Excel template that users should fill in before importing."""
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Students"
     sheet.append(EXPECTED_HEADERS)
+    # Add one sample row so users can see the expected format right away.
     sheet.append(
         [
             "STU-00001",
@@ -281,6 +296,7 @@ def preview_import_students(
     current_user: User = Depends(get_current_admin_or_school_it),
     db: Session = Depends(get_db),
 ):
+    """Read the Excel file and show row errors before starting the real import."""
     settings = get_settings()
     filename, _ = _validate_upload_basics(
         file=file,
@@ -303,6 +319,7 @@ def preview_import_students(
         context = _build_validation_context(db, target_school_id)
 
         row_iter = sheet.iter_rows(values_only=True)
+        # The first row must match the template headers exactly.
         header_row = next(row_iter, None)
         if header_row is None:
             return ImportPreviewResponse(
@@ -364,6 +381,7 @@ def preview_import_students(
                 errors = []
                 suggestions = []
 
+            # Keep the preview response small even if the upload is very large.
             if len(preview_rows) < 200:
                 preview_rows.append(
                     ImportPreviewRow(
@@ -393,6 +411,7 @@ def import_students(
     current_user: User = Depends(get_current_admin_or_school_it),
     db: Session = Depends(get_db),
 ):
+    """Save the uploaded file and create a background import job."""
     settings = get_settings()
     filename, size_bytes = _validate_upload_basics(
         file=file,
@@ -419,6 +438,7 @@ def retry_failed_rows(
     current_user: User = Depends(get_current_admin_or_school_it),
     db: Session = Depends(get_db),
 ):
+    """Build a new Excel file from failed rows and queue a retry job."""
     repo = ImportRepository(db)
     parent_job = repo.get_job(job_id)
     if not parent_job or parent_job.created_by_user_id != current_user.id:
@@ -446,6 +466,7 @@ def retry_failed_rows(
     sheet = workbook.active
     sheet.title = "Students-Retry"
     sheet.append(EXPECTED_HEADERS)
+    # Rebuild the failed rows in the same column order as the template.
     for row_data in retry_row_payloads:
         sheet.append([str(row_data.get(header, "")) for header in EXPECTED_HEADERS])
 
@@ -473,6 +494,7 @@ def get_import_status(
     current_user: User = Depends(get_current_admin_or_school_it),
     db: Session = Depends(get_db),
 ):
+    """Return job progress, row errors, and the failed-row report link when ready."""
     repo = ImportRepository(db)
     job = repo.get_job(job_id)
     if not job:
@@ -481,6 +503,7 @@ def get_import_status(
         raise HTTPException(status_code=404, detail="Import job not found")
 
     percentage = 0.0
+    # Avoid division by zero when the worker has not counted rows yet.
     if job.total_rows > 0:
         percentage = round((job.processed_rows / job.total_rows) * 100, 2)
 
@@ -513,6 +536,7 @@ def download_import_errors(
     current_user: User = Depends(get_current_admin_or_school_it),
     db: Session = Depends(get_db),
 ):
+    """Download the Excel file that lists rows the worker could not import."""
     repo = ImportRepository(db)
     job = repo.get_job(job_id)
     if not job:

@@ -1,9 +1,12 @@
-"""drop legacy unused tables
+"""Use: Implements the database change for drop legacy unused tables.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+drop legacy unused tables
 
 Revision ID: 9b3e1f2c4d5a
 Revises: b45c67d89e01
 Create Date: 2026-03-12 14:20:00.000000
-
 """
 
 from typing import Sequence, Union

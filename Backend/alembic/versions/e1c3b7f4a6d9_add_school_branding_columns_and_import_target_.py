@@ -1,9 +1,12 @@
-"""add_school_branding_columns_and_import_target_school
+"""Use: Implements the database change for add school branding columns and import target .
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_school_branding_columns_and_import_target_school
 
 Revision ID: e1c3b7f4a6d9
 Revises: a9d1f5c7b882
 Create Date: 2026-03-04 10:00:00.000000
-
 """
 
 from typing import Sequence, Union

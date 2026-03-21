@@ -1,3 +1,8 @@
+"""Use: Defines database models for attendance records.
+Where to use: Use this when the backend needs to store or load attendance records data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 # app/models/attendance.py
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy import Enum as SQLEnum

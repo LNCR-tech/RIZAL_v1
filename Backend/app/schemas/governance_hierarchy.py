@@ -1,9 +1,14 @@
+"""Use: Defines request and response data shapes for governance hierarchy API data.
+Where to use: Use this in routers and services when validating or returning governance hierarchy API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.governance_hierarchy import (
     GovernanceAnnouncementStatus,
@@ -21,9 +26,7 @@ class GovernanceUserSummary(BaseModel):
     school_id: Optional[int] = None
     is_active: bool
     student_profile: Optional["GovernanceStudentProfileSummary"] = None
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceStudentProfileSummary(BaseModel):
@@ -34,9 +37,7 @@ class GovernanceStudentProfileSummary(BaseModel):
     department_name: Optional[str] = None
     program_name: Optional[str] = None
     year_level: Optional[int] = None
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernancePermissionResponse(BaseModel):
@@ -44,9 +45,7 @@ class GovernancePermissionResponse(BaseModel):
     permission_code: PermissionCode
     permission_name: str
     description: Optional[str] = None
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceUnitPermissionAssign(BaseModel):
@@ -60,9 +59,7 @@ class GovernanceUnitPermissionResponse(BaseModel):
     granted_by_user_id: Optional[int] = None
     created_at: datetime
     permission: GovernancePermissionResponse
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceMemberAssign(BaseModel):
@@ -87,9 +84,7 @@ class GovernanceMemberResponse(BaseModel):
     is_active: bool
     user: GovernanceUserSummary
     member_permissions: list["GovernanceMemberPermissionResponse"] = Field(default_factory=list)
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceUnitCreate(BaseModel):
@@ -122,9 +117,7 @@ class GovernanceUnitSummaryResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceUnitDetailResponse(GovernanceUnitSummaryResponse):
@@ -158,9 +151,7 @@ class GovernanceMemberPermissionResponse(BaseModel):
     granted_by_user_id: Optional[int] = None
     created_at: datetime
     permission: GovernancePermissionResponse
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceStudentCandidateResponse(BaseModel):
@@ -168,16 +159,13 @@ class GovernanceStudentCandidateResponse(BaseModel):
     student_profile: GovernanceStudentProfileSummary
     is_current_governance_member: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceAccessibleStudentResponse(BaseModel):
     user: GovernanceUserSummary
     student_profile: GovernanceStudentProfileSummary
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceEventDefaultsResponse(BaseModel):
@@ -223,9 +211,7 @@ class GovernanceAnnouncementResponse(BaseModel):
     author_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GovernanceAnnouncementMonitorResponse(GovernanceAnnouncementResponse):
@@ -251,17 +237,8 @@ class GovernanceStudentNoteResponse(BaseModel):
     updated_by_user_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-if hasattr(GovernanceUserSummary, "model_rebuild"):
-    GovernanceUserSummary.model_rebuild()
-else:
-    GovernanceUserSummary.update_forward_refs()
-
-if hasattr(GovernanceMemberResponse, "model_rebuild"):
-    GovernanceMemberResponse.model_rebuild()
-else:
-    GovernanceMemberResponse.update_forward_refs()
+GovernanceUserSummary.model_rebuild()
+GovernanceMemberResponse.model_rebuild()

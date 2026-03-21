@@ -1,3 +1,8 @@
+"""Use: Tests the SQLAlchemy models and relationships.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 import pytest
 from app.models import User, Role, UserRole
 from sqlalchemy.exc import IntegrityError

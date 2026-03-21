@@ -1,3 +1,8 @@
+"""Use: Defines database models for users, roles, and student profiles.
+Where to use: Use this when the backend needs to store or load users, roles, and student profiles data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, LargeBinary, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base

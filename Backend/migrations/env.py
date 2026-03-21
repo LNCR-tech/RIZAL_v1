@@ -1,3 +1,8 @@
+"""Use: Configures the legacy migration environment for database changes.
+Where to use: Use this only when the backend migration tooling loads this env file.
+Role: Migration support layer. It helps migration commands connect to the database.
+"""
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config

@@ -1,9 +1,12 @@
-"""add should_prompt_password_change to users
+"""Use: Implements the database change for add should prompt password change to users.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add should_prompt_password_change to users
 
 Revision ID: 1e5b4a7c9d01
 Revises: 9b3e1f2c4d5a
 Create Date: 2026-03-15 00:00:00.000000
-
 """
 
 from typing import Sequence, Union

@@ -1,10 +1,14 @@
-"""add_status_to_attendances
+"""Use: Implements the database change for add status to attendances.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_status_to_attendances
 
 Revision ID: b684c7d7623b
 Revises: a0dc61183855
 Create Date: 2025-05-25 06:10:01.579171
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

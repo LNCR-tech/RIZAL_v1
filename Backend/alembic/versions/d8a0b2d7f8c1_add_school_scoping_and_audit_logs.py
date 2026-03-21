@@ -1,9 +1,12 @@
-"""add_school_scoping_and_audit_logs
+"""Use: Implements the database change for add school scoping and audit logs.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_school_scoping_and_audit_logs
 
 Revision ID: d8a0b2d7f8c1
 Revises: c91e5e67d3f2
 Create Date: 2026-03-04 08:10:00.000000
-
 """
 
 from typing import Sequence, Union

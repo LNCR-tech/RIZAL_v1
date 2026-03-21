@@ -1,10 +1,14 @@
-"""add_default_admin_user
+"""Use: Implements the database change for add default admin user.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_default_admin_user
 
 Revision ID: 2a615b0b9a09
 Revises: ba7bc10b7baf
 Create Date: 2025-05-25 06:35:11.791965
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

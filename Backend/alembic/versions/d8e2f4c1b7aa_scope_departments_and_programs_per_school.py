@@ -1,9 +1,12 @@
-"""scope departments and programs per school
+"""Use: Implements the database change for scope departments and programs per school.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+scope departments and programs per school
 
 Revision ID: d8e2f4c1b7aa
 Revises: c3d91e4ab2f6
 Create Date: 2026-03-16 10:15:00.000000
-
 """
 
 from __future__ import annotations

@@ -1,3 +1,8 @@
+"""Use: Defines request and response data shapes for department API data.
+Where to use: Use this in routers and services when validating or returning department API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 

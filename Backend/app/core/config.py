@@ -1,3 +1,8 @@
+"""Use: Loads backend settings and environment values.
+Where to use: Use this anywhere the app needs config like database URLs, limits, or feature settings.
+Role: Core setup layer. It keeps runtime configuration in one place.
+"""
+
 import os
 from pathlib import Path
 

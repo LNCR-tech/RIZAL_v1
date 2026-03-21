@@ -1,10 +1,14 @@
-"""optimized_user_models
+"""Use: Implements the database change for optimized user models.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+optimized_user_models
 
 Revision ID: a0dc61183855
 Revises: 8d047b24a12e
 Create Date: 2025-05-25 06:06:18.321050
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

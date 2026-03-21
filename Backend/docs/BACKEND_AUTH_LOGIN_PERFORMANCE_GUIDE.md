@@ -38,6 +38,7 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 - auth handlers and auth dependencies now run as sync callables so synchronous SQLAlchemy and bcrypt work execute in FastAPI's threadpool instead of blocking the event loop
 - login eager-loads roles, school settings, and face profile in one query to reduce pool pressure
 - `GET /health` now reports database reachability plus current SQLAlchemy pool usage
+- `GET /health` follows the active request database binding, so test overrides and alternate session bindings report the correct database state instead of always probing the global engine
 
 ## Request Flow
 

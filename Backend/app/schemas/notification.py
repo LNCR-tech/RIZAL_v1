@@ -1,7 +1,12 @@
+"""Use: Defines request and response data shapes for notification API data.
+Where to use: Use this in routers and services when validating or returning notification API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NotificationPreferenceResponse(BaseModel):
@@ -15,8 +20,7 @@ class NotificationPreferenceResponse(BaseModel):
     notify_subscription: bool
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationPreferenceUpdate(BaseModel):
@@ -42,8 +46,7 @@ class NotificationLogItem(BaseModel):
     metadata_json: Optional[dict[str, Any]] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationTestRequest(BaseModel):

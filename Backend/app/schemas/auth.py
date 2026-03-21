@@ -1,3 +1,8 @@
+"""Use: Defines request and response data shapes for authentication API data.
+Where to use: Use this in routers and services when validating or returning authentication API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum

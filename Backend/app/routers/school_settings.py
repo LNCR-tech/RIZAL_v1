@@ -1,3 +1,8 @@
+"""Use: Handles school settings and branding API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs school settings and branding features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 import csv
 import io
 import json

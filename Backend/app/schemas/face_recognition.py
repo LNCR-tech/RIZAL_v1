@@ -1,3 +1,8 @@
+"""Use: Defines request and response data shapes for face recognition API data.
+Where to use: Use this in routers and services when validating or returning face recognition API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime

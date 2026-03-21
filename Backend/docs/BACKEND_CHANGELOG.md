@@ -14,6 +14,118 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-03-21 - Remove non-live geolocation utility helpers
+
+### Purpose
+
+Removed geolocation helpers that were confirmed to be outside the current frontend-backed and router-backed runtime workflow.
+
+### Main files
+
+- `Backend/app/services/geolocation.py`
+- `Backend/app/tests/test_geolocation.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- removed `recommended_accuracy_limit_m()` from `Backend/app/services/geolocation.py`
+- removed `is_accuracy_ok()` from `Backend/app/services/geolocation.py`
+- kept the active live geolocation path unchanged:
+  - `geofence_check()`
+  - `haversine_m()`
+- removed the dedicated tests that only covered those deleted helpers
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes for the current event geofence and attendance scan flow
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/geolocation.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests/test_geolocation.py Backend/app/tests/test_event_geolocation_service.py`
+
+## 2026-03-21 - Mark non-live geolocation utility helpers as test-only code paths
+
+### Purpose
+
+Clarified which geolocation helpers are part of the active frontend-backed runtime flow and which ones are currently retained only as utility or test helpers.
+
+### Main files
+
+- `Backend/app/services/geolocation.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- marked `recommended_accuracy_limit_m()` as a retained utility helper that is not used by the current live router workflow
+- marked `is_accuracy_ok()` as a retained utility helper that is not used by the current live router workflow
+- documented that the current live geolocation path continues to use:
+  - `geofence_check()`
+  - `haversine_m()`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/geolocation.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests/test_geolocation.py Backend/app/tests/test_event_geolocation_service.py`
+
+## 2026-03-21 - Modernize backend schema and ORM conventions for current library versions
+
+### Purpose
+
+Updated the backend to current SQLAlchemy 2 and Pydantic 2 patterns so the codebase matches the supported 2026-style APIs and avoids deprecated validation or serialization helpers.
+
+### Main files
+
+- `Backend/app/models/base.py`
+- `Backend/app/schemas/user.py`
+- `Backend/app/schemas/program.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/routers/users.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+
+### Backend changes
+
+- switched the shared ORM base import to `sqlalchemy.orm.declarative_base`
+- replaced remaining Pydantic v1-style schema config blocks with `ConfigDict(from_attributes=True)`
+- replaced deprecated validator and forward-reference patterns with `field_validator` and `model_rebuild()`
+- replaced deprecated user-router serialization calls with `model_validate(..., from_attributes=True)` and `model_copy(...)`
+- replaced deprecated schema example declarations with `json_schema_extra`
+
+### Route or schema impact
+
+- no route path changes
+- no request or response payload changes
+- internal schema serialization and validation now follow current Pydantic 2 patterns
+
+### Migration impact
+
+- no database migration required
+- no runtime configuration change required
+
+### How to test
+
+- run `python -m py_compile Backend/app/models/base.py Backend/app/schemas/user.py Backend/app/schemas/program.py Backend/app/schemas/governance_hierarchy.py Backend/app/routers/users.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests`
+
 ## 2026-03-17 - Load Backend/.env for app and Alembic
 
 ### Purpose
@@ -25,7 +137,6 @@ Let local development use a single `Backend/.env` file without exporting shell v
 - `Backend/app/core/config.py`
 - `Backend/alembic/env.py`
 - `Backend/.env`
-- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
 
 ### Backend changes
 
@@ -48,6 +159,233 @@ Let local development use a single `Backend/.env` file without exporting shell v
 1. Edit `Backend/.env` with your local PostgreSQL password.
 2. Run `alembic upgrade head` and confirm it connects without exporting `DATABASE_URL` in the shell.
 3. Start `uvicorn app.main:app --reload` and confirm `GET /health` succeeds.
+
+## 2026-03-21 - Make health checks respect the active database binding
+
+### Purpose
+
+Adjusted the health endpoint so it checks the same database binding used by the current request context. This preserves deployment health reporting while letting tests and alternate session bindings return the correct database status.
+
+### Main files
+
+- `Backend/app/routers/health.py`
+- `Backend/app/core/database.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- changed `GET /health` to use the injected `get_db` session instead of opening a connection directly from the global engine
+- updated pool snapshot generation so it can inspect the engine behind the active request bind
+- kept the same response payload and degraded `503` behavior when the active database binding is unavailable
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- runtime behavior changed for tests and alternate database bindings because `GET /health` now follows the bound session instead of always probing the global engine
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m pytest Backend/app/tests/test_api.py -k health`
+- call `GET /health` in the deployed stack and confirm it still reports the active PostgreSQL state and pool snapshot
+- run the full backend test suite for broader regression coverage
+
+## 2026-03-21 - Remove unused in-memory face helper methods
+
+### Purpose
+
+Removed the unused local-file and in-memory face helper methods from the face recognition service because the active frontend and API flows already use database-backed face encodings only.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- removed these unused service helpers from `Backend/app/services/face_recognition.py`:
+  - `register_face`
+  - `recognize_face`
+  - `save_encodings`
+  - `load_encodings`
+- removed the unused `known_faces` in-memory store from the service
+- removed file-persistence code that depended on `pickle`
+- kept the active route-facing methods unchanged:
+  - `extract_encoding_from_bytes`
+  - `compare_encodings`
+  - `find_best_match`
+  - `check_liveness`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes for the frontend-backed flows
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/face_recognition.py`
+- smoke-test the active frontend-backed routes:
+  - `POST /face/register`
+  - `POST /face/register-upload`
+  - `POST /face/verify`
+  - `POST /face/face-scan-with-recognition`
+  - `POST /auth/security/face-verify`
+
+## 2026-03-21 - Mark legacy in-memory face helpers as non-frontend code paths
+
+### Purpose
+
+Clarified that the local-file face helper methods in the face recognition service are legacy utilities and are not part of the current frontend-backed or router-backed runtime flow.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- marked these methods as legacy local-file or in-memory helpers in `Backend/app/services/face_recognition.py`:
+  - `register_face`
+  - `recognize_face`
+  - `save_encodings`
+  - `load_encodings`
+- clarified that current frontend and HTTP route flows use database-backed face encodings instead of `self.known_faces`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/face_recognition.py`
+- confirm active frontend-backed flows still map to the router endpoints instead of the legacy local-file helpers:
+  - `POST /face/register`
+  - `POST /face/register-upload`
+  - `POST /face/verify`
+  - `POST /face/face-scan-with-recognition`
+  - `POST /auth/security/face-verify`
+
+## 2026-03-21 - Adapt face recognition service comments without changing caller names
+
+### Purpose
+
+Updated the face recognition service with a more explanatory structure based on a provided rewrite, while preserving the current snake_case method names and data-field names already used by the routers and security flow.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- rewrote `Backend/app/services/face_recognition.py` with clearer section comments and docstrings
+- kept the existing public service contract unchanged, including:
+  - `to_dict`
+  - `encoding_bytes`
+  - `known_faces`
+  - `decode_base64_image`
+  - `load_rgb_from_bytes`
+  - `compute_image_sha256`
+  - `encoding_to_bytes`
+  - `encoding_from_bytes`
+  - `anti_spoof_status`
+  - `liveness_passed`
+  - `check_liveness`
+  - `extract_encoding_from_bytes`
+  - `compare_encodings`
+  - `find_best_match`
+- did not switch the file to camelCase names because that would break current route and security-center callers
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/face_recognition.py`
+- smoke-test:
+  - `POST /face/register`
+  - `POST /face/register-upload`
+  - `POST /face/verify`
+  - `POST /face/face-scan-with-recognition`
+  - `POST /auth/security/face-liveness`
+  - `POST /auth/security/face-reference`
+  - `POST /auth/security/face-verify`
+
+## 2026-03-20 - Add simple module comments across backend Python files
+
+### Purpose
+
+Made the backend easier to read by adding short, basic-English module comments to the Python files. Each file now starts with a simple header that explains what the file does, where it is used, and what role it has in the backend.
+
+### Main files
+
+- `Backend/app/main.py`
+- `Backend/app/core/*.py`
+- `Backend/app/models/*.py`
+- `Backend/app/schemas/*.py`
+- `Backend/app/services/*.py`
+- `Backend/app/routers/*.py`
+- `Backend/app/repositories/*.py`
+- `Backend/app/utils/*.py`
+- `Backend/app/workers/*.py`
+- `Backend/app/worker/*.py`
+- `Backend/app/tests/*.py`
+- `Backend/alembic/env.py`
+- `Backend/alembic/versions/*.py`
+- `Backend/migrations/env.py`
+- `Backend/seed.py`
+- `Backend/run_simple_test.py`
+- `Backend/migration_script.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added one short module header to backend Python files with:
+  - `Use`
+  - `Where to use`
+  - `Role`
+- kept all backend logic, routes, schemas, models, migrations, and worker behavior unchanged
+- kept existing migration revision details visible in Alembic version files
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m compileall Backend/app Backend/alembic Backend/migrations Backend/seed.py Backend/run_simple_test.py Backend/migration_script.py`
+>>>>>>> e8ab65c (Document backend modules and clean up unused face and geolocation helpers)
 
 ## 2026-03-17 - Sync Campus Admin status with school lockout
 

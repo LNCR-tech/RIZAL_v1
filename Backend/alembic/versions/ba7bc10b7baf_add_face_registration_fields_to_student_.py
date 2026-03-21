@@ -1,10 +1,14 @@
-"""add face registration fields to student_profiles
+"""Use: Implements the database change for add face registration fields to student .
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add face registration fields to student_profiles
 
 Revision ID: ba7bc10b7baf
 Revises: 72e94cee1351
 Create Date: 2025-05-25 06:28:49.854110
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

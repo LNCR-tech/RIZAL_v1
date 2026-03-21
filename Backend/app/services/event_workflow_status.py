@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for automatic event workflow status syncing.
+Where to use: Use this from routers, workers, or other services when automatic event workflow status syncing logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

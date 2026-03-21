@@ -1,3 +1,8 @@
+"""Use: Defines database models for platform feature flags and subscriptions.
+Where to use: Use this when the backend needs to store or load platform feature flags and subscriptions data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 from datetime import date, datetime
 
 from sqlalchemy import (

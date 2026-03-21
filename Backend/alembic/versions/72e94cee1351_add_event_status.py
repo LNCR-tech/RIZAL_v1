@@ -1,10 +1,14 @@
-"""add_event_status
+"""Use: Implements the database change for add event status.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add_event_status
 
 Revision ID: 72e94cee1351
 Revises: 004714171a2f
 Create Date: 2025-05-25 06:14:56.888211
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

@@ -1,9 +1,12 @@
-"""add face profiles and event geo verification fields
+"""Use: Implements the database change for add face profiles and event geo fields.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add face profiles and event geo verification fields
 
 Revision ID: f8b2c1d4e6a7
 Revises: d4f6a8b0c2e4
 Create Date: 2026-03-10 23:20:00.000000
-
 """
 
 from typing import Sequence, Union

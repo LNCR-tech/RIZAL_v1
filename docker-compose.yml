@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fastapi_db
     ports:
-      - "5432:5432"
+      # Expose Postgres on 5433 to avoid conflicts with any local Windows PostgreSQL service.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

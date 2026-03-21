@@ -1,3 +1,8 @@
+"""Use: Seeds the backend with starter data.
+Where to use: Use this script during local setup or when you need sample backend records.
+Role: Script layer. It prepares initial data outside the running API.
+"""
+
 # seed.py (in your project root)
 import sys
 from pathlib import Path

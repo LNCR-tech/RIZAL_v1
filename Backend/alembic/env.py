@@ -1,3 +1,8 @@
+"""Use: Configures Alembic for backend database migrations.
+Where to use: Use this when running `alembic upgrade`, `alembic downgrade`, or other Alembic commands.
+Role: Migration support layer. It connects Alembic to the backend database settings.
+"""
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config

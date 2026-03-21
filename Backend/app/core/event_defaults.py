@@ -1,3 +1,8 @@
+"""Use: Resolves default attendance timing values for events.
+Where to use: Use this when the backend needs the effective event timing values for a school or governance unit.
+Role: Core rule layer. It gives one shared source for event default values.
+"""
+
 from __future__ import annotations
 
 from typing import Any

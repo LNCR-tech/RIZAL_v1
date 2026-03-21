@@ -1,3 +1,8 @@
+"""Use: Defines database models for events and event scope settings.
+Where to use: Use this when the backend needs to store or load events and event scope settings data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum

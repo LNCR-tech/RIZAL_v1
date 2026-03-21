@@ -1,3 +1,8 @@
+"""Use: Defines database models for governance units, members, permissions, and announcements.
+Where to use: Use this when the backend needs to store or load governance units, members, permissions, and announcements data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime

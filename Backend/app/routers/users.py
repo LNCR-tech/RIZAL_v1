@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+"""Use: Handles user and account management API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs user and account management features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import logging
@@ -18,7 +23,6 @@ from sqlalchemy import select
 
 from app.schemas.user import (
     UserCreate,
-    User,
     UserCreateResponse,
     UserWithRelations,
     StudentProfileCreate,
@@ -45,6 +49,15 @@ from app.services import governance_hierarchy_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 logger = logging.getLogger(__name__)
+
+
+def _serialize_user(user: UserModel) -> UserWithRelations:
+    return UserWithRelations.model_validate(user, from_attributes=True)
+
+
+def _serialize_users(users: list[UserModel]) -> list[UserWithRelations]:
+    return [_serialize_user(user) for user in users]
+
 
 # Helper function to check if user has any of the required roles
 def has_required_roles(user: UserModel, required_roles: List[str]) -> bool:
@@ -275,9 +288,11 @@ def create_user(
                 str(exc),
             )
 
-        return UserCreateResponse(
-            **User.from_orm(db_user).dict(),
-            generated_temporary_password=generated_temporary_password,
+        return UserCreateResponse.model_validate(
+            db_user,
+            from_attributes=True,
+        ).model_copy(
+            update={"generated_temporary_password": generated_temporary_password},
         )
     except HTTPException:
         db.rollback()
@@ -332,7 +347,7 @@ def create_student_profile(
         db.commit()
         db.refresh(target_user)
         
-        return UserWithRelations.from_orm(target_user)
+        return _serialize_user(target_user)
         
     except Exception as e:
         db.rollback()
@@ -366,7 +381,7 @@ def get_all_users(
     query = db.query(UserModel)
     query = _apply_user_scope(query, current_user)
     users = query.offset(skip).limit(limit).all()
-    return [UserWithRelations.from_orm(user) for user in users]
+    return _serialize_users(users)
 
 
 @router.get("/by-role/{role_name}", response_model=List[UserWithRelations])
@@ -400,7 +415,7 @@ def get_users_by_role(
     query = _apply_user_scope(query, current_user)
     users = query.offset(skip).limit(limit).all()
     
-    return [UserWithRelations.from_orm(user) for user in users]
+    return _serialize_users(users)
 
 @router.get("/me/", response_model=UserWithRelations)
 def get_current_user_profile(
@@ -413,7 +428,7 @@ def get_current_user_profile(
     # Accessible to any authenticated user
     # Refresh to ensure we have the latest data
     db.refresh(current_user)
-    return UserWithRelations.from_orm(current_user)
+    return _serialize_user(current_user)
 
 
 # Add these endpoints to your existing router
@@ -487,7 +502,7 @@ def update_user(
     db.commit()
     db.refresh(db_user)
     
-    return UserWithRelations.from_orm(db_user)
+    return _serialize_user(db_user)
 
 
 @router.delete("/{user_id}", status_code=204)
@@ -609,7 +624,7 @@ def update_student_profile(
     user = _query_user_for_actor(db, profile.user_id, current_user)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserWithRelations.from_orm(user)
+    return _serialize_user(user)
 
 
 @router.delete("/student-profiles/{profile_id}", status_code=204)
@@ -702,7 +717,7 @@ def update_user_roles(
     db.commit()
     db.refresh(user)
     
-    return UserWithRelations.from_orm(user)
+    return _serialize_user(user)
 
 
 @router.get("/{user_id}", response_model=UserWithRelations)
@@ -736,7 +751,7 @@ def get_user_by_id(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return UserWithRelations.from_orm(user)
+    return _serialize_user(user)
 
 
 @router.post("/{user_id}/reset-password", status_code=204)

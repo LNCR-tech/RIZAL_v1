@@ -1,3 +1,8 @@
+"""Use: Tests email service behavior.
+Where to use: Use this when running `pytest` to check that this backend behavior still works.
+Role: Test layer. It protects the app from regressions.
+"""
+
 from types import SimpleNamespace
 
 from app.services import email_service

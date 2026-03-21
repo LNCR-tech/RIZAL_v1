@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for student bulk import processing.
+Where to use: Use this from routers, workers, or other services when student bulk import processing logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 import json

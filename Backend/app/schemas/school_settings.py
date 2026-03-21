@@ -1,7 +1,12 @@
+"""Use: Defines request and response data shapes for school settings API data.
+Where to use: Use this in routers and services when validating or returning school settings API data.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{6})$"
@@ -18,8 +23,7 @@ class SchoolSettingsResponse(BaseModel):
     event_default_late_threshold_minutes: int
     event_default_sign_out_grace_minutes: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SchoolSettingsUpdate(BaseModel):
@@ -41,8 +45,7 @@ class SchoolAuditLogResponse(BaseModel):
     created_at: datetime
     actor_user_id: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserImportRowResult(BaseModel):

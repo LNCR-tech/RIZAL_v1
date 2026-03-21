@@ -1,3 +1,8 @@
+"""Use: Defines database models for bulk import jobs and row errors.
+Where to use: Use this when the backend needs to store or load bulk import jobs and row errors data.
+Role: Model layer. It maps Python objects to database tables and relationships.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text

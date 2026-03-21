@@ -1,9 +1,12 @@
-"""allow_platform_admin_without_school_scope
+"""Use: Implements the database change for allow platform admin without school scope.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+allow_platform_admin_without_school_scope
 
 Revision ID: f4a2c1b9d8e7
 Revises: e1c3b7f4a6d9
 Create Date: 2026-03-04 12:30:00.000000
-
 """
 
 from typing import Sequence, Union

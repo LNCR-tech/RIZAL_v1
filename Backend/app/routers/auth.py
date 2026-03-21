@@ -1,3 +1,8 @@
+"""Use: Handles login, MFA, and authentication API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs login, MFA, and authentication features.
+Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
+"""
+
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status

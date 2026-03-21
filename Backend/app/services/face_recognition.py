@@ -1,20 +1,28 @@
+"""Use: Contains the main backend rules for face profile, liveness, and recognition rules.
+Where to use: Use this from routers, workers, or other services when face profile, liveness, and recognition rules logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
+# --- Standard Python libraries ---
 import base64
 import hashlib
 import io
-import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable
 
+# --- Third-party libraries ---
 import face_recognition
 import numpy as np
 from fastapi import HTTPException, status
 from PIL import Image, UnidentifiedImageError
 
+# --- App config ---
 from app.core.config import get_settings
 
+# --- Optional libraries ---
 try:
     import cv2
 except Exception:  # pragma: no cover - optional dependency
@@ -26,13 +34,22 @@ except Exception:  # pragma: no cover - optional dependency
     ort = None
 
 
+# ---------------------------------------------
+# Dataclasses
+# These are simple containers for related data.
+# ---------------------------------------------
+
+
 @dataclass
 class LivenessResult:
+    """Result of the anti-spoof or liveness check."""
+
     label: str
     score: float
     reason: str | None = None
 
     def to_dict(self) -> dict[str, object]:
+        """Convert the result into a JSON-friendly dictionary."""
         payload: dict[str, object] = {
             "label": self.label,
             "score": round(float(self.score), 6),
@@ -44,6 +61,8 @@ class LivenessResult:
 
 @dataclass
 class FaceCandidate:
+    """One known or registered face that can be matched against."""
+
     identifier: int | str
     label: str
     encoding_bytes: bytes
@@ -51,6 +70,8 @@ class FaceCandidate:
 
 @dataclass
 class FaceMatchResult:
+    """Result of comparing a probe face against one reference or many candidates."""
+
     matched: bool
     threshold: float
     distance: float
@@ -58,24 +79,43 @@ class FaceMatchResult:
     candidate: FaceCandidate | None = None
 
 
+# ---------------------------------------------
+# Main service class
+# This is where the face logic lives.
+# ---------------------------------------------
+
+
 class FaceRecognitionService:
     def __init__(self) -> None:
+        # Load thresholds, model paths, and feature flags from app settings.
         self.settings = get_settings()
-        self.known_faces: dict[str, np.ndarray] = {}
+
+        # Anti-spoof model state. These are loaded only when first needed.
         self._anti_spoof_session = None
         self._anti_spoof_input_name: str | None = None
         self._anti_spoof_output_name: str | None = None
         self._anti_spoof_input_size: tuple[int, int] | None = None
         self._anti_spoof_initialized = False
 
+    # ---------------------------------------------
+    # Helper: find the anti-spoof model path
+    # ---------------------------------------------
+
     def _default_anti_spoof_model_path(self) -> Path:
+        """Return the configured anti-spoof path or the default model path."""
         configured = self.settings.anti_spoof_model_path.strip()
         if configured:
             return Path(configured)
         return Path(__file__).resolve().parents[2] / "models" / "MiniFASNetV2.onnx"
 
+    # ---------------------------------------------
+    # Static utilities
+    # These helpers do not need access to self.
+    # ---------------------------------------------
+
     @staticmethod
     def decode_base64_image(image_base64: str) -> bytes:
+        """Decode a base64 image string into raw bytes."""
         if not image_base64 or not image_base64.strip():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -96,6 +136,7 @@ class FaceRecognitionService:
 
     @staticmethod
     def load_rgb_from_bytes(image_bytes: bytes) -> np.ndarray:
+        """Open raw image bytes and convert them into an RGB NumPy array."""
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except (UnidentifiedImageError, OSError) as exc:
@@ -107,26 +148,31 @@ class FaceRecognitionService:
 
     @staticmethod
     def compute_image_sha256(image_bytes: bytes) -> str:
+        """Return a SHA-256 fingerprint for an image."""
         return hashlib.sha256(image_bytes).hexdigest()
 
     @staticmethod
     def encoding_to_bytes(encoding: np.ndarray) -> bytes:
+        """Convert a face encoding array into raw bytes for storage."""
         normalized = np.asarray(encoding, dtype=np.float64)
         return normalized.tobytes()
 
     @staticmethod
     def encoding_from_bytes(encoding_bytes: bytes) -> np.ndarray:
+        """Convert stored raw bytes back into a face encoding array."""
         if not encoding_bytes:
             raise ValueError("Face encoding bytes are empty.")
         return np.frombuffer(encoding_bytes, dtype=np.float64)
 
     @staticmethod
     def _softmax(values: np.ndarray) -> np.ndarray:
+        """Convert raw model scores into probabilities."""
         exp_values = np.exp(values - np.max(values, axis=1, keepdims=True))
         return exp_values / exp_values.sum(axis=1, keepdims=True)
 
     @staticmethod
     def _xyxy_to_xywh(x1: int, y1: int, x2: int, y2: int) -> list[int]:
+        """Convert a box from corner format into x, y, width, height format."""
         return [int(x1), int(y1), int(x2 - x1), int(y2 - y1)]
 
     @staticmethod
@@ -137,9 +183,13 @@ class FaceRecognitionService:
         out_h: int,
         out_w: int,
     ) -> np.ndarray:
+        """Crop the face and resize it to the exact size the model expects."""
         src_h, src_w = image_bgr.shape[:2]
         x, y, box_w, box_h = bbox_xywh
+
+        # Scale down when needed so the crop stays inside the image.
         scale = min((src_h - 1) / max(box_h, 1), (src_w - 1) / max(box_w, 1), scale)
+
         new_w = box_w * scale
         new_h = box_h * scale
         center_x = x + box_w / 2
@@ -163,12 +213,18 @@ class FaceRecognitionService:
             )
         return cv2.resize(cropped, (out_w, out_h))
 
+    # ---------------------------------------------
+    # Anti-spoof and liveness detection
+    # ---------------------------------------------
+
     def _init_anti_spoof(self) -> None:
+        """Load the anti-spoof ONNX model once, the first time it is needed."""
         if self._anti_spoof_initialized:
             return
 
         self._anti_spoof_initialized = True
         model_path = self._default_anti_spoof_model_path()
+
         if ort is None or cv2 is None or not model_path.exists():
             return
 
@@ -192,6 +248,7 @@ class FaceRecognitionService:
         self._anti_spoof_input_size = (height, width)
 
     def anti_spoof_status(self) -> tuple[bool, str | None]:
+        """Return whether the anti-spoof model is ready, plus a reason if not."""
         self._init_anti_spoof()
         if self._anti_spoof_session is not None:
             return True, None
@@ -206,11 +263,13 @@ class FaceRecognitionService:
         return False, "session_unavailable"
 
     def liveness_passed(self, result: LivenessResult) -> bool:
+        """Decide if a liveness result counts as passed."""
         if result.label == "Bypassed":
             return True
         return result.label == "Real" and float(result.score) >= self.settings.liveness_min_score
 
     def check_liveness(self, rgb_image: np.ndarray) -> LivenessResult:
+        """Run the anti-spoof check and return whether the face is real or fake."""
         ready, reason = self.anti_spoof_status()
         if not ready:
             if self.settings.allow_liveness_bypass_when_model_missing:
@@ -219,28 +278,28 @@ class FaceRecognitionService:
                     score=1.0,
                     reason=reason or "model_unavailable",
                 )
+
+            detail = "Liveness model is not available."
+            if reason:
+                detail = f"Liveness model is not available ({reason})."
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=(
-                    "Liveness model is not available."
-                    if reason is None
-                    else f"Liveness model is not available ({reason})."
-                ),
+                detail=detail,
             )
 
-        locations = face_recognition.face_locations(rgb_image)
-        if not locations:
+        face_locations = face_recognition.face_locations(rgb_image)
+        if not face_locations:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No face detected for liveness verification.",
             )
-        if len(locations) != 1:
+        if len(face_locations) != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Upload an image with exactly one face for liveness verification.",
             )
 
-        top, right, bottom, left = locations[0]
+        top, right, bottom, left = face_locations[0]
         bbox_xywh = self._xyxy_to_xywh(left, top, right, bottom)
         image_bgr = rgb_image[:, :, ::-1].copy()
         input_height, input_width = self._anti_spoof_input_size or (80, 80)
@@ -252,6 +311,7 @@ class FaceRecognitionService:
             input_width,
         )
 
+        # The ONNX model expects a batch in channel-first format.
         model_input = face_crop.astype(np.float32)
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
@@ -266,6 +326,10 @@ class FaceRecognitionService:
         label = "Real" if label_index == 1 else "Fake"
         return LivenessResult(label=label, score=score)
 
+    # ---------------------------------------------
+    # Core face recognition methods
+    # ---------------------------------------------
+
     def extract_encoding_from_bytes(
         self,
         image_bytes: bytes,
@@ -273,12 +337,17 @@ class FaceRecognitionService:
         require_single_face: bool = True,
         enforce_liveness: bool = False,
     ) -> tuple[np.ndarray, LivenessResult]:
+        """Load an image, optionally run liveness, then return its face encoding."""
         rgb_image = self.load_rgb_from_bytes(image_bytes)
-        liveness = self.check_liveness(rgb_image) if enforce_liveness else LivenessResult(
-            label="Bypassed",
-            score=1.0,
-            reason="not_requested",
-        )
+
+        if enforce_liveness:
+            liveness = self.check_liveness(rgb_image)
+        else:
+            liveness = LivenessResult(
+                label="Bypassed",
+                score=1.0,
+                reason="not_requested",
+            )
 
         if enforce_liveness and not self.liveness_passed(liveness):
             raise HTTPException(
@@ -298,9 +367,10 @@ class FaceRecognitionService:
                 detail="Image must contain exactly one face.",
             )
 
+        locations_to_use = [face_locations[0]] if require_single_face else face_locations
         encodings = face_recognition.face_encodings(
             rgb_image,
-            known_face_locations=face_locations if not require_single_face else [face_locations[0]],
+            known_face_locations=locations_to_use,
         )
         if not encodings:
             raise HTTPException(
@@ -317,11 +387,13 @@ class FaceRecognitionService:
         *,
         threshold: float | None = None,
     ) -> FaceMatchResult:
+        """Compare two face encodings and return a structured match result."""
         distance = float(np.linalg.norm(probe_encoding - reference_encoding))
         effective_threshold = float(
             self.settings.face_match_threshold if threshold is None else threshold
         )
         confidence = max(0.0, 1.0 - distance)
+
         return FaceMatchResult(
             matched=distance <= effective_threshold,
             threshold=effective_threshold,
@@ -336,6 +408,7 @@ class FaceRecognitionService:
         *,
         threshold: float | None = None,
     ) -> FaceMatchResult:
+        """Compare a probe face against many candidates and return the closest match."""
         best_candidate: FaceCandidate | None = None
         best_distance = float("inf")
 
@@ -365,60 +438,3 @@ class FaceRecognitionService:
             confidence=max(0.0, 1.0 - best_distance),
             candidate=best_candidate,
         )
-
-    def register_face(self, student_id: str, image_path: str) -> bool:
-        try:
-            with open(image_path, "rb") as handle:
-                encoding, _ = self.extract_encoding_from_bytes(handle.read())
-            self.known_faces[student_id] = encoding
-            return True
-        except Exception:
-            return False
-
-    def recognize_face(self, image_path: str) -> Optional[str]:
-        try:
-            with open(image_path, "rb") as handle:
-                encoding, _ = self.extract_encoding_from_bytes(handle.read())
-            match = self.find_best_match(
-                encoding,
-                [
-                    FaceCandidate(identifier=student_id, label=student_id, encoding_bytes=self.encoding_to_bytes(value))
-                    for student_id, value in self.known_faces.items()
-                ],
-            )
-            if not match.matched or match.candidate is None:
-                return None
-            return str(match.candidate.identifier)
-        except Exception:
-            return None
-
-    def save_encodings(self, file_path: str) -> None:
-        payload = {
-            student_id: self.encoding_to_bytes(encoding)
-            for student_id, encoding in self.known_faces.items()
-        }
-        with open(file_path, "wb") as handle:
-            pickle.dump(payload, handle)
-
-    def load_encodings(self, file_path: str) -> None:
-        try:
-            with open(file_path, "rb") as handle:
-                payload = pickle.load(handle)
-        except FileNotFoundError:
-            self.known_faces = {}
-            return
-
-        if not isinstance(payload, dict):
-            self.known_faces = {}
-            return
-
-        restored: dict[str, np.ndarray] = {}
-        for student_id, value in payload.items():
-            try:
-                if isinstance(value, np.ndarray):
-                    restored[str(student_id)] = np.asarray(value, dtype=np.float64)
-                elif isinstance(value, (bytes, bytearray)):
-                    restored[str(student_id)] = self.encoding_from_bytes(bytes(value))
-            except Exception:
-                continue
-        self.known_faces = restored

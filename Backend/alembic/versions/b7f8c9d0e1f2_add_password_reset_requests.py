@@ -1,10 +1,14 @@
-"""add password reset requests
+"""Use: Implements the database change for add password reset requests.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+add password reset requests
 
 Revision ID: b7f8c9d0e1f2
 Revises: f4a2c1b9d8e7
 Create Date: 2026-03-05 21:10:00.000000
-
 """
+
 from typing import Sequence, Union
 
 from alembic import op

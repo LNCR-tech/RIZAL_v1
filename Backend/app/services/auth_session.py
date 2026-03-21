@@ -1,3 +1,8 @@
+"""Use: Contains the main backend rules for login session building and account-state checks.
+Where to use: Use this from routers, workers, or other services when login session building and account-state checks logic is needed.
+Role: Service layer. It keeps business logic out of the route files.
+"""
+
 from __future__ import annotations
 
 from datetime import timedelta

@@ -1,3 +1,8 @@
+"""Use: Defines request and response data shapes for attendance request payloads.
+Where to use: Use this in routers and services when validating or returning attendance request payloads.
+Role: Schema layer. It keeps API payloads clear and typed.
+"""
+
 from __future__ import annotations
 
 from typing import Optional

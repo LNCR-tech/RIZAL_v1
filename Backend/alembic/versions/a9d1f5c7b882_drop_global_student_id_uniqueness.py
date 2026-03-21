@@ -1,9 +1,12 @@
-"""drop_global_student_id_uniqueness
+"""Use: Implements the database change for drop global student id uniqueness.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+drop_global_student_id_uniqueness
 
 Revision ID: a9d1f5c7b882
 Revises: f2c6d8a9e1b3
 Create Date: 2026-03-04 09:08:00.000000
-
 """
 
 from typing import Sequence, Union

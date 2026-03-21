@@ -1,9 +1,12 @@
-"""drop legacy governance role artifacts
+"""Use: Implements the database change for drop legacy governance role artifacts.
+Where to use: Use this only when Alembic runs backend database upgrades or downgrades.
+Role: Migration layer. It records one step in the database schema history.
+
+drop legacy governance role artifacts
 
 Revision ID: c3d91e4ab2f6
 Revises: b4c8f12d9e77
 Create Date: 2026-03-16 01:40:00.000000
-
 """
 
 from typing import Sequence, Union
