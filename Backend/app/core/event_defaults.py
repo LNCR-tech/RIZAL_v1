@@ -90,16 +90,3 @@ def resolve_governance_event_default_values(
             else school_sign_out
         ),
     )
-
-
-def build_event_default_value_map(
-    *,
-    early_check_in_minutes: int,
-    late_threshold_minutes: int,
-    sign_out_grace_minutes: int,
-) -> dict[str, int]:
-    return {
-        "early_check_in_minutes": int(early_check_in_minutes),
-        "late_threshold_minutes": int(late_threshold_minutes),
-        "sign_out_grace_minutes": int(sign_out_grace_minutes),
-    }

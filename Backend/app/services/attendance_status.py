@@ -73,27 +73,6 @@ def is_late_arrival(
     )
 
 
-def resolve_time_in_status(
-    *,
-    event_start: datetime,
-    time_in: datetime,
-    late_threshold_minutes: Any,
-    timezone_name: str = DEFAULT_EVENT_TIMEZONE,
-) -> str:
-    localized_time_in = normalize_attendance_datetime(time_in, timezone_name)
-    localized_start = normalize_event_datetime(event_start, timezone_name)
-    if localized_time_in < localized_start:
-        return "present"
-    if is_late_arrival(
-        event_start=event_start,
-        time_in=time_in,
-        late_threshold_minutes=late_threshold_minutes,
-        timezone_name=timezone_name,
-    ):
-        return "late"
-    return "absent"
-
-
 def finalize_completed_attendance_status(
     *,
     check_in_status: Any,

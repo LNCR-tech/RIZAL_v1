@@ -2756,6 +2756,387 @@ def test_org_event_create_without_governance_context_is_forced_to_program_scope(
     assert [program.id for program in created_event.programs] == [program_a.id]
 
 
+def test_sg_event_status_cannot_start_before_scheduled_start_time(client, test_db):
+    school = _create_school(test_db, code="SG-STATUS-START")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    student_role = _create_role(test_db, name="student")
+    department, program = _create_academic_scope(
+        test_db,
+        department_name="Engineering Status Start",
+        program_name="BS Computer Engineering Status Start",
+        school_id=school.id,
+    )
+    campus_admin = _create_user(
+        test_db,
+        email="status.start.admin@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+    sg_user = _create_user(
+        test_db,
+        email="status.start.sg@example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+    _create_student_profile(
+        test_db,
+        user_id=sg_user.id,
+        school_id=school.id,
+        student_id="SG-STATUS-START-001",
+        department_id=department.id,
+        program_id=program.id,
+    )
+
+    _seed_permission_catalog(test_db)
+    manage_events_permission = (
+        test_db.query(GovernancePermission)
+        .filter(GovernancePermission.permission_code == PermissionCode.MANAGE_EVENTS)
+        .first()
+    )
+
+    ssg_unit = GovernanceUnit(
+        unit_code="SSG-SG-STATUS-START",
+        unit_name="SSG Status Start Scope",
+        unit_type=GovernanceUnitType.SSG,
+        school_id=school.id,
+        created_by_user_id=campus_admin.id,
+    )
+    sg_unit = GovernanceUnit(
+        unit_code="SG-STATUS-START",
+        unit_name="Engineering SG Status Start",
+        unit_type=GovernanceUnitType.SG,
+        parent_unit=ssg_unit,
+        school_id=school.id,
+        department_id=department.id,
+        created_by_user_id=campus_admin.id,
+    )
+    test_db.add_all([ssg_unit, sg_unit])
+    test_db.commit()
+
+    sg_member = _create_governance_member(
+        test_db,
+        governance_unit_id=sg_unit.id,
+        user_id=sg_user.id,
+        assigned_by_user_id=campus_admin.id,
+    )
+    _grant_member_permission(
+        test_db,
+        governance_member_id=sg_member.id,
+        permission_id=manage_events_permission.id,
+        granted_by_user_id=campus_admin.id,
+    )
+
+    start_datetime = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0) + timedelta(hours=1)
+    event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Engineering Future Start Event",
+        department_ids=[department.id],
+        start_datetime=start_datetime,
+        end_datetime=start_datetime + timedelta(hours=2),
+    )
+
+    response = client.patch(
+        f"/events/{event.id}/status?status=ongoing&governance_context=SG",
+        headers=_auth_headers(sg_user),
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail.startswith("You cannot start this event yet.")
+    assert start_datetime.isoformat(sep=" ", timespec="minutes") in detail
+
+    test_db.refresh(event)
+    assert event.status == ModelEventStatus.UPCOMING
+
+
+def test_sg_event_status_cannot_reopen_closed_event_to_upcoming(client, test_db):
+    school = _create_school(test_db, code="SG-STATUS-REOPEN")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    student_role = _create_role(test_db, name="student")
+    department, program = _create_academic_scope(
+        test_db,
+        department_name="Engineering Status Reopen",
+        program_name="BS Computer Engineering Status Reopen",
+        school_id=school.id,
+    )
+    campus_admin = _create_user(
+        test_db,
+        email="status.reopen.admin@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+    sg_user = _create_user(
+        test_db,
+        email="status.reopen.sg@example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+    _create_student_profile(
+        test_db,
+        user_id=sg_user.id,
+        school_id=school.id,
+        student_id="SG-STATUS-REOPEN-001",
+        department_id=department.id,
+        program_id=program.id,
+    )
+
+    _seed_permission_catalog(test_db)
+    manage_events_permission = (
+        test_db.query(GovernancePermission)
+        .filter(GovernancePermission.permission_code == PermissionCode.MANAGE_EVENTS)
+        .first()
+    )
+
+    ssg_unit = GovernanceUnit(
+        unit_code="SSG-SG-STATUS-REOPEN",
+        unit_name="SSG Status Reopen Scope",
+        unit_type=GovernanceUnitType.SSG,
+        school_id=school.id,
+        created_by_user_id=campus_admin.id,
+    )
+    sg_unit = GovernanceUnit(
+        unit_code="SG-STATUS-REOPEN",
+        unit_name="Engineering SG Status Reopen",
+        unit_type=GovernanceUnitType.SG,
+        parent_unit=ssg_unit,
+        school_id=school.id,
+        department_id=department.id,
+        created_by_user_id=campus_admin.id,
+    )
+    test_db.add_all([ssg_unit, sg_unit])
+    test_db.commit()
+
+    sg_member = _create_governance_member(
+        test_db,
+        governance_unit_id=sg_unit.id,
+        user_id=sg_user.id,
+        assigned_by_user_id=campus_admin.id,
+    )
+    _grant_member_permission(
+        test_db,
+        governance_member_id=sg_member.id,
+        permission_id=manage_events_permission.id,
+        granted_by_user_id=campus_admin.id,
+    )
+
+    end_datetime = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0) - timedelta(hours=1)
+    event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Engineering Closed Event",
+        department_ids=[department.id],
+        start_datetime=end_datetime - timedelta(hours=2),
+        end_datetime=end_datetime,
+        sign_out_grace_minutes=0,
+    )
+    event.status = ModelEventStatus.COMPLETED
+    test_db.commit()
+
+    response = client.patch(
+        f"/events/{event.id}/status?status=upcoming&governance_context=SG",
+        headers=_auth_headers(sg_user),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "You cannot reopen this event because it is already completed."
+    )
+
+    test_db.refresh(event)
+    assert event.status == ModelEventStatus.COMPLETED
+
+
+def test_sg_event_status_reopen_during_sign_out_syncs_back_to_ongoing(client, test_db):
+    school = _create_school(test_db, code="SG-STATUS-REOPEN-SIGNOUT")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    student_role = _create_role(test_db, name="student")
+    department, program = _create_academic_scope(
+        test_db,
+        department_name="Engineering Status Reopen Signout",
+        program_name="BS Computer Engineering Status Reopen Signout",
+        school_id=school.id,
+    )
+    campus_admin = _create_user(
+        test_db,
+        email="status.reopen.signout.admin@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+    sg_user = _create_user(
+        test_db,
+        email="status.reopen.signout.sg@example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+    _create_student_profile(
+        test_db,
+        user_id=sg_user.id,
+        school_id=school.id,
+        student_id="SG-STATUS-REOPEN-SIGNOUT-001",
+        department_id=department.id,
+        program_id=program.id,
+    )
+
+    _seed_permission_catalog(test_db)
+    manage_events_permission = (
+        test_db.query(GovernancePermission)
+        .filter(GovernancePermission.permission_code == PermissionCode.MANAGE_EVENTS)
+        .first()
+    )
+
+    ssg_unit = GovernanceUnit(
+        unit_code="SSG-SG-STATUS-REOPEN-SIGNOUT",
+        unit_name="SSG Status Reopen Signout Scope",
+        unit_type=GovernanceUnitType.SSG,
+        school_id=school.id,
+        created_by_user_id=campus_admin.id,
+    )
+    sg_unit = GovernanceUnit(
+        unit_code="SG-STATUS-REOPEN-SIGNOUT",
+        unit_name="Engineering SG Status Reopen Signout",
+        unit_type=GovernanceUnitType.SG,
+        parent_unit=ssg_unit,
+        school_id=school.id,
+        department_id=department.id,
+        created_by_user_id=campus_admin.id,
+    )
+    test_db.add_all([ssg_unit, sg_unit])
+    test_db.commit()
+
+    sg_member = _create_governance_member(
+        test_db,
+        governance_unit_id=sg_unit.id,
+        user_id=sg_user.id,
+        assigned_by_user_id=campus_admin.id,
+    )
+    _grant_member_permission(
+        test_db,
+        governance_member_id=sg_member.id,
+        permission_id=manage_events_permission.id,
+        granted_by_user_id=campus_admin.id,
+    )
+
+    now_local = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Engineering Sign-Out Window Event",
+        department_ids=[department.id],
+        start_datetime=now_local - timedelta(hours=2),
+        end_datetime=now_local - timedelta(minutes=5),
+        sign_out_grace_minutes=15,
+    )
+    event.status = ModelEventStatus.CANCELLED
+    test_db.commit()
+
+    response = client.patch(
+        f"/events/{event.id}/status?status=upcoming&governance_context=SG",
+        headers=_auth_headers(sg_user),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ongoing"
+
+    test_db.refresh(event)
+    assert event.status == ModelEventStatus.ONGOING
+
+
+def test_sg_event_status_reopen_closed_cancelled_event_syncs_to_completed(client, test_db):
+    school = _create_school(test_db, code="SG-STATUS-REOPEN-CLOSED-CANCELLED")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    student_role = _create_role(test_db, name="student")
+    department, program = _create_academic_scope(
+        test_db,
+        department_name="Engineering Status Reopen Closed Cancelled",
+        program_name="BS Computer Engineering Status Reopen Closed Cancelled",
+        school_id=school.id,
+    )
+    campus_admin = _create_user(
+        test_db,
+        email="status.reopen.closed.admin@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+    sg_user = _create_user(
+        test_db,
+        email="status.reopen.closed.sg@example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+    _create_student_profile(
+        test_db,
+        user_id=sg_user.id,
+        school_id=school.id,
+        student_id="SG-STATUS-REOPEN-CLOSED-001",
+        department_id=department.id,
+        program_id=program.id,
+    )
+
+    _seed_permission_catalog(test_db)
+    manage_events_permission = (
+        test_db.query(GovernancePermission)
+        .filter(GovernancePermission.permission_code == PermissionCode.MANAGE_EVENTS)
+        .first()
+    )
+
+    ssg_unit = GovernanceUnit(
+        unit_code="SSG-SG-STATUS-REOPEN-CLOSED-CANCELLED",
+        unit_name="SSG Status Reopen Closed Cancelled Scope",
+        unit_type=GovernanceUnitType.SSG,
+        school_id=school.id,
+        created_by_user_id=campus_admin.id,
+    )
+    sg_unit = GovernanceUnit(
+        unit_code="SG-STATUS-REOPEN-CLOSED-CANCELLED",
+        unit_name="Engineering SG Status Reopen Closed Cancelled",
+        unit_type=GovernanceUnitType.SG,
+        parent_unit=ssg_unit,
+        school_id=school.id,
+        department_id=department.id,
+        created_by_user_id=campus_admin.id,
+    )
+    test_db.add_all([ssg_unit, sg_unit])
+    test_db.commit()
+
+    sg_member = _create_governance_member(
+        test_db,
+        governance_unit_id=sg_unit.id,
+        user_id=sg_user.id,
+        assigned_by_user_id=campus_admin.id,
+    )
+    _grant_member_permission(
+        test_db,
+        governance_member_id=sg_member.id,
+        permission_id=manage_events_permission.id,
+        granted_by_user_id=campus_admin.id,
+    )
+
+    now_local = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Engineering Closed Cancelled Event",
+        department_ids=[department.id],
+        start_datetime=now_local - timedelta(hours=3),
+        end_datetime=now_local - timedelta(hours=1),
+        sign_out_grace_minutes=0,
+    )
+    event.status = ModelEventStatus.CANCELLED
+    test_db.commit()
+
+    response = client.patch(
+        f"/events/{event.id}/status?status=upcoming&governance_context=SG",
+        headers=_auth_headers(sg_user),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+
+    test_db.refresh(event)
+    assert event.status == ModelEventStatus.COMPLETED
+
+
 def test_sg_event_default_override_and_reset_are_used_for_future_events(client, test_db):
     school = _create_school(test_db, code="SG-EVENT-DEFAULTS")
     campus_admin_role = _create_role(test_db, name="campus_admin")
@@ -3264,7 +3645,7 @@ def test_sg_manual_attendance_blocks_students_outside_department_scope(client, t
     assert blocked_response.json()["detail"] == "Student not found"
 
 
-def test_sg_manual_attendance_sign_out_requires_override_and_preserves_status_audit_fields(
+def test_sg_manual_attendance_sign_out_requires_early_open_and_preserves_status_audit_fields(
     client,
     test_db,
 ):
@@ -3400,20 +3781,17 @@ def test_sg_manual_attendance_sign_out_requires_override_and_preserves_status_au
     assert blocked_detail["action"] == "sign_out"
     assert blocked_detail["reason_code"] == "sign_out_not_open_yet"
 
-    override_minutes = 7
-    override_response = client.post(
-        f"/events/{event.id}/sign-out-override/open?governance_context=SG",
+    open_sign_out_response = client.post(
+        f"/events/{event.id}/sign-out/open-early?governance_context=SG",
         headers=_auth_headers(sg_user),
-        json={"override_minutes": override_minutes},
+        json={"use_sign_out_grace_minutes": True},
     )
-    assert override_response.status_code == 200
-    assert override_response.json()["sign_out_override_until"] is not None
+    assert open_sign_out_response.status_code == 200
+    assert open_sign_out_response.json()["sign_out_grace_minutes"] == 10
     test_db.refresh(event)
-    assert event.sign_out_override_until is not None
-    override_delta_minutes = (
-        event.sign_out_override_until - manila_now
-    ).total_seconds() / 60
-    assert 6 <= override_delta_minutes <= 8
+    end_delta_seconds = abs((event.end_datetime - manila_now).total_seconds())
+    assert end_delta_seconds <= 5
+    assert event.sign_out_grace_minutes == 10
 
     sign_out_response = client.post(
         "/attendance/manual?governance_context=SG",
@@ -3435,7 +3813,7 @@ def test_sg_manual_attendance_sign_out_requires_override_and_preserves_status_au
     assert attendance.status == "late"
 
 
-def test_sg_sign_out_override_cannot_open_before_event_start(client, test_db):
+def test_sg_sign_out_early_cannot_open_before_event_start(client, test_db):
     school = _create_school(test_db, code="SG-OVERRIDE-FUTURE")
     campus_admin_role = _create_role(test_db, name="campus_admin")
     student_role = _create_role(test_db, name="student")
@@ -3519,13 +3897,13 @@ def test_sg_sign_out_override_cannot_open_before_event_start(client, test_db):
     )
 
     response = client.post(
-        f"/events/{event.id}/sign-out-override/open?governance_context=SG",
+        f"/events/{event.id}/sign-out/open-early?governance_context=SG",
         headers=_auth_headers(sg_user),
-        json={"override_minutes": 12},
+        json={"use_sign_out_grace_minutes": False, "close_after_minutes": 12},
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Sign-out override can only be opened after the event has started."
+    assert response.json()["detail"] == "Early sign-out can only be opened after the event has started."
 
 
 def test_governance_announcements_are_persisted_per_unit(client, test_db):
@@ -4033,5 +4411,209 @@ def test_delete_governance_unit_soft_deactivates_sg(client, test_db):
     )
     assert list_response.status_code == 200
     assert list_response.json() == []
+
+
+def test_campus_admin_create_event_without_near_start_override_when_full_early_window_is_available(
+    client,
+    test_db,
+):
+    school = _create_school(test_db, code="EVENT-NO-OVERRIDE")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    campus_admin = _create_user(
+        test_db,
+        email="event.no.override@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+
+    manila_now = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    start_datetime = manila_now + timedelta(hours=2)
+    end_datetime = start_datetime + timedelta(hours=1)
+
+    response = client.post(
+        "/events/",
+        headers=_auth_headers(campus_admin),
+        json={
+            "name": "Far Future Event",
+            "location": "Campus Hall",
+            "start_datetime": start_datetime.isoformat(),
+            "end_datetime": end_datetime.isoformat(),
+            "early_check_in_minutes": 30,
+            "late_threshold_minutes": 10,
+            "sign_out_grace_minutes": 20,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["present_until_override_at"] is None
+    assert payload["late_until_override_at"] is None
+
+
+def test_campus_admin_create_event_adds_near_start_attendance_override_windows(
+    client,
+    test_db,
+):
+    school = _create_school(test_db, code="EVENT-WITH-OVERRIDE")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    campus_admin = _create_user(
+        test_db,
+        email="event.with.override@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+
+    manila_now = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    start_datetime = manila_now + timedelta(minutes=1)
+    end_datetime = manila_now + timedelta(minutes=71)
+
+    response = client.post(
+        "/events/",
+        headers=_auth_headers(campus_admin),
+        json={
+            "name": "Near Start Event",
+            "location": "Campus Hall",
+            "start_datetime": start_datetime.isoformat(),
+            "end_datetime": end_datetime.isoformat(),
+            "early_check_in_minutes": 30,
+            "late_threshold_minutes": 10,
+            "sign_out_grace_minutes": 20,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["present_until_override_at"] is not None
+    assert payload["late_until_override_at"] is not None
+
+    present_until_override_at = datetime.fromisoformat(payload["present_until_override_at"])
+    late_until_override_at = datetime.fromisoformat(payload["late_until_override_at"])
+
+    assert abs((present_until_override_at - (manila_now + timedelta(minutes=30))).total_seconds()) <= 5
+    assert abs((late_until_override_at - (manila_now + timedelta(minutes=40))).total_seconds()) <= 5
+
+
+def test_campus_admin_create_event_rejects_near_start_override_when_start_is_already_in_the_past(
+    client,
+    test_db,
+):
+    school = _create_school(test_db, code="EVENT-PAST-START")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    campus_admin = _create_user(
+        test_db,
+        email="event.past.start@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+
+    manila_now = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    start_datetime = manila_now - timedelta(minutes=1)
+    end_datetime = manila_now + timedelta(minutes=70)
+
+    response = client.post(
+        "/events/",
+        headers=_auth_headers(campus_admin),
+        json={
+            "name": "Past Start Event",
+            "location": "Campus Hall",
+            "start_datetime": start_datetime.isoformat(),
+            "end_datetime": end_datetime.isoformat(),
+            "early_check_in_minutes": 30,
+            "late_threshold_minutes": 10,
+            "sign_out_grace_minutes": 20,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "start time is already in the past" in response.json()["detail"]
+
+
+def test_campus_admin_create_event_rejects_too_short_near_start_override_window(
+    client,
+    test_db,
+):
+    school = _create_school(test_db, code="EVENT-SHORT-OVERRIDE")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    campus_admin = _create_user(
+        test_db,
+        email="event.short.override@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+
+    manila_now = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    start_datetime = manila_now + timedelta(minutes=1)
+    end_datetime = manila_now + timedelta(minutes=59)
+
+    response = client.post(
+        "/events/",
+        headers=_auth_headers(campus_admin),
+        json={
+            "name": "Short Event",
+            "location": "Campus Hall",
+            "start_datetime": start_datetime.isoformat(),
+            "end_datetime": end_datetime.isoformat(),
+            "early_check_in_minutes": 30,
+            "late_threshold_minutes": 10,
+            "sign_out_grace_minutes": 20,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "too short for the near-start attendance override" in response.json()["detail"]
+
+
+def test_campus_admin_update_event_can_add_and_clear_near_start_attendance_override_windows(
+    client,
+    test_db,
+):
+    school = _create_school(test_db, code="EVENT-UPDATE-OVERRIDE")
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    campus_admin = _create_user(
+        test_db,
+        email="event.update.override@example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+
+    manila_now = datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
+    event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Editable Event",
+        start_datetime=manila_now + timedelta(hours=2),
+        end_datetime=manila_now + timedelta(hours=3),
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=20,
+    )
+
+    add_override_response = client.patch(
+        f"/events/{event.id}",
+        headers=_auth_headers(campus_admin),
+        json={
+            "start_datetime": (manila_now + timedelta(minutes=1)).isoformat(),
+            "end_datetime": (manila_now + timedelta(minutes=71)).isoformat(),
+        },
+    )
+
+    assert add_override_response.status_code == 200
+    add_override_payload = add_override_response.json()
+    assert add_override_payload["present_until_override_at"] is not None
+    assert add_override_payload["late_until_override_at"] is not None
+
+    clear_override_response = client.patch(
+        f"/events/{event.id}",
+        headers=_auth_headers(campus_admin),
+        json={
+            "start_datetime": (manila_now + timedelta(hours=4)).isoformat(),
+            "end_datetime": (manila_now + timedelta(hours=5)).isoformat(),
+        },
+    )
+
+    assert clear_override_response.status_code == 200
+    clear_override_payload = clear_override_response.json()
+    assert clear_override_payload["present_until_override_at"] is None
+    assert clear_override_payload["late_until_override_at"] is None
 
 

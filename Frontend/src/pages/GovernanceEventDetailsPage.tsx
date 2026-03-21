@@ -10,12 +10,16 @@ import {
   fetchEventById,
   fetchEventStats,
   GovernanceContext,
-  openSignOutOverride,
+  openSignOutEarly,
 } from "../api/eventsApi";
 import { useGovernanceWorkspace } from "../hooks/useGovernanceWorkspace";
 import {
   formatManilaDateTime,
+  getEffectiveLateCutoff,
+  getEffectivePresentCutoff,
   getDerivedAbsenceCutoff,
+  hasAttendanceOverrideWindow,
+  getSignOutCloseTime,
 } from "../utils/eventAttendanceWindow";
 import { getGovernanceEventsPath } from "../utils/governanceEventPaths";
 import { formatEventDepartments, formatEventPrograms } from "../utils/eventScopeLabels";
@@ -36,8 +40,11 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
   const parsedEventId = Number(eventId);
   const { hasPermission } = useGovernanceWorkspace(unitType);
   const canViewAttendances = hasPermission("manage_attendance");
-  const [overrideLoading, setOverrideLoading] = useState(false);
-  const [overrideMessage, setOverrideMessage] = useState<string | null>(null);
+  const [signOutActionLoading, setSignOutActionLoading] = useState(false);
+  const [signOutMessage, setSignOutMessage] = useState<string | null>(null);
+  const [showSignOutEarlyForm, setShowSignOutEarlyForm] = useState(false);
+  const [useCurrentGraceMinutes, setUseCurrentGraceMinutes] = useState(true);
+  const [customCloseMinutes, setCustomCloseMinutes] = useState("");
   const [eventRecord, setEventRecord] = useState<EventRecord | null>(null);
   const [stats, setStats] = useState<EventStatsResponse | null>(null);
   const [attendees, setAttendees] = useState<EventAttendanceWithStudent[]>([]);
@@ -69,7 +76,12 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
         setEventRecord(eventDetails);
         setStats(eventStats);
         setAttendees(attendanceRows);
-        setOverrideMessage(null);
+        setSignOutMessage(null);
+        setShowSignOutEarlyForm(false);
+        setUseCurrentGraceMinutes(true);
+        setCustomCloseMinutes(
+          eventDetails.sign_out_grace_minutes != null ? `${eventDetails.sign_out_grace_minutes}` : ""
+        );
       })
       .catch((requestError) => {
         if (!isMounted) {
@@ -92,6 +104,50 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
       isMounted = false;
     };
   }, [canViewAttendances, parsedEventId, unitType]);
+
+  const selectedCloseMinutes = useMemo(() => {
+    if (useCurrentGraceMinutes) {
+      return Math.max(0, Number(eventRecord?.sign_out_grace_minutes ?? 0));
+    }
+
+    const parsedMinutes = Number(customCloseMinutes.trim());
+    return Number.isFinite(parsedMinutes) ? parsedMinutes : Number.NaN;
+  }, [customCloseMinutes, eventRecord?.sign_out_grace_minutes, useCurrentGraceMinutes]);
+
+  const projectedCloseTimeLabel = useMemo(() => {
+    if (!eventRecord || !Number.isFinite(selectedCloseMinutes) || selectedCloseMinutes < 0) {
+      return "Enter a valid number of minutes to preview the close time.";
+    }
+
+    const closeTime = new Date(Date.now() + selectedCloseMinutes * 60_000);
+    return formatDateTime(closeTime.toISOString());
+  }, [eventRecord, selectedCloseMinutes]);
+
+  const currentSignOutCloseLabel = useMemo(() => {
+    if (!eventRecord) {
+      return "Not set";
+    }
+
+    return formatDateTime(getSignOutCloseTime(eventRecord).toISOString());
+  }, [eventRecord]);
+  const attendanceOverrideActive = useMemo(
+    () => (eventRecord ? hasAttendanceOverrideWindow(eventRecord) : false),
+    [eventRecord]
+  );
+  const effectivePresentUntilLabel = useMemo(() => {
+    if (!eventRecord) {
+      return "Not set";
+    }
+
+    return formatDateTime(getEffectivePresentCutoff(eventRecord).toISOString());
+  }, [eventRecord]);
+  const effectiveLateUntilLabel = useMemo(() => {
+    if (!eventRecord) {
+      return "Not set";
+    }
+
+    return formatDateTime(getEffectiveLateCutoff(eventRecord).toISOString());
+  }, [eventRecord]);
 
   const statCards = useMemo(() => {
     const presentCount = stats?.statuses.present?.count ?? 0;
@@ -122,56 +178,64 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
     ];
   }, [eventRecord?.status, stats]);
 
-  const handleOpenSignOutOverride = async () => {
+  const handleOpenSignOutEarly = async () => {
     if (!eventRecord) {
       return;
     }
 
-    const suggestedMinutes =
-      eventRecord.sign_out_grace_minutes != null && eventRecord.sign_out_grace_minutes > 0
-        ? `${eventRecord.sign_out_grace_minutes}`
-        : "";
-    const rawValue = window.prompt(
-      "Enter how many minutes sign-out should stay open from now. Leave blank or cancel to keep the scheduled sign-out time.",
-      suggestedMinutes
-    );
-
-    if (rawValue == null || !rawValue.trim()) {
-      setOverrideMessage("Scheduled sign-out timing remains unchanged.");
+    if (useCurrentGraceMinutes && Number(eventRecord.sign_out_grace_minutes ?? 0) <= 0) {
+      setSignOutMessage(
+        "This event currently has 0 sign-out grace minutes. Choose custom minutes to keep sign-out open."
+      );
       return;
     }
 
-    const overrideMinutes = Number(rawValue.trim());
     if (
-      !Number.isFinite(overrideMinutes) ||
-      !Number.isInteger(overrideMinutes) ||
-      overrideMinutes < 1 ||
-      overrideMinutes > 1440
+      !useCurrentGraceMinutes &&
+      (!Number.isFinite(selectedCloseMinutes) ||
+        !Number.isInteger(selectedCloseMinutes) ||
+        selectedCloseMinutes < 1 ||
+        selectedCloseMinutes > 1440)
     ) {
-      setOverrideMessage("Enter a whole number between 1 and 1440 minutes.");
+      setSignOutMessage("Enter a whole number between 1 and 1440 minutes.");
       return;
     }
 
     try {
-      setOverrideLoading(true);
-      setOverrideMessage(null);
-      const updatedEvent = await openSignOutOverride(
+      setSignOutActionLoading(true);
+      setSignOutMessage(null);
+      const updatedEvent = await openSignOutEarly(
         eventRecord.id,
-        overrideMinutes,
+        useCurrentGraceMinutes
+          ? { use_sign_out_grace_minutes: true }
+          : {
+              use_sign_out_grace_minutes: false,
+              close_after_minutes: selectedCloseMinutes,
+            },
         unitType
       );
       setEventRecord(updatedEvent);
-      setOverrideMessage(
-        `Sign-out override is now open for ${overrideMinutes} minute(s).`
+      setCustomCloseMinutes(
+        updatedEvent.sign_out_grace_minutes != null ? `${updatedEvent.sign_out_grace_minutes}` : ""
+      );
+      setShowSignOutEarlyForm(false);
+      setSignOutMessage(
+        useCurrentGraceMinutes
+          ? `Sign-out is open now and will close at ${formatDateTime(
+              getSignOutCloseTime(updatedEvent).toISOString()
+            )} using the current grace minutes.`
+          : `Sign-out is open now and will close at ${formatDateTime(
+              getSignOutCloseTime(updatedEvent).toISOString()
+            )} using your custom ${updatedEvent.sign_out_grace_minutes ?? selectedCloseMinutes} minute window.`
       );
     } catch (requestError) {
-      setOverrideMessage(
+      setSignOutMessage(
         requestError instanceof Error
           ? requestError.message
-          : "Failed to open the sign-out override."
+          : "Failed to open sign-out early."
       );
     } finally {
-      setOverrideLoading(false);
+      setSignOutActionLoading(false);
     }
   };
 
@@ -189,7 +253,7 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
       }
     >
       {error ? <div className="alert alert-danger mb-0">{error}</div> : null}
-      {overrideMessage ? <div className="alert alert-info mb-0">{overrideMessage}</div> : null}
+      {signOutMessage ? <div className="alert alert-info mb-0">{signOutMessage}</div> : null}
 
       {loading ? (
         <div className="ssg-feature-empty">Loading event details...</div>
@@ -207,13 +271,108 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => void handleOpenSignOutOverride()}
-                  disabled={overrideLoading}
+                  onClick={() => {
+                    setShowSignOutEarlyForm((currentValue) => !currentValue);
+                    setSignOutMessage(null);
+                  }}
+                  disabled={signOutActionLoading}
                 >
-                  {overrideLoading ? "Opening..." : "Open Sign-Out Override"}
+                  {showSignOutEarlyForm ? "Cancel Early Sign-Out" : "Open Sign-Out Early"}
                 </button>
               ) : null}
             </div>
+
+            {canViewAttendances && showSignOutEarlyForm ? (
+              <div className="ssg-feature-card mb-3">
+                <div className="ssg-feature-card__header">
+                  <div>
+                    <h3 className="ssg-feature-card__title">Open Sign-Out Early</h3>
+                    <p className="ssg-feature-card__subtitle">
+                      This will end the event now and open sign-out immediately. Then the sign-out
+                      window will close using either the current grace minutes or your custom minutes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="ssg-feature-stack">
+                  <div className="form-check">
+                    <input
+                      id="use-current-grace"
+                      className="form-check-input"
+                      type="radio"
+                      name="signOutEarlyMode"
+                      checked={useCurrentGraceMinutes}
+                      onChange={() => setUseCurrentGraceMinutes(true)}
+                    />
+                    <label className="form-check-label" htmlFor="use-current-grace">
+                      Use current sign-out grace minutes ({eventRecord?.sign_out_grace_minutes ?? 0} minute(s))
+                    </label>
+                  </div>
+
+                  <div className="form-check">
+                    <input
+                      id="use-custom-minutes"
+                      className="form-check-input"
+                      type="radio"
+                      name="signOutEarlyMode"
+                      checked={!useCurrentGraceMinutes}
+                      onChange={() => setUseCurrentGraceMinutes(false)}
+                    />
+                    <label className="form-check-label" htmlFor="use-custom-minutes">
+                      Use custom close minutes
+                    </label>
+                  </div>
+
+                  {!useCurrentGraceMinutes ? (
+                    <div className="ssg-feature-field">
+                      <label htmlFor="custom-close-minutes">Close sign-out after</label>
+                      <input
+                        id="custom-close-minutes"
+                        type="number"
+                        min={1}
+                        max={1440}
+                        className="form-control"
+                        value={customCloseMinutes}
+                        onChange={(changeEvent) => setCustomCloseMinutes(changeEvent.target.value)}
+                        placeholder="Enter minutes"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="ssg-feature-form-grid">
+                    <div className="ssg-feature-field">
+                      <label>What will happen</label>
+                      <div className="ssg-muted-note">
+                        The event end time will be changed to now, and sign-out will open right away.
+                      </div>
+                    </div>
+                    <div className="ssg-feature-field">
+                      <label>Projected close time</label>
+                      <div className="ssg-muted-note">{projectedCloseTimeLabel}</div>
+                    </div>
+                  </div>
+
+                  <div className="d-flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => void handleOpenSignOutEarly()}
+                      disabled={signOutActionLoading}
+                    >
+                      {signOutActionLoading ? "Opening..." : "Open Sign-Out Now"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-light"
+                      onClick={() => setShowSignOutEarlyForm(false)}
+                      disabled={signOutActionLoading}
+                    >
+                      Keep Scheduled End
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="ssg-feature-form-grid">
               <div className="ssg-feature-field">
@@ -245,6 +404,22 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
                 </div>
               </div>
               <div className="ssg-feature-field">
+                <label>Attendance Override</label>
+                <div className="ssg-muted-note">
+                  {attendanceOverrideActive
+                    ? "Active. Students keep the full present and late windows from the time this event was saved."
+                    : "Not active. Attendance follows the scheduled start time."}
+                </div>
+              </div>
+              <div className="ssg-feature-field">
+                <label>Effective Present Until</label>
+                <div className="ssg-muted-note">{effectivePresentUntilLabel}</div>
+              </div>
+              <div className="ssg-feature-field">
+                <label>Effective Late Until</label>
+                <div className="ssg-muted-note">{effectiveLateUntilLabel}</div>
+              </div>
+              <div className="ssg-feature-field">
                 <label>Derived Absence Cutoff</label>
                 <div className="ssg-muted-note">
                   {formatDateTime(getDerivedAbsenceCutoff(eventRecord).toISOString())}
@@ -253,15 +428,13 @@ const GovernanceEventDetailsPage = ({ unitType }: GovernanceEventDetailsPageProp
               <div className="ssg-feature-field">
                 <label>Sign-Out Window</label>
                 <div className="ssg-muted-note">
-                  {eventRecord.sign_out_grace_minutes ?? 0} minute(s) after the scheduled end
+                  {eventRecord.sign_out_grace_minutes ?? 0} minute(s) after the current event end
                 </div>
               </div>
               <div className="ssg-feature-field">
-                <label>Current Override</label>
+                <label>Current Sign-Out Close</label>
                 <div className="ssg-muted-note">
-                  {eventRecord.sign_out_override_until
-                    ? `Open until ${formatDateTime(eventRecord.sign_out_override_until)}`
-                    : "No active override"}
+                  {currentSignOutCloseLabel}
                 </div>
               </div>
             </div>

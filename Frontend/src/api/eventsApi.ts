@@ -16,7 +16,8 @@ export interface Event {
   early_check_in_minutes?: number;
   late_threshold_minutes?: number;
   sign_out_grace_minutes?: number;
-  sign_out_override_until?: string | null;
+  present_until_override_at?: string | null;
+  late_until_override_at?: string | null;
   start_datetime: string;
   end_datetime: string;
   status: EventStatus;
@@ -106,12 +107,16 @@ export interface UpdateEventPayload {
   early_check_in_minutes?: number;
   late_threshold_minutes?: number;
   sign_out_grace_minutes?: number;
-  sign_out_override_until?: string | null;
   start_datetime?: string;
   end_datetime?: string;
   status?: EventStatus;
   department_ids?: number[];
   program_ids?: number[];
+}
+
+export interface OpenSignOutEarlyPayload {
+  use_sign_out_grace_minutes: boolean;
+  close_after_minutes?: number;
 }
 
 type EventCacheEntry = {
@@ -318,25 +323,23 @@ export const deleteEvent = async (
   clearEventsCache();
 };
 
-export const openSignOutOverride = async (
+export const openSignOutEarly = async (
   eventId: number,
-  overrideMinutes: number,
+  payload: OpenSignOutEarlyPayload,
   governanceContext?: GovernanceContext
 ): Promise<Event> => {
   const query = buildGovernanceContextQuery(governanceContext);
-  const response = await fetch(`${BASE_URL}/events/${eventId}/sign-out-override/open${query}`, {
+  const response = await fetch(`${BASE_URL}/events/${eventId}/sign-out/open-early${query}`, {
     method: "POST",
     headers: {
       ...getAuthHeaders(),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      override_minutes: overrideMinutes,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to open the sign-out override"));
+    throw new Error(await parseError(response, "Failed to open sign-out early"));
   }
 
   clearEventsCache();

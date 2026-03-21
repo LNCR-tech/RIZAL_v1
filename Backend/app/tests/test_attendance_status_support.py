@@ -19,7 +19,6 @@ from app.services.attendance_status import (
     is_attended_status,
     is_late_arrival,
     normalize_attendance_status,
-    resolve_time_in_status,
 )
 
 
@@ -78,31 +77,6 @@ def test_late_threshold_helpers_follow_present_late_absent_windows() -> None:
     present_scan = datetime(2026, 3, 11, 0, 55, 0, tzinfo=timezone.utc)
     late_scan = datetime(2026, 3, 11, 1, 0, 0, tzinfo=timezone.utc)
     absent_scan = datetime(2026, 3, 11, 1, 11, 0, tzinfo=timezone.utc)
-
-    assert (
-        resolve_time_in_status(
-            event_start=event_start,
-            time_in=present_scan,
-            late_threshold_minutes=10,
-        )
-        == "present"
-    )
-    assert (
-        resolve_time_in_status(
-            event_start=event_start,
-            time_in=late_scan,
-            late_threshold_minutes=10,
-        )
-        == "late"
-    )
-    assert (
-        resolve_time_in_status(
-            event_start=event_start,
-            time_in=absent_scan,
-            late_threshold_minutes=10,
-        )
-        == "absent"
-    )
 
     assert (
         is_late_arrival(
@@ -172,20 +146,19 @@ def test_late_threshold_helpers_support_aware_utc_timestamps() -> None:
     event_start = datetime(2026, 3, 11, 9, 0, 0, tzinfo=manila)
     late_scan = datetime(2026, 3, 11, 1, 5, 0, tzinfo=timezone.utc)
     absent_scan = datetime(2026, 3, 11, 1, 20, 0, tzinfo=timezone.utc)
-
     assert (
-        resolve_time_in_status(
+        is_late_arrival(
             event_start=event_start,
             time_in=late_scan,
             late_threshold_minutes=10,
         )
-        == "late"
+        is True
     )
     assert (
-        resolve_time_in_status(
+        is_late_arrival(
             event_start=event_start,
             time_in=absent_scan,
             late_threshold_minutes=10,
         )
-        == "absent"
+        is False
     )

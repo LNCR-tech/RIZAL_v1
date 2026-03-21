@@ -28,7 +28,7 @@ from app.schemas.event import (
     EventLocationVerificationRequest,
     EventLocationVerificationResponse,
     EventStatus,
-    SignOutOverrideOpenRequest,
+    SignOutOpenEarlyRequest,
     EventTimeStatusInfo,
     EventUpdate,
     EventWithRelations,
@@ -41,7 +41,11 @@ from app.services.event_geolocation import (
     verify_event_geolocation,
 )
 from app.services.event_time_status import get_event_timezone
+from app.services.event_time_status import (
+    DEFAULT_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES,
+)
 from app.services.event_workflow_status import (
+    get_expected_workflow_status,
     sync_event_workflow_status,
     sync_scope_event_workflow_statuses,
 )
@@ -49,6 +53,9 @@ from app.services.event_workflow_status import (
 
 router = APIRouter(prefix="/events", tags=["events"])
 logger = logging.getLogger(__name__)
+NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES = (
+    DEFAULT_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES
+)
 
 
 def _get_payload_fields_set(payload) -> set[str]:
@@ -144,6 +151,89 @@ def _persist_event_status_sync(db: Session, event: EventModel) -> None:
     if result.changed:
         db.commit()
         db.refresh(event)
+
+
+def _resolve_near_start_attendance_override_window(
+    *,
+    start_datetime: datetime,
+    end_datetime: datetime,
+    early_check_in_minutes: int,
+    late_threshold_minutes: int,
+    current_time: datetime,
+) -> tuple[datetime | None, datetime | None]:
+    normalized_early_check_in_minutes = max(0, int(early_check_in_minutes or 0))
+    normalized_late_threshold_minutes = max(0, int(late_threshold_minutes or 0))
+    if normalized_early_check_in_minutes <= 0:
+        return None, None
+
+    time_until_start = start_datetime - current_time
+    if time_until_start >= timedelta(minutes=normalized_early_check_in_minutes):
+        return None, None
+
+    if start_datetime <= current_time:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This event start time is already in the past, so the near-start attendance "
+                "override cannot preserve the full present window. Move the start time later "
+                "or reduce the early check-in minutes."
+            ),
+        )
+
+    required_duration_minutes = (
+        normalized_early_check_in_minutes
+        + normalized_late_threshold_minutes
+        + NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES
+    )
+    remaining_duration_seconds = (end_datetime - current_time).total_seconds()
+    if remaining_duration_seconds < required_duration_minutes * 60:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This event is too short for the near-start attendance override. "
+                f"It needs at least {required_duration_minutes} minutes from now until the event "
+                f"end to keep {normalized_early_check_in_minutes} minutes present, "
+                f"{normalized_late_threshold_minutes} minutes late, and "
+                f"{NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES} minutes absent."
+            ),
+        )
+
+    present_until_override_at = current_time + timedelta(
+        minutes=normalized_early_check_in_minutes
+    )
+    late_until_override_at = present_until_override_at + timedelta(
+        minutes=normalized_late_threshold_minutes
+    )
+    return present_until_override_at, late_until_override_at
+
+
+def _build_status_conflict_detail(
+    *,
+    requested_status: EventStatus,
+    computed_time_status: str,
+    event: EventModel,
+) -> str | None:
+    if requested_status == EventStatus.ongoing:
+        if computed_time_status in {"before_check_in", "early_check_in"}:
+            scheduled_start = event.start_datetime.isoformat(sep=" ", timespec="minutes")
+            return (
+                "You cannot start this event yet. "
+                f"Its scheduled start time is {scheduled_start}."
+            )
+        if computed_time_status == "closed":
+            scheduled_end = event.end_datetime.isoformat(sep=" ", timespec="minutes")
+            return (
+                "You cannot start this event because the event schedule is already closed. "
+                f"Its scheduled end time was {scheduled_end}."
+            )
+
+    if requested_status == EventStatus.upcoming:
+        if event.status == ModelEventStatus.COMPLETED:
+            return "You cannot reopen this event because it is already completed."
+        if computed_time_status in {"late_check_in", "absent_check_in"}:
+            return "You cannot reopen this event to upcoming because it is already in progress."
+
+    return None
 
 
 def _get_event_scope_ids(event: EventModel) -> tuple[set[int], set[int]]:
@@ -537,6 +627,32 @@ def create_event(
             school_settings=school_settings,
             governance_unit=resolved_governance_unit,
         )
+        effective_early_check_in_minutes = (
+            event.early_check_in_minutes
+            if "early_check_in_minutes" in payload_fields_set
+            else default_early_check_in_minutes
+        )
+        effective_late_threshold_minutes = (
+            event.late_threshold_minutes
+            if "late_threshold_minutes" in payload_fields_set
+            else default_late_threshold_minutes
+        )
+        effective_sign_out_grace_minutes = (
+            event.sign_out_grace_minutes
+            if "sign_out_grace_minutes" in payload_fields_set
+            else default_sign_out_grace_minutes
+        )
+        now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
+        (
+            present_until_override_at,
+            late_until_override_at,
+        ) = _resolve_near_start_attendance_override_window(
+            start_datetime=event.start_datetime,
+            end_datetime=event.end_datetime,
+            early_check_in_minutes=effective_early_check_in_minutes,
+            late_threshold_minutes=effective_late_threshold_minutes,
+            current_time=now_local,
+        )
 
         db_event = EventModel(
             school_id=school_id,
@@ -547,22 +663,11 @@ def create_event(
             geo_radius_m=event.geo_radius_m,
             geo_required=event.geo_required,
             geo_max_accuracy_m=event.geo_max_accuracy_m,
-            early_check_in_minutes=(
-                event.early_check_in_minutes
-                if "early_check_in_minutes" in payload_fields_set
-                else default_early_check_in_minutes
-            ),
-            late_threshold_minutes=(
-                event.late_threshold_minutes
-                if "late_threshold_minutes" in payload_fields_set
-                else default_late_threshold_minutes
-            ),
-            sign_out_grace_minutes=(
-                event.sign_out_grace_minutes
-                if "sign_out_grace_minutes" in payload_fields_set
-                else default_sign_out_grace_minutes
-            ),
-            sign_out_override_until=event.sign_out_override_until,
+            early_check_in_minutes=effective_early_check_in_minutes,
+            late_threshold_minutes=effective_late_threshold_minutes,
+            sign_out_grace_minutes=effective_sign_out_grace_minutes,
+            present_until_override_at=present_until_override_at,
+            late_until_override_at=late_until_override_at,
             start_datetime=event.start_datetime,
             end_datetime=event.end_datetime,
             status=ModelEventStatus[event.status.value.upper()],
@@ -744,10 +849,11 @@ def read_event_time_status(
     return build_event_time_status_info(event)
 
 
+@router.post("/{event_id}/sign-out/open-early", response_model=EventSchema)
 @router.post("/{event_id}/sign-out-override/open", response_model=EventSchema)
-def open_sign_out_override(
+def open_sign_out_early(
     event_id: int,
-    payload: SignOutOverrideOpenRequest = Body(...),
+    payload: SignOutOpenEarlyRequest = Body(...),
     governance_context: GovernanceUnitType | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
@@ -788,10 +894,26 @@ def open_sign_out_override(
     if now_local < event.start_datetime:
         raise HTTPException(
             status_code=409,
-            detail="Sign-out override can only be opened after the event has started.",
+            detail="Early sign-out can only be opened after the event has started.",
+        )
+    if now_local >= event.end_datetime:
+        raise HTTPException(
+            status_code=409,
+            detail="Early sign-out can only be opened before the scheduled event end.",
         )
 
-    event.sign_out_override_until = now_local + timedelta(minutes=payload.override_minutes)
+    selected_sign_out_grace_minutes = (
+        int(event.sign_out_grace_minutes)
+        if payload.use_sign_out_grace_minutes
+        else int(payload.close_after_minutes or 0)
+    )
+    if not payload.use_sign_out_grace_minutes:
+        event.sign_out_grace_minutes = selected_sign_out_grace_minutes
+
+    event.end_datetime = now_local
+    event.sign_out_override_until = None
+    event.present_until_override_at = None
+    event.late_until_override_at = None
     sync_event_workflow_status(db, event, current_time=now_local)
     db.commit()
     db.refresh(event)
@@ -892,6 +1014,32 @@ def update_event(
             radius_m=new_geo_radius,
             required=new_geo_required,
         )
+        merged_early_check_in_minutes = (
+            event_update.early_check_in_minutes
+            if event_update.early_check_in_minutes is not None
+            else int(db_event.early_check_in_minutes or 0)
+        )
+        merged_late_threshold_minutes = (
+            event_update.late_threshold_minutes
+            if event_update.late_threshold_minutes is not None
+            else int(db_event.late_threshold_minutes or 0)
+        )
+        merged_sign_out_grace_minutes = (
+            event_update.sign_out_grace_minutes
+            if event_update.sign_out_grace_minutes is not None
+            else int(db_event.sign_out_grace_minutes or 0)
+        )
+        now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
+        (
+            present_until_override_at,
+            late_until_override_at,
+        ) = _resolve_near_start_attendance_override_window(
+            start_datetime=new_start,
+            end_datetime=new_end,
+            early_check_in_minutes=merged_early_check_in_minutes,
+            late_threshold_minutes=merged_late_threshold_minutes,
+            current_time=now_local,
+        )
 
         if event_update.name is not None:
             db_event.name = event_update.name
@@ -913,10 +1061,12 @@ def update_event(
             db_event.late_threshold_minutes = event_update.late_threshold_minutes
         if event_update.sign_out_grace_minutes is not None:
             db_event.sign_out_grace_minutes = event_update.sign_out_grace_minutes
-        if event_update.sign_out_override_until is not None:
-            db_event.sign_out_override_until = event_update.sign_out_override_until
+        if event_update.sign_out_grace_minutes is None:
+            db_event.sign_out_grace_minutes = merged_sign_out_grace_minutes
         db_event.start_datetime = new_start
         db_event.end_datetime = new_end
+        db_event.present_until_override_at = present_until_override_at
+        db_event.late_until_override_at = late_until_override_at
         if event_update.status is not None:
             db_event.status = ModelEventStatus[event_update.status.value.upper()]
 
@@ -1143,6 +1293,20 @@ def update_event_status(
             event=db_event,
             governance_context=governance_context,
         )
+
+        if status in {EventStatus.ongoing, EventStatus.upcoming}:
+            now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
+            _expected_status, computed_time_status = get_expected_workflow_status(
+                db_event,
+                current_time=now_local,
+            )
+            conflict_detail = _build_status_conflict_detail(
+                requested_status=status,
+                computed_time_status=computed_time_status,
+                event=db_event,
+            )
+            if conflict_detail is not None:
+                raise HTTPException(status_code=409, detail=conflict_detail)
 
         was_completed = db_event.status == ModelEventStatus.COMPLETED
         db_event.status = ModelEventStatus[status.value.upper()]

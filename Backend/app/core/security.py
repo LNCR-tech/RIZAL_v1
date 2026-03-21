@@ -151,10 +151,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-
 def _normalize_login_identifier(identifier: str) -> str:
     return identifier.strip().lower()
 
@@ -354,13 +350,6 @@ def get_school_id_or_403(user: User) -> int:
     return school_id
 
 
-def ensure_same_school(current_user: User, target_school_id: Optional[int]) -> None:
-    if target_school_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource has no school assignment")
-    if get_school_id_or_403(current_user) != target_school_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
-
-
 def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     return ensure_user_has_any_role(
         current_user,
@@ -394,15 +383,3 @@ get_current_student_user = require_current_user_with_roles(
     ["student"],
     detail="Student role required",
 )
-
-
-def get_user_with_required_roles(
-    required_roles: List[str],
-    current_user: User = Depends(get_current_user_with_roles),
-) -> User:
-    role_str = ", ".join(required_roles)
-    return ensure_user_has_any_role(
-        current_user,
-        required_roles,
-        detail=f"Insufficient permissions. Required roles: {role_str}",
-    )

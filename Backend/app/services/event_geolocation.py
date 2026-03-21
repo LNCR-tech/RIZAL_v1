@@ -60,6 +60,8 @@ def build_event_time_status_info(event: EventModel) -> EventTimeStatusInfo:
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
         sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
         sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        present_until_override_at=getattr(event, "present_until_override_at", None),
+        late_until_override_at=getattr(event, "late_until_override_at", None),
     )
     return EventTimeStatusInfo(**time_status.to_dict())
 
@@ -72,6 +74,8 @@ def build_event_attendance_decision_info(event: EventModel) -> EventAttendanceDe
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
         sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
         sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        present_until_override_at=getattr(event, "present_until_override_at", None),
+        late_until_override_at=getattr(event, "late_until_override_at", None),
     )
     return EventAttendanceDecisionInfo(**decision.to_dict())
 

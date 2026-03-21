@@ -26,6 +26,12 @@ This guide documents the governance hierarchy foundation for `Campus Admin (cano
 
 The router stays thin and delegates all hierarchy rules to the service layer so scope validation does not get duplicated across endpoints.
 
+Current service-path note:
+
+- the active create flow now relies directly on `_ensure_can_create_child_unit()` for child-unit creation checks
+- governance route and feature checks now rely directly on `get_user_governance_unit_types()` and permission-based helpers
+- the older unused convenience wrappers `can_create_child_unit()` and `user_has_governance_unit_type()` were removed after confirming they were not part of the current runtime flow
+
 ## Campus Data Isolation
 
 Academic scope records are now enforced per campus at the backend level.

@@ -14,6 +14,250 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-03-21 - Add near-start attendance override windows for event create and edit
+
+### Purpose
+
+Preserved the full configured `present` and `late` attendance windows when an event is created or edited too close to its scheduled `start_datetime`, without changing the schedule-based workflow status rules.
+
+### Main files
+
+- `Backend/app/models/event.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/services/event_geolocation.py`
+- `Backend/app/services/event_workflow_status.py`
+- `Backend/app/tests/test_event_time_status.py`
+- `Backend/app/tests/test_event_geolocation_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/b1a2c3d4e5f6_add_event_attendance_override_windows.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added two nullable event fields:
+  - `present_until_override_at`
+  - `late_until_override_at`
+- on event create and edit, the backend now checks whether the scheduled start is too close to the current Manila time to preserve the full configured early/present window
+- when the event starts soon enough to need help and the schedule is still valid, the backend automatically stores:
+  - `present_until_override_at = now + early_check_in_minutes`
+  - `late_until_override_at = present_until_override_at + late_threshold_minutes`
+- the backend now rejects create or edit when that near-start override would be needed but:
+  - the event start is already in the past, or
+  - there is not enough remaining time from now until `end_datetime` to fit:
+    - the full configured present window
+    - the full configured late window
+    - a fixed `20-minute` absent window before sign-out
+- check-in decisions now use the effective attendance cutoffs:
+  - before `effective_present_until_at` -> `present`
+  - after that until `effective_late_until_at` -> `late`
+  - after that until `end_datetime` -> `absent`
+- workflow auto-sync still stays schedule-based:
+  - `upcoming` / `ongoing` / `completed` are still computed from the scheduled start and end times
+  - the near-start override only changes attendance marking, not the event lifecycle
+- geolocation and student-facing attendance decision payloads now expose:
+  - `attendance_override_active`
+  - `effective_present_until_at`
+  - `effective_late_until_at`
+- opening sign-out early now clears the two attendance override fields because the event ends immediately at that point
+
+### Route or schema impact
+
+- no request body change for normal event create or edit
+- read-only event responses now include:
+  - `present_until_override_at`
+  - `late_until_override_at`
+- time-status and attendance-decision response shapes now include:
+  - `attendance_override_active`
+  - `effective_present_until_at`
+  - `effective_late_until_at`
+
+### Migration impact
+
+- new migration: `Backend/alembic/versions/b1a2c3d4e5f6_add_event_attendance_override_windows.py`
+- database change:
+  - adds `events.present_until_override_at`
+  - adds `events.late_until_override_at`
+
+### How to test
+
+- run `python -m py_compile Backend/app/models/event.py Backend/app/schemas/event.py Backend/app/routers/events.py Backend/app/routers/attendance.py Backend/app/routers/face_recognition.py Backend/app/services/event_time_status.py Backend/app/services/event_geolocation.py Backend/app/services/event_workflow_status.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_time_status.py Backend/app/tests/test_event_geolocation_service.py Backend/app/tests/test_governance_hierarchy_api.py -k "override or near_start"`
+- manual check:
+  - create an event far in the future and confirm both override fields stay `null`
+  - create an event that starts in `1 minute`, ends in `71 minutes`, and uses `early=30`, `late=10`; confirm the event saves and returns override timestamps for `now + 30` and `now + 40`
+  - create an event that starts in `1 minute`, ends in `59 minutes`, and uses `early=30`, `late=10`; confirm the API rejects it because it cannot leave the fixed `20-minute` absent window
+  - edit a far-future event so it starts in `1 minute` and confirm the override timestamps are added
+  - edit that same event back to a far-future start and confirm the override timestamps clear again
+
+## 2026-03-21 - Reject invalid manual event status changes that conflict with event timing
+
+### Purpose
+
+Stopped the event status route from returning misleading success messages when a user tries to manually set an event status that conflicts with the computed event time window.
+
+### Main files
+
+- `Backend/app/routers/events.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added conflict guards in `PATCH /events/{event_id}/status` for manual `status=ongoing` and `status=upcoming`
+- if the current Manila time is still before `start_datetime`, trying to set `ongoing` now returns `409`
+- if the event timing is already in progress, trying to set `upcoming` now returns `409`
+- the response detail now explains the specific timing conflict, such as:
+  - event has not started yet
+  - event is already in progress
+- if the stored event status is already `completed`, the response now says it cannot be reopened because it is already completed
+- reopening a cancelled event during sign-out now succeeds and returns `ongoing` after auto-sync
+- reopening a cancelled event after the full time window closes now succeeds and returns `completed` after auto-sync
+- this prevents the previous flow where the frontend could show a success message even though auto-sync immediately restored the computed status
+
+### Route or schema impact
+
+- route changed: `PATCH /events/{event_id}/status`
+- no request or response schema changes
+- new error behavior:
+  - `409 Conflict` when trying to set `ongoing` before the scheduled start time
+  - `409 Conflict` when trying to set `upcoming` after the event has already moved into an in-progress, sign-out, or closed time window
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/routers/events.py Backend/app/tests/test_governance_hierarchy_api.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_cannot_start_before_scheduled_start_time Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_cannot_reopen_closed_event_to_upcoming Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_reopen_during_sign_out_syncs_back_to_ongoing Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_reopen_closed_cancelled_event_syncs_to_completed`
+- manual check:
+  - create an event with a future `start_datetime`
+  - call `PATCH /events/{event_id}/status?status=ongoing`
+  - confirm the API returns `409` with a message that the event cannot be started yet
+  - confirm the stored status stays `upcoming`
+  - create or use an event whose scheduled window is already closed
+  - mark one closed event as `completed` and confirm `PATCH /events/{event_id}/status?status=upcoming` returns `409` with the completed-event message
+  - mark one closed event as `cancelled` and confirm the same request succeeds but the returned status becomes `completed`
+  - create or use a cancelled event that is still inside its sign-out grace window and confirm the same request succeeds but the returned status becomes `ongoing`
+
+## 2026-03-21 - Change early sign-out to use event end time plus grace minutes
+
+### Purpose
+
+Changed early sign-out so it no longer depends on the old override-close timestamp flow. Opening sign-out early now ends the event at the current time and uses either the current `sign_out_grace_minutes` or a custom close-after-minutes value to decide when sign-out closes.
+
+### Main files
+
+- `Backend/app/routers/events.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/tests/test_event_time_status.py`
+- `Backend/app/tests/test_event_workflow_status.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a new early sign-out request shape with:
+  - `use_sign_out_grace_minutes`
+  - `close_after_minutes`
+- changed early sign-out opening to:
+  - require the event to have already started
+  - require the event to still be before its scheduled `end_datetime`
+  - set `end_datetime = now`
+  - keep the current `sign_out_grace_minutes` when `use_sign_out_grace_minutes = true`
+  - update `sign_out_grace_minutes` to `close_after_minutes` when `use_sign_out_grace_minutes = false`
+- stopped using `sign_out_override_until` in the live event time-status calculation
+- cleared `sign_out_override_until` when the early sign-out route is used
+- updated the computed time-status ordering so a finished event opens sign-out immediately even if the old late-threshold time would otherwise still be in the future
+
+### Route or schema impact
+
+- added `POST /events/{event_id}/sign-out/open-early`
+- kept `POST /events/{event_id}/sign-out-override/open` as a compatibility alias to the same backend behavior
+- replaced the old `override_minutes` request body with:
+  - `use_sign_out_grace_minutes`
+  - `close_after_minutes`
+- removed `sign_out_override_until` from the public event request/response schema layer and from the public time-status response metadata
+
+### Migration impact
+
+- no database migration required
+- the existing `events.sign_out_override_until` column is still present for compatibility but is no longer used for the live close-window calculation
+
+### How to test
+
+- run `python -m py_compile Backend/app/schemas/event.py Backend/app/routers/events.py Backend/app/services/event_time_status.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_time_status.py Backend/app/tests/test_event_workflow_status.py Backend/app/tests/test_governance_hierarchy_api.py::test_sg_manual_attendance_sign_out_requires_early_open_and_preserves_status_audit_fields Backend/app/tests/test_governance_hierarchy_api.py::test_sg_sign_out_early_cannot_open_before_event_start`
+- manual check:
+  - create an event ending at `1:30 PM` with `sign_out_grace_minutes = 10`
+  - call `POST /events/{event_id}/sign-out/open-early` at `1:20 PM` with `{"use_sign_out_grace_minutes": true}` and confirm sign-out closes at `1:30 PM`
+  - call the same route with `{"use_sign_out_grace_minutes": false, "close_after_minutes": 5}` and confirm sign-out closes at `1:25 PM`
+
+## 2026-03-21 - Remove unused backend helper functions outside the current live workflow
+
+### Purpose
+
+Removed backend helper functions that were confirmed to have no caller in the current router-backed, frontend-triggered, or worker-backed runtime flow.
+
+### Main files
+
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/core/event_defaults.py`
+- `Backend/app/core/security.py`
+- `Backend/app/tests/test_attendance_status_support.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- removed unused helpers from `Backend/app/services/attendance_status.py`:
+  - `resolve_time_in_status`
+- removed unused helpers from `Backend/app/services/governance_hierarchy_service.py`:
+  - `can_create_child_unit`
+  - `user_has_governance_unit_type`
+- removed unused helper from `Backend/app/core/event_defaults.py`:
+  - `build_event_default_value_map`
+- removed unused helpers from `Backend/app/core/security.py`:
+  - `get_password_hash`
+  - `ensure_same_school`
+  - `get_user_with_required_roles`
+- removed the attendance-status tests that only covered the deleted `resolve_time_in_status()` helper
+- kept the current live replacements unchanged:
+  - `get_attendance_decision()`
+  - `finalize_completed_attendance_status()`
+  - `_ensure_can_create_child_unit()`
+  - `get_user_governance_unit_types()`
+  - `require_current_user_with_roles()`
+  - `User.set_password()`
+  - `hash_password_bcrypt()`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/attendance_status.py Backend/app/services/governance_hierarchy_service.py Backend/app/core/event_defaults.py Backend/app/core/security.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests`
+
 ## 2026-03-21 - Remove non-live geolocation utility helpers
 
 ### Purpose

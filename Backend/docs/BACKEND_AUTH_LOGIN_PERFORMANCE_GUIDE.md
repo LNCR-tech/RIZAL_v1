@@ -84,6 +84,7 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 - email and notification side effects are the parts that moved off the request path
 - current Celery startup path is `app.workers.celery_app.celery_app`
 - the backend password stack is expected to use a `passlib`-compatible `bcrypt` release so login logs stay clean during password verification
+- the current auth runtime now relies on `verify_password()`, `User.set_password()`, `hash_password_bcrypt()`, and `require_current_user_with_roles()`; older unused helpers such as `get_password_hash()`, `ensure_same_school()`, and `get_user_with_required_roles()` were removed after confirming they were outside the live flow
 - current default pool capacity per process is `10 + 10 overflow`
 - `pool_recycle` defaults to `1800` seconds so stale Railway connections get refreshed before idle disconnects become request failures
 - `pool_use_lifo=True` helps burst traffic reuse hot connections instead of spreading churn evenly across the whole pool

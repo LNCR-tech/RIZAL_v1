@@ -124,6 +124,36 @@ def test_verify_event_geolocation_for_attendance_includes_time_context_when_insi
     assert response.attendance_decision is not None
 
 
+def test_verify_event_geolocation_reports_attendance_override_cutoffs_when_active() -> None:
+    response = verify_event_geolocation(
+        _build_event(
+            early_check_in_minutes=30,
+            present_until_override_at=datetime(2026, 3, 11, 9, 29, 0),
+            late_until_override_at=datetime(2026, 3, 11, 9, 39, 0),
+        ),
+        latitude=8.1575,
+        longitude=123.8431,
+        accuracy_m=5.0,
+    )
+
+    assert response.time_status is not None
+    assert response.time_status.attendance_override_active is True
+    assert response.time_status.effective_present_until_at.isoformat() == (
+        "2026-03-11T09:29:00+08:00"
+    )
+    assert response.time_status.effective_late_until_at.isoformat() == (
+        "2026-03-11T09:39:00+08:00"
+    )
+    assert response.attendance_decision is not None
+    assert response.attendance_decision.attendance_override_active is True
+    assert response.attendance_decision.effective_present_until_at.isoformat() == (
+        "2026-03-11T09:29:00+08:00"
+    )
+    assert response.attendance_decision.effective_late_until_at.isoformat() == (
+        "2026-03-11T09:39:00+08:00"
+    )
+
+
 def test_verify_event_geolocation_for_attendance_requires_coordinates_when_enabled() -> None:
     with pytest.raises(HTTPException) as exc_info:
         verify_event_geolocation_for_attendance(

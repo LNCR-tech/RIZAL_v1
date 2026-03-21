@@ -173,10 +173,11 @@ def test_get_attendance_decision_maps_check_in_windows_to_statuses() -> None:
     assert closed.reason_code == "event_closed"
 
 
-def test_get_sign_out_decision_respects_override_and_grace_windows() -> None:
+def test_get_sign_out_decision_respects_early_end_and_grace_windows() -> None:
     manila = ZoneInfo("Asia/Manila")
     start_time = datetime(2026, 3, 11, 9, 0, 0)
     end_time = datetime(2026, 3, 11, 11, 0, 0)
+    early_end_time = datetime(2026, 3, 11, 10, 50, 0)
 
     before_sign_out = get_sign_out_decision(
         start_time=start_time,
@@ -192,36 +193,25 @@ def test_get_sign_out_decision_respects_override_and_grace_windows() -> None:
         sign_out_grace_minutes=10,
         current_time=datetime(2026, 3, 11, 11, 5, 0, tzinfo=manila),
     )
-    override_sign_out = get_sign_out_decision(
+    early_end_sign_out = get_sign_out_decision(
         start_time=start_time,
-        end_time=end_time,
+        end_time=early_end_time,
         late_threshold_minutes=10,
         sign_out_grace_minutes=10,
-        sign_out_override_until=datetime(2026, 3, 11, 9, 20, 0),
-        current_time=datetime(2026, 3, 11, 9, 5, 0, tzinfo=manila),
+        current_time=datetime(2026, 3, 11, 10, 55, 0, tzinfo=manila),
     )
-    override_expired_before_end = get_sign_out_decision(
+    early_end_closed = get_sign_out_decision(
         start_time=start_time,
-        end_time=end_time,
+        end_time=early_end_time,
         late_threshold_minutes=10,
         sign_out_grace_minutes=10,
-        sign_out_override_until=datetime(2026, 3, 11, 9, 20, 0),
-        current_time=datetime(2026, 3, 11, 9, 25, 0, tzinfo=manila),
-    )
-    overlapping_override = get_sign_out_decision(
-        start_time=start_time,
-        end_time=end_time,
-        late_threshold_minutes=10,
-        sign_out_grace_minutes=10,
-        sign_out_override_until=datetime(2026, 3, 11, 11, 15, 0),
-        current_time=datetime(2026, 3, 11, 11, 12, 0, tzinfo=manila),
+        current_time=datetime(2026, 3, 11, 11, 0, 1, tzinfo=manila),
     )
     closed = get_sign_out_decision(
         start_time=start_time,
         end_time=end_time,
         late_threshold_minutes=10,
         sign_out_grace_minutes=10,
-        sign_out_override_until=datetime(2026, 3, 11, 11, 15, 0),
         current_time=datetime(2026, 3, 11, 11, 15, 1, tzinfo=manila),
     )
 
@@ -231,21 +221,18 @@ def test_get_sign_out_decision_respects_override_and_grace_windows() -> None:
     assert normal_sign_out.attendance_allowed is True
     assert normal_sign_out.attendance_status == "present"
 
-    assert override_sign_out.attendance_allowed is True
-    assert override_sign_out.event_status == "sign_out_open"
-    assert override_sign_out.sign_out_override_active is True
+    assert early_end_sign_out.attendance_allowed is True
+    assert early_end_sign_out.event_status == "sign_out_open"
 
-    assert override_expired_before_end.attendance_allowed is False
-    assert override_expired_before_end.reason_code == "sign_out_not_open_yet"
-    assert override_expired_before_end.event_status == "absent_check_in"
+    assert early_end_closed.attendance_allowed is False
+    assert early_end_closed.reason_code == "sign_out_closed"
+    assert early_end_closed.event_status == "closed"
 
-    assert overlapping_override.attendance_allowed is True
-    assert overlapping_override.sign_out_override_active is True
     assert get_effective_sign_out_close_time(
-        end_time,
+        early_end_time,
         sign_out_grace_minutes=10,
         sign_out_override_until=datetime(2026, 3, 11, 11, 15, 0),
-    ) == datetime(2026, 3, 11, 11, 15, 0, tzinfo=manila)
+    ) == datetime(2026, 3, 11, 11, 0, 0, tzinfo=manila)
 
     assert closed.attendance_allowed is False
     assert closed.reason_code == "sign_out_closed"
@@ -258,3 +245,97 @@ def test_get_event_status_rejects_invalid_schedule() -> None:
             end_time=datetime(2026, 3, 11, 11, 0, 0),
             late_threshold_minutes=10,
         )
+
+
+def test_get_attendance_decision_uses_override_cutoffs_for_present_late_and_absent() -> None:
+    manila = ZoneInfo("Asia/Manila")
+    start_time = datetime(2026, 3, 11, 9, 0, 0)
+    end_time = datetime(2026, 3, 11, 10, 30, 0)
+    present_until_override_at = datetime(2026, 3, 11, 9, 29, 0)
+    late_until_override_at = datetime(2026, 3, 11, 9, 39, 0)
+
+    present_result = get_attendance_decision(
+        start_time=start_time,
+        end_time=end_time,
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=10,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
+        current_time=datetime(2026, 3, 11, 9, 10, 0, tzinfo=manila),
+    )
+    late_result = get_attendance_decision(
+        start_time=start_time,
+        end_time=end_time,
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=10,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
+        current_time=datetime(2026, 3, 11, 9, 35, 0, tzinfo=manila),
+    )
+    absent_result = get_attendance_decision(
+        start_time=start_time,
+        end_time=end_time,
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=10,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
+        current_time=datetime(2026, 3, 11, 9, 50, 0, tzinfo=manila),
+    )
+    sign_out_result = get_attendance_decision(
+        start_time=start_time,
+        end_time=end_time,
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=10,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
+        current_time=datetime(2026, 3, 11, 10, 35, 0, tzinfo=manila),
+    )
+
+    assert present_result.attendance_allowed is True
+    assert present_result.attendance_status == "present"
+    assert present_result.attendance_override_active is True
+    assert present_result.effective_present_until_at == datetime(
+        2026, 3, 11, 9, 29, 0, tzinfo=manila
+    )
+    assert present_result.effective_late_until_at == datetime(
+        2026, 3, 11, 9, 39, 0, tzinfo=manila
+    )
+
+    assert late_result.attendance_allowed is True
+    assert late_result.attendance_status == "late"
+    assert late_result.attendance_override_active is True
+
+    assert absent_result.attendance_allowed is True
+    assert absent_result.attendance_status == "absent"
+    assert absent_result.attendance_override_active is True
+
+    assert sign_out_result.attendance_allowed is False
+    assert sign_out_result.reason_code == "sign_out_window_open"
+
+
+def test_get_event_status_keeps_workflow_window_schedule_based_while_reporting_override_cutoffs() -> None:
+    manila = ZoneInfo("Asia/Manila")
+
+    result = get_event_status(
+        start_time=datetime(2026, 3, 11, 9, 0, 0),
+        end_time=datetime(2026, 3, 11, 10, 30, 0),
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=10,
+        present_until_override_at=datetime(2026, 3, 11, 9, 29, 0),
+        late_until_override_at=datetime(2026, 3, 11, 9, 39, 0),
+        current_time=datetime(2026, 3, 11, 9, 10, 0, tzinfo=manila),
+    )
+
+    assert result.event_status == "late_check_in"
+    assert result.attendance_override_active is True
+    assert result.effective_present_until_at == datetime(
+        2026, 3, 11, 9, 29, 0, tzinfo=manila
+    )
+    assert result.effective_late_until_at == datetime(
+        2026, 3, 11, 9, 39, 0, tzinfo=manila
+    )

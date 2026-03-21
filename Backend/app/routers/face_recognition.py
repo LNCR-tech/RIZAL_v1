@@ -103,6 +103,8 @@ def _attendance_time_window_detail(event: EventModel, *, action: str = "check_in
             late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
             sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
             sign_out_override_until=getattr(event, "sign_out_override_until", None),
+            present_until_override_at=getattr(event, "present_until_override_at", None),
+            late_until_override_at=getattr(event, "late_until_override_at", None),
         )
         if action == "sign_out"
         else get_attendance_decision(
@@ -112,6 +114,8 @@ def _attendance_time_window_detail(event: EventModel, *, action: str = "check_in
             late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
             sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
             sign_out_override_until=getattr(event, "sign_out_override_until", None),
+            present_until_override_at=getattr(event, "present_until_override_at", None),
+            late_until_override_at=getattr(event, "late_until_override_at", None),
         )
     )
     return _serialize_attendance_decision(decision)
@@ -417,6 +421,8 @@ def record_attendance_from_face_scan(
             late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
             sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
             sign_out_override_until=getattr(event, "sign_out_override_until", None),
+            present_until_override_at=getattr(event, "present_until_override_at", None),
+            late_until_override_at=getattr(event, "late_until_override_at", None),
         )
         if not sign_out_decision.attendance_allowed:
             raise HTTPException(
@@ -487,6 +493,8 @@ def record_attendance_from_face_scan(
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
         sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
         sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        present_until_override_at=getattr(event, "present_until_override_at", None),
+        late_until_override_at=getattr(event, "late_until_override_at", None),
     )
     if not attendance_decision.attendance_allowed:
         raise HTTPException(

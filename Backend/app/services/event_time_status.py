@@ -12,6 +12,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 DEFAULT_EVENT_TIMEZONE = "Asia/Manila"
+DEFAULT_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES = 20
+
+
+@dataclass(frozen=True)
+class AttendanceWindowCutoffResult:
+    attendance_override_active: bool
+    effective_present_until_at: datetime
+    effective_late_until_at: datetime
 
 
 @dataclass(frozen=True)
@@ -22,11 +30,12 @@ class EventTimeStatusResult:
     start_time: datetime
     end_time: datetime
     late_threshold_time: datetime
+    attendance_override_active: bool
+    effective_present_until_at: datetime
+    effective_late_until_at: datetime
     sign_out_opens_at: datetime
     normal_sign_out_closes_at: datetime
     effective_sign_out_closes_at: datetime
-    sign_out_override_until: datetime | None
-    sign_out_override_active: bool
     timezone_name: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,11 +55,12 @@ class AttendanceDecisionResult:
     start_time: datetime
     end_time: datetime
     late_threshold_time: datetime
+    attendance_override_active: bool
+    effective_present_until_at: datetime
+    effective_late_until_at: datetime
     sign_out_opens_at: datetime
     normal_sign_out_closes_at: datetime
     effective_sign_out_closes_at: datetime
-    sign_out_override_until: datetime | None
-    sign_out_override_active: bool
     timezone_name: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -141,18 +151,53 @@ def get_effective_sign_out_close_time(
     sign_out_override_until: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
-    normal_close = get_normal_sign_out_close_time(
+    return get_normal_sign_out_close_time(
         end_time,
         sign_out_grace_minutes,
         timezone_name=timezone_name,
     )
-    localized_override_until = normalize_optional_event_datetime(
-        sign_out_override_until,
+
+
+def resolve_attendance_window_cutoffs(
+    *,
+    start_time: datetime,
+    late_threshold_minutes: Any = 0,
+    present_until_override_at: datetime | None = None,
+    late_until_override_at: datetime | None = None,
+    timezone_name: str = DEFAULT_EVENT_TIMEZONE,
+) -> AttendanceWindowCutoffResult:
+    localized_start = normalize_event_datetime(start_time, timezone_name)
+    scheduled_late_until = get_late_threshold_time(
+        localized_start,
+        late_threshold_minutes,
         timezone_name=timezone_name,
     )
-    if localized_override_until is None:
-        return normal_close
-    return max(normal_close, localized_override_until)
+    localized_present_override = normalize_optional_event_datetime(
+        present_until_override_at,
+        timezone_name,
+    )
+    localized_late_override = normalize_optional_event_datetime(
+        late_until_override_at,
+        timezone_name,
+    )
+
+    if (
+        localized_present_override is not None
+        and localized_late_override is not None
+        and localized_present_override > localized_start
+        and localized_late_override >= localized_present_override
+    ):
+        return AttendanceWindowCutoffResult(
+            attendance_override_active=True,
+            effective_present_until_at=localized_present_override,
+            effective_late_until_at=localized_late_override,
+        )
+
+    return AttendanceWindowCutoffResult(
+        attendance_override_active=False,
+        effective_present_until_at=localized_start,
+        effective_late_until_at=scheduled_late_until,
+    )
 
 
 def get_event_status(
@@ -163,6 +208,8 @@ def get_event_status(
     late_threshold_minutes: Any = 0,
     sign_out_grace_minutes: Any = 0,
     sign_out_override_until: datetime | None = None,
+    present_until_override_at: datetime | None = None,
+    late_until_override_at: datetime | None = None,
     current_time: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> EventTimeStatusResult:
@@ -187,8 +234,11 @@ def get_event_status(
         late_threshold_minutes,
         timezone_name=timezone_name,
     )
-    localized_override_until = normalize_optional_event_datetime(
-        sign_out_override_until,
+    attendance_cutoffs = resolve_attendance_window_cutoffs(
+        start_time=localized_start,
+        late_threshold_minutes=late_threshold_minutes,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
         timezone_name=timezone_name,
     )
     sign_out_opens_at = localized_end
@@ -200,27 +250,23 @@ def get_event_status(
     effective_sign_out_closes_at = get_effective_sign_out_close_time(
         localized_end,
         sign_out_grace_minutes,
-        localized_override_until,
+        sign_out_override_until,
         timezone_name=timezone_name,
-    )
-    sign_out_override_active = (
-        localized_override_until is not None and localized_now <= localized_override_until
     )
 
     if localized_now < check_in_opens_at:
         event_status = "before_check_in"
-    elif sign_out_override_active:
-        event_status = "sign_out_open"
     elif localized_now < localized_start:
         event_status = "early_check_in"
+    elif localized_now >= localized_end:
+        if localized_now <= effective_sign_out_closes_at:
+            event_status = "sign_out_open"
+        else:
+            event_status = "closed"
     elif localized_now <= late_threshold_time:
         event_status = "late_check_in"
-    elif localized_now < localized_end:
-        event_status = "absent_check_in"
-    elif localized_now <= effective_sign_out_closes_at:
-        event_status = "sign_out_open"
     else:
-        event_status = "closed"
+        event_status = "absent_check_in"
 
     return EventTimeStatusResult(
         event_status=event_status,
@@ -229,11 +275,12 @@ def get_event_status(
         start_time=localized_start,
         end_time=localized_end,
         late_threshold_time=late_threshold_time,
+        attendance_override_active=attendance_cutoffs.attendance_override_active,
+        effective_present_until_at=attendance_cutoffs.effective_present_until_at,
+        effective_late_until_at=attendance_cutoffs.effective_late_until_at,
         sign_out_opens_at=sign_out_opens_at,
         normal_sign_out_closes_at=normal_sign_out_closes_at,
         effective_sign_out_closes_at=effective_sign_out_closes_at,
-        sign_out_override_until=localized_override_until,
-        sign_out_override_active=sign_out_override_active,
         timezone_name=timezone_name,
     )
 
@@ -259,11 +306,12 @@ def _build_attendance_decision(
         start_time=event_status.start_time,
         end_time=event_status.end_time,
         late_threshold_time=event_status.late_threshold_time,
+        attendance_override_active=event_status.attendance_override_active,
+        effective_present_until_at=event_status.effective_present_until_at,
+        effective_late_until_at=event_status.effective_late_until_at,
         sign_out_opens_at=event_status.sign_out_opens_at,
         normal_sign_out_closes_at=event_status.normal_sign_out_closes_at,
         effective_sign_out_closes_at=event_status.effective_sign_out_closes_at,
-        sign_out_override_until=event_status.sign_out_override_until,
-        sign_out_override_active=event_status.sign_out_override_active,
         timezone_name=event_status.timezone_name,
     )
 
@@ -276,6 +324,8 @@ def get_attendance_decision(
     late_threshold_minutes: Any = 0,
     sign_out_grace_minutes: Any = 0,
     sign_out_override_until: datetime | None = None,
+    present_until_override_at: datetime | None = None,
+    late_until_override_at: datetime | None = None,
     current_time: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> AttendanceDecisionResult:
@@ -286,6 +336,8 @@ def get_attendance_decision(
         late_threshold_minutes=late_threshold_minutes,
         sign_out_grace_minutes=sign_out_grace_minutes,
         sign_out_override_until=sign_out_override_until,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
         current_time=current_time,
         timezone_name=timezone_name,
     )
@@ -320,24 +372,30 @@ def get_attendance_decision(
             message="Check-in is already closed for this event.",
         )
 
-    if event_status.event_status == "early_check_in":
+    if event_status.current_time < event_status.effective_present_until_at:
         return _build_attendance_decision(
             action="check_in",
             event_status=event_status,
             attendance_allowed=True,
             attendance_status="present",
             reason_code=None,
-            message="Early check-in is open. A valid verification will be marked present.",
+            message=(
+                "Check-in is open. A valid verification will be marked present."
+                if event_status.attendance_override_active
+                else "Early check-in is open. A valid verification will be marked present."
+            ),
         )
 
-    if event_status.event_status == "late_check_in":
+    if event_status.current_time <= event_status.effective_late_until_at:
         return _build_attendance_decision(
             action="check_in",
             event_status=event_status,
             attendance_allowed=True,
             attendance_status="late",
             reason_code=None,
-            message="Check-in is still open, but it is already inside the late window.",
+            message=(
+                "Check-in is still open, but it is already inside the late window."
+            ),
         )
 
     return _build_attendance_decision(
@@ -358,6 +416,8 @@ def get_sign_out_decision(
     late_threshold_minutes: Any = 0,
     sign_out_grace_minutes: Any = 0,
     sign_out_override_until: datetime | None = None,
+    present_until_override_at: datetime | None = None,
+    late_until_override_at: datetime | None = None,
     current_time: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> AttendanceDecisionResult:
@@ -368,6 +428,8 @@ def get_sign_out_decision(
         late_threshold_minutes=late_threshold_minutes,
         sign_out_grace_minutes=sign_out_grace_minutes,
         sign_out_override_until=sign_out_override_until,
+        present_until_override_at=present_until_override_at,
+        late_until_override_at=late_until_override_at,
         current_time=current_time,
         timezone_name=timezone_name,
     )
@@ -404,7 +466,9 @@ def get_sign_out_decision(
 
 __all__ = [
     "AttendanceDecisionResult",
+    "AttendanceWindowCutoffResult",
     "DEFAULT_EVENT_TIMEZONE",
+    "DEFAULT_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES",
     "EventTimeStatusResult",
     "get_attendance_decision",
     "get_check_in_opens_at",
@@ -420,4 +484,5 @@ __all__ = [
     "normalize_optional_event_datetime",
     "normalize_sign_out_grace_minutes",
     "normalize_window_minutes",
+    "resolve_attendance_window_cutoffs",
 ]

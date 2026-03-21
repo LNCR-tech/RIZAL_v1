@@ -26,11 +26,12 @@ export interface EventLocationVerificationResponse {
     start_time: string;
     end_time: string;
     late_threshold_time: string;
+    attendance_override_active: boolean;
+    effective_present_until_at: string;
+    effective_late_until_at: string;
     sign_out_opens_at: string;
     normal_sign_out_closes_at: string;
     effective_sign_out_closes_at: string;
-    sign_out_override_until?: string | null;
-    sign_out_override_active: boolean;
     timezone_name: string;
   } | null;
   attendance_decision?: {
@@ -51,11 +52,12 @@ export interface EventLocationVerificationResponse {
     start_time: string;
     end_time: string;
     late_threshold_time: string;
+    attendance_override_active: boolean;
+    effective_present_until_at: string;
+    effective_late_until_at: string;
     sign_out_opens_at: string;
     normal_sign_out_closes_at: string;
     effective_sign_out_closes_at: string;
-    sign_out_override_until?: string | null;
-    sign_out_override_active: boolean;
     timezone_name: string;
   } | null;
 }

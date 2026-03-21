@@ -49,6 +49,8 @@ class Event(Base):
         default=DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
     )
     sign_out_override_until = Column(DateTime, nullable=True)
+    present_until_override_at = Column(DateTime, nullable=True)
+    late_until_override_at = Column(DateTime, nullable=True)
     start_datetime = Column(DateTime, nullable=False)
     end_datetime = Column(DateTime, nullable=False)
     status = Column(Enum(EventStatus), nullable=False, default=EventStatus.UPCOMING)

@@ -51,10 +51,9 @@ Auto-completion now uses the effective sign-out close, not just `end_datetime`.
 
 The effective close is:
 
-- `end_datetime + sign_out_grace_minutes`, or
-- `sign_out_override_until` if the override extends later
+- `end_datetime + sign_out_grace_minutes`
 
-So if an override is active near the end of the event, the event stays `ongoing` until the later close time passes.
+If an event is ended early through `POST /events/{event_id}/sign-out/open-early`, the backend moves `end_datetime` to the current time first. After that, the event still stays `ongoing` until the new `end_datetime + sign_out_grace_minutes` close time passes.
 
 ## Safety Rules
 
@@ -62,6 +61,22 @@ Two terminal-state protections remain in place:
 
 - `cancelled` stays manual and is never auto-overridden
 - manually completed events stay sticky and are not reopened automatically
+- manually setting `ongoing` is rejected if the current Manila time is still before the event `start_datetime`
+- manually setting `upcoming` is rejected once the event timing has already moved into:
+  - in-progress attendance windows
+  - the sign-out window
+  - the fully closed window
+
+For `PATCH /events/{event_id}/status`:
+
+- `status=ongoing` is allowed only once the scheduled start time has been reached
+- if the event has not started yet, the route returns `409 Conflict`
+- `status=upcoming` is allowed only while the computed event timing is still `before_check_in` or `early_check_in`
+- if the event is already in progress, the route returns `409 Conflict`
+- if a cancelled event is reopened during sign-out, the request succeeds but auto-sync returns the event to `ongoing`
+- if a cancelled event is reopened after the full event window is already closed, the request succeeds but auto-sync returns the event to `completed`
+- if the event is already stored as `completed`, the route returns `409 Conflict` with a message that it cannot be reopened because it is already completed
+- this keeps the manual status action aligned with the same event-time rules used by auto-sync
 
 ## Attendance Finalization On Completion
 

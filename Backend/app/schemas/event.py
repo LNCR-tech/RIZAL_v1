@@ -4,7 +4,7 @@ Role: Schema layer. It keeps API payloads clear and typed.
 """
 
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 from datetime import datetime
 from enum import Enum
 
@@ -16,7 +16,6 @@ from app.core.event_defaults import (
 from app.schemas.attendance import Attendance, AttendanceStatus
 from app.schemas.department import Department
 from app.schemas.program import Program
-from pydantic import computed_field  # Add this import at the top
 
 class EventStatus(str, Enum):
     upcoming = "upcoming"
@@ -41,11 +40,12 @@ class EventTimeStatusInfo(BaseModel):
     start_time: datetime
     end_time: datetime
     late_threshold_time: datetime
+    attendance_override_active: bool
+    effective_present_until_at: datetime
+    effective_late_until_at: datetime
     sign_out_opens_at: datetime
     normal_sign_out_closes_at: datetime
     effective_sign_out_closes_at: datetime
-    sign_out_override_until: Optional[datetime] = None
-    sign_out_override_active: bool = False
     timezone_name: str
 
 
@@ -61,11 +61,12 @@ class EventAttendanceDecisionInfo(BaseModel):
     start_time: datetime
     end_time: datetime
     late_threshold_time: datetime
+    attendance_override_active: bool
+    effective_present_until_at: datetime
+    effective_late_until_at: datetime
     sign_out_opens_at: datetime
     normal_sign_out_closes_at: datetime
     effective_sign_out_closes_at: datetime
-    sign_out_override_until: Optional[datetime] = None
-    sign_out_override_active: bool = False
     timezone_name: str
 
 
@@ -75,13 +76,27 @@ class EventLocationVerificationRequest(BaseModel):
     accuracy_m: Optional[float] = Field(default=None, gt=0, le=5000)
 
 
-class SignOutOverrideOpenRequest(BaseModel):
-    override_minutes: int = Field(
-        ...,
+class SignOutOpenEarlyRequest(BaseModel):
+    use_sign_out_grace_minutes: bool = Field(
+        default=True,
+        description="If true, close early sign-out using the event's current sign_out_grace_minutes value.",
+    )
+    close_after_minutes: Optional[int] = Field(
+        default=None,
         ge=1,
         le=1440,
-        description="How many minutes the early sign-out override should stay open from now.",
+        description="Custom number of minutes to keep sign-out open after ending the event early.",
     )
+
+    @model_validator(mode="after")
+    def validate_close_after_minutes(self) -> "SignOutOpenEarlyRequest":
+        if self.use_sign_out_grace_minutes:
+            return self
+        if self.close_after_minutes is None:
+            raise ValueError(
+                "close_after_minutes is required when use_sign_out_grace_minutes is false."
+            )
+        return self
 
 
 class EventLocationVerificationResponse(BaseModel):
@@ -117,7 +132,6 @@ class EventBase(BaseModel):
         ge=0,
         le=1440,
     )
-    sign_out_override_until: Optional[datetime] = None
     start_datetime: datetime
     end_datetime: datetime
     status: EventStatus = EventStatus.upcoming
@@ -137,7 +151,6 @@ class EventUpdate(BaseModel):
     early_check_in_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     late_threshold_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     sign_out_grace_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
-    sign_out_override_until: Optional[datetime] = None
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None
@@ -147,6 +160,8 @@ class EventUpdate(BaseModel):
 class Event(EventBase):
     id: int
     school_id: int
+    present_until_override_at: Optional[datetime] = None
+    late_until_override_at: Optional[datetime] = None
     departments: List[Department] = Field(default_factory=list)
     programs: List[Program] = Field(default_factory=list)
     

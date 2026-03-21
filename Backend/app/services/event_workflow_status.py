@@ -62,6 +62,8 @@ def get_expected_workflow_status(
         late_threshold_minutes=getattr(event, "late_threshold_minutes", 0),
         sign_out_grace_minutes=getattr(event, "sign_out_grace_minutes", 0),
         sign_out_override_until=getattr(event, "sign_out_override_until", None),
+        present_until_override_at=getattr(event, "present_until_override_at", None),
+        late_until_override_at=getattr(event, "late_until_override_at", None),
         current_time=current_time,
     )
     return map_time_status_to_workflow_status(time_status.event_status), time_status.event_status

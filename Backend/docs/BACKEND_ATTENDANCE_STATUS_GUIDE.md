@@ -43,6 +43,17 @@ Check-in status is derived from the event timing window:
 - from exact start through the late threshold cutoff -> `late`
 - after the late threshold cutoff while check-in is still open -> `absent`
 
+Near-start override rule:
+
+- if an event is saved too close to its scheduled start, the backend may store:
+  - `present_until_override_at`
+  - `late_until_override_at`
+- when those fields are active:
+  - students stay `present` until `present_until_override_at`
+  - then they become `late` until `late_until_override_at`
+  - then they become `absent` until sign-out opens at `end_datetime`
+- the event workflow status still follows the scheduled start and end time, so attendance marking can temporarily differ from the workflow label
+
 Important rule:
 
 - exact start time is treated as `late`
@@ -51,6 +62,12 @@ The reusable helpers live in:
 
 - `Backend/app/services/event_time_status.py`
 - `Backend/app/services/attendance_status.py`
+
+Current live-path note:
+
+- check-in window decisions now rely on `get_attendance_decision()` from `Backend/app/services/event_time_status.py`
+- final attendance matrix application still happens in `finalize_completed_attendance_status()` from `Backend/app/services/attendance_status.py`
+- the older unused helper `resolve_time_in_status()` was removed after confirming it was no longer part of the current runtime flow
 
 ## Sign-Out Rules
 
@@ -153,7 +170,7 @@ Existing report models already expose late-aware summary fields such as:
 
 Recommended checks:
 
-1. Run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_attendance_status_support.py Backend/app/tests/test_governance_hierarchy_api.py -k "attendance or override"`.
+1. Run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_attendance_status_support.py Backend/app/tests/test_governance_hierarchy_api.py -k "attendance or sign_out"`.
 2. Create an event with:
    - `early_check_in_minutes`
    - `late_threshold_minutes`
@@ -162,5 +179,7 @@ Recommended checks:
 4. Record check-in at exact start or inside the threshold and confirm `check_in_status = "late"`.
 5. Record check-in after the threshold and confirm `check_in_status = "absent"`.
 6. Try to sign out before sign-out opens and confirm the backend rejects it.
-7. Open `POST /events/{event_id}/sign-out-override/open` and confirm the same active attendance can sign out successfully.
+7. Open `POST /events/{event_id}/sign-out/open-early` and confirm the same active attendance can sign out successfully.
 8. Confirm final rows include `check_in_status`, `check_out_status`, and the correct final `status`.
+9. Create or edit an event so it starts within its configured early window and confirm the returned event now includes `present_until_override_at` and `late_until_override_at`.
+10. During that override window, confirm students stay `present` until the effective present cutoff and only become `late` after that cutoff.

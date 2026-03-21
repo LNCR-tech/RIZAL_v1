@@ -27,7 +27,6 @@ def _build_event(
         "early_check_in_minutes": 15,
         "late_threshold_minutes": 10,
         "sign_out_grace_minutes": 10,
-        "sign_out_override_until": None,
     }
     payload.update(overrides)
     return SimpleNamespace(**payload)
@@ -84,6 +83,32 @@ def test_sync_event_workflow_status_moves_upcoming_event_to_ongoing() -> None:
     assert result.attendance_finalized is False
 
 
+def test_sync_event_workflow_status_still_moves_to_ongoing_when_attendance_override_keeps_present_window() -> None:
+    manila = ZoneInfo("Asia/Manila")
+    event = _build_event(
+        ModelEventStatus.UPCOMING,
+        early_check_in_minutes=30,
+        present_until_override_at=datetime(2026, 3, 11, 9, 29, 0),
+        late_until_override_at=datetime(2026, 3, 11, 9, 39, 0),
+    )
+
+    result = sync_event_workflow_status(
+        None,
+        event,
+        current_time=datetime(2026, 3, 11, 9, 10, 0, tzinfo=manila),
+        completion_finalizer=lambda _db, _event: {
+            "created_absent": 0,
+            "marked_absent_no_timeout": 0,
+        },
+    )
+
+    assert result.changed is True
+    assert result.previous_status == ModelEventStatus.UPCOMING
+    assert result.current_status == ModelEventStatus.ONGOING
+    assert result.computed_time_status == "late_check_in"
+    assert event.status == ModelEventStatus.ONGOING
+
+
 def test_sync_event_workflow_status_keeps_event_ongoing_during_sign_out_window() -> None:
     manila = ZoneInfo("Asia/Manila")
     event = _build_event(ModelEventStatus.ONGOING)
@@ -104,17 +129,17 @@ def test_sync_event_workflow_status_keeps_event_ongoing_during_sign_out_window()
     assert event.status == ModelEventStatus.ONGOING
 
 
-def test_sync_event_workflow_status_respects_override_extended_sign_out_window() -> None:
+def test_sync_event_workflow_status_keeps_event_ongoing_after_early_end_during_grace() -> None:
     manila = ZoneInfo("Asia/Manila")
     event = _build_event(
         ModelEventStatus.ONGOING,
-        sign_out_override_until=datetime(2026, 3, 11, 11, 20, 0),
+        end_datetime=datetime(2026, 3, 11, 10, 50, 0),
     )
 
     result = sync_event_workflow_status(
         None,
         event,
-        current_time=datetime(2026, 3, 11, 11, 15, 0, tzinfo=manila),
+        current_time=datetime(2026, 3, 11, 10, 55, 0, tzinfo=manila),
         completion_finalizer=lambda _db, _event: {
             "created_absent": 0,
             "marked_absent_no_timeout": 0,

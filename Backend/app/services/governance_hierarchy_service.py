@@ -973,25 +973,6 @@ def _ensure_can_create_child_unit(
     raise HTTPException(status_code=400, detail="Unsupported governance unit type")
 
 
-def can_create_child_unit(
-    db: Session,
-    *,
-    current_user: User,
-    unit_type: GovernanceUnitType,
-    parent_unit: GovernanceUnit | None,
-) -> bool:
-    try:
-        _ensure_can_create_child_unit(
-            db,
-            current_user=current_user,
-            unit_type=unit_type,
-            parent_unit=parent_unit,
-        )
-    except HTTPException:
-        return False
-    return True
-
-
 def get_user_governance_permission_codes(
     db: Session,
     *,
@@ -1098,18 +1079,6 @@ def governance_units_match_student_scope(
             program_id=program_id,
         )
         for governance_unit in governance_units
-    )
-
-
-def user_has_governance_unit_type(
-    db: Session,
-    *,
-    current_user: User,
-    unit_type: GovernanceUnitType,
-) -> bool:
-    return unit_type in get_user_governance_unit_types(
-        db,
-        current_user=current_user,
     )
 
 

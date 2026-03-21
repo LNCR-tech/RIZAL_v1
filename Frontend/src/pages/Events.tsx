@@ -15,12 +15,14 @@ import NavbarSchoolIT from "../components/NavbarSchoolIT";
 import SsgFeatureShell from "../components/SsgFeatureShell";
 import {
   createEvent,
+  type CreateEventPayload,
   deleteEvent,
   EventStatus,
   fetchAllEvents,
   GovernanceContext,
   type Event as EventRecord,
   updateEvent,
+  type UpdateEventPayload,
   updateEventStatus,
 } from "../api/eventsApi";
 import {
@@ -64,6 +66,16 @@ interface EventDefaultsDraftState {
   early_check_in_minutes: string;
   late_threshold_minutes: string;
   sign_out_grace_minutes: string;
+}
+
+interface PendingStatusConfirmationState {
+  eventRecord: EventRecord;
+  nextStatus: EventStatus;
+}
+
+interface PendingEventSaveState {
+  eventName: string;
+  payload: CreateEventPayload | UpdateEventPayload;
 }
 
 Modal.setAppElement("#root");
@@ -138,6 +150,97 @@ const getScopeTitle = (governanceContext: GovernanceContext) => {
   return "New events created here are automatically limited to your ORG program.";
 };
 
+const NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES = 20;
+
+type NearStartAttendanceOverridePreview = {
+  effectivePresentUntil: Date;
+  effectiveLateUntil: Date;
+};
+
+const getNearStartAttendanceOverrideValidationMessage = ({
+  startDate,
+  endDate,
+  earlyCheckInMinutes,
+  lateThresholdMinutes,
+  now = new Date(),
+}: {
+  startDate: Date;
+  endDate: Date;
+  earlyCheckInMinutes: number;
+  lateThresholdMinutes: number;
+  now?: Date;
+}) => {
+  const normalizedEarlyCheckInMinutes = Math.max(0, Math.trunc(earlyCheckInMinutes));
+  const normalizedLateThresholdMinutes = Math.max(0, Math.trunc(lateThresholdMinutes));
+
+  if (normalizedEarlyCheckInMinutes <= 0) {
+    return null;
+  }
+
+  const timeUntilStartMs = startDate.getTime() - now.getTime();
+  if (timeUntilStartMs >= normalizedEarlyCheckInMinutes * 60_000) {
+    return null;
+  }
+
+  if (startDate.getTime() <= now.getTime()) {
+    return "This event start time is already in the past, so the near-start attendance override cannot preserve the full present window. Move the start time later or reduce the early check-in minutes.";
+  }
+
+  const requiredDurationMinutes =
+    normalizedEarlyCheckInMinutes +
+    normalizedLateThresholdMinutes +
+    NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES;
+  const remainingDurationMs = endDate.getTime() - now.getTime();
+
+  if (remainingDurationMs < requiredDurationMinutes * 60_000) {
+    return `This event is too short for the near-start attendance override. It needs at least ${requiredDurationMinutes} minutes from now until the event end to keep ${normalizedEarlyCheckInMinutes} minutes present, ${normalizedLateThresholdMinutes} minutes late, and ${NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES} minutes absent.`;
+  }
+
+  return null;
+};
+
+const getNearStartAttendanceOverridePreview = ({
+  startDate,
+  endDate,
+  earlyCheckInMinutes,
+  lateThresholdMinutes,
+  now = new Date(),
+}: {
+  startDate: Date;
+  endDate: Date;
+  earlyCheckInMinutes: number;
+  lateThresholdMinutes: number;
+  now?: Date;
+}): NearStartAttendanceOverridePreview | null => {
+  const validationMessage = getNearStartAttendanceOverrideValidationMessage({
+    startDate,
+    endDate,
+    earlyCheckInMinutes,
+    lateThresholdMinutes,
+    now,
+  });
+
+  if (validationMessage) {
+    return null;
+  }
+
+  const normalizedEarlyCheckInMinutes = Math.max(0, Math.trunc(earlyCheckInMinutes));
+  const timeUntilStartMs = startDate.getTime() - now.getTime();
+  if (normalizedEarlyCheckInMinutes <= 0 || timeUntilStartMs >= normalizedEarlyCheckInMinutes * 60_000) {
+    return null;
+  }
+
+  const effectivePresentUntil = new Date(now.getTime() + normalizedEarlyCheckInMinutes * 60_000);
+  const effectiveLateUntil = new Date(
+    effectivePresentUntil.getTime() + Math.max(0, Math.trunc(lateThresholdMinutes)) * 60_000
+  );
+
+  return {
+    effectivePresentUntil,
+    effectiveLateUntil,
+  };
+};
+
 const getNextStatusActions = (status: EventStatus) => {
   if (status === "upcoming") {
     return [
@@ -183,6 +286,9 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventRecord | null>(null);
+  const [pendingStatusConfirmation, setPendingStatusConfirmation] =
+    useState<PendingStatusConfirmationState | null>(null);
+  const [pendingEventSave, setPendingEventSave] = useState<PendingEventSaveState | null>(null);
   const [draft, setDraft] = useState<EventDraftState>(() => getDefaultDraft());
   const [settingsDraft, setSettingsDraft] = useState<EventDefaultsDraftState>(() =>
     toEventDefaultsDraft()
@@ -220,6 +326,35 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
       draft.geo_required,
     ]
   );
+  const nearStartAttendanceOverridePreview = useMemo(() => {
+    const startDate = parseEventDateTime(draft.start_datetime);
+    const endDate = parseEventDateTime(draft.end_datetime);
+    const earlyCheckInMinutes = Number(draft.early_check_in_minutes || "0");
+    const lateThresholdMinutes = Number(draft.late_threshold_minutes || "0");
+
+    if (
+      !Number.isFinite(startDate.getTime()) ||
+      !Number.isFinite(endDate.getTime()) ||
+      !Number.isFinite(earlyCheckInMinutes) ||
+      !Number.isFinite(lateThresholdMinutes) ||
+      earlyCheckInMinutes < 0 ||
+      lateThresholdMinutes < 0
+    ) {
+      return null;
+    }
+
+    return getNearStartAttendanceOverridePreview({
+      startDate,
+      endDate,
+      earlyCheckInMinutes,
+      lateThresholdMinutes,
+    });
+  }, [
+    draft.end_datetime,
+    draft.early_check_in_minutes,
+    draft.late_threshold_minutes,
+    draft.start_datetime,
+  ]);
 
   const loadEvents = useCallback(async (forceRefresh = false) => {
     try {
@@ -404,6 +539,7 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
       return;
     }
     setEditingEvent(null);
+    setPendingEventSave(null);
     setIsCreateModalOpen(false);
   };
 
@@ -519,48 +655,54 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
     }
   };
 
-  const handleSaveEvent = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!governanceContext) {
-      return;
-    }
-
+  const buildEventPayload = (): PendingEventSaveState | null => {
     const name = draft.name.trim();
     const location = draft.location.trim();
-    const startDate = new Date(draft.start_datetime);
-    const endDate = new Date(draft.end_datetime);
+    const startDate = parseEventDateTime(draft.start_datetime);
+    const endDate = parseEventDateTime(draft.end_datetime);
     const earlyCheckInMinutes = Number(draft.early_check_in_minutes || "0");
     const lateThresholdMinutes = Number(draft.late_threshold_minutes || "0");
     const signOutGraceMinutes = Number(draft.sign_out_grace_minutes || "0");
 
     if (!name || !location) {
       setError("Event name and location are required.");
-      return;
+      return null;
     }
 
     if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
       setError("Start and end date/time must be valid.");
-      return;
+      return null;
     }
 
     if (startDate >= endDate) {
       setError("End date/time must be after the start date/time.");
-      return;
+      return null;
     }
 
     if (!Number.isFinite(lateThresholdMinutes) || lateThresholdMinutes < 0) {
       setError("Late threshold minutes must be zero or greater.");
-      return;
+      return null;
     }
 
     if (!Number.isFinite(earlyCheckInMinutes) || earlyCheckInMinutes < 0) {
       setError("Early check-in window must be zero or greater.");
-      return;
+      return null;
     }
 
     if (!Number.isFinite(signOutGraceMinutes) || signOutGraceMinutes < 0) {
       setError("Sign-out window must be zero or greater.");
-      return;
+      return null;
+    }
+
+    const nearStartValidationMessage = getNearStartAttendanceOverrideValidationMessage({
+      startDate,
+      endDate,
+      earlyCheckInMinutes,
+      lateThresholdMinutes,
+    });
+    if (nearStartValidationMessage) {
+      setError(nearStartValidationMessage);
+      return null;
     }
 
     const geoLatitude = parseOptionalNumber(draft.geo_latitude);
@@ -573,11 +715,51 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
       (geoLatitude === null || geoLongitude === null || geoRadius === null)
     ) {
       setError("Latitude, longitude, and radius are required when geolocation is enabled.");
-      return;
+      return null;
     }
 
     if ([geoLatitude, geoLongitude, geoRadius, geoMaxAccuracy].some((value) => Number.isNaN(value))) {
       setError("Geolocation fields must contain valid numbers.");
+      return null;
+    }
+
+    const payload: CreateEventPayload = {
+      name,
+      location,
+      start_datetime: draft.start_datetime,
+      end_datetime: draft.end_datetime,
+      status: draft.status,
+      geo_required: draft.geo_required,
+      geo_latitude: geoLatitude,
+      geo_longitude: geoLongitude,
+      geo_radius_m: geoRadius,
+      geo_max_accuracy_m: geoMaxAccuracy,
+    };
+
+    if (editingEvent) {
+      payload.early_check_in_minutes = earlyCheckInMinutes;
+      payload.late_threshold_minutes = lateThresholdMinutes;
+      payload.sign_out_grace_minutes = signOutGraceMinutes;
+    } else {
+      if (earlyCheckInMinutes !== effectiveEventDefaults.early_check_in_minutes) {
+        payload.early_check_in_minutes = earlyCheckInMinutes;
+      }
+      if (lateThresholdMinutes !== effectiveEventDefaults.late_threshold_minutes) {
+        payload.late_threshold_minutes = lateThresholdMinutes;
+      }
+      if (signOutGraceMinutes !== effectiveEventDefaults.sign_out_grace_minutes) {
+        payload.sign_out_grace_minutes = signOutGraceMinutes;
+      }
+    }
+
+    return {
+      eventName: name,
+      payload,
+    };
+  };
+
+  const persistEventSave = async (payload: CreateEventPayload | UpdateEventPayload) => {
+    if (!governanceContext) {
       return;
     }
 
@@ -586,58 +768,16 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
     setSuccess(null);
 
     try {
-      const payload: {
-        name: string;
-        location: string;
-        start_datetime: string;
-        end_datetime: string;
-        status: EventStatus;
-        early_check_in_minutes?: number;
-        late_threshold_minutes?: number;
-        sign_out_grace_minutes?: number;
-        geo_required: boolean;
-        geo_latitude: number | null;
-        geo_longitude: number | null;
-        geo_radius_m: number | null;
-        geo_max_accuracy_m: number | null;
-      } = {
-        name,
-        location,
-        start_datetime: draft.start_datetime,
-        end_datetime: draft.end_datetime,
-        status: draft.status,
-        geo_required: draft.geo_required,
-        geo_latitude: geoLatitude,
-        geo_longitude: geoLongitude,
-        geo_radius_m: geoRadius,
-        geo_max_accuracy_m: geoMaxAccuracy,
-      };
-
-      if (editingEvent) {
-        payload.early_check_in_minutes = earlyCheckInMinutes;
-        payload.late_threshold_minutes = lateThresholdMinutes;
-        payload.sign_out_grace_minutes = signOutGraceMinutes;
-      } else {
-        if (earlyCheckInMinutes !== effectiveEventDefaults.early_check_in_minutes) {
-          payload.early_check_in_minutes = earlyCheckInMinutes;
-        }
-        if (lateThresholdMinutes !== effectiveEventDefaults.late_threshold_minutes) {
-          payload.late_threshold_minutes = lateThresholdMinutes;
-        }
-        if (signOutGraceMinutes !== effectiveEventDefaults.sign_out_grace_minutes) {
-          payload.sign_out_grace_minutes = signOutGraceMinutes;
-        }
-      }
-
       if (editingEvent) {
         await updateEvent(editingEvent.id, payload, governanceContext);
       } else {
-        await createEvent(payload, governanceContext);
+        await createEvent(payload as CreateEventPayload, governanceContext);
       }
 
       await loadEvents(true);
       setSuccess(editingEvent ? "Event updated successfully." : "Event created successfully.");
       setEditingEvent(null);
+      setPendingEventSave(null);
       setIsCreateModalOpen(false);
       setDraft(getDefaultDraft(effectiveEventDefaults));
     } catch (requestError) {
@@ -651,6 +791,27 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveEvent = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!governanceContext) {
+      return;
+    }
+
+    const preparedSave = buildEventPayload();
+    if (!preparedSave) {
+      return;
+    }
+
+    if (editingEvent) {
+      setError(null);
+      setSuccess(null);
+      setPendingEventSave(preparedSave);
+      return;
+    }
+
+    await persistEventSave(preparedSave.payload);
   };
 
   const handleDeleteEvent = async () => {
@@ -690,12 +851,12 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
     }));
   };
 
-  const handleQuickStatusChange = async (
+  const runQuickStatusChange = async (
     eventRecord: EventRecord,
     nextStatus: EventStatus
-  ) => {
+  ): Promise<boolean> => {
     if (!governanceContext) {
-      return;
+      return false;
     }
 
     try {
@@ -703,18 +864,56 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
       setStatusActionKey(actionKey);
       setError(null);
       setSuccess(null);
-      await updateEventStatus(eventRecord.id, nextStatus, governanceContext);
+      const updatedEvent = await updateEventStatus(eventRecord.id, nextStatus, governanceContext);
       await loadEvents(true);
-      setSuccess(`Event status updated to ${nextStatus}.`);
+      setSuccess(`Event status updated to ${updatedEvent.status}.`);
+      return true;
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Failed to update the event status"
       );
+      return false;
     } finally {
       setStatusActionKey(null);
     }
+  };
+
+  const handleQuickStatusChange = async (
+    eventRecord: EventRecord,
+    nextStatus: EventStatus
+  ) => {
+    if (nextStatus === "cancelled") {
+      setError(null);
+      setSuccess(null);
+      setPendingStatusConfirmation({ eventRecord, nextStatus });
+      return;
+    }
+
+    await runQuickStatusChange(eventRecord, nextStatus);
+  };
+
+  const handleConfirmStatusChange = async () => {
+    if (!pendingStatusConfirmation) {
+      return;
+    }
+
+    const wasSuccessful = await runQuickStatusChange(
+      pendingStatusConfirmation.eventRecord,
+      pendingStatusConfirmation.nextStatus
+    );
+    if (wasSuccessful) {
+      setPendingStatusConfirmation(null);
+    }
+  };
+
+  const handleConfirmEventSave = async () => {
+    if (!pendingEventSave) {
+      return;
+    }
+
+    await persistEventSave(pendingEventSave.payload);
   };
 
   if (isGovernanceRole) {
@@ -1115,6 +1314,26 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
                 </div>
               </div>
 
+              {nearStartAttendanceOverridePreview ? (
+                <div className="ssg-muted-note">
+                  This event starts too close to the current time to keep the full present window on
+                  the scheduled start alone. If you save it, the backend will keep students
+                  <strong> present</strong> until{" "}
+                  <strong>
+                    {formatManilaDateTime(
+                      nearStartAttendanceOverridePreview.effectivePresentUntil.toISOString()
+                    )}
+                  </strong>{" "}
+                  and <strong>late</strong> until{" "}
+                  <strong>
+                    {formatManilaDateTime(
+                      nearStartAttendanceOverridePreview.effectiveLateUntil.toISOString()
+                    )}
+                  </strong>
+                  . The event workflow status will still follow the scheduled start and end time.
+                </div>
+              ) : null}
+
               {editingEvent ? (
                 <>
                   <div className="form-group">
@@ -1271,6 +1490,116 @@ export const Events: React.FC<EventsProps> = ({ role }) => {
               disabled={deleting}
             >
               {deleting ? "Deleting..." : "Confirm Delete"}
+            </button>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={pendingStatusConfirmation !== null}
+          onRequestClose={() => {
+            if (!statusActionKey) {
+              setPendingStatusConfirmation(null);
+            }
+          }}
+          className="ssg-setup-modal ssg-setup-modal--compact"
+          overlayClassName="ssg-setup-overlay"
+        >
+          <div className="ssg-setup-modal__header">
+            <h3>Cancel Event</h3>
+            <button
+              type="button"
+              className="ssg-setup-modal__close"
+              onClick={() => {
+                if (!statusActionKey) {
+                  setPendingStatusConfirmation(null);
+                }
+              }}
+            >
+              &times;
+            </button>
+          </div>
+          <div className="ssg-setup-modal__body">
+            <p className="mb-0">
+              {pendingStatusConfirmation?.eventRecord.status === "ongoing" ? (
+                <>
+                  Cancel <strong>{pendingStatusConfirmation.eventRecord.name}</strong>? This event is
+                  already ongoing, so students will stop using its current attendance window until
+                  you reopen it.
+                </>
+              ) : (
+                <>
+                  Cancel <strong>{pendingStatusConfirmation?.eventRecord.name}</strong>? This event
+                  will stay cancelled until you reopen it.
+                </>
+              )}
+            </p>
+          </div>
+          <div className="ssg-setup-modal__footer">
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => setPendingStatusConfirmation(null)}
+              disabled={Boolean(statusActionKey)}
+            >
+              Keep Event
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => void handleConfirmStatusChange()}
+              disabled={Boolean(statusActionKey)}
+            >
+              {statusActionKey ? "Saving..." : "Confirm Cancel"}
+            </button>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={pendingEventSave !== null}
+          onRequestClose={() => {
+            if (!saving) {
+              setPendingEventSave(null);
+            }
+          }}
+          className="ssg-setup-modal ssg-setup-modal--compact"
+          overlayClassName="ssg-setup-overlay"
+        >
+          <div className="ssg-setup-modal__header">
+            <h3>Save Event Changes</h3>
+            <button
+              type="button"
+              className="ssg-setup-modal__close"
+              onClick={() => {
+                if (!saving) {
+                  setPendingEventSave(null);
+                }
+              }}
+            >
+              &times;
+            </button>
+          </div>
+          <div className="ssg-setup-modal__body">
+            <p className="mb-0">
+              Save the latest changes for <strong>{pendingEventSave?.eventName}</strong>? This will
+              update the event details for the current governance workspace.
+            </p>
+          </div>
+          <div className="ssg-setup-modal__footer">
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => setPendingEventSave(null)}
+              disabled={saving}
+            >
+              Review Again
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void handleConfirmEventSave()}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Confirm Save"}
             </button>
           </div>
         </Modal>
