@@ -26,13 +26,19 @@
         </section>
 
         <Transition name="school-it-import-info">
-          <p
+          <div
             v-if="infoOpen"
             class="school-it-import__info-note dashboard-enter dashboard-enter--3"
           >
-            Upload a <strong>.xlsx</strong> file using the backend template columns:
-            Student_ID, Email, Last Name, First Name, Middle Name, Department, and Course.
-          </p>
+            <p style="margin: 0; margin-bottom: 12px;">
+              Upload a <strong>.xlsx</strong> file using the backend template columns:
+              Student_ID, Email, Last Name, First Name, Middle Name, Department, and Course.
+            </p>
+            <button class="school-it-import__download-template" type="button" @click="downloadTemplate">
+              <Download :size="14" style="margin-right: 6px" />
+              Download Template
+            </button>
+          </div>
         </Transition>
 
         <section class="school-it-import__panel dashboard-enter dashboard-enter--4">
@@ -160,6 +166,7 @@
 
         <div class="school-it-import__action-row dashboard-enter dashboard-enter--5">
           <button
+            ref="swipePillRef"
             class="school-it-import__swipe-pill"
             :class="{
               'school-it-import__swipe-pill--busy': stage === 'processing',
@@ -167,15 +174,21 @@
             }"
             type="button"
             :disabled="isPrimaryActionDisabled"
-            @click="handlePrimaryAction"
+            @click="handlePillClick"
+            @touchstart.passive="handleSwipeStart"
+            @mousedown="handleSwipeStart"
           >
-            <span class="school-it-import__swipe-thumb">
+            <span 
+              ref="swipeThumbRef"
+              class="school-it-import__swipe-thumb"
+              :style="thumbStyle"
+            >
               <ArrowRight :size="18" />
             </span>
 
-            <span class="school-it-import__swipe-label">{{ primaryActionLabel }}</span>
+            <span class="school-it-import__swipe-label" :style="{ opacity: labelOpacity }">{{ primaryActionLabel }}</span>
 
-            <span v-if="stage === 'idle'" class="school-it-import__swipe-chevrons" aria-hidden="true">
+            <span v-if="stage === 'idle'" class="school-it-import__swipe-chevrons" aria-hidden="true" :style="{ opacity: labelOpacity }">
               <ChevronRight :size="16" />
               <ChevronRight :size="16" />
             </span>
@@ -188,7 +201,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ArrowRight, ChevronRight, CloudUpload, Info } from 'lucide-vue-next'
+import { ArrowRight, ChevronRight, CloudUpload, Info, Download } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -214,6 +227,8 @@ const props = defineProps({
 
 const POLL_INTERVAL_MS = 1200
 const fileInputEl = ref(null)
+const swipePillRef = ref(null)
+const swipeThumbRef = ref(null)
 const infoOpen = ref(false)
 const isDragActive = ref(false)
 const selectedFile = ref(null)
@@ -225,6 +240,11 @@ const feedbackError = ref(false)
 const previewSummary = ref(null)
 const importSummary = ref(null)
 const displayRows = ref([])
+
+const isSwiping = ref(false)
+const swipeProgress = ref(0)
+let swipeStartX = 0
+let swipeMaxTravel = 0
 
 const { currentUser, schoolSettings, apiBaseUrl, token } = useDashboardSession()
 const { logout } = useAuth()
@@ -246,13 +266,15 @@ const avatarUrl = computed(() => activeUser.value?.avatar_url || '')
 const validPreviewRows = computed(() => displayRows.value.filter((row) => row.status === 'valid').length)
 const invalidPreviewRows = computed(() => displayRows.value.filter((row) => row.status !== 'valid').length)
 const primaryActionLabel = computed(() => {
-  if (stage.value === 'processing') return 'Importing...'
-  if (stage.value === 'result') return 'Import Another'
+  if (stage.value === 'processing') return 'Processing...'
+  if (stage.value === 'result' && importSummary.value?.state === 'completed') return 'Import Another'
+  if (stage.value === 'result' && previewSummary.value && !previewSummary.value.can_commit) return 'Fix Errors to Import'
   return 'Slide to Import'
 })
 const isPrimaryActionDisabled = computed(() => {
   if (stage.value === 'processing') return true
-  if (stage.value === 'result') return false
+  if (stage.value === 'result' && importSummary.value) return false
+  if (stage.value === 'result' && previewSummary.value && !previewSummary.value.can_commit) return true
   return !selectedFile.value
 })
 const resultTitle = computed(() => {
@@ -272,13 +294,35 @@ const resultSummary = computed(() => {
 let progressAnimationFrameId = 0
 let pollTimeoutId = 0
 
+const thumbStyle = computed(() => {
+  if (isSwiping.value) {
+    return { left: `calc(5px + ${swipeProgress.value}px)`, transition: 'none' }
+  }
+  return {}
+})
+
+const labelOpacity = computed(() => {
+  if (isSwiping.value && swipeMaxTravel > 0) {
+    return Math.max(0, 1 - (swipeProgress.value / (swipeMaxTravel * 0.4)))
+  }
+  return 1
+})
+
 onMounted(() => {
   resetFlow()
+  window.addEventListener('mousemove', handleSwipeMove)
+  window.addEventListener('mouseup', handleSwipeEnd)
+  window.addEventListener('touchmove', handleSwipeMove, { passive: false })
+  window.addEventListener('touchend', handleSwipeEnd)
 })
 
 onBeforeUnmount(() => {
   stopProgressAnimation()
   clearPollTimer()
+  window.removeEventListener('mousemove', handleSwipeMove)
+  window.removeEventListener('mouseup', handleSwipeEnd)
+  window.removeEventListener('touchmove', handleSwipeMove)
+  window.removeEventListener('touchend', handleSwipeEnd)
 })
 
 function buildInitials(value) {
@@ -296,12 +340,18 @@ function handleFileSelect(event) {
   const file = event?.target?.files?.[0] || null
   commitSelectedFile(file)
   if (event?.target) event.target.value = ''
+  if (selectedFile.value) {
+    runPreviewFlow()
+  }
 }
 
 function handleFileDrop(event) {
   isDragActive.value = false
   const file = event?.dataTransfer?.files?.[0] || null
   commitSelectedFile(file)
+  if (selectedFile.value) {
+    runPreviewFlow()
+  }
 }
 
 function commitSelectedFile(file) {
@@ -327,8 +377,59 @@ function commitSelectedFile(file) {
   selectedFile.value = file
 }
 
+function handlePillClick() {
+  if (stage.value === 'result' && importSummary.value) {
+    handlePrimaryAction()
+  }
+}
+
+function handleSwipeStart(e) {
+  if (isPrimaryActionDisabled.value) return
+  if (stage.value === 'result' && importSummary.value) return // Allow click for "Import Another"
+  
+  isSwiping.value = true
+  swipeStartX = e.type.includes('mouse') ? e.clientX : e.touches?.[0]?.clientX
+  
+  if (swipePillRef.value && swipeThumbRef.value) {
+    const pillRect = swipePillRef.value.getBoundingClientRect()
+    const thumbRect = swipeThumbRef.value.getBoundingClientRect()
+    swipeMaxTravel = pillRect.width - thumbRect.width - 10
+  }
+}
+
+function handleSwipeMove(e) {
+  if (!isSwiping.value) return
+  if (e.cancelable) e.preventDefault()
+  
+  const currentX = e.type.includes('mouse') ? e.clientX : e.touches?.[0]?.clientX
+  let deltaX = currentX - swipeStartX
+  
+  if (deltaX < 0) deltaX = 0
+  if (deltaX > swipeMaxTravel) deltaX = swipeMaxTravel
+  
+  swipeProgress.value = deltaX
+}
+
+function handleSwipeEnd() {
+  if (!isSwiping.value) return
+  isSwiping.value = false
+  
+  if (swipeProgress.value > swipeMaxTravel * 0.85) {
+    swipeProgress.value = swipeMaxTravel
+    handlePrimaryAction()
+  } else {
+    swipeProgress.value = 0
+  }
+  
+  if (stage.value !== 'processing') {
+    setTimeout(() => {
+      swipeProgress.value = 0
+    }, 300)
+  }
+}
+
 async function handlePrimaryAction() {
-  if (stage.value === 'result') {
+  if (stage.value === 'result' && importSummary.value) {
     resetFlow()
     await nextTick()
     return
@@ -343,7 +444,7 @@ async function handlePrimaryAction() {
   await runImportFlow()
 }
 
-async function runImportFlow() {
+async function runPreviewFlow() {
   stage.value = 'processing'
   feedbackMessage.value = ''
   feedbackError.value = false
@@ -351,33 +452,52 @@ async function runImportFlow() {
   importSummary.value = null
   displayRows.value = []
   displayProgress.value = 0
-  processingLabel.value = 'Uploading Please Wait'
-
+  processingLabel.value = 'Analyzing file structure...'
+  
   try {
-    smoothProgressTo(18, 380)
-
+    smoothProgressTo(45, 400)
+    
     const preview = props.preview
       ? await runMockPreview(selectedFile.value)
       : await previewImportStudents(apiBaseUrl.value, token.value, selectedFile.value)
-
+      
     previewSummary.value = preview
     displayRows.value = extractStudentImportDisplayRows(preview)
-
+    
+    smoothProgressTo(100, 300)
+    await wait(320)
+    stage.value = 'result'
+    
     if (!preview.can_commit) {
-      processingLabel.value = 'Reviewing uploaded rows'
-      smoothProgressTo(100, 520)
-      await wait(540)
-      stage.value = 'result'
       feedbackError.value = true
-      feedbackMessage.value = 'Some rows need attention before import.'
-      return
+      feedbackMessage.value = 'File has errors. Please fix highlighted rows and select an updated file.'
+    } else {
+      feedbackError.value = false
+      feedbackMessage.value = 'File looks good! Ready to import.'
     }
+  } catch (error) {
+    stage.value = 'idle'
+    displayProgress.value = 0
+    feedbackError.value = true
+    feedbackMessage.value = resolveImportErrorMessage(error)
+    selectedFile.value = null
+  }
+}
 
-    processingLabel.value = 'Importing students'
+async function runImportFlow() {
+  if (!previewSummary.value || !previewSummary.value.can_commit) return
+
+  stage.value = 'processing'
+  feedbackMessage.value = ''
+  feedbackError.value = false
+  displayProgress.value = 0
+  processingLabel.value = 'Importing students...'
+
+  try {
     smoothProgressTo(42, 480)
 
     if (props.preview) {
-      await runMockImport(preview)
+      await runMockImport(previewSummary.value)
     } else {
       const job = await startStudentImport(apiBaseUrl.value, token.value, selectedFile.value)
       await pollImportJob(job.job_id)
@@ -397,12 +517,22 @@ async function runImportFlow() {
   } catch (error) {
     stage.value = 'idle'
     displayProgress.value = 0
-    previewSummary.value = null
-    importSummary.value = null
-    displayRows.value = []
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
   }
+}
+
+function downloadTemplate() {
+  const headers = 'Student_ID,Email,Last Name,First Name,Middle Name,Department,Course\n'
+  const blob = new Blob([headers], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', 'aura_student_import_template.csv')
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 async function runMockPreview(file) {
@@ -516,6 +646,8 @@ function resetFlow() {
   displayRows.value = []
   feedbackMessage.value = ''
   feedbackError.value = false
+  isSwiping.value = false
+  swipeProgress.value = 0
 }
 
 function resolveImportErrorMessage(error) {
@@ -659,5 +791,23 @@ async function handleLogout() {
     transition:none;
     animation:none;
   }
+}
+
+.school-it-import__download-template {
+  background: color-mix(in srgb, var(--color-surface) 80%, black 20%);
+  color: var(--color-text-primary);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+
+.school-it-import__download-template:hover {
+  opacity: 0.8;
 }
 </style>

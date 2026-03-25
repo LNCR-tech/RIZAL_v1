@@ -27,8 +27,9 @@
       <section class="capture-card">
         <header class="capture-header">
           <span class="capture-chip">Face Setup</span>
-          <h2 class="capture-title">{{ captureTitle }}</h2>
-          <p class="capture-copy">{{ captureCopy }}</p>
+          <Transition name="title-fade" mode="out-in">
+            <h2 class="capture-title" :key="captureTitle">{{ captureTitle }}</h2>
+          </Transition>
         </header>
 
         <FaceScanPanel
@@ -99,11 +100,11 @@ const schoolName = computed(() => (
   'Your school'
 ))
 const captureTitle = computed(() => {
-  if (statusState.value === 'success') return 'You are all set'
-  if (statusState.value === 'submitting' || statusState.value === 'capturing') return 'Registering your face'
-  if (statusState.value === 'starting') return 'Preparing your camera'
-  if (statusState.value === 'detecting') return 'Hold steady for a clear scan'
-  if (statusState.value === 'error') return 'Let’s try that again'
+  if (statusState.value === 'success') return 'All set!'
+  if (statusState.value === 'submitting' || statusState.value === 'capturing') return 'Registering...'
+  if (statusState.value === 'starting') return 'Preparing camera'
+  if (statusState.value === 'detecting') return 'Scanning...'
+  if (statusState.value === 'error') return 'Try again'
   return 'Register your face'
 })
 const captureCopy = computed(() => {
@@ -125,13 +126,11 @@ const captureCopy = computed(() => {
   return 'Use the same school-branded scan flow that powers attendance check-ins.'
 })
 const panelCaption = computed(() => {
-  if (statusState.value === 'success') return 'Face registered successfully.'
-  if (statusState.value === 'submitting' || statusState.value === 'capturing') {
-    return 'Hold still while we save your face.'
-  }
-  if (statusState.value === 'starting') return 'Preparing your camera...'
-  if (statusState.value === 'error') return 'Unable to register your face yet.'
-  return 'Ensure your face is well-lit.'
+  if (statusState.value === 'success') return 'Face registered.'
+  if (statusState.value === 'submitting' || statusState.value === 'capturing') return 'Hold still...'
+  if (statusState.value === 'starting') return 'Warming up camera...'
+  if (statusState.value === 'error') return 'Registration failed.'
+  return 'Keep your face centered.'
 })
 const showRetry = computed(() => statusState.value === 'error')
 const statusClass = computed(() => ({
@@ -173,7 +172,7 @@ const faceDetectorModelUrl =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
 const faceDetectorMinConfidence = Number(import.meta.env.VITE_FACE_DETECTOR_MIN_CONFIDENCE ?? 0.5)
 const faceDetectorSuppression = Number(import.meta.env.VITE_FACE_DETECTOR_SUPPRESSION ?? 0.3)
-const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVAL_MS ?? 120)
+const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVAL_MS ?? 200)
 const detectTimeoutMs = Number(import.meta.env.VITE_FACE_ENROLL_DETECT_TIMEOUT_MS ?? 12000)
 const captureDelayMs = Number(import.meta.env.VITE_FACE_ENROLL_CAPTURE_DELAY_MS ?? 450)
 
@@ -615,6 +614,16 @@ function setRegistrationError(message) {
   letter-spacing: -0.04em;
   font-weight: 700;
   color: #111111;
+}
+
+.title-fade-enter-active,
+.title-fade-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.title-fade-enter-from,
+.title-fade-leave-to {
+  opacity: 0;
 }
 
 .register-pill {

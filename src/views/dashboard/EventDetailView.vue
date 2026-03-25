@@ -16,7 +16,7 @@
     <section v-if="event" class="detail-body">
       <!-- Title -->
       <div class="title-block dashboard-enter dashboard-enter--2">
-        <h1 class="event-title">{{ event.name }}</h1>
+        <h1 class="event-title">{{ eventName }}</h1>
         <p class="event-subtitle">Event Date & Time</p>
         <p class="event-date">{{ dateRange }}</p>
       </div>
@@ -91,6 +91,7 @@ import { ArrowLeft, ArrowUpRight, Bell } from 'lucide-vue-next'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 
 const props = defineProps({
   preview: {
@@ -104,7 +105,13 @@ const router = useRouter()
 const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
 
 const eventId = computed(() => Number(route.params.id))
-const previewEvent = computed(() => studentDashboardPreviewData.events.find((entry) => Number(entry?.id) === eventId.value) ?? null)
+const previewEvent = computed(() => {
+  const byStudent = studentDashboardPreviewData.events.find((entry) => Number(entry?.id) === eventId.value)
+  if (byStudent) return byStudent
+  // Add fallback for School IT preview events if viewed from Reports table
+  const byAdmin = schoolItPreviewData?.events?.find((entry) => Number(entry?.id) === eventId.value)
+  return byAdmin ?? null
+})
 const event = computed(() => props.preview ? previewEvent.value : getDashboardEventById(eventId.value))
 
 usePreviewTheme(() => props.preview, () => studentDashboardPreviewData.schoolSettings)

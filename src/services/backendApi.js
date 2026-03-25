@@ -2,11 +2,15 @@ import {
     isNgrokApiBaseUrl,
     resolveAbsoluteApiBaseUrl,
     resolveApiBaseUrl,
+    resolveApiTimeoutMs,
 } from '@/services/backendBaseUrl.js'
 import {
-    normalizeAttendanceRecord,
+    normalizeAuditLogResponse,
     normalizeCreateSchoolWithSchoolItResponse,
+    normalizeAttendanceRecord,
     normalizeDepartment,
+    normalizeGovernanceRequest,
+    normalizeGovernanceSetting,
     normalizeEvent,
     normalizeEventLocationResponse,
     normalizeEventTimeStatus,
@@ -17,12 +21,18 @@ import {
     normalizeGovernanceSsgSetup,
     normalizeGovernanceStudentCandidate,
     normalizeGovernanceUnitDetail,
+    normalizeNotificationDispatchSummary,
+    normalizeNotificationLogItem,
     normalizePasswordChangeResponse,
     normalizePasswordResetResponse,
     normalizeProgram,
     normalizeSchoolSettings,
+    normalizeSchoolSummary,
+    normalizeSchoolItAccount,
     normalizeStudentFaceRegistrationResponse,
     normalizeTokenPayload,
+    normalizeRetentionRunResult,
+    normalizeUserCreateResponse,
     normalizeUserWithRelations,
 } from '@/services/backendNormalizers.js'
 import {
@@ -42,12 +52,6 @@ export class BackendApiError extends Error {
 }
 
 export { resolveApiBaseUrl }
-
-const DEFAULT_API_TIMEOUT_MS = 15000
-const configuredApiTimeoutMs = Number(import.meta.env.VITE_API_TIMEOUT_MS)
-const API_TIMEOUT_MS = Number.isFinite(configuredApiTimeoutMs) && configuredApiTimeoutMs > 0
-    ? configuredApiTimeoutMs
-    : DEFAULT_API_TIMEOUT_MS
 
 function buildUrl(baseUrl, path, params) {
     const url = new URL(`${resolveAbsoluteApiBaseUrl(baseUrl)}${path}`)
@@ -110,18 +114,46 @@ async function parseResponse(response) {
     return payload
 }
 
-async function request(baseUrl, path, options = {}) {
+function shouldRetryWithApiProxyPrefix(path, error) {
+    return (
+        typeof path === 'string'
+        && path.startsWith('/api/')
+        && !path.startsWith('/api/api/')
+        && error instanceof BackendApiError
+        && (
+            Number(error.status) === 404 ||
+            error?.details?.kind === 'unexpected_non_json'
+        )
+    )
+}
+
+function buildProxyCompatibleApiPath(path) {
+    return path.startsWith('/api/') ? `/api${path}` : path
+}
+
+function maybeHandleSessionExpiry(error, token, suppressSessionExpiryHandling) {
+    if (
+        token &&
+        !suppressSessionExpiryHandling &&
+        error instanceof BackendApiError &&
+        Number(error.status) === 401
+    ) {
+        notifySessionExpired()
+    }
+}
+
+async function performRequest(baseUrl, path, options = {}) {
     const {
         token,
         params,
         headers = {},
         body,
-        suppressSessionExpiryHandling = false,
         ...rest
     } = options
 
+    const timeoutMs = resolveApiTimeoutMs()
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     let response
     try {
@@ -138,11 +170,11 @@ async function request(baseUrl, path, options = {}) {
     } catch (error) {
         if (error?.name === 'AbortError') {
             throw new BackendApiError(
-                `The API took too long to respond. The backend or ngrok tunnel may be offline. (${API_TIMEOUT_MS}ms timeout)`,
+                `The API took too long to respond. The backend or ngrok tunnel may be offline. (${timeoutMs}ms timeout)`,
                 {
                     details: {
                         path,
-                        timeoutMs: API_TIMEOUT_MS,
+                        timeoutMs,
                     },
                 }
             )
@@ -161,18 +193,37 @@ async function request(baseUrl, path, options = {}) {
         clearTimeout(timeoutId)
     }
 
+    return parseResponse(response)
+}
+
+async function request(baseUrl, path, options = {}) {
+    const {
+        token,
+        suppressSessionExpiryHandling = false,
+        ...rest
+    } = options
+
     try {
-        return await parseResponse(response)
+        return await performRequest(baseUrl, path, {
+            token,
+            suppressSessionExpiryHandling,
+            ...rest,
+        })
     } catch (error) {
-        if (
-            token &&
-            !suppressSessionExpiryHandling &&
-            error instanceof BackendApiError &&
-            Number(error.status) === 401
-        ) {
-            notifySessionExpired()
+        if (shouldRetryWithApiProxyPrefix(path, error)) {
+            try {
+                return await performRequest(baseUrl, buildProxyCompatibleApiPath(path), {
+                    token,
+                    suppressSessionExpiryHandling,
+                    ...rest,
+                })
+            } catch (retryError) {
+                maybeHandleSessionExpiry(retryError, token, suppressSessionExpiryHandling)
+                throw retryError
+            }
         }
 
+        maybeHandleSessionExpiry(error, token, suppressSessionExpiryHandling)
         throw error
     }
 }
@@ -395,14 +446,14 @@ export async function getUsers(baseUrl, token, params = {}) {
     return Array.isArray(payload) ? payload.map(normalizeUserWithRelations) : []
 }
 
-async function getGovernanceAccess(baseUrl, token) {
+export async function getGovernanceAccess(baseUrl, token) {
     return request(baseUrl, '/api/governance/access/me', {
         method: 'GET',
         token,
     })
 }
 
-async function getGovernanceUnitDetail(baseUrl, token, governanceUnitId) {
+export async function getGovernanceUnitDetail(baseUrl, token, governanceUnitId) {
     return normalizeGovernanceUnitDetail(await request(baseUrl, `/api/governance/units/${governanceUnitId}`, {
         method: 'GET',
         token,
@@ -591,6 +642,49 @@ export async function deleteGovernanceMember(baseUrl, token, governanceMemberId)
     return true
 }
 
+export async function getGovernanceStudents(baseUrl, token, params = {}) {
+    const payload = await request(baseUrl, '/api/governance/students', {
+        method: 'GET',
+        token,
+        params,
+    })
+    return Array.isArray(payload) ? payload : []
+}
+
+export async function getGovernanceAnnouncements(baseUrl, token, governanceUnitId) {
+    const payload = await request(baseUrl, `/api/governance/units/${governanceUnitId}/announcements`, {
+        method: 'GET',
+        token,
+    })
+    return Array.isArray(payload) ? payload : []
+}
+
+export async function createGovernanceAnnouncement(baseUrl, token, governanceUnitId, payload) {
+    return request(baseUrl, `/api/governance/units/${governanceUnitId}/announcements`, {
+        method: 'POST',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function updateGovernanceAnnouncement(baseUrl, token, announcementId, payload) {
+    return request(baseUrl, `/api/governance/announcements/${announcementId}`, {
+        method: 'PATCH',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function deleteGovernanceAnnouncement(baseUrl, token, announcementId) {
+    await request(baseUrl, `/api/governance/announcements/${announcementId}`, {
+        method: 'DELETE',
+        token,
+    })
+    return true
+}
+
 export async function createSchoolWithSchoolIt(baseUrl, token, payload) {
     const formData = new FormData()
 
@@ -615,8 +709,144 @@ export async function createSchoolWithSchoolIt(baseUrl, token, payload) {
     }))
 }
 
+export async function getAdminSchools(baseUrl, token) {
+    const payload = await request(baseUrl, '/api/school/admin/list', {
+        method: 'GET',
+        token,
+    })
+
+    return Array.isArray(payload) ? payload.map(normalizeSchoolSummary).filter(Boolean) : []
+}
+
+export async function updateAdminSchoolStatus(baseUrl, token, schoolId, payload) {
+    return normalizeSchoolSettings(await request(baseUrl, `/api/school/admin/${schoolId}/status`, {
+        method: 'PATCH',
+        token,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }))
+}
+
+export async function getAdminSchoolItAccounts(baseUrl, token) {
+    const payload = await request(baseUrl, '/api/school/admin/school-it-accounts', {
+        method: 'GET',
+        token,
+    })
+
+    return Array.isArray(payload) ? payload.map(normalizeSchoolItAccount).filter(Boolean) : []
+}
+
+export async function updateAdminSchoolItAccountStatus(baseUrl, token, userId, isActive) {
+    return normalizeSchoolItAccount(await request(baseUrl, `/api/school/admin/school-it-accounts/${userId}/status`, {
+        method: 'PATCH',
+        token,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            is_active: Boolean(isActive),
+        }),
+    }))
+}
+
+export async function resetAdminSchoolItPassword(baseUrl, token, userId) {
+    return normalizePasswordResetResponse(await request(baseUrl, `/api/school/admin/school-it-accounts/${userId}/reset-password`, {
+        method: 'POST',
+        token,
+    }))
+}
+
+export async function getAuditLogs(baseUrl, token, params = {}) {
+    return normalizeAuditLogResponse(await request(baseUrl, '/api/audit-logs', {
+        method: 'GET',
+        token,
+        params,
+    }))
+}
+
+export async function getNotificationLogs(baseUrl, token, params = {}) {
+    const payload = await request(baseUrl, '/api/notifications/logs', {
+        method: 'GET',
+        token,
+        params,
+    })
+
+    return Array.isArray(payload) ? payload.map(normalizeNotificationLogItem).filter(Boolean) : []
+}
+
+export async function dispatchMissedEventNotifications(baseUrl, token, params = {}) {
+    return normalizeNotificationDispatchSummary(await request(baseUrl, '/api/notifications/dispatch/missed-events', {
+        method: 'POST',
+        token,
+        params,
+    }))
+}
+
+export async function dispatchLowAttendanceNotifications(baseUrl, token, params = {}) {
+    return normalizeNotificationDispatchSummary(await request(baseUrl, '/api/notifications/dispatch/low-attendance', {
+        method: 'POST',
+        token,
+        params,
+    }))
+}
+
+export async function getGovernanceSettings(baseUrl, token, params = {}) {
+    return normalizeGovernanceSetting(await request(baseUrl, '/api/governance/settings/me', {
+        method: 'GET',
+        token,
+        params,
+    }))
+}
+
+export async function updateGovernanceSettings(baseUrl, token, payload, params = {}) {
+    return normalizeGovernanceSetting(await request(baseUrl, '/api/governance/settings/me', {
+        method: 'PUT',
+        token,
+        params,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }))
+}
+
+export async function getGovernanceRequests(baseUrl, token, params = {}) {
+    const payload = await request(baseUrl, '/api/governance/requests', {
+        method: 'GET',
+        token,
+        params,
+    })
+
+    return Array.isArray(payload) ? payload.map(normalizeGovernanceRequest).filter(Boolean) : []
+}
+
+export async function updateGovernanceRequest(baseUrl, token, requestId, payload) {
+    return normalizeGovernanceRequest(await request(baseUrl, `/api/governance/requests/${requestId}`, {
+        method: 'PATCH',
+        token,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }))
+}
+
+export async function runGovernanceRetention(baseUrl, token, payload, params = {}) {
+    return normalizeRetentionRunResult(await request(baseUrl, '/api/governance/run-retention', {
+        method: 'POST',
+        token,
+        params,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }))
+}
+
 export async function createUser(baseUrl, token, payload) {
-    return normalizeUserWithRelations(await requestWithFallback(baseUrl, ['/api/users/', '/users/'], {
+    return normalizeUserCreateResponse(await requestWithFallback(baseUrl, ['/api/users/', '/users/'], {
         method: 'POST',
         token,
         headers: {
@@ -709,8 +939,15 @@ export async function updateStudentProfile(baseUrl, token, profileId, payload) {
     }, [404, 405]))
 }
 
+export async function deleteUser(baseUrl, token, userId) {
+    await requestWithFallback(baseUrl, [`/api/users/${userId}`, `/users/${userId}`], {
+        method: 'DELETE',
+        token,
+    }, [404, 405])
+}
+
 export async function resetUserPassword(baseUrl, token, userId, password) {
-    return normalizePasswordResetResponse(await request(baseUrl, `/users/${userId}/reset-password`, {
+    return normalizePasswordResetResponse(await requestWithFallback(baseUrl, [`/api/users/${userId}/reset-password`, `/users/${userId}/reset-password`], {
         method: 'POST',
         token,
         headers: {
@@ -719,7 +956,7 @@ export async function resetUserPassword(baseUrl, token, userId, password) {
         body: JSON.stringify({
             password,
         }),
-    }))
+    }, [404, 405]))
 }
 
 export async function changePassword(baseUrl, token, payload, endpoint = '/auth/change-password') {
@@ -750,6 +987,15 @@ export async function getAttendanceSummary(baseUrl, token, params = {}) {
     })
 }
 
+export async function getEventAttendance(baseUrl, token, eventId, params = {}) {
+    const payload = await requestWithFallback(baseUrl, [`/api/events/${eventId}/attendance`, `/events/${eventId}/attendance`], {
+        method: 'GET',
+        token,
+        params,
+    }, [404, 405])
+    return Array.isArray(payload) ? payload : []
+}
+
 export async function getFaceStatus(baseUrl, token) {
     return normalizeFaceStatus(await requestWithFallback(baseUrl, ['/api/auth/security/face-status', '/auth/security/face-status'], {
         method: 'GET',
@@ -771,7 +1017,7 @@ export async function saveFaceReference(baseUrl, token, imageBase64) {
 }
 
 export async function registerStudentFace(baseUrl, token, imageBase64) {
-    return normalizeStudentFaceRegistrationResponse(await request(baseUrl, '/face/register', {
+    return normalizeStudentFaceRegistrationResponse(await requestWithFallback(baseUrl, ['/api/face/register', '/face/register'], {
         method: 'POST',
         token,
         headers: {
@@ -803,7 +1049,7 @@ export async function recordFaceScanAttendance(baseUrl, token, {
     accuracyM = null,
     threshold = null,
 }) {
-    const payload = await request(baseUrl, '/face/face-scan-with-recognition', {
+    const payload = await requestWithFallback(baseUrl, ['/api/face/face-scan-with-recognition', '/face/face-scan-with-recognition'], {
         method: 'POST',
         token,
         headers: {
@@ -822,7 +1068,7 @@ export async function recordFaceScanAttendance(baseUrl, token, {
 }
 
 export async function recordFaceScanTimeout(baseUrl, token, { eventId, studentId }) {
-    const payload = await request(baseUrl, '/attendance/face-scan-timeout', {
+    const payload = await requestWithFallback(baseUrl, ['/api/attendance/face-scan-timeout', '/attendance/face-scan-timeout'], {
         method: 'POST',
         token,
         params: {
@@ -834,7 +1080,7 @@ export async function recordFaceScanTimeout(baseUrl, token, { eventId, studentId
 }
 
 export async function verifyEventLocation(baseUrl, token, eventId, payload) {
-    return normalizeEventLocationResponse(await request(baseUrl, `/events/${eventId}/verify-location`, {
+    return normalizeEventLocationResponse(await requestWithFallback(baseUrl, [`/api/events/${eventId}/verify-location`, `/events/${eventId}/verify-location`], {
         method: 'POST',
         token,
         headers: {
@@ -845,7 +1091,7 @@ export async function verifyEventLocation(baseUrl, token, eventId, payload) {
 }
 
 export async function getEventTimeStatus(baseUrl, token, eventId) {
-    return normalizeEventTimeStatus(await request(baseUrl, `/events/${eventId}/time-status`, {
+    return normalizeEventTimeStatus(await requestWithFallback(baseUrl, [`/api/events/${eventId}/time-status`, `/events/${eventId}/time-status`], {
         method: 'GET',
         token,
     }))

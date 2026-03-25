@@ -27,7 +27,7 @@
             type="url"
             autocomplete="off"
             spellcheck="false"
-            placeholder="https://sas-deploy-production.up.railway.app"
+            placeholder="https://supervirulently-downless-keven.ngrok-free.dev"
           />
           <button class="ghost-btn" type="button" :disabled="isCatalogLoading" @click="loadCatalogData">
             {{ isCatalogLoading ? 'Refreshing...' : 'Refresh Catalog' }}

@@ -18,6 +18,7 @@
             <div class="school-it-department-programs__search-shell">
               <input
                 v-model="searchQuery"
+                v-bind="programSearchInputAttrs"
                 class="school-it-department-programs__search-input"
                 type="text"
                 placeholder="Search programs"
@@ -66,7 +67,7 @@
                   >
                     <X :size="18" :stroke-width="2.4" />
                   </button>
-                  <span class="school-it-department-programs__panel-title">Add Program</span>
+                  <span class="school-it-department-programs__panel-title">{{ programPanelTitle }}</span>
                 </div>
 
                 <div class="school-it-department-programs__panel-form">
@@ -88,7 +89,7 @@
                     :disabled="programSubmitDisabled"
                     @click="submitProgram"
                   >
-                    Enter
+                    {{ programSubmitLabel }}
                   </button>
                 </div>
 
@@ -153,25 +154,62 @@
           </section>
 
           <section v-if="visibleProgramCards.length" class="school-it-department-programs__program-list">
-            <article
+            <div
               v-for="(program, index) in visibleProgramCards"
               :key="program.id"
-              class="school-it-department-programs__program-card dashboard-enter"
-              :class="`dashboard-enter--${Math.min(index + 5, 9)}`"
+              class="school-it-department-programs__program-swipe dashboard-enter"
+              :class="[
+                `dashboard-enter--${Math.min(index + 5, 9)}`,
+                { 'school-it-department-programs__program-swipe--open': isProgramSwipeOpen(program.id) },
+              ]"
             >
-              <h3 class="school-it-department-programs__program-title">{{ program.name }}</h3>
+              <div class="school-it-department-programs__program-action-rail" aria-hidden="true">
+                <button
+                  class="school-it-department-programs__program-action school-it-department-programs__program-action--delete"
+                  type="button"
+                  :disabled="isSavingProgram"
+                  aria-label="Delete program"
+                  @click.stop="deleteProgramItem(program)"
+                >
+                  <Trash2 :size="18" />
+                </button>
 
-              <button
-                class="school-it-department-programs__manage-pill"
-                type="button"
-                @click="manageProgram(program)"
+                <button
+                  class="school-it-department-programs__program-action school-it-department-programs__program-action--edit"
+                  type="button"
+                  :disabled="isSavingProgram"
+                  aria-label="Edit program"
+                  @click.stop="openEditProgramPanel(program)"
+                >
+                  <Pencil :size="18" />
+                </button>
+              </div>
+
+              <article
+                class="school-it-department-programs__program-card"
+                :style="getProgramSwipeStyle(program.id)"
+                @click.capture="handleProgramCardClick(program.id, $event)"
+                @pointerdown="onProgramPointerDown(program.id, $event)"
+                @pointermove="onProgramPointerMove(program.id, $event)"
+                @pointerup="onProgramPointerEnd(program.id, $event)"
+                @pointercancel="onProgramPointerCancel(program.id, $event)"
+                @lostpointercapture="onProgramPointerCancel(program.id, $event)"
               >
-                <span class="school-it-department-programs__manage-pill-icon">
-                  <ArrowRight :size="18" />
-                </span>
-                View
-              </button>
-            </article>
+                <h3 class="school-it-department-programs__program-title">{{ program.name }}</h3>
+
+                <button
+                  class="school-it-department-programs__manage-pill"
+                  type="button"
+                  @pointerdown.stop
+                  @click.stop="manageProgram(program)"
+                >
+                  <span class="school-it-department-programs__manage-pill-icon">
+                    <ArrowRight :size="18" />
+                  </span>
+                  Manage
+                </button>
+              </article>
+            </div>
           </section>
 
           <p
@@ -208,9 +246,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onErrorCaptured, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, Plus, Search, X } from 'lucide-vue-next'
+import { ArrowRight, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next'
 import DepartmentProgramRingChart from '@/components/dashboard/DepartmentProgramRingChart.vue'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
@@ -218,7 +256,8 @@ import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
-import { BackendApiError, createProgram } from '@/services/backendApi.js'
+import { BackendApiError, createProgram, deleteProgram, updateProgram } from '@/services/backendApi.js'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 
 const props = defineProps({
@@ -239,6 +278,7 @@ const PROGRAM_RING_PALETTE = [
 const route = useRoute()
 const router = useRouter()
 const searchQuery = ref('')
+const programSearchInputAttrs = createSearchFieldAttrs('school-it-program-search')
 const selectedProgramId = ref(null)
 const chartRenderFailed = ref(false)
 const isAddProgramOpen = ref(false)
@@ -247,8 +287,20 @@ const programDraftName = ref('')
 const programInputEl = ref(null)
 const programPanelMessage = ref('')
 const programPanelError = ref(false)
+const editingProgramId = ref(null)
 const previewDepartmentOverrides = ref([])
 const previewProgramOverrides = ref([])
+const programSwipeOffsets = ref({})
+const programSwipeDragId = ref(null)
+const programSwipePointerId = ref(null)
+const programSwipeStartX = ref(0)
+const programSwipeStartY = ref(0)
+const programSwipeStartOffset = ref(0)
+const programSwipeAxisLock = ref(null)
+const programSwipeDidDrag = ref(false)
+const PROGRAM_SWIPE_ACTION_WIDTH = 100
+const PROGRAM_SWIPE_OPEN_THRESHOLD = 34
+const PROGRAM_SWIPE_GESTURE_THRESHOLD = 8
 
 const { logout } = useAuth()
 const { currentUser, schoolSettings, apiBaseUrl } = useDashboardSession()
@@ -258,6 +310,7 @@ const {
   users,
   statuses: workspaceStatuses,
   initializeSchoolItWorkspaceData,
+  refreshSchoolItWorkspaceData,
   setProgramsSnapshot,
 } = useSchoolItWorkspaceData()
 
@@ -390,15 +443,18 @@ const activeProgramId = computed(() => {
   return selectedProgram?.id ?? ringItems.value[0]?.id ?? null
 })
 
+const isEditingProgram = computed(() => Number.isFinite(Number(editingProgramId.value)))
+const programPanelTitle = computed(() => isEditingProgram.value ? 'Edit Program' : 'Add Program')
+const programSubmitLabel = computed(() => isEditingProgram.value ? 'Save' : 'Enter')
 const programSubmitDisabled = computed(() => {
   const normalizedName = programDraftName.value.trim()
   return !selectedDepartment.value || isSavingProgram.value || normalizedName.length < 2
 })
 
-const programNameLookup = computed(() => new Set(
+const programNameLookup = computed(() => new Map(
   departmentPrograms.value
-    .map((program) => String(program?.name || '').trim().toLowerCase())
-    .filter(Boolean)
+    .map((program) => [String(program?.name || '').trim().toLowerCase(), Number(program?.id)])
+    .filter(([name]) => Boolean(name))
 ))
 
 const programEmptyMessage = computed(() => {
@@ -422,6 +478,7 @@ const programEmptyMessage = computed(() => {
 })
 
 const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFrame(callback))
+const hasOpenProgramSwipe = computed(() => Object.values(programSwipeOffsets.value).some((offset) => offset > 0))
 
 watch([apiBaseUrl, () => activeUser.value?.id, () => props.preview], async ([resolvedApiBaseUrl, userId, preview]) => {
   if (preview) return
@@ -465,6 +522,23 @@ watch(isAddProgramOpen, (open) => {
   })
 })
 
+watch(isAddProgramOpen, (open) => {
+  if (open) closeAllProgramSwipes()
+})
+
+watch(activeProgramSearch, (query) => {
+  if (!query) return
+  closeAllProgramSwipes()
+})
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+})
+
 function buildInitials(value) {
   const parts = String(value || '').split(' ').filter(Boolean)
   if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
@@ -486,6 +560,18 @@ function buildProgramShortLabel(programName) {
 
 function openAddProgramPanel() {
   if (!selectedDepartment.value) return
+  closeAllProgramSwipes()
+  editingProgramId.value = null
+  programPanelMessage.value = ''
+  programPanelError.value = false
+  isAddProgramOpen.value = true
+}
+
+function openEditProgramPanel(program) {
+  if (!program?.id) return
+  closeAllProgramSwipes()
+  editingProgramId.value = Number(program.id)
+  programDraftName.value = String(program.name || '')
   programPanelMessage.value = ''
   programPanelError.value = false
   isAddProgramOpen.value = true
@@ -496,13 +582,15 @@ function closeAddProgramPanel() {
   programPanelMessage.value = ''
   programPanelError.value = false
   programDraftName.value = ''
+  editingProgramId.value = null
 }
 
 async function submitProgram() {
   if (programSubmitDisabled.value || !selectedDepartment.value) return
 
   const normalizedName = programDraftName.value.trim()
-  if (programNameLookup.value.has(normalizedName.toLowerCase())) {
+  const existingProgramId = programNameLookup.value.get(normalizedName.toLowerCase())
+  if (existingProgramId && Number(existingProgramId) !== Number(editingProgramId.value)) {
     programPanelError.value = true
     programPanelMessage.value = `${normalizedName} already exists in this college.`
     return
@@ -513,12 +601,30 @@ async function submitProgram() {
   programPanelError.value = false
 
   try {
-    const createdProgram = props.preview
-      ? createPreviewProgram(normalizedName)
-      : await createProgram(apiBaseUrl.value, localStorage.getItem('aura_token') || '', {
-        name: normalizedName,
-        department_ids: [Number(selectedDepartment.value.id)],
-      })
+    const authToken = localStorage.getItem('aura_token') || ''
+    const createdProgram = isEditingProgram.value
+      ? (
+        props.preview
+          ? {
+            ...(activePrograms.value.find((program) => Number(program.id) === Number(editingProgramId.value)) || {}),
+            id: Number(editingProgramId.value),
+            school_id: schoolId.value,
+            name: normalizedName,
+            department_ids: [Number(selectedDepartment.value.id)],
+          }
+          : await updateProgram(apiBaseUrl.value, authToken, editingProgramId.value, {
+            name: normalizedName,
+            department_ids: [Number(selectedDepartment.value.id)],
+          })
+      )
+      : (
+        props.preview
+          ? createPreviewProgram(normalizedName)
+          : await createProgram(apiBaseUrl.value, authToken, {
+            name: normalizedName,
+            department_ids: [Number(selectedDepartment.value.id)],
+          })
+      )
 
     const nextPrograms = sortProgramsByName([
       ...activePrograms.value.filter((program) => Number(program.id) !== Number(createdProgram.id)),
@@ -530,17 +636,55 @@ async function submitProgram() {
       persistPreviewCollection(previewProgramStorageKey.value, nextPrograms)
     } else {
       setProgramsSnapshot(nextPrograms)
+      refreshSchoolItWorkspaceData().catch(() => {})
     }
 
     selectedProgramId.value = createdProgram.id
-    programPanelMessage.value = `${createdProgram.name} added successfully.`
+    programPanelMessage.value = isEditingProgram.value
+      ? `${createdProgram.name} updated successfully.`
+      : `${createdProgram.name} added successfully.`
     programDraftName.value = ''
     window.setTimeout(() => {
       closeAddProgramPanel()
     }, 420)
   } catch (error) {
     programPanelError.value = true
-    programPanelMessage.value = resolveCreateProgramErrorMessage(error)
+    programPanelMessage.value = resolveProgramMutationErrorMessage(error, isEditingProgram.value ? 'update' : 'create')
+  } finally {
+    isSavingProgram.value = false
+  }
+}
+
+async function deleteProgramItem(program) {
+  if (!program?.id || isSavingProgram.value) return
+
+  const confirmed = window.confirm(`Delete ${program.name}?`)
+  if (!confirmed) return
+
+  isSavingProgram.value = true
+  closeAllProgramSwipes()
+
+  try {
+    const nextPrograms = activePrograms.value.filter((item) => Number(item.id) !== Number(program.id))
+
+    if (props.preview) {
+      previewProgramOverrides.value = sortProgramsByName(nextPrograms)
+      persistPreviewCollection(previewProgramStorageKey.value, previewProgramOverrides.value)
+    } else {
+      await deleteProgram(apiBaseUrl.value, localStorage.getItem('aura_token') || '', program.id)
+      setProgramsSnapshot(sortProgramsByName(nextPrograms))
+      refreshSchoolItWorkspaceData().catch(() => {})
+    }
+
+    if (Number(selectedProgramId.value) === Number(program.id)) {
+      selectedProgramId.value = null
+    }
+
+    if (Number(editingProgramId.value) === Number(program.id)) {
+      closeAddProgramPanel()
+    }
+  } catch (error) {
+    window.alert(resolveProgramMutationErrorMessage(error, 'delete'))
   } finally {
     isSavingProgram.value = false
   }
@@ -584,9 +728,15 @@ function persistPreviewCollection(storageKey, items) {
   localStorage.setItem(storageKey, JSON.stringify(items))
 }
 
-function resolveCreateProgramErrorMessage(error) {
+function resolveProgramMutationErrorMessage(error, mode = 'create') {
+  const verb = mode === 'delete'
+    ? 'delete'
+    : mode === 'update'
+      ? 'update'
+      : 'add'
+
   if (!(error instanceof BackendApiError)) {
-    return 'Unable to add this program right now.'
+    return `Unable to ${verb} this program right now.`
   }
 
   if (error.status === 422) {
@@ -594,10 +744,14 @@ function resolveCreateProgramErrorMessage(error) {
   }
 
   if (error.status === 403) {
-    return 'This session is not allowed to add programs right now.'
+    return `This session is not allowed to ${verb} programs right now.`
   }
 
-  return error.message || 'Unable to add this program right now.'
+  if (error.status === 409) {
+    return 'This program is still linked to student records and cannot be deleted yet.'
+  }
+
+  return error.message || `Unable to ${verb} this program right now.`
 }
 
 function onProgramPanelBeforeEnter(element) {
@@ -649,6 +803,149 @@ function onProgramPanelAfterLeave(element) {
 
 async function handleLogout() {
   await logout()
+}
+
+function getProgramSwipeOffset(programId) {
+  return Number(programSwipeOffsets.value[programId] || 0)
+}
+
+function isProgramSwipeOpen(programId) {
+  return getProgramSwipeOffset(programId) > 0
+}
+
+function getProgramSwipeStyle(programId) {
+  return {
+    '--program-swipe-offset': `${getProgramSwipeOffset(programId)}px`,
+    '--program-swipe-action-width': `${PROGRAM_SWIPE_ACTION_WIDTH}px`,
+  }
+}
+
+function setProgramSwipeOffset(programId, offset) {
+  const normalizedOffset = Math.max(0, Math.min(PROGRAM_SWIPE_ACTION_WIDTH, Number(offset) || 0))
+  if (normalizedOffset <= 0) {
+    if (!Object.keys(programSwipeOffsets.value).length) return
+    programSwipeOffsets.value = {}
+    return
+  }
+
+  programSwipeOffsets.value = {
+    [programId]: normalizedOffset,
+  }
+}
+
+function closeAllProgramSwipes() {
+  if (!hasOpenProgramSwipe.value) return
+  programSwipeOffsets.value = {}
+}
+
+function handleDocumentPointerDown(event) {
+  if (!hasOpenProgramSwipe.value) return
+  if (!(event.target instanceof Element)) return
+  if (event.target.closest('.school-it-department-programs__program-swipe')) return
+  closeAllProgramSwipes()
+}
+
+function handleProgramCardClick(programId, event) {
+  if (isProgramInteractiveTarget(event.target)) {
+    return
+  }
+
+  if (programSwipeDidDrag.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    programSwipeDidDrag.value = false
+    return
+  }
+
+  if (!isProgramSwipeOpen(programId)) return
+  if (event.target instanceof Element && event.target.closest('.school-it-department-programs__manage-pill')) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  setProgramSwipeOffset(programId, 0)
+}
+
+function onProgramPointerDown(programId, event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  if (!(event.currentTarget instanceof HTMLElement)) return
+  if (isProgramInteractiveTarget(event.target)) return
+
+  programSwipeDragId.value = programId
+  programSwipePointerId.value = event.pointerId
+  programSwipeStartX.value = event.clientX
+  programSwipeStartY.value = event.clientY
+  programSwipeStartOffset.value = getProgramSwipeOffset(programId)
+  programSwipeAxisLock.value = null
+  programSwipeDidDrag.value = false
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+}
+
+function onProgramPointerMove(programId, event) {
+  if (programSwipeDragId.value !== programId) return
+  if (programSwipePointerId.value !== event.pointerId) return
+
+  const deltaX = event.clientX - programSwipeStartX.value
+  const deltaY = event.clientY - programSwipeStartY.value
+
+  if (!programSwipeAxisLock.value) {
+    if (
+      Math.abs(deltaX) < PROGRAM_SWIPE_GESTURE_THRESHOLD
+      && Math.abs(deltaY) < PROGRAM_SWIPE_GESTURE_THRESHOLD
+    ) {
+      return
+    }
+
+    programSwipeAxisLock.value = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y'
+  }
+
+  if (programSwipeAxisLock.value !== 'x') return
+
+  programSwipeDidDrag.value = true
+  event.preventDefault()
+  setProgramSwipeOffset(programId, programSwipeStartOffset.value - deltaX)
+}
+
+function onProgramPointerEnd(programId, event) {
+  if (programSwipeDragId.value !== programId) return
+  if (programSwipePointerId.value !== event.pointerId) return
+
+  const currentOffset = getProgramSwipeOffset(programId)
+  const shouldOpen = currentOffset >= PROGRAM_SWIPE_OPEN_THRESHOLD
+  setProgramSwipeOffset(programId, shouldOpen ? PROGRAM_SWIPE_ACTION_WIDTH : 0)
+
+  if (event.currentTarget instanceof HTMLElement) {
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+  }
+
+  resetProgramSwipeGesture()
+}
+
+function onProgramPointerCancel(programId, event) {
+  if (programSwipeDragId.value !== programId) return
+  if (programSwipePointerId.value !== event.pointerId) return
+
+  const currentOffset = getProgramSwipeOffset(programId)
+  const shouldOpen = currentOffset >= PROGRAM_SWIPE_OPEN_THRESHOLD
+  setProgramSwipeOffset(programId, shouldOpen ? PROGRAM_SWIPE_ACTION_WIDTH : 0)
+  resetProgramSwipeGesture()
+}
+
+function resetProgramSwipeGesture() {
+  window.setTimeout(() => {
+    programSwipeDidDrag.value = false
+  }, 0)
+  programSwipeDragId.value = null
+  programSwipePointerId.value = null
+  programSwipeAxisLock.value = null
+}
+
+function isProgramInteractiveTarget(target) {
+  if (!(target instanceof Element)) return false
+  return Boolean(
+    target.closest(
+      '.school-it-department-programs__manage-pill, .school-it-department-programs__program-action, button, a, input, textarea, select, label'
+    )
+  )
 }
 </script>
 
@@ -990,21 +1287,86 @@ async function handleLogout() {
   gap: 16px;
 }
 
+.school-it-department-programs__program-swipe {
+  position: relative;
+  border-radius: 30px;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.school-it-department-programs__program-swipe--open .school-it-department-programs__program-action-rail {
+  pointer-events: auto;
+}
+
+.school-it-department-programs__program-swipe--open .school-it-department-programs__program-action {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.school-it-department-programs__program-action-rail {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--program-swipe-action-width, 100px);
+  padding: 0 4px 0 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.school-it-department-programs__program-action {
+  width: 42px;
+  border: 1px solid color-mix(in srgb, var(--color-text-muted) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg));
+  color: var(--color-text-always-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+  transform: translateX(8px);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, border-color 0.24s ease;
+}
+
+.school-it-department-programs__program-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.school-it-department-programs__program-action:active {
+  transform: scale(0.96);
+}
+
+.school-it-department-programs__program-action--delete {
+  min-height: 86px;
+  color: #ff3b30;
+  border-color: color-mix(in srgb, #ff3b30 48%, transparent);
+}
+
+.school-it-department-programs__program-action--edit {
+  width: 40px;
+  min-height: 70px;
+}
+
 .school-it-department-programs__program-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 18px;
-  min-height: 136px;
-  padding: 22px 18px;
-  border-radius: 30px;
+  gap: 16px;
+  min-height: 122px;
+  padding: 18px 16px 18px 18px;
+  border-radius: 32px;
   background: var(--color-surface);
+  transform: translate3d(calc(var(--program-swipe-offset, 0px) * -1), 0, 0);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .school-it-department-programs__program-title {
   margin: 0;
-  max-width: 10ch;
-  font-size: clamp(24px, 7vw, 38px);
+  max-width: 8.4ch;
+  font-size: clamp(21px, 6.8vw, 38px);
   line-height: 0.94;
   letter-spacing: -0.06em;
   font-weight: 700;
@@ -1012,7 +1374,7 @@ async function handleLogout() {
 }
 
 .school-it-department-programs__manage-pill {
-  width: fit-content;
+  min-width: 124px;
   min-height: 54px;
   padding: 0 18px 0 6px;
   border: none;
@@ -1027,6 +1389,16 @@ async function handleLogout() {
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.school-it-department-programs__manage-pill:hover {
+  filter: brightness(1.08);
+}
+
+.school-it-department-programs__manage-pill:active {
+  transform: scale(0.96);
 }
 
 .school-it-department-programs__manage-pill-icon {
@@ -1100,9 +1472,42 @@ async function handleLogout() {
   }
 }
 
+@media (max-width: 767px) {
+  .school-it-department-programs__program-swipe {
+    border-radius: 28px;
+  }
+
+  .school-it-department-programs__program-action-rail {
+    width: var(--program-swipe-action-width, 100px);
+    padding-right: 4px;
+    gap: 8px;
+  }
+
+  .school-it-department-programs__program-action {
+    width: 40px;
+  }
+
+  .school-it-department-programs__program-action--delete {
+    min-height: 82px;
+  }
+
+  .school-it-department-programs__program-action--edit {
+    width: 38px;
+    min-height: 66px;
+  }
+
+  .school-it-department-programs__program-card {
+    min-height: 116px;
+    gap: 14px;
+    padding: 16px 14px 16px 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .school-it-department-programs__add-pill,
-  .school-it-department-programs__legend-item {
+  .school-it-department-programs__legend-item,
+  .school-it-department-programs__program-card,
+  .school-it-department-programs__program-action {
     transition: none;
   }
 }

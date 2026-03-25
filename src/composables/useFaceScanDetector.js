@@ -30,7 +30,7 @@ export async function initFaceScanDetector(options) {
     if (detectorPromise) return detectorPromise
 
     const loadVersion = ++detectorLoadVersion
-    const timeoutMs = Number(options?.timeoutMs ?? 4500)
+    const timeoutMs = Number(options?.timeoutMs ?? 8000)
 
     const createPromise = (async () => {
         const wasmBaseUrl = options?.wasmBaseUrl

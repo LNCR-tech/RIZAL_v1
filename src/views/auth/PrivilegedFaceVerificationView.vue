@@ -38,8 +38,9 @@
       <section class="capture-card">
         <header class="capture-header">
           <span class="capture-chip">Face Setup</span>
-          <h2 class="capture-title">{{ captureTitle }}</h2>
-          <p class="capture-copy">{{ captureCopy }}</p>
+          <Transition name="title-fade" mode="out-in">
+            <h2 class="capture-title" :key="captureTitle">{{ captureTitle }}</h2>
+          </Transition>
         </header>
 
         <FaceScanPanel
@@ -141,14 +142,14 @@ const introCopy = computed(() => {
 })
 const introCtaLabel = computed(() => mode.value === 'register' ? 'Register Now' : 'Verify Now')
 const captureTitle = computed(() => {
-  if (statusState.value === 'success') return 'You are all set'
+  if (statusState.value === 'success') return 'All set!'
   if (statusState.value === 'submitting') {
-    return mode.value === 'register' ? 'Registering your face' : 'Verifying your face'
+    return mode.value === 'register' ? 'Registering...' : 'Verifying...'
   }
-  if (statusState.value === 'capturing') return mode.value === 'register' ? 'Registering your face' : 'Verifying your face'
-  if (statusState.value === 'starting') return 'Preparing your camera'
-  if (statusState.value === 'detecting') return 'Hold steady for a clear scan'
-  if (statusState.value === 'error') return 'Let’s try that again'
+  if (statusState.value === 'capturing') return mode.value === 'register' ? 'Registering...' : 'Verifying...'
+  if (statusState.value === 'starting') return 'Preparing camera'
+  if (statusState.value === 'detecting') return 'Scanning...'
+  if (statusState.value === 'error') return 'Try again'
   return mode.value === 'register' ? 'Register your face' : 'Verify your face'
 })
 const captureCopy = computed(() => {
@@ -176,23 +177,13 @@ const captureCopy = computed(() => {
 })
 const panelCaption = computed(() => {
   if (statusState.value === 'success') {
-    return mode.value === 'register'
-      ? 'Face registered successfully.'
-      : 'Face verified successfully.'
+    return mode.value === 'register' ? 'Face registered.' : 'Face verified.'
   }
-  if (statusState.value === 'submitting') {
-    return mode.value === 'register'
-      ? 'Hold still while we save your face.'
-      : 'Hold still while we verify your face.'
-  }
-  if (statusState.value === 'capturing') return 'Hold still while we capture your face.'
-  if (statusState.value === 'starting') return 'Preparing your camera...'
-  if (statusState.value === 'error') {
-    return mode.value === 'register'
-      ? 'Unable to register your face yet.'
-      : 'Unable to verify your face yet.'
-  }
-  return 'Ensure your face is well-lit.'
+  if (statusState.value === 'submitting') return 'Hold still...'
+  if (statusState.value === 'capturing') return 'Hold still...'
+  if (statusState.value === 'starting') return 'Warming up camera...'
+  if (statusState.value === 'error') return mode.value === 'register' ? 'Registration failed.' : 'Verification failed.'
+  return 'Keep your face centered.'
 })
 const showRetry = computed(() => statusState.value === 'error')
 const statusClass = computed(() => ({
@@ -231,7 +222,7 @@ const faceDetectorModelUrl =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
 const faceDetectorMinConfidence = Number(import.meta.env.VITE_FACE_DETECTOR_MIN_CONFIDENCE ?? 0.5)
 const faceDetectorSuppression = Number(import.meta.env.VITE_FACE_DETECTOR_SUPPRESSION ?? 0.3)
-const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVAL_MS ?? 120)
+const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVAL_MS ?? 200)
 const detectTimeoutMs = Number(import.meta.env.VITE_FACE_ENROLL_DETECT_TIMEOUT_MS ?? 12000)
 const captureDelayMs = Number(import.meta.env.VITE_FACE_ENROLL_CAPTURE_DELAY_MS ?? 450)
 
@@ -740,6 +731,16 @@ function setPendingFaceError(message, keepCaptureStep = true) {
   line-height: 0.95;
   font-weight: 800;
   color: #0e0e0e;
+}
+
+.title-fade-enter-active,
+.title-fade-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.title-fade-enter-from,
+.title-fade-leave-to {
+  opacity: 0;
 }
 
 .intro-copy,

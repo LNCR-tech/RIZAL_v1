@@ -18,7 +18,7 @@
             <div class="school-it-home__search-wrap">
               <div class="school-it-home__search-shell" :class="{ 'school-it-home__search-shell--open': searchActive }">
                 <div class="school-it-home__search-input-row">
-                  <input v-model="searchQuery" type="text" placeholder="Search school data" class="school-it-home__search-input">
+                  <input v-model="searchQuery" v-bind="schoolSearchInputAttrs" type="text" placeholder="Search school data" class="school-it-home__search-input">
                   <button class="school-it-home__search-icon" type="button" aria-label="Search">
                     <Search :size="18" />
                   </button>
@@ -226,10 +226,12 @@ import { useChat } from '@/composables/useChat.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
-import { getAttendanceSummary, getDepartments, getPrograms } from '@/services/backendApi.js'
+import { getAttendanceSummary } from '@/services/backendApi.js'
 import { hasPrivilegedPendingFace } from '@/services/localAuth.js'
 import { resolveBackendMediaCandidates, withMediaCacheKey } from '@/services/backendMedia.js'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 
 const props = defineProps({
@@ -241,16 +243,21 @@ const props = defineProps({
 
 const router = useRouter()
 const searchQuery = ref('')
+const schoolSearchInputAttrs = createSearchFieldAttrs('school-it-home-search')
 const isAiOpen = ref(false)
 const aiInputEl = ref(null)
-const departments = ref([])
-const programs = ref([])
 const remoteAttendanceSummary = ref(null)
 const heroLogoUnavailable = ref(false)
 const heroLogoCandidateIndex = ref(0)
 const heroLogoRetryKey = ref(0)
 
 const { currentUser, schoolSettings, apiBaseUrl, events } = useDashboardSession()
+const {
+  departments: workspaceDepartments,
+  programs: workspacePrograms,
+  statuses: workspaceStatuses,
+  initializeSchoolItWorkspaceData,
+} = useSchoolItWorkspaceData()
 const {
   closeAll,
   inputText,
@@ -317,16 +324,18 @@ const schoolInitials = computed(() => buildInitials(schoolName.value))
 const settingsRouteName = computed(() => props.preview ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
 const scheduleRouteName = computed(() => props.preview ? 'PreviewSchoolItSchedule' : 'SchoolItSchedule')
 
-const activeDepartments = computed(() => props.preview ? schoolItPreviewData.departments : departments.value)
-const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : programs.value)
+const activeDepartments = computed(() => props.preview ? schoolItPreviewData.departments : workspaceDepartments.value)
+const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : workspacePrograms.value)
 const activeAttendanceSummary = computed(() => props.preview ? schoolItPreviewData.attendanceSummary : remoteAttendanceSummary.value)
+const departmentsStatus = computed(() => props.preview ? 'ready' : (workspaceStatuses.value?.departments || 'idle'))
+const programsStatus = computed(() => props.preview ? 'ready' : (workspaceStatuses.value?.programs || 'idle'))
 
 const filteredDepartments = computed(() => filterWorkspaceEntitiesBySchool(activeDepartments.value, schoolId.value))
 const filteredPrograms = computed(() => filterWorkspaceEntitiesBySchool(activePrograms.value, schoolId.value))
 const filteredEvents = computed(() => filterWorkspaceEntitiesBySchool(activeEvents.value, schoolId.value))
 
-const departmentCountLabel = computed(() => String(filteredDepartments.value.length))
-const programCountLabel = computed(() => String(filteredPrograms.value.length))
+const departmentCountLabel = computed(() => formatSummaryCount(filteredDepartments.value, departmentsStatus.value))
+const programCountLabel = computed(() => formatSummaryCount(filteredPrograms.value, programsStatus.value))
 
 const attendanceSummary = computed(() => normalizeAttendanceSummary(activeAttendanceSummary.value) || buildEventAttendanceSummary(filteredEvents.value))
 const totalAttendanceRecords = computed(() => attendanceSummary.value.total_attendance_records)
@@ -405,6 +414,7 @@ const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFram
 watch([apiBaseUrl, () => activeUser.value?.id, schoolId, () => props.preview], async ([resolvedApiBaseUrl, userId, , preview]) => {
   if (preview) return
   if (!resolvedApiBaseUrl || !userId) return
+  await initializeSchoolItWorkspaceData()
   await loadSchoolItHomeData(resolvedApiBaseUrl)
 }, { immediate: true })
 
@@ -429,20 +439,14 @@ watch(() => heroLogoCandidates.value.join('|'), () => {
 async function loadSchoolItHomeData(resolvedApiBaseUrl) {
   const token = localStorage.getItem('aura_token') || ''
   if (!token || hasPrivilegedPendingFace()) {
-    departments.value = []
-    programs.value = []
     remoteAttendanceSummary.value = null
     return
   }
 
-  const [departmentResult, programResult, attendanceSummaryResult] = await Promise.allSettled([
-    getDepartments(resolvedApiBaseUrl, token),
-    getPrograms(resolvedApiBaseUrl, token),
+  const [attendanceSummaryResult] = await Promise.allSettled([
     getAttendanceSummary(resolvedApiBaseUrl, token),
   ])
 
-  departments.value = departmentResult.status === 'fulfilled' ? departmentResult.value : []
-  programs.value = programResult.status === 'fulfilled' ? programResult.value : []
   remoteAttendanceSummary.value = attendanceSummaryResult.status === 'fulfilled' ? attendanceSummaryResult.value : null
 }
 
@@ -537,6 +541,14 @@ function toRoundedPercent(value, total) {
   const normalizedTotal = Number(total)
   if (!Number.isFinite(normalizedValue) || !Number.isFinite(normalizedTotal) || normalizedTotal <= 0) return 0
   return Math.round((normalizedValue / normalizedTotal) * 100)
+}
+
+function formatSummaryCount(items, status) {
+  const count = Array.isArray(items) ? items.length : 0
+  if (count > 0) return String(count)
+  if (status === 'ready' || status === 'absent') return '0'
+  if (status === 'error' || status === 'blocked') return '--'
+  return '...'
 }
 
 function formatInteger(value) {

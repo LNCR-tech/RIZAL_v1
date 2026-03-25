@@ -221,6 +221,16 @@ export function normalizeUserWithRelations(user = null) {
     }
 }
 
+export function normalizeUserCreateResponse(payload = {}) {
+    const user = normalizeUserWithRelations(payload)
+    if (!user) return null
+
+    return {
+        ...user,
+        generated_temporary_password: toOptionalString(payload.generated_temporary_password, null),
+    }
+}
+
 export function normalizeFaceStatus(payload = {}) {
     return {
         ...payload,
@@ -281,6 +291,144 @@ export function normalizeCreateSchoolWithSchoolItResponse(payload = {}) {
         school_it_user_id: toOptionalNumber(payload.school_it_user_id, null),
         school_it_email: toOptionalString(payload.school_it_email, null),
         generated_temporary_password: toOptionalString(payload.generated_temporary_password, null),
+    }
+}
+
+export function normalizeSchoolSummary(summary = null) {
+    if (!summary || typeof summary !== 'object') return null
+
+    return {
+        ...summary,
+        school_id: toOptionalNumber(summary.school_id ?? summary.id, 0),
+        school_name: toOptionalString(summary.school_name, 'School'),
+        school_code: toOptionalString(summary.school_code, null),
+        subscription_status: toOptionalString(summary.subscription_status, 'trial'),
+        active_status: typeof summary.active_status === 'boolean' ? summary.active_status : true,
+        created_at: toOptionalString(summary.created_at, nowIso()),
+        updated_at: toOptionalString(summary.updated_at, nowIso()),
+    }
+}
+
+export function normalizeSchoolItAccount(account = null) {
+    if (!account || typeof account !== 'object') return null
+
+    return {
+        ...account,
+        user_id: toOptionalNumber(account.user_id ?? account.id, 0),
+        email: toOptionalString(account.email, ''),
+        first_name: toOptionalString(account.first_name, null),
+        last_name: toOptionalString(account.last_name, null),
+        school_id: toOptionalNumber(account.school_id, null),
+        school_name: toOptionalString(account.school_name, null),
+        is_active: typeof account.is_active === 'boolean' ? account.is_active : true,
+    }
+}
+
+export function normalizeAuditLogItem(item = null) {
+    if (!item || typeof item !== 'object') return null
+
+    return {
+        ...item,
+        id: toOptionalNumber(item.id, 0),
+        school_id: toOptionalNumber(item.school_id, null),
+        actor_user_id: toOptionalNumber(item.actor_user_id, null),
+        action: toOptionalString(item.action, 'unknown_action'),
+        status: toOptionalString(item.status, 'unknown'),
+        details: toOptionalString(item.details, null),
+        details_json: item.details_json && typeof item.details_json === 'object'
+            ? item.details_json
+            : null,
+        created_at: toOptionalString(item.created_at, nowIso()),
+    }
+}
+
+export function normalizeAuditLogResponse(payload = {}) {
+    return {
+        total: toOptionalNumber(payload.total, 0),
+        items: Array.isArray(payload.items)
+            ? payload.items.map(normalizeAuditLogItem).filter(Boolean)
+            : [],
+    }
+}
+
+export function normalizeNotificationLogItem(item = null) {
+    if (!item || typeof item !== 'object') return null
+
+    return {
+        ...item,
+        id: toOptionalNumber(item.id, 0),
+        school_id: toOptionalNumber(item.school_id, null),
+        user_id: toOptionalNumber(item.user_id, null),
+        category: toOptionalString(item.category, 'system'),
+        channel: toOptionalString(item.channel, 'email'),
+        status: toOptionalString(item.status, 'unknown'),
+        subject: toOptionalString(item.subject, ''),
+        message: toOptionalString(item.message, ''),
+        error_message: toOptionalString(item.error_message, null),
+        metadata_json: item.metadata_json && typeof item.metadata_json === 'object'
+            ? item.metadata_json
+            : null,
+        created_at: toOptionalString(item.created_at, nowIso()),
+    }
+}
+
+export function normalizeNotificationDispatchSummary(payload = {}) {
+    return {
+        ...payload,
+        processed_users: toOptionalNumber(payload.processed_users, 0),
+        sent: toOptionalNumber(payload.sent, 0),
+        failed: toOptionalNumber(payload.failed, 0),
+        skipped: toOptionalNumber(payload.skipped, 0),
+        category: toOptionalString(payload.category, 'system'),
+    }
+}
+
+export function normalizeGovernanceSetting(setting = null) {
+    if (!setting || typeof setting !== 'object') return null
+
+    return {
+        ...setting,
+        school_id: toOptionalNumber(setting.school_id, null),
+        attendance_retention_days: toOptionalNumber(setting.attendance_retention_days, 365),
+        audit_log_retention_days: toOptionalNumber(setting.audit_log_retention_days, 365),
+        import_file_retention_days: toOptionalNumber(setting.import_file_retention_days, 30),
+        auto_delete_enabled: Boolean(setting.auto_delete_enabled),
+        updated_at: toOptionalString(setting.updated_at, nowIso()),
+    }
+}
+
+export function normalizeGovernanceRequest(item = null) {
+    if (!item || typeof item !== 'object') return null
+
+    return {
+        ...item,
+        id: toOptionalNumber(item.id, 0),
+        school_id: toOptionalNumber(item.school_id, null),
+        requested_by_user_id: toOptionalNumber(item.requested_by_user_id, null),
+        target_user_id: toOptionalNumber(item.target_user_id, null),
+        request_type: toOptionalString(item.request_type, 'export'),
+        scope: toOptionalString(item.scope, 'user_data'),
+        status: toOptionalString(item.status, 'pending'),
+        reason: toOptionalString(item.reason, null),
+        details_json: item.details_json && typeof item.details_json === 'object'
+            ? item.details_json
+            : null,
+        output_path: toOptionalString(item.output_path, null),
+        handled_by_user_id: toOptionalNumber(item.handled_by_user_id, null),
+        created_at: toOptionalString(item.created_at, nowIso()),
+        resolved_at: toOptionalString(item.resolved_at, null),
+    }
+}
+
+export function normalizeRetentionRunResult(payload = {}) {
+    return {
+        ...payload,
+        school_id: toOptionalNumber(payload.school_id, null),
+        dry_run: Boolean(payload.dry_run),
+        deleted_audit_logs: toOptionalNumber(payload.deleted_audit_logs, 0),
+        deleted_import_logs: toOptionalNumber(payload.deleted_import_logs, 0),
+        deleted_notifications: toOptionalNumber(payload.deleted_notifications, 0),
+        summary: toOptionalString(payload.summary, ''),
     }
 }
 

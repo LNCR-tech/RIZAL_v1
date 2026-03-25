@@ -1,4 +1,40 @@
-const DEFAULT_API_BASE_URL = 'https://sas-deploy-production.up.railway.app'
+const DEFAULT_API_BASE_URL = '/__backend__'
+const DEFAULT_API_TIMEOUT_MS = 15000
+
+function getRuntimeConfig() {
+  if (typeof window === 'undefined') return {}
+
+  const runtimeConfig = window.__AURA_RUNTIME_CONFIG__
+  return runtimeConfig && typeof runtimeConfig === 'object' ? runtimeConfig : {}
+}
+
+function readFirstDefinedString(values = []) {
+  for (const value of values) {
+    const normalized = String(value ?? '').trim()
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
+function normalizeApiBaseUrl(value = '') {
+  const normalized = String(value || '').trim().replace(/\/+$/, '')
+  if (!normalized) return DEFAULT_API_BASE_URL
+
+  try {
+    const url = new URL(normalized)
+    if (url.pathname === '/api') {
+      url.pathname = ''
+    }
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    if (normalized === '/api') return ''
+    if (normalized.endsWith('/api')) {
+      return normalized.replace(/\/api$/, '')
+    }
+    return normalized
+  }
+}
 
 function getBrowserOrigin() {
   if (typeof window !== 'undefined' && window.location?.origin) {
@@ -9,12 +45,22 @@ function getBrowserOrigin() {
 }
 
 export function resolveApiBaseUrl(baseUrl = '') {
-  const resolved = String(baseUrl || import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).trim()
-  return resolved.replace(/\/+$/, '')
+  const runtimeConfig = getRuntimeConfig()
+  return normalizeApiBaseUrl(readFirstDefinedString([
+    baseUrl,
+    runtimeConfig.apiBaseUrl,
+    runtimeConfig.backendBaseUrl,
+    runtimeConfig.backendOrigin,
+    import.meta.env.VITE_API_BASE_URL,
+  ]))
 }
 
 export function resolveAbsoluteApiBaseUrl(baseUrl = '') {
   const resolved = resolveApiBaseUrl(baseUrl)
+
+  if (!resolved) {
+    return getBrowserOrigin()
+  }
 
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(resolved)) {
     return resolved
@@ -36,3 +82,20 @@ export function isNgrokApiBaseUrl(baseUrl = '') {
   }
 }
 
+export function resolveApiTimeoutMs(value = null) {
+  const runtimeConfig = getRuntimeConfig()
+  const candidates = [
+    value,
+    runtimeConfig.apiTimeoutMs,
+    import.meta.env.VITE_API_TIMEOUT_MS,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = Number(candidate)
+    if (Number.isFinite(normalized) && normalized > 0) {
+      return normalized
+    }
+  }
+
+  return DEFAULT_API_TIMEOUT_MS
+}

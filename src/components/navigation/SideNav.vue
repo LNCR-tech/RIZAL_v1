@@ -193,7 +193,14 @@ const navRailStyle = computed(() => ({
 
 function isActive(item) {
   const path = item?.route
-  if (path === '/dashboard' || path === '/exposed/dashboard' || path === '/workspace' || path === '/exposed/workspace') {
+  if (
+    path === '/dashboard' ||
+    path === '/exposed/dashboard' ||
+    path === '/workspace' ||
+    path === '/exposed/workspace' ||
+    path === '/admin' ||
+    path === '/exposed/admin'
+  ) {
     return route.path === path || route.path === `${path}/`
   }
 

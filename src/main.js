@@ -7,6 +7,7 @@ import { loadTheme, applyTheme } from '@/config/theme.js'
 import { clearDashboardSession, initializeDashboardSession } from '@/composables/useDashboardSession.js'
 import { startDocumentBrandingSync } from '@/services/documentBranding.js'
 import { hasPrivilegedPendingFace } from '@/services/localAuth.js'
+import { registerAuraServiceWorker, startMobileFullscreenSync } from '@/services/mobileFullscreen.js'
 import { SESSION_EXPIRED_EVENT } from '@/services/sessionExpiry.js'
 
 applyTheme(loadTheme())
@@ -16,6 +17,8 @@ app.use(router)
 app.mount('#app')
 
 startDocumentBrandingSync(router)
+registerAuraServiceWorker()
+startMobileFullscreenSync()
 
 if (typeof window !== 'undefined') {
   window.addEventListener(SESSION_EXPIRED_EVENT, () => {

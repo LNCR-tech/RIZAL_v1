@@ -20,6 +20,7 @@
                 <div class="school-it-users__search-input-row">
                   <input
                     v-model="searchQuery"
+                    v-bind="schoolSearchInputAttrs"
                     type="text"
                     placeholder="Search school data"
                     class="school-it-users__search-input"
@@ -93,7 +94,7 @@
                     >
                       <X :size="18" :stroke-width="2.4" />
                     </button>
-                    <span class="school-it-users__college-title">Add College</span>
+                    <span class="school-it-users__college-title">{{ collegePanelTitle }}</span>
                   </div>
 
                   <div class="school-it-users__college-form">
@@ -115,7 +116,7 @@
                       :disabled="collegeSubmitDisabled"
                       @click="submitCollege"
                     >
-                      Enter
+                      {{ collegeSubmitLabel }}
                     </button>
                   </div>
 
@@ -188,41 +189,97 @@
           </button>
         </section>
 
+        <section class="school-it-users__alert dashboard-enter dashboard-enter--5">
+          <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
+            <h2 class="school-it-users__alert-org-name school-it-users__alert-org-name--placeholder">
+              Unassigned<br>Students
+            </h2>
+          </div>
+
+          <button
+            class="school-it-users__action-pill"
+            type="button"
+            @click="openUnassignedStudents"
+          >
+            <span class="school-it-users__action-pill-icon">
+              <ArrowRight :size="18" />
+            </span>
+            Manage
+          </button>
+        </section>
+
         <section v-if="departmentCards.length" class="school-it-users__department-list">
-          <article
+          <div
             v-for="(department, index) in departmentCards"
             :key="department.id"
-            class="school-it-users__department-card dashboard-enter"
-            :class="`dashboard-enter--${Math.min(index + 6, 9)}`"
+            class="school-it-users__department-swipe dashboard-enter"
+            :class="[
+              `dashboard-enter--${Math.min(index + 6, 9)}`,
+              { 'school-it-users__department-swipe--open': isDepartmentSwipeOpen(department.id) },
+            ]"
           >
-            <div class="school-it-users__department-main">
-              <h2 class="school-it-users__department-title">{{ department.name }}</h2>
+            <div class="school-it-users__department-actions" aria-hidden="true">
               <button
-                class="school-it-users__action-pill school-it-users__action-pill--inline"
+                class="school-it-users__department-action school-it-users__department-action--delete"
                 type="button"
-                @click="openDepartment(department)"
+                :disabled="isSavingCollege"
+                aria-label="Delete college"
+                @click.stop="deleteCollege(department)"
               >
-                <span class="school-it-users__action-pill-icon">
-                  <ArrowRight :size="18" />
-                </span>
-                View
+                <Trash2 :size="18" />
+              </button>
+
+              <button
+                class="school-it-users__department-action school-it-users__department-action--edit"
+                type="button"
+                :disabled="isSavingCollege"
+                aria-label="Edit college"
+                @click.stop="openEditCollegePanel(department)"
+              >
+                <Pencil :size="18" />
               </button>
             </div>
 
-            <div class="school-it-users__department-panel">
-              <p class="school-it-users__department-label">Programs:</p>
-              <ul v-if="department.programs.length" class="school-it-users__program-list">
-                <li
-                  v-for="program in department.programs"
-                  :key="program.id"
-                  class="school-it-users__program-item"
+            <article
+              class="school-it-users__department-card"
+              :style="getDepartmentSwipeStyle(department.id)"
+              @click.capture="handleDepartmentCardClick(department.id, $event)"
+              @pointerdown="onDepartmentPointerDown(department.id, $event)"
+              @pointermove="onDepartmentPointerMove(department.id, $event)"
+              @pointerup="onDepartmentPointerEnd(department.id, $event)"
+              @pointercancel="onDepartmentPointerCancel(department.id, $event)"
+              @lostpointercapture="onDepartmentPointerCancel(department.id, $event)"
+            >
+              <div class="school-it-users__department-main">
+                <h2 class="school-it-users__department-title">{{ department.name }}</h2>
+                <button
+                  class="school-it-users__action-pill school-it-users__action-pill--inline"
+                  type="button"
+                  @pointerdown.stop
+                  @click.stop="openDepartment(department)"
                 >
-                  {{ program.name }}
-                </li>
-              </ul>
-              <p v-else class="school-it-users__program-empty">No programs yet.</p>
-            </div>
-          </article>
+                  <span class="school-it-users__action-pill-icon">
+                    <ArrowRight :size="18" />
+                  </span>
+                  View
+                </button>
+              </div>
+
+              <div class="school-it-users__department-panel">
+                <p class="school-it-users__department-label">Programs:</p>
+                <ul v-if="department.programs.length" class="school-it-users__program-list">
+                  <li
+                    v-for="program in department.programs"
+                    :key="program.id"
+                    class="school-it-users__program-item"
+                  >
+                    {{ program.name }}
+                  </li>
+                </ul>
+                <p v-else class="school-it-users__program-empty">No programs yet.</p>
+              </div>
+            </article>
+          </div>
         </section>
 
         <p v-else class="school-it-users__department-empty dashboard-enter dashboard-enter--6">
@@ -234,16 +291,17 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Plus, Search, X } from 'lucide-vue-next'
+import { ArrowRight, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
-import { BackendApiError, createDepartment } from '@/services/backendApi.js'
+import { BackendApiError, createDepartment, deleteDepartment, updateDepartment } from '@/services/backendApi.js'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import {
   createStudentCouncilStorageKey,
   loadStudentCouncilState,
@@ -260,13 +318,26 @@ const props = defineProps({
 
 const router = useRouter()
 const searchQuery = ref('')
+const schoolSearchInputAttrs = createSearchFieldAttrs('school-it-college-search')
 const isAddCollegeOpen = ref(false)
 const collegeInputEl = ref(null)
 const collegeDraftName = ref('')
 const collegePanelMessage = ref('')
 const collegePanelError = ref(false)
 const isSavingCollege = ref(false)
+const editingDepartmentId = ref(null)
 const previewDepartmentOverrides = ref([])
+const departmentSwipeOffsets = ref({})
+const departmentSwipeDragId = ref(null)
+const departmentSwipePointerId = ref(null)
+const departmentSwipeStartX = ref(0)
+const departmentSwipeStartY = ref(0)
+const departmentSwipeStartOffset = ref(0)
+const departmentSwipeAxisLock = ref(null)
+const departmentSwipeDidDrag = ref(false)
+const DEPARTMENT_SWIPE_ACTION_WIDTH = 70
+const DEPARTMENT_SWIPE_OPEN_THRESHOLD = 28
+const DEPARTMENT_SWIPE_GESTURE_THRESHOLD = 8
 
 const { currentUser, schoolSettings, apiBaseUrl } = useDashboardSession()
 const {
@@ -276,6 +347,7 @@ const {
   campusSsgSetup,
   statuses: workspaceStatuses,
   initializeSchoolItWorkspaceData,
+  refreshSchoolItWorkspaceData,
   setDepartmentsSnapshot,
 } = useSchoolItWorkspaceData()
 const { logout } = useAuth()
@@ -301,6 +373,7 @@ const initials = computed(() => buildInitials(displayName.value))
 const importRouteName = computed(() => props.preview ? 'PreviewSchoolItImportStudents' : 'SchoolItImportStudents')
 const councilRouteName = computed(() => props.preview ? 'PreviewSchoolItStudentCouncil' : 'SchoolItStudentCouncil')
 const usersRouteName = computed(() => props.preview ? 'PreviewSchoolItUsers' : 'SchoolItUsers')
+const unassignedRouteName = computed(() => props.preview ? 'PreviewSchoolItUnassignedStudents' : 'SchoolItUnassignedStudents')
 const departmentProgramsRouteName = computed(() => props.preview ? 'PreviewSchoolItDepartmentPrograms' : 'SchoolItDepartmentPrograms')
 const previewCouncilState = computed(() => (
   props.preview
@@ -407,14 +480,17 @@ const departmentEmptyMessage = computed(() => {
 })
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
+const isEditingCollege = computed(() => Number.isFinite(Number(editingDepartmentId.value)))
+const collegePanelTitle = computed(() => isEditingCollege.value ? 'Edit College' : 'Add College')
+const collegeSubmitLabel = computed(() => isEditingCollege.value ? 'Save' : 'Enter')
 const collegeSubmitDisabled = computed(() => {
   const normalizedName = collegeDraftName.value.trim()
   return isSavingCollege.value || normalizedName.length < 2
 })
-const departmentNameLookup = computed(() => new Set(
+const departmentNameLookup = computed(() => new Map(
   activeDepartments.value
-    .map((department) => String(department?.name || '').trim().toLowerCase())
-    .filter(Boolean)
+    .map((department) => [String(department?.name || '').trim().toLowerCase(), Number(department?.id)])
+    .filter(([name]) => Boolean(name))
 ))
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -434,6 +510,8 @@ const searchResults = computed(() => {
 })
 
 const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFrame(callback))
+
+const hasOpenDepartmentSwipe = computed(() => Object.values(departmentSwipeOffsets.value).some((offset) => offset > 0))
 
 watch([apiBaseUrl, () => activeUser.value?.id, schoolId, () => props.preview], async ([resolvedApiBaseUrl, userId, , preview]) => {
   if (preview) return
@@ -457,7 +535,22 @@ watch(isAddCollegeOpen, (open) => {
 })
 
 watch(searchActive, (active) => {
-  if (active) isAddCollegeOpen.value = false
+  if (active) {
+    isAddCollegeOpen.value = false
+    closeAllDepartmentSwipes()
+  }
+})
+
+watch(isAddCollegeOpen, (open) => {
+  if (open) closeAllDepartmentSwipes()
+})
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
 })
 
 function buildInitials(value) {
@@ -492,12 +585,28 @@ function openCouncilManagement() {
   router.push({ name: councilRouteName.value })
 }
 
+function openUnassignedStudents() {
+  router.push({ name: unassignedRouteName.value })
+}
+
 function handleOverviewAction(card) {
   if (!card?.route) return
   router.push(card.route)
 }
 
 function openAddCollegePanel() {
+  closeAllDepartmentSwipes()
+  editingDepartmentId.value = null
+  collegePanelMessage.value = ''
+  collegePanelError.value = false
+  isAddCollegeOpen.value = true
+}
+
+function openEditCollegePanel(department) {
+  if (!department?.id) return
+  closeAllDepartmentSwipes()
+  editingDepartmentId.value = Number(department.id)
+  collegeDraftName.value = String(department.name || '')
   collegePanelMessage.value = ''
   collegePanelError.value = false
   isAddCollegeOpen.value = true
@@ -508,13 +617,15 @@ function closeAddCollegePanel() {
   collegePanelMessage.value = ''
   collegePanelError.value = false
   collegeDraftName.value = ''
+  editingDepartmentId.value = null
 }
 
 async function submitCollege() {
   if (collegeSubmitDisabled.value) return
 
   const normalizedName = collegeDraftName.value.trim()
-  if (departmentNameLookup.value.has(normalizedName.toLowerCase())) {
+  const existingDepartmentId = departmentNameLookup.value.get(normalizedName.toLowerCase())
+  if (existingDepartmentId && Number(existingDepartmentId) !== Number(editingDepartmentId.value)) {
     collegePanelError.value = true
     collegePanelMessage.value = `${normalizedName} already exists.`
     return
@@ -525,11 +636,27 @@ async function submitCollege() {
   collegePanelError.value = false
 
   try {
-    const createdDepartment = props.preview
-      ? createPreviewDepartment(normalizedName)
-      : await createDepartment(apiBaseUrl.value, localStorage.getItem('aura_token') || '', {
-        name: normalizedName,
-      })
+    const authToken = localStorage.getItem('aura_token') || ''
+    const createdDepartment = isEditingCollege.value
+      ? (
+        props.preview
+          ? {
+            ...(activeDepartments.value.find((department) => Number(department.id) === Number(editingDepartmentId.value)) || {}),
+            id: Number(editingDepartmentId.value),
+            school_id: schoolId.value,
+            name: normalizedName,
+          }
+          : await updateDepartment(apiBaseUrl.value, authToken, editingDepartmentId.value, {
+            name: normalizedName,
+          })
+      )
+      : (
+        props.preview
+          ? createPreviewDepartment(normalizedName)
+          : await createDepartment(apiBaseUrl.value, authToken, {
+            name: normalizedName,
+          })
+      )
 
     const nextDepartments = sortDepartmentsByName([
       ...activeDepartments.value.filter((department) => Number(department.id) !== Number(createdDepartment.id)),
@@ -541,16 +668,50 @@ async function submitCollege() {
       persistPreviewDepartments(nextDepartments)
     } else {
       setDepartmentsSnapshot(nextDepartments)
+      refreshSchoolItWorkspaceData().catch(() => {})
     }
 
-    collegePanelMessage.value = `${createdDepartment.name} added successfully.`
+    collegePanelMessage.value = isEditingCollege.value
+      ? `${createdDepartment.name} updated successfully.`
+      : `${createdDepartment.name} added successfully.`
     collegeDraftName.value = ''
     window.setTimeout(() => {
       closeAddCollegePanel()
     }, 420)
   } catch (error) {
     collegePanelError.value = true
-    collegePanelMessage.value = resolveCreateCollegeErrorMessage(error)
+    collegePanelMessage.value = resolveDepartmentMutationErrorMessage(error, isEditingCollege.value ? 'update' : 'create')
+  } finally {
+    isSavingCollege.value = false
+  }
+}
+
+async function deleteCollege(department) {
+  if (!department?.id || isSavingCollege.value) return
+
+  const confirmed = window.confirm(`Delete ${department.name}?`)
+  if (!confirmed) return
+
+  isSavingCollege.value = true
+  closeAllDepartmentSwipes()
+
+  try {
+    const nextDepartments = activeDepartments.value.filter((item) => Number(item.id) !== Number(department.id))
+
+    if (props.preview) {
+      previewDepartmentOverrides.value = sortDepartmentsByName(nextDepartments)
+      persistPreviewDepartments(previewDepartmentOverrides.value)
+    } else {
+      await deleteDepartment(apiBaseUrl.value, localStorage.getItem('aura_token') || '', department.id)
+      setDepartmentsSnapshot(sortDepartmentsByName(nextDepartments))
+      refreshSchoolItWorkspaceData().catch(() => {})
+    }
+
+    if (Number(editingDepartmentId.value) === Number(department.id)) {
+      closeAddCollegePanel()
+    }
+  } catch (error) {
+    window.alert(resolveDepartmentMutationErrorMessage(error, 'delete'))
   } finally {
     isSavingCollege.value = false
   }
@@ -630,9 +791,15 @@ function persistPreviewDepartments(items) {
   localStorage.setItem(previewDepartmentStorageKey.value, JSON.stringify(items))
 }
 
-function resolveCreateCollegeErrorMessage(error) {
+function resolveDepartmentMutationErrorMessage(error, mode = 'create') {
+  const verb = mode === 'delete'
+    ? 'delete'
+    : mode === 'update'
+      ? 'update'
+      : 'add'
+
   if (!(error instanceof BackendApiError)) {
-    return 'Unable to add this college right now.'
+    return `Unable to ${verb} this college right now.`
   }
 
   if (error.status === 422) {
@@ -640,14 +807,160 @@ function resolveCreateCollegeErrorMessage(error) {
   }
 
   if (error.status === 403) {
-    return 'This session is not allowed to add colleges right now.'
+    return `This session is not allowed to ${verb} colleges right now.`
   }
 
-  return error.message || 'Unable to add this college right now.'
+  if (error.status === 409) {
+    return 'This college is still linked to other records and cannot be deleted yet.'
+  }
+
+  return error.message || `Unable to ${verb} this college right now.`
 }
 
 async function handleLogout() {
   await logout()
+}
+
+function getDepartmentSwipeOffset(departmentId) {
+  return Number(departmentSwipeOffsets.value[departmentId] || 0)
+}
+
+function isDepartmentSwipeOpen(departmentId) {
+  return getDepartmentSwipeOffset(departmentId) > 0
+}
+
+function getDepartmentSwipeStyle(departmentId) {
+  return {
+    '--department-swipe-offset': `${getDepartmentSwipeOffset(departmentId)}px`,
+  }
+}
+
+function setDepartmentSwipeOffset(departmentId, offset) {
+  const normalizedOffset = Math.max(0, Math.min(DEPARTMENT_SWIPE_ACTION_WIDTH, Number(offset) || 0))
+  if (normalizedOffset <= 0) {
+    if (!Object.keys(departmentSwipeOffsets.value).length) return
+    departmentSwipeOffsets.value = {}
+    return
+  }
+
+  departmentSwipeOffsets.value = {
+    [departmentId]: normalizedOffset,
+  }
+}
+
+function closeAllDepartmentSwipes() {
+  if (!hasOpenDepartmentSwipe.value) return
+  departmentSwipeOffsets.value = {}
+}
+
+function handleDocumentPointerDown(event) {
+  if (!hasOpenDepartmentSwipe.value) return
+  if (!(event.target instanceof Element)) return
+  if (event.target.closest('.school-it-users__department-swipe')) return
+  closeAllDepartmentSwipes()
+}
+
+function handleDepartmentCardClick(departmentId, event) {
+  if (isDepartmentInteractiveTarget(event.target)) {
+    return
+  }
+
+  if (departmentSwipeDidDrag.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    departmentSwipeDidDrag.value = false
+    return
+  }
+
+  if (!isDepartmentSwipeOpen(departmentId)) return
+  if (event.target instanceof Element && event.target.closest('.school-it-users__action-pill')) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  setDepartmentSwipeOffset(departmentId, 0)
+}
+
+function onDepartmentPointerDown(departmentId, event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  if (!(event.currentTarget instanceof HTMLElement)) return
+  if (isDepartmentInteractiveTarget(event.target)) return
+
+  departmentSwipeDragId.value = departmentId
+  departmentSwipePointerId.value = event.pointerId
+  departmentSwipeStartX.value = event.clientX
+  departmentSwipeStartY.value = event.clientY
+  departmentSwipeStartOffset.value = getDepartmentSwipeOffset(departmentId)
+  departmentSwipeAxisLock.value = null
+  departmentSwipeDidDrag.value = false
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+}
+
+function onDepartmentPointerMove(departmentId, event) {
+  if (departmentSwipeDragId.value !== departmentId) return
+  if (departmentSwipePointerId.value !== event.pointerId) return
+
+  const deltaX = event.clientX - departmentSwipeStartX.value
+  const deltaY = event.clientY - departmentSwipeStartY.value
+
+  if (!departmentSwipeAxisLock.value) {
+    if (
+      Math.abs(deltaX) < DEPARTMENT_SWIPE_GESTURE_THRESHOLD
+      && Math.abs(deltaY) < DEPARTMENT_SWIPE_GESTURE_THRESHOLD
+    ) {
+      return
+    }
+
+    departmentSwipeAxisLock.value = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y'
+  }
+
+  if (departmentSwipeAxisLock.value !== 'x') return
+
+  departmentSwipeDidDrag.value = true
+  event.preventDefault()
+  setDepartmentSwipeOffset(departmentId, departmentSwipeStartOffset.value - deltaX)
+}
+
+function onDepartmentPointerEnd(departmentId, event) {
+  if (departmentSwipeDragId.value !== departmentId) return
+  if (departmentSwipePointerId.value !== event.pointerId) return
+
+  const currentOffset = getDepartmentSwipeOffset(departmentId)
+  const shouldOpen = currentOffset >= DEPARTMENT_SWIPE_OPEN_THRESHOLD
+  setDepartmentSwipeOffset(departmentId, shouldOpen ? DEPARTMENT_SWIPE_ACTION_WIDTH : 0)
+
+  if (event.currentTarget instanceof HTMLElement) {
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+  }
+
+  resetDepartmentSwipeGesture()
+}
+
+function onDepartmentPointerCancel(departmentId, event) {
+  if (departmentSwipeDragId.value !== departmentId) return
+  if (departmentSwipePointerId.value !== event.pointerId) return
+
+  const currentOffset = getDepartmentSwipeOffset(departmentId)
+  const shouldOpen = currentOffset >= DEPARTMENT_SWIPE_OPEN_THRESHOLD
+  setDepartmentSwipeOffset(departmentId, shouldOpen ? DEPARTMENT_SWIPE_ACTION_WIDTH : 0)
+  resetDepartmentSwipeGesture()
+}
+
+function resetDepartmentSwipeGesture() {
+  window.setTimeout(() => {
+    departmentSwipeDidDrag.value = false
+  }, 0)
+  departmentSwipeDragId.value = null
+  departmentSwipePointerId.value = null
+  departmentSwipeAxisLock.value = null
+}
+
+function isDepartmentInteractiveTarget(target) {
+  if (!(target instanceof Element)) return false
+  return Boolean(
+    target.closest(
+      '.school-it-users__action-pill, .school-it-users__department-action, button, a, input, textarea, select, label'
+    )
+  )
 }
 </script>
 
@@ -709,14 +1022,25 @@ async function handleLogout() {
 .school-it-users__alert-org-name--placeholder{color:var(--color-primary)}
 .school-it-users__alert-kicker{margin:0;font-size:clamp(18px,5vw,28px);line-height:1;font-weight:800;letter-spacing:-.05em;color:#FF2D20}
 .school-it-users__alert-message{margin:0;max-width:16ch;font-size:15px;line-height:1.05;color:var(--color-text-always-dark)}
-.school-it-users__action-pill{width:fit-content;min-height:52px;padding:0 18px 0 6px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;gap:12px;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;flex-shrink:0}
+.school-it-users__action-pill{width:fit-content;min-height:52px;padding:0 18px 0 6px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;gap:12px;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;flex-shrink:0;cursor:pointer;transition:transform 0.2s ease, filter 0.2s ease}
+.school-it-users__action-pill:hover{filter:brightness(1.08)}
+.school-it-users__action-pill:active{transform:scale(0.96)}
 .school-it-users__action-pill--inline{min-height:54px;padding-right:18px;font-size:13px}
 .school-it-users__action-pill-icon{width:40px;height:40px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .school-it-users__department-list{display:flex;flex-direction:column;gap:18px}
 .school-it-users__department-empty{margin:0;padding:10px 6px;font-size:15px;font-weight:600;line-height:1.35;color:var(--color-text-muted);text-align:center}
-.school-it-users__department-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(138px,.9fr);gap:8px;padding:8px;border-radius:32px;background:var(--color-surface)}
+.school-it-users__department-swipe{position:relative;border-radius:32px;overflow:hidden;touch-action:pan-y}
+.school-it-users__department-swipe--open .school-it-users__department-actions{pointer-events:auto}
+.school-it-users__department-swipe--open .school-it-users__department-action{opacity:1;transform:translateX(0)}
+.school-it-users__department-actions{position:absolute;inset:0 0 0 auto;width:70px;padding:10px 4px 10px 0;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:10px;pointer-events:none}
+.school-it-users__department-action{width:54px;min-height:74px;border:1px solid color-mix(in srgb,var(--color-text-muted) 22%, transparent);border-radius:999px;background:color-mix(in srgb,var(--color-surface) 92%,var(--color-bg));color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;opacity:.72;transform:translateX(8px);transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .24s ease,background-color .24s ease,border-color .24s ease}
+.school-it-users__department-action:disabled{opacity:.5;cursor:not-allowed}
+.school-it-users__department-action:active{transform:scale(.96)}
+.school-it-users__department-action--delete{min-height:88px;color:#FF3B30;border-color:color-mix(in srgb,#FF3B30 48%, transparent)}
+.school-it-users__department-action--edit{min-height:72px}
+.school-it-users__department-card{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(122px,.8fr);gap:8px;padding:8px;border-radius:32px;background:var(--color-surface);transform:translate3d(calc(var(--department-swipe-offset, 0px) * -1),0,0);transition:transform .42s cubic-bezier(.22,1,.36,1)}
 .school-it-users__department-main{display:flex;flex-direction:column;justify-content:space-between;min-height:194px;padding:20px 14px 14px}
-.school-it-users__department-title{margin:0;max-width:7ch;font-size:clamp(28px,8vw,52px);line-height:.92;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
+.school-it-users__department-title{margin:0;max-width:8.6ch;font-size:clamp(26px,7.4vw,52px);line-height:.92;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
 .school-it-users__department-panel{display:flex;flex-direction:column;gap:10px;padding:22px 16px;border-radius:24px;background:color-mix(in srgb,var(--color-surface) 88%,var(--color-bg))}
 .school-it-users__department-label{margin:0;font-size:12px;font-weight:700;line-height:1.1;color:var(--color-primary)}
 .school-it-users__program-list{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
@@ -732,8 +1056,20 @@ async function handleLogout() {
   .school-it-users__department-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 }
 
+@media (max-width:767px){
+  .school-it-users__department-actions{width:66px;padding-right:2px}
+  .school-it-users__department-action{width:50px}
+  .school-it-users__department-action--delete{min-height:84px}
+  .school-it-users__department-action--edit{min-height:68px}
+  .school-it-users__department-card{grid-template-columns:minmax(0,1.12fr) minmax(110px,.72fr);gap:6px;padding:6px}
+  .school-it-users__department-main{min-height:180px;padding:18px 12px 12px}
+  .school-it-users__department-title{max-width:8.2ch;font-size:clamp(22px,8.2vw,34px)}
+  .school-it-users__department-panel{gap:8px;padding:18px 14px;border-radius:22px}
+  .school-it-users__program-item{font-size:12px;line-height:1.12}
+}
+
 @media (prefers-reduced-motion:reduce){
-  .school-it-users__add-college-pill,.school-it-users__college-submit{transition:none;animation:none}
+  .school-it-users__add-college-pill,.school-it-users__college-submit,.school-it-users__department-action,.school-it-users__department-card{transition:none;animation:none}
 }
 
 </style>

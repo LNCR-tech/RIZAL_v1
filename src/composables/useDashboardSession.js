@@ -247,6 +247,10 @@ function isSchoolItUser(user) {
     return hasRole(user, 'school_IT')
 }
 
+function isAdminUser(user) {
+    return hasRole(user, 'admin') && !isSchoolItUser(user)
+}
+
 function applyActiveTheme() {
     applyTheme(loadTheme(state.schoolSettings))
 }
@@ -664,9 +668,15 @@ export function isSchoolItSession(user = state.user) {
     return isSchoolItUser(user)
 }
 
+export function isAdminSession(user = state.user) {
+    return isAdminUser(user)
+}
+
 export function getDefaultAuthenticatedRoute(user = state.user) {
     return isSchoolItSession(user)
         ? { name: 'SchoolItHome' }
+        : isAdminSession(user)
+        ? { name: 'AdminHome' }
         : isPrivilegedSession(user)
         ? { name: 'PrivilegedDashboard' }
         : { name: 'Home' }
@@ -702,6 +712,7 @@ export function useDashboardSession() {
         sessionHasRole,
         isPrivilegedSession,
         isSchoolItSession,
+        isAdminSession,
         getDefaultAuthenticatedRoute,
         sessionNeedsFaceRegistration,
     }

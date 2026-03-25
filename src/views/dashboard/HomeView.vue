@@ -22,6 +22,7 @@
             <div class="search-input-row">
               <input
                 v-model="searchQuery"
+                v-bind="eventSearchInputAttrs"
                 type="text"
                 placeholder="Event Search Here"
                 class="search-input"
@@ -231,6 +232,7 @@ import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { resolveBackendMediaCandidates } from '@/services/backendMedia.js'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 
 const props = defineProps({
   preview: {
@@ -241,6 +243,7 @@ const props = defineProps({
 
 // --- State ---
 const searchQuery = ref('')
+const eventSearchInputAttrs = createSearchFieldAttrs('student-event-search')
 const showNotifications = ref(false)
 const isMobileAiOpen = ref(false)
 const mobileInputEl = ref(null)

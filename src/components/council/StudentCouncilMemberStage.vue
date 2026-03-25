@@ -14,95 +14,102 @@
       </button>
     </div>
 
-    <div class="student-council-member-stage__search-shell" :class="{ 'student-council-member-stage__search-shell--open': searchExpanded }">
-      <div class="student-council-member-stage__search-input-row">
-        <template v-if="selectedStudent">
-          <div class="student-council-member-stage__selected-pill" aria-live="polite">
-            <span class="student-council-member-stage__selected-id">{{ selectedStudent.studentId }}</span>
-            <span class="student-council-member-stage__selected-name">{{ selectedStudent.fullName }}</span>
+    <!-- Scrollable Content Area -->
+    <div class="student-council-member-stage__scroll-area">
+      <div class="student-council-member-stage__scroll-content">
+        <div class="student-council-member-stage__search-shell" :class="{ 'student-council-member-stage__search-shell--open': searchExpanded }">
+          <div class="student-council-member-stage__search-input-row">
+            <template v-if="selectedStudent">
+              <div class="student-council-member-stage__selected-pill" aria-live="polite">
+                <span class="student-council-member-stage__selected-id">{{ selectedStudent.studentId }}</span>
+                <span class="student-council-member-stage__selected-name">{{ selectedStudent.fullName }}</span>
+              </div>
+            </template>
+            <template v-else>
+              <input
+                :value="searchQuery"
+                v-bind="memberSearchInputAttrs"
+                type="text"
+                class="student-council-member-stage__search-input"
+                placeholder="Select and Search Student Here"
+                @focus="$emit('focus-search')"
+                @input="$emit('update:searchQuery', $event.target.value)"
+              >
+            </template>
+
+            <button class="student-council-member-stage__search-icon" type="button" aria-label="Search student">
+              <Search :size="20" />
+            </button>
           </div>
-        </template>
-        <template v-else>
-          <input
-            :value="searchQuery"
-            type="text"
-            class="student-council-member-stage__search-input"
-            placeholder="Select and Search Student Here"
-            @focus="$emit('focus-search')"
-            @input="$emit('update:searchQuery', $event.target.value)"
-          >
-        </template>
 
-        <button class="student-council-member-stage__search-icon" type="button" aria-label="Search student">
-          <Search :size="20" />
-        </button>
-      </div>
+          <div class="student-council-member-stage__search-results">
+            <div class="student-council-member-stage__search-results-inner">
+              <button
+                v-for="student in filteredStudents"
+                :key="student.id"
+                class="student-council-member-stage__result"
+                type="button"
+                @click="$emit('select-student', student)"
+              >
+                <span class="student-council-member-stage__result-id">{{ student.studentId }}</span>
+                <span class="student-council-member-stage__result-name">{{ student.fullName }}</span>
+              </button>
 
-      <div class="student-council-member-stage__search-results">
-        <div class="student-council-member-stage__search-results-inner">
-          <button
-            v-for="student in filteredStudents"
-            :key="student.id"
-            class="student-council-member-stage__result"
-            type="button"
-            @click="$emit('select-student', student)"
-          >
-            <span class="student-council-member-stage__result-id">{{ student.studentId }}</span>
-            <span class="student-council-member-stage__result-name">{{ student.fullName }}</span>
-          </button>
-
-          <p v-if="searchExpanded && !filteredStudents.length" class="student-council-member-stage__empty">
-            No matching students found.
-          </p>
+              <p v-if="searchExpanded && !filteredStudents.length" class="student-council-member-stage__empty">
+                No matching students found.
+              </p>
+            </div>
+          </div>
         </div>
+
+        <label class="student-council-member-stage__field">
+          <span class="student-council-member-stage__field-label">Position</span>
+          <input
+            :value="position"
+            type="text"
+            class="student-council-member-stage__field-input"
+            placeholder="e.g., President, Secretary, Treasurer"
+            @input="$emit('update:position', $event.target.value)"
+          >
+        </label>
+
+        <Transition
+          name="student-council-permissions"
+          @before-enter="onPermissionsBeforeEnter"
+          @enter="onPermissionsEnter"
+          @after-enter="onPermissionsAfterEnter"
+          @before-leave="onPermissionsBeforeLeave"
+          @leave="onPermissionsLeave"
+          @after-leave="onPermissionsAfterLeave"
+        >
+          <section v-if="showPermissions" class="student-council-member-stage__permissions">
+            <h3 class="student-council-member-stage__permissions-title">Permission</h3>
+
+            <div
+              v-for="category in permissionCatalog"
+              :key="category.id"
+              class="student-council-member-stage__permission-group"
+            >
+              <p class="student-council-member-stage__permission-label">{{ category.label }}</p>
+              <div class="student-council-member-stage__permission-pills">
+                <button
+                  v-for="permission in category.permissions"
+                  :key="permission.id"
+                  type="button"
+                  class="student-council-member-stage__permission-pill"
+                  :class="{ 'student-council-member-stage__permission-pill--selected': selectedPermissionIds.includes(permission.id) }"
+                  @click="$emit('toggle-permission', permission.id)"
+                >
+                  {{ permission.label }}
+                </button>
+              </div>
+            </div>
+          </section>
+        </Transition>
       </div>
     </div>
 
-    <label class="student-council-member-stage__field">
-      <span class="student-council-member-stage__field-label">Position</span>
-      <input
-        :value="position"
-        type="text"
-        class="student-council-member-stage__field-input"
-        placeholder="e.g., President, Secretary, Treasurer"
-        @input="$emit('update:position', $event.target.value)"
-      >
-    </label>
-
-    <Transition
-      name="student-council-permissions"
-      @before-enter="onPermissionsBeforeEnter"
-      @enter="onPermissionsEnter"
-      @after-enter="onPermissionsAfterEnter"
-      @before-leave="onPermissionsBeforeLeave"
-      @leave="onPermissionsLeave"
-      @after-leave="onPermissionsAfterLeave"
-    >
-      <section v-if="showPermissions" class="student-council-member-stage__permissions">
-        <h3 class="student-council-member-stage__permissions-title">Permission</h3>
-
-        <div
-          v-for="category in permissionCatalog"
-          :key="category.id"
-          class="student-council-member-stage__permission-group"
-        >
-          <p class="student-council-member-stage__permission-label">{{ category.label }}</p>
-          <div class="student-council-member-stage__permission-pills">
-            <button
-              v-for="permission in category.permissions"
-              :key="permission.id"
-              type="button"
-              class="student-council-member-stage__permission-pill"
-              :class="{ 'student-council-member-stage__permission-pill--selected': selectedPermissionIds.includes(permission.id) }"
-              @click="$emit('toggle-permission', permission.id)"
-            >
-              {{ permission.label }}
-            </button>
-          </div>
-        </div>
-      </section>
-    </Transition>
-
+    <!-- Fixed Actions Area -->
     <div class="student-council-member-stage__actions" :class="{ 'student-council-member-stage__actions--danger': showDelete }">
       <button
         class="student-council-member-stage__primary"
@@ -133,6 +140,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Check, Search, SquarePlus, Trash2, X } from 'lucide-vue-next'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 
 const props = defineProps({
   title: {
@@ -213,6 +221,7 @@ defineEmits([
 ])
 
 const submitIcon = computed(() => (props.isEditing ? Check : SquarePlus))
+const memberSearchInputAttrs = createSearchFieldAttrs('student-council-member-search')
 
 const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFrame(callback))
 
@@ -265,10 +274,14 @@ function onPermissionsAfterLeave(element) {
 </script>
 
 <style scoped>
-.student-council-member-stage{display:flex;flex-direction:column;gap:20px;min-height:360px}
-.student-council-member-stage__header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.student-council-member-stage{display:flex;flex-direction:column;gap:16px;min-height:0;flex:1}
+.student-council-member-stage__header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0}
 .student-council-member-stage__title{margin:0;font-size:clamp(36px,10vw,64px);line-height:.92;letter-spacing:-.08em;font-weight:700;color:var(--color-text-always-dark)}
 .student-council-member-stage__close{width:42px;height:42px;border:none;border-radius:999px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 14%, transparent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--color-text-always-dark)}
+
+.student-council-member-stage__scroll-area{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding-right:6px;margin-right:-6px}
+.student-council-member-stage__scroll-content{display:flex;flex-direction:column;gap:20px;padding-bottom:12px}
+
 .student-council-member-stage__search-shell{display:grid;grid-template-rows:auto 0fr;gap:0;padding:16px 18px;border-radius:30px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 16%, transparent);transition:grid-template-rows .4s cubic-bezier(.22,1,.36,1),border-radius .4s cubic-bezier(.22,1,.36,1),box-shadow .18s ease}
 .student-council-member-stage__search-shell--open{grid-template-rows:auto 1fr;border-radius:32px}
 .student-council-member-stage__search-input-row{display:flex;align-items:center;gap:12px;min-height:52px}
@@ -296,7 +309,7 @@ function onPermissionsAfterLeave(element) {
 .student-council-member-stage__permission-pill{min-height:42px;padding:0 20px;border:none;border-radius:999px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 14%, transparent);font-size:13px;font-weight:500;color:var(--color-text-always-dark);transition:background .22s ease,color .22s ease,transform .18s ease,box-shadow .22s ease}
 .student-council-member-stage__permission-pill--selected{background:var(--color-pill-row-active-bg);color:var(--color-pill-row-active-text)}
 .student-council-member-stage__permission-pill:active{transform:scale(.97)}
-.student-council-member-stage__actions{display:flex;flex-direction:column;gap:12px;margin-top:auto;padding-top:8px}
+.student-council-member-stage__actions{display:flex;flex-direction:column;gap:12px;padding-top:16px;flex-shrink:0;border-top:1px solid color-mix(in srgb, var(--color-field-surface-strong) 40%, transparent)}
 .student-council-member-stage__actions--danger{flex-direction:row;align-items:center}
 .student-council-member-stage__secondary,.student-council-member-stage__primary{min-height:56px;border:none;border-radius:999px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700}
 .student-council-member-stage__secondary{background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 14%, transparent);color:var(--color-text-always-dark)}

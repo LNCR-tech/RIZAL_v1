@@ -1,6 +1,8 @@
 <template>
   <section class="face-scan-section">
-    <p v-if="props.caption" class="step-caption">{{ props.caption }}</p>
+    <Transition name="caption-fade" mode="out-in">
+      <p v-if="props.caption" :key="props.caption" class="step-caption">{{ props.caption }}</p>
+    </Transition>
 
     <div class="face-scan">
       <div class="scan-ring">
@@ -263,7 +265,7 @@ function polarToCartesian(cx, cy, r, angleDeg) {
 }
 
 .scan-ring-arc--orbit {
-  animation: scan-ring-orbit 2.2s cubic-bezier(0.37, 0, 0.18, 1) infinite;
+  animation: scan-ring-orbit 3s linear infinite;
 }
 
 .scan-ring-progress {
@@ -272,7 +274,7 @@ function polarToCartesian(cx, cy, r, angleDeg) {
   stroke-linecap: round;
   stroke-dashoffset: 0;
   transform-origin: 50% 50%;
-  transition: stroke-dasharray 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+  transition: stroke-dasharray 600ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
 }
 
 .scan-ring-dot {
@@ -326,10 +328,20 @@ function polarToCartesian(cx, cy, r, angleDeg) {
 
 @keyframes scan-ring-orbit {
   0% {
-    transform: rotate(-8deg);
+    transform: rotate(0deg);
   }
   100% {
-    transform: rotate(352deg);
+    transform: rotate(360deg);
   }
+}
+
+.caption-fade-enter-active,
+.caption-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.caption-fade-enter-from,
+.caption-fade-leave-to {
+  opacity: 0;
 }
 </style>

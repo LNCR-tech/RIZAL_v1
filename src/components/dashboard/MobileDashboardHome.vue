@@ -36,6 +36,7 @@
               <div class="mobile-dashboard__search-input-row">
                 <input
                   v-model="searchQuery"
+                  v-bind="analyticsSearchInputAttrs"
                   type="text"
                   placeholder="Search attendance insight"
                   class="mobile-dashboard__search-input"
@@ -178,6 +179,7 @@ import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { resolveDashboardAiOverview } from '@/services/dashboardAiOverview.js'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 
 const props = defineProps({
   preview: {
@@ -188,6 +190,7 @@ const props = defineProps({
 
 const router = useRouter()
 const searchQuery = ref('')
+const analyticsSearchInputAttrs = createSearchFieldAttrs('student-analytics-search')
 const isAiOpen = ref(false)
 const mobileInputEl = ref(null)
 const activeTab = ref('main')

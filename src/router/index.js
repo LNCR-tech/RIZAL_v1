@@ -1,21 +1,23 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import AppLayout from '@/layouts/AppLayout.vue'
-import HomeView from '@/views/dashboard/HomeView.vue'
-import ProfileView from '@/views/dashboard/ProfileView.vue'
-import ScheduleView from '@/views/dashboard/ScheduleView.vue'
-import EventDetailView from '@/views/dashboard/EventDetailView.vue'
-import AttendanceView from '@/views/dashboard/AttendanceView.vue'
-import AnalyticsView from '@/views/dashboard/AnalyticsView.vue'
 import {
     clearDashboardSession,
     getDefaultAuthenticatedRoute,
     hasSessionToken,
     initializeDashboardSession,
+    isAdminSession,
     isPrivilegedSession,
     isSchoolItSession,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
 import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
+
+const AppLayout = () => import('@/layouts/AppLayout.vue')
+const HomeView = () => import('@/views/dashboard/HomeView.vue')
+const ProfileView = () => import('@/views/dashboard/ProfileView.vue')
+const ScheduleView = () => import('@/views/dashboard/ScheduleView.vue')
+const EventDetailView = () => import('@/views/dashboard/EventDetailView.vue')
+const AttendanceView = () => import('@/views/dashboard/AttendanceView.vue')
+const AnalyticsView = () => import('@/views/dashboard/AnalyticsView.vue')
 
 const routes = [
     // Auth routes (no layout)
@@ -97,6 +99,82 @@ const routes = [
         },
     },
     {
+        path: '/admin',
+        component: AppLayout,
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+        children: [
+            {
+                path: '',
+                name: 'AdminHome',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { section: 'overview' },
+            },
+            {
+                path: 'schools',
+                name: 'AdminSchools',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { section: 'schools' },
+            },
+            {
+                path: 'accounts',
+                name: 'AdminAccounts',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { section: 'accounts' },
+            },
+            {
+                path: 'oversight',
+                name: 'AdminOversight',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { section: 'oversight' },
+            },
+            {
+                path: 'profile',
+                name: 'AdminProfile',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { section: 'profile' },
+            },
+        ],
+    },
+    {
+        path: '/exposed/admin',
+        component: AppLayout,
+        children: [
+            {
+                path: '',
+                name: 'PreviewAdminHome',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { preview: true, section: 'overview' },
+            },
+            {
+                path: 'schools',
+                name: 'PreviewAdminSchools',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { preview: true, section: 'schools' },
+            },
+            {
+                path: 'accounts',
+                name: 'PreviewAdminAccounts',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { preview: true, section: 'accounts' },
+            },
+            {
+                path: 'oversight',
+                name: 'PreviewAdminOversight',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { preview: true, section: 'oversight' },
+            },
+            {
+                path: 'profile',
+                name: 'PreviewAdminProfile',
+                component: () => import('@/views/dashboard/AdminWorkspaceView.vue'),
+                props: { preview: true, section: 'profile' },
+            },
+        ],
+    },
+    {
         path: '/workspace',
         component: AppLayout,
         meta: {
@@ -130,6 +208,11 @@ const routes = [
                 component: () => import('@/views/dashboard/SchoolItProgramStudentsView.vue'),
             },
             {
+                path: 'users/unassigned',
+                name: 'SchoolItUnassignedStudents',
+                component: () => import('@/views/dashboard/SchoolItUnassignedStudentsView.vue'),
+            },
+            {
                 path: 'student-council',
                 name: 'SchoolItStudentCouncil',
                 component: () => import('@/views/dashboard/SchoolItStudentCouncilView.vue'),
@@ -137,11 +220,26 @@ const routes = [
             {
                 path: 'schedule',
                 name: 'SchoolItSchedule',
-                component: () => import('@/views/dashboard/WorkspacePlaceholderView.vue'),
+                component: () => import('@/views/dashboard/SchoolItScheduleView.vue'),
                 props: {
                     title: 'Schedule',
                     description: 'School IT schedule controls will live here once the event operations UI is ready.',
                 },
+            },
+            {
+                path: 'schedule/monitor',
+                name: 'SchoolItAttendanceMonitor',
+                component: () => import('@/views/dashboard/SchoolItAttendanceMonitorView.vue'),
+            },
+            {
+                path: 'schedule/reports',
+                name: 'SchoolItEventReports',
+                component: () => import('@/views/dashboard/SchoolItEventReportsView.vue'),
+            },
+            {
+                path: 'schedule/:id',
+                name: 'SchoolItEventDetail',
+                component: EventDetailView,
             },
             {
                 path: 'settings',
@@ -190,6 +288,12 @@ const routes = [
                 props: { preview: true },
             },
             {
+                path: 'users/unassigned',
+                name: 'PreviewSchoolItUnassignedStudents',
+                component: () => import('@/views/dashboard/SchoolItUnassignedStudentsView.vue'),
+                props: { preview: true },
+            },
+            {
                 path: 'student-council',
                 name: 'PreviewSchoolItStudentCouncil',
                 component: () => import('@/views/dashboard/SchoolItStudentCouncilView.vue'),
@@ -198,11 +302,26 @@ const routes = [
             {
                 path: 'schedule',
                 name: 'PreviewSchoolItSchedule',
-                component: () => import('@/views/dashboard/WorkspacePlaceholderView.vue'),
-                props: {
-                    title: 'Schedule',
-                    description: 'School IT schedule controls will live here once the event operations UI is ready.',
-                },
+                component: () => import('@/views/dashboard/SchoolItScheduleView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'schedule/monitor',
+                name: 'PreviewSchoolItAttendanceMonitor',
+                component: () => import('@/views/dashboard/SchoolItAttendanceMonitorView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'schedule/reports',
+                name: 'PreviewSchoolItEventReports',
+                component: () => import('@/views/dashboard/SchoolItEventReportsView.vue'),
+                props: { preview: true },
+            },
+            {
+                path: 'schedule/:id',
+                name: 'PreviewSchoolItEventDetail',
+                component: EventDetailView,
+                props: { preview: true },
             },
             {
                 path: 'settings',
@@ -253,6 +372,64 @@ const routes = [
                 path: 'profile',
                 name: 'PreviewDashboardProfile',
                 component: ProfileView,
+                props: { preview: true },
+            },
+        ],
+    },
+    // SG Dashboard routes
+    {
+        path: '/sg',
+        component: AppLayout,
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+        children: [
+            {
+                path: '',
+                name: 'SgDashboard',
+                component: () => import('@/views/dashboard/SgDashboardView.vue'),
+            },
+            {
+                path: 'members',
+                name: 'SgMembers',
+                component: () => import('@/views/dashboard/SgMembersView.vue'),
+            },
+            {
+                path: 'students',
+                name: 'SgStudents',
+                component: () => import('@/views/dashboard/SgStudentsView.vue'),
+            },
+            {
+                path: 'announcements',
+                name: 'SgAnnouncements',
+                component: () => import('@/views/dashboard/SgAnnouncementsView.vue'),
+            },
+            {
+                path: 'create-unit',
+                name: 'SgCreateUnit',
+                component: () => import('@/views/dashboard/SgCreateUnitView.vue'),
+            },
+            {
+                path: 'events',
+                name: 'SgEvents',
+                component: () => import('@/views/dashboard/SgEventsView.vue'),
+            },
+            {
+                path: 'attendance',
+                name: 'SgAttendance',
+                component: () => import('@/views/dashboard/SgAttendanceView.vue'),
+            },
+        ],
+    },
+    {
+        path: '/exposed/sg',
+        component: AppLayout,
+        children: [
+            {
+                path: '',
+                name: 'PreviewSgDashboard',
+                component: () => import('@/views/dashboard/SgDashboardView.vue'),
                 props: { preview: true },
             },
         ],
@@ -386,6 +563,7 @@ router.beforeEach(async (to) => {
         try {
             await initializeDashboardSession()
             const defaultRoute = getDefaultAuthenticatedRoute()
+            const adminSession = isAdminSession()
             const privilegedSession = isPrivilegedSession()
             const schoolItSession = isSchoolItSession()
             const needsFaceRegistration = sessionNeedsFaceRegistration()
@@ -399,6 +577,12 @@ router.beforeEach(async (to) => {
                 return defaultRoute
             }
             if (schoolItSession && to.path.startsWith('/dashboard')) {
+                return defaultRoute
+            }
+            if (adminSession && (to.path.startsWith('/dashboard') || to.path.startsWith('/workspace') || to.name === 'PrivilegedDashboard')) {
+                return defaultRoute
+            }
+            if (!adminSession && to.path.startsWith('/admin')) {
                 return defaultRoute
             }
             if (!schoolItSession && to.path.startsWith('/workspace')) {

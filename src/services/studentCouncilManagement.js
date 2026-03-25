@@ -12,23 +12,27 @@ export const GOVERNANCE_PERMISSION_CODES = [
 ]
 
 const BACKEND_PERMISSION_LABELS = {
-  create_sg: 'Create Student Government',
-  create_org: 'Create Organization',
+  create_sg: 'Create College Level Councils',
+  create_org: 'Create Organizations',
   manage_students: 'Edit Student Profiles',
   view_students: 'View Student Directory',
   manage_members: 'Manage Members',
   manage_events: 'Manage Events',
   manage_attendance: 'Manage Attendance',
   manage_announcements: 'Publish Announcements',
-  assign_permissions: 'Assign Permissions',
+  assign_permissions: 'Manage Permissions',
 }
 
 const BACKEND_PERMISSION_TO_UI = {
+  create_sg: 'create-college-level-councils',
+  create_org: 'create-organizations',
+  manage_members: 'manage-members',
   manage_events: 'manage-events',
   manage_announcements: 'publish-announcements',
   manage_attendance: 'manage-attendance',
   view_students: 'view-student-directory',
   manage_students: 'edit-student-profiles',
+  assign_permissions: 'manage-permissions',
 }
 
 const UI_PERMISSION_TO_BACKEND = Object.fromEntries(
@@ -57,6 +61,15 @@ export const defaultStudentCouncilPermissionCatalog = [
     permissions: [
       { id: 'view-student-directory', label: 'View Student Directory' },
       { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+    ],
+  },
+  {
+    id: 'college-level-council-management',
+    label: 'College-Level Council Management',
+    permissions: [
+      { id: 'create-college-level-councils', label: 'Create College Level Councils' },
+      { id: 'manage-permissions', label: 'Manage Permissions' },
+      { id: 'manage-members', label: 'Manage Members' },
     ],
   },
 ]
@@ -300,6 +313,7 @@ export function formatGovernancePermissionLabel(permissionId) {
     return BACKEND_PERMISSION_LABELS[backendCode]
   }
 
+
   return normalizedPermissionId
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
@@ -343,7 +357,16 @@ export function isStudentCouncilUser(user) {
     ? user.roles.map((role) => String(role?.role?.name || role?.name || '').toLowerCase())
     : []
 
-  return Boolean(user?.ssg_profile) || roles.some((role) => COUNCIL_ROLE_NAMES.includes(role))
+  const explicitPermissions = Array.isArray(user?.system_permissions)
+    ? user.system_permissions
+    : (Array.isArray(user?.permissions) ? user.permissions : []);
+
+  const hasGovernancePermissions = explicitPermissions.some((p) => {
+    const code = typeof p === 'string' ? p : (p?.permission_code || p?.name || '');
+    return GOVERNANCE_PERMISSION_CODES.includes(code);
+  })
+
+  return Boolean(user?.ssg_profile) || roles.some((role) => COUNCIL_ROLE_NAMES.includes(role)) || hasGovernancePermissions
 }
 
 export function isStudentUser(user) {

@@ -44,6 +44,7 @@
               <div class="student-council-view__dashboard-search">
                 <input
                   v-model="dashboardSearchQuery"
+                  v-bind="officerSearchInputAttrs"
                   type="text"
                   class="student-council-view__dashboard-search-input"
                   placeholder="Search officers"
@@ -112,8 +113,25 @@
               <div class="student-council-view__stage-pane">
                 <Transition name="student-council-stage" mode="out-in">
                   <div :key="currentPrimaryStage" class="student-council-view__stage-content">
+                    <section
+                      v-if="currentPrimaryStage === 'unavailable'"
+                      class="student-council-view__unavailable"
+                    >
+                      <h2 class="student-council-view__unavailable-title">Student Council</h2>
+                      <p class="student-council-view__unavailable-copy">
+                        {{ stageMessage || 'Student Council data is unavailable right now.' }}
+                      </p>
+                      <button
+                        class="student-council-view__unavailable-action"
+                        type="button"
+                        @click="retryCouncilLoad"
+                      >
+                        Try Again
+                      </button>
+                    </section>
+
                     <StudentCouncilSetupStage
-                      v-if="currentPrimaryStage === 'setup'"
+                      v-else-if="currentPrimaryStage === 'setup'"
                       :draft="councilDraft"
                       :submit-label="isSavingCouncil ? 'Creating Council...' : 'Add Student Council'"
                       :submit-disabled="isSavingCouncil || !canSubmitCouncilDraft(councilDraft)"
@@ -312,6 +330,7 @@ import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
+import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import {
   BackendApiError,
   assignGovernanceMember,
@@ -348,6 +367,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const officerSearchInputAttrs = createSearchFieldAttrs('school-it-officer-search')
 const { currentUser, schoolSettings, apiBaseUrl } = useDashboardSession()
 const {
   campusSsgSetup: sharedCampusSsgSetup,
@@ -372,6 +392,7 @@ const setupStage = ref('setup')
 const isInitialSetupFlow = ref(false)
 const stageMessage = ref('')
 const stageError = ref(false)
+const councilLoadStatus = ref('idle')
 const isSavingCouncil = ref(false)
 const isUpdatingCouncil = ref(false)
 const isDeletingCouncil = ref(false)
@@ -424,6 +445,9 @@ const previewCandidatePool = computed(() => (
 ))
 const currentPrimaryStage = computed(() => {
   if (isInitialSetupFlow.value && setupStage.value === 'member') return 'member'
+  if (!props.preview && !hasCouncil.value && ['blocked', 'error'].includes(councilLoadStatus.value)) {
+    return 'unavailable'
+  }
   if (!hasCouncil.value) return 'setup'
   return 'dashboard'
 })
@@ -553,12 +577,14 @@ async function fetchLatestCouncilSetup(token) {
 
 async function loadCouncilState(resolvedApiBaseUrl) {
   clearStageMessage()
+  councilLoadStatus.value = 'loading'
   const requestId = ++councilLoadRequestId
   const sharedSetup = sharedCampusSsgSetup.value?.unit ? sharedCampusSsgSetup.value : null
   const sharedCouncilStatus = sharedWorkspaceStatuses.value?.council || 'idle'
 
   if (sharedCouncilStatus === 'ready' && sharedSetup?.unit) {
     applyCouncilSetup(sharedSetup)
+    councilLoadStatus.value = 'ready'
     isLoadingCouncilState.value = false
   } else {
     isLoadingCouncilState.value = true
@@ -575,6 +601,7 @@ async function loadCouncilState(resolvedApiBaseUrl) {
         : createEmptyCouncilDraft()
       setupStage.value = currentCouncil.value?.id ? 'dashboard' : 'setup'
       isInitialSetupFlow.value = false
+      councilLoadStatus.value = currentCouncil.value?.id ? 'ready' : 'absent'
       return
     }
 
@@ -583,6 +610,7 @@ async function loadCouncilState(resolvedApiBaseUrl) {
     if (requestId !== councilLoadRequestId) return
     setCampusSsgSetupSnapshot(setup)
     applyCouncilSetup(setup)
+    councilLoadStatus.value = currentCouncil.value?.id ? 'ready' : 'absent'
   } catch (error) {
     if (requestId !== councilLoadRequestId) return
     const isMissingCouncil = error instanceof BackendApiError && error.status === 404
@@ -590,8 +618,14 @@ async function loadCouncilState(resolvedApiBaseUrl) {
     if (isMissingCouncil && !sharedSetup?.unit) {
       setCampusSsgSetupSnapshot(null)
       applyCouncilSetup(null)
+      councilLoadStatus.value = 'absent'
     } else if (sharedSetup?.unit) {
       applyCouncilSetup(sharedSetup)
+      councilLoadStatus.value = 'ready'
+    } else {
+      councilLoadStatus.value = error instanceof BackendApiError && error.status === 403
+        ? 'blocked'
+        : 'error'
     }
 
     setStageMessage(error?.message || 'Unable to load Student Council data right now.', true)
@@ -599,6 +633,11 @@ async function loadCouncilState(resolvedApiBaseUrl) {
     if (requestId !== councilLoadRequestId) return
     isLoadingCouncilState.value = false
   }
+}
+
+async function retryCouncilLoad() {
+  if (!apiBaseUrl.value || !activeUser.value?.id || !schoolId.value) return
+  await loadCouncilState(apiBaseUrl.value)
 }
 
 async function fetchCandidateResults(query) {
@@ -1306,6 +1345,10 @@ async function handleLogout() {
 .student-council-view__stage-frame{width:min(100%,690px);min-height:380px;padding:28px 28px 40px;border-radius:34px;background:var(--color-surface);overflow:hidden}
 .student-council-view__stage-pane{width:100%}
 .student-council-view__stage-content{display:flex;flex-direction:column;gap:22px}
+.student-council-view__unavailable{display:flex;flex-direction:column;gap:16px;min-height:280px}
+.student-council-view__unavailable-title{margin:0;font-size:clamp(34px,10vw,60px);line-height:.92;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
+.student-council-view__unavailable-copy{margin:0;max-width:28ch;font-size:15px;line-height:1.5;color:var(--color-text-muted)}
+.student-council-view__unavailable-action{width:fit-content;min-height:52px;margin-top:auto;padding:0 22px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);font-family:'Manrope',sans-serif;font-size:14px;font-weight:700}
 .student-council-view__intro{display:flex;flex-direction:column;gap:18px;min-height:312px}
 .student-council-view__stage-title{margin:0;font-size:clamp(36px,10vw,64px);line-height:.92;letter-spacing:-.08em;font-weight:700;color:var(--color-text-always-dark)}
 .student-council-view__stage-copy{margin:0;max-width:18ch;font-size:17px;line-height:1.45;color:var(--color-text-always-dark)}

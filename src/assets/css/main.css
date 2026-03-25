@@ -37,6 +37,42 @@ body {
   width: 100%;
 }
 
+.mobile-fullscreen-hint {
+  position: fixed;
+  left: 50%;
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px) + 0.9rem);
+  transform: translateX(-50%);
+  z-index: 1200;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.8rem 1.15rem;
+  min-width: min(86vw, 18rem);
+  background: rgba(17, 17, 19, 0.9);
+  color: #f5f5f5;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.mobile-fullscreen-hint-enter-active,
+.mobile-fullscreen-hint-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mobile-fullscreen-hint-enter-from,
+.mobile-fullscreen-hint-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(0.9rem) scale(0.96);
+}
+
 .dashboard-enter {
   opacity: 0;
   transform: translateY(22px) scale(0.985);
@@ -76,5 +112,11 @@ body {
   textarea,
   button {
     font-size: 16px;
+  }
+}
+
+@media (min-width: 901px) {
+  .mobile-fullscreen-hint {
+    display: none;
   }
 }
