@@ -73,7 +73,7 @@ include_api_router(departments.router)
 include_api_router(attendance.router)
 app.include_router(school_settings.router)
 app.include_router(admin_import.router)
-app.include_router(school.router)  # Corrected: No extra prefix
+include_api_router(school.router)  # Corrected: Use the standard helper
 app.include_router(audit_logs.router)
 app.include_router(notifications.router)
 include_api_router(security_center.router)

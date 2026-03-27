@@ -46,7 +46,7 @@ from app.services.password_change_policy import (
 from app.services.logo_storage_service import delete_managed_school_logo, store_school_logo
 from app.utils.passwords import generate_secure_password
 
-router = APIRouter(prefix="/api/school", tags=["school"])
+router = APIRouter(prefix="/school", tags=["school"])
 
 
 def _normalize_optional(value: Optional[str]) -> Optional[str]:
