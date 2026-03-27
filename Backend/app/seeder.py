@@ -3,43 +3,71 @@ Where to use: Use this from setup scripts or local development when you need sam
 Role: Data setup layer. It prepares initial records for the app.
 """
 
-# app/seeder.py
-from sqlalchemy.orm import Session
 from datetime import date
+import os
+
+from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
 from app.models.role import Role
-from app.models.user import User, UserRole
 from app.models.school import School, SchoolSetting
-import os
-from dotenv import load_dotenv
+from app.models.user import User, UserRole
 
-# Load environment variables
 load_dotenv()
 
-def create_tables():
-    """Create all tables"""
-    Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created")
+LEGACY_PLACEHOLDER_ADMIN_EMAIL = "admin@yourdomain.com"
 
-def seed_roles(db: Session):
-    """Seed roles table with required roles"""
-    roles_data = [
-        {"name": "student"},
-        {"name": "campus_admin"},
-        {"name": "admin"}
-    ]
-    
-    existing_roles = db.query(Role).all()
-    existing_role_names = {role.name for role in existing_roles}
-    
-    for role_data in roles_data:
-        if role_data["name"] not in existing_role_names:
-            role = Role(**role_data)
-            db.add(role)
-    
+
+def create_tables() -> None:
+    """Create all tables."""
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created")
+
+
+def seed_roles(db: Session) -> None:
+    """Seed roles table with required roles."""
+    role_names = ["student", "campus_admin", "admin"]
+    existing_role_names = {role.name for role in db.query(Role).all()}
+
+    for role_name in role_names:
+        if role_name not in existing_role_names:
+            db.add(Role(name=role_name))
+
     db.commit()
-    print("✅ Roles seeded")
+    print("Roles seeded")
+
+
+def _get_or_create_role(db: Session, role_name: str) -> Role:
+    role = db.query(Role).filter(Role.name == role_name).first()
+    if role is None:
+        role = Role(name=role_name)
+        db.add(role)
+        db.flush()
+    return role
+
+
+def _role_names_for_user(user: User) -> set[str]:
+    return {
+        assignment.role.name
+        for assignment in getattr(user, "roles", [])
+        if getattr(assignment, "role", None) is not None and getattr(assignment.role, "name", None)
+    }
+
+
+def _ensure_user_role(db: Session, user: User, role_name: str) -> bool:
+    role = _get_or_create_role(db, role_name)
+    if role_name in _role_names_for_user(user):
+        return False
+    db.add(UserRole(user_id=user.id, role_id=role.id))
+    db.flush()
+    return True
+
+
+def _find_user_by_email(db: Session, email: str) -> User | None:
+    normalized_email = (email or "").strip().lower()
+    return db.query(User).filter(User.email == normalized_email).first()
 
 
 def seed_default_school(db: Session) -> School:
@@ -52,7 +80,7 @@ def seed_default_school(db: Session) -> School:
         if not db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first():
             db.add(SchoolSetting(school_id=school.id))
             db.commit()
-        print(f"ℹ️  School already exists: {school.name}")
+        print(f"School already exists: {school.name}")
         return school
 
     school = School(
@@ -70,26 +98,67 @@ def seed_default_school(db: Session) -> School:
     )
 
     db.add(school)
-    db.flush()  # Get school.id before creating settings
+    db.flush()
 
     db.add(SchoolSetting(school_id=school.id))
     db.commit()
     db.refresh(school)
 
-    print(f"✅ Default school created: {school.name}")
+    print(f"Default school created: {school.name}")
     return school
 
-def seed_admin_user(db: Session, school: School):
-    """Create initial admin user"""
-    # Check if admin user already exists
-    admin_email = os.getenv("ADMIN_EMAIL", "admin@university.edu")
+
+def _apply_admin_defaults(user: User, admin_email: str) -> bool:
+    updated = False
+
+    if user.email != admin_email:
+        user.email = admin_email
+        updated = True
+    if getattr(user, "school_id", None) is not None:
+        user.school_id = None
+        updated = True
+    if not getattr(user, "is_active", True):
+        user.is_active = True
+        updated = True
+    if getattr(user, "must_change_password", False):
+        user.must_change_password = False
+        updated = True
+    if getattr(user, "should_prompt_password_change", False):
+        user.should_prompt_password_change = False
+        updated = True
+    if getattr(user, "first_name", None) != "System":
+        user.first_name = "System"
+        updated = True
+    if getattr(user, "middle_name", None) is not None:
+        user.middle_name = None
+        updated = True
+    if getattr(user, "last_name", None) != "Administrator":
+        user.last_name = "Administrator"
+        updated = True
+
+    return updated
+
+
+def seed_admin_user(db: Session, school: School) -> None:
+    """Create or repair the initial platform admin user."""
+    del school
+
+    admin_email = (os.getenv("ADMIN_EMAIL", "admin@university.edu") or "admin@university.edu").strip().lower()
     admin_password = os.getenv("ADMIN_PASSWORD", "AdminPass123!")
-    
-    existing_admin = db.query(User).filter(User.email == admin_email).first()
-    
-    if not existing_admin:
-        # Create admin user
-        admin_user = User(
+
+    existing_admin = _find_user_by_email(db, admin_email)
+    legacy_admin = None
+    reused_legacy_admin = False
+    created_admin = False
+
+    if existing_admin is None and admin_email != LEGACY_PLACEHOLDER_ADMIN_EMAIL:
+        legacy_admin = _find_user_by_email(db, LEGACY_PLACEHOLDER_ADMIN_EMAIL)
+        if legacy_admin is not None:
+            existing_admin = legacy_admin
+            reused_legacy_admin = True
+
+    if existing_admin is None:
+        existing_admin = User(
             email=admin_email,
             school_id=None,
             first_name="System",
@@ -97,61 +166,66 @@ def seed_admin_user(db: Session, school: School):
             last_name="Administrator",
             is_active=True,
             must_change_password=False,
+            should_prompt_password_change=False,
         )
-        admin_user.set_password(admin_password)
-        db.add(admin_user)
-        db.flush()  # Get the user ID
-        
-        # Get admin role
-        admin_role = db.query(Role).filter(Role.name == "admin").first()
-        if admin_role:
-            user_role = UserRole(user_id=admin_user.id, role_id=admin_role.id)
-            db.add(user_role)
-        
+        db.add(existing_admin)
+        db.flush()
+        created_admin = True
+
+    updated = _apply_admin_defaults(existing_admin, admin_email)
+    had_admin_role = "admin" in _role_names_for_user(existing_admin)
+
+    if _ensure_user_role(db, existing_admin, "admin"):
+        updated = True
+
+    if created_admin or reused_legacy_admin or not had_admin_role:
+        existing_admin.set_password(admin_password)
+        updated = True
+
+    removed_legacy_placeholder = False
+    if admin_email != LEGACY_PLACEHOLDER_ADMIN_EMAIL:
+        legacy_admin = legacy_admin or _find_user_by_email(db, LEGACY_PLACEHOLDER_ADMIN_EMAIL)
+        if legacy_admin is not None and legacy_admin.id != existing_admin.id and not _role_names_for_user(legacy_admin):
+            db.delete(legacy_admin)
+            removed_legacy_placeholder = True
+            updated = True
+
+    if updated:
         db.commit()
-        print(f"✅ Admin user created: {admin_email}")
-        print(f"🔑 Admin password: {admin_password}")
-        
-    else:
-        updated = False
-        if getattr(existing_admin, "school_id", None) is not None:
-            existing_admin.school_id = None
-            updated = True
-        if getattr(existing_admin, "must_change_password", False):
-            existing_admin.must_change_password = False
-            updated = True
-        if updated:
-            db.commit()
-        print("ℹ️  Admin user already exists")
 
-def run_seeder():
-    """Main seeder function"""
-    print("🌱 Starting database seeding...")
-    
-    # Create database session
+    if created_admin:
+        print(f"Admin user created: {admin_email}")
+        print(f"Admin password: {admin_password}")
+        return
+
+    if reused_legacy_admin:
+        print(f"Legacy admin account repaired as: {admin_email}")
+        print(f"Admin password: {admin_password}")
+        return
+
+    if removed_legacy_placeholder:
+        print("Removed legacy placeholder admin account")
+    print("Admin user already exists")
+
+
+def run_seeder() -> None:
+    """Main seeder function."""
+    print("Starting database seeding...")
     db = SessionLocal()
-    
-    try:
-        # Create tables first
-        create_tables()
-        
-        # Seed roles
-        seed_roles(db)
 
-        # Ensure at least one school exists for tenant configuration
+    try:
+        create_tables()
+        seed_roles(db)
         school = seed_default_school(db)
-        
-        # Seed admin user
         seed_admin_user(db, school)
-        
-        print("🎉 Database seeding completed successfully!")
-        
-    except Exception as e:
-        print(f"❌ Error during seeding: {e}")
+        print("Database seeding completed successfully")
+    except Exception as exc:
+        print(f"Error during seeding: {exc}")
         db.rollback()
         raise
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     run_seeder()

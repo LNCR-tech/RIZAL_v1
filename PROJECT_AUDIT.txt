@@ -908,7 +908,7 @@ Backend local assumptions:
 
 - Python deps from `Backend/requirements.txt`
 - PostgreSQL and Redis available, often via Docker
-- optional SMTP via Mailpit
+- optional outbound email via configured SMTP or Gmail transport
 - face-recognition native stack installed if face routes/tests need to import cleanly
 
 Frontend local assumptions:

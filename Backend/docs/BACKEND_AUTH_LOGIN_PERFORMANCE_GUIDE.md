@@ -17,7 +17,6 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 - `Backend/app/routers/auth.py`
 - `Backend/app/services/auth_task_dispatcher.py`
 - `Backend/app/services/email_service/`
-- `Backend/app/services/notification_center_service.py`
 - `Backend/app/workers/tasks.py`
 - `Backend/app/core/database.py`
 - `Backend/app/core/dependencies.py`
@@ -29,11 +28,11 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 
 ## What Changed
 
-- normal `/login` no longer waits for account-security email delivery before returning the auth response
-- MFA login no longer blocks on the full SMTP send path when async dispatch is available
-- Celery is used first for login-side email and notification work
+- normal `/login` no longer sends Gmail login-notification emails after a successful sign-in
+- MFA login no longer blocks on the full Gmail API send path when async dispatch is available
+- Celery is used first for login-side MFA email work
 - if Celery publish fails, the backend falls back to FastAPI background tasks so the HTTP response can still finish quickly
-- obvious SMTP configuration errors are still validated before scheduling MFA delivery
+- obvious Gmail API configuration errors are still validated before scheduling MFA delivery
 - forced SQL query logging was removed unless `SQL_ECHO=true`
 - the canonical async task package now lives in `Backend/app/workers/`; the old `Backend/app/worker/` compatibility wrapper and `app.worker.tasks.*` aliases were removed
 - newly created onboarding accounts now keep `must_change_password=false`, so they can continue past login with the issued temporary password
@@ -59,14 +58,13 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 2. validate account and school state
 3. issue token payload
 4. record login history
-5. queue account-security notification asynchronously
-6. commit and return response
+5. commit and return response
 
 ### `/login` with MFA
 
 1. validate credentials
 2. create MFA challenge
-3. validate SMTP configuration
+3. validate Gmail API configuration
 4. queue MFA email asynchronously
 5. commit and return MFA challenge response
 
@@ -75,8 +73,7 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 1. verify challenge code
 2. issue token payload
 3. record login history
-4. queue MFA-completed security notification asynchronously
-5. commit and return response
+4. commit and return response
 
 ### Password prompt during onboarding
 
@@ -92,7 +89,7 @@ For frontend integration details for the new onboarding flow, see `Backend/docs/
 - login responses can now include `password_change_recommended`
 - `/users/` create responses can now include `generated_temporary_password`
 - login still records DB session and login-history data synchronously
-- email and notification side effects are the parts that moved off the request path
+- MFA email delivery is the remaining login-side email effect; post-login Gmail notifications are disabled
 - current Celery startup path is `app.workers.celery_app.celery_app`
 - the backend auth runtime now verifies passwords through shared `bcrypt.checkpw()` helpers, so login no longer depends on passlib's bcrypt backend initialization
 - login now treats bcrypt's `72`-byte input ceiling as a normal failed password check, so oversized passwords no longer crash `/login`, `/token`, or `/auth/change-password`
@@ -195,8 +192,8 @@ Recommended manual checks:
 1. Log in as a normal student account and confirm the response returns quickly.
 2. Log in as an admin or School IT account and confirm MFA challenge creation still works.
 3. Complete `/auth/mfa/verify` and confirm the login still succeeds.
-4. If Celery is running, confirm login email/notification tasks appear in the worker.
-5. If Celery is unavailable, confirm login still returns and background-task fallback keeps the flow working.
+4. If Celery is running, confirm MFA email tasks appear in the worker when MFA is required.
+5. If Celery is unavailable, confirm MFA login still returns a challenge and background-task fallback keeps the code-delivery flow working.
 6. Confirm backend logs do not show a password-verification traceback during login or password checks.
 7. Create a new onboarding account and confirm login returns `password_change_recommended=true` instead of forcing `/auth/change-password`.
 8. Call `POST /auth/password-change-prompt/dismiss` with that account and confirm the next login no longer recommends a password change.

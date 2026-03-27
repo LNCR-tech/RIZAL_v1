@@ -19,27 +19,23 @@ def test_get_settings_exposes_tenant_database_fields(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db:5432/app")
     monkeypatch.setenv("DATABASE_ADMIN_URL", "postgresql://admin:pass@db:5432/postgres")
     monkeypatch.setenv("TENANT_DATABASE_PREFIX", "valid8")
-    monkeypatch.setenv("SMTP_USE_SSL", "true")
-    monkeypatch.setenv("SMTP_PREFER_IPV4", "true")
-    monkeypatch.setenv("EMAIL_TRANSPORT", "smtp")
-    monkeypatch.setenv("SMTP_AUTH_MODE", "password")
-    monkeypatch.setenv("SMTP_FROM_NAME", "VALID8 Notifications")
+    monkeypatch.setenv("EMAIL_TRANSPORT", "gmail_api")
+    monkeypatch.setenv("EMAIL_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("EMAIL_SENDER_EMAIL", "mailer@example.com")
+    monkeypatch.setenv("EMAIL_FROM_NAME", "VALID8 Notifications")
 
     settings = get_settings()
 
     assert settings.database_url == "postgresql://user:pass@db:5432/app"
     assert settings.database_admin_url == "postgresql://admin:pass@db:5432/postgres"
     assert settings.tenant_database_prefix == "valid8"
-    assert settings.smtp_use_ssl is True
-    assert settings.smtp_prefer_ipv4 is True
-    assert settings.email_transport == "smtp"
-    assert settings.smtp_auth_mode == "password"
-    assert settings.smtp_from_name == "VALID8 Notifications"
+    assert settings.email_transport == "gmail_api"
+    assert settings.email_timeout_seconds == 45
+    assert settings.email_sender_email == "mailer@example.com"
+    assert settings.email_from_name == "VALID8 Notifications"
 
-
-def test_get_settings_defaults_email_transport_to_disabled_when_smtp_host_is_missing(monkeypatch):
+def test_get_settings_defaults_email_transport_to_disabled_when_unset(monkeypatch):
     monkeypatch.delenv("EMAIL_TRANSPORT", raising=False)
-    monkeypatch.setenv("SMTP_HOST", "")
 
     settings = get_settings()
 

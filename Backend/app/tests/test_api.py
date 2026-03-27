@@ -21,6 +21,7 @@ from app.models import (
 )
 from app.routers import users as users_router
 from app.core.security import create_access_token, verify_password
+from app.services.security_service import create_mfa_challenge
 from app.utils.passwords import hash_password_bcrypt
 
 
@@ -134,6 +135,65 @@ def test_user_authentication(client, test_db):
         },
     )
     assert response.status_code == 401
+
+
+def test_login_does_not_dispatch_gmail_login_notification(client, test_db, monkeypatch):
+    school = _create_school(test_db, code="LOGIN-NOTIFY")
+    user = _create_user_with_role(
+        test_db,
+        email="student.login.notify@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+    )
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("login security notification dispatch should not run")
+
+    monkeypatch.setattr("app.services.auth_task_dispatcher._enqueue_celery_task", fail_if_called)
+
+    response = client.post(
+        "/login",
+        json={
+            "email": user.email,
+            "password": "StudentPass123!",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["email"] == user.email
+
+
+def test_mfa_verify_does_not_dispatch_gmail_login_notification(client, test_db, monkeypatch):
+    school = _create_school(test_db, code="MFA-NOTIFY")
+    user = _create_user_with_role(
+        test_db,
+        email="student.mfa.notify@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+    )
+    challenge, code = create_mfa_challenge(test_db, user=user, ttl_minutes=10)
+    test_db.commit()
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("login security notification dispatch should not run")
+
+    monkeypatch.setattr("app.services.auth_task_dispatcher._enqueue_celery_task", fail_if_called)
+
+    response = client.post(
+        "/auth/mfa/verify",
+        json={
+            "email": user.email,
+            "challenge_id": challenge.id,
+            "code": code,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["email"] == user.email
 
 
 def test_protected_endpoint(client, test_db):
@@ -1009,7 +1069,7 @@ def test_create_student_account_api_rolls_back_when_welcome_email_fails(
     )
 
     def failing_send_welcome_email(**kwargs):
-        raise users_router.EmailDeliveryError("SMTP unavailable")
+        raise users_router.EmailDeliveryError("Gmail API unavailable")
 
     monkeypatch.setattr(users_router, "send_welcome_email", failing_send_welcome_email)
 

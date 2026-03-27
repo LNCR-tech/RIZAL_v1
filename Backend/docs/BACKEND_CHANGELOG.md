@@ -14,6 +14,160 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-03-28 - Make bulk import onboarding emails match the create-user credentials email
+
+### Purpose
+
+Changed student bulk import onboarding emails so they now include the imported user's email, temporary password, and frontend login URL, matching the create-user email style instead of telling imported users to use forgot-password first.
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/workers/tasks.py`
+- `Backend/app/services/email_service/use_cases.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- bulk import now keeps the generated shared temporary password long enough to include it in onboarding emails
+- import onboarding emails now use the same credentials-style email content as manual student creation
+- import onboarding worker and inline fallback paths now pass the temporary password through to the email sender
+- imported students can now use the emailed temporary password directly on the frontend login page
+- kept the existing import-performance approach of sharing one generated password per import job instead of hashing a unique password for every imported row
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_student_import_email_delivery.py Backend/app/tests/test_email_service.py`.
+2. Run a bulk import and confirm the onboarding email includes the student email, temporary password, and frontend login URL.
+3. Sign in with an imported account using the emailed password and confirm login succeeds.
+4. If Celery task publish fails, confirm the inline fallback still sends the same credentials-style email.
+
+## 2026-03-28 - Disable Gmail login notification emails after successful sign-in
+
+### Purpose
+
+Stopped the backend from sending Gmail security-notification emails after every successful `/login` and `/auth/mfa/verify`, while keeping password-related emails such as onboarding credentials, forgot-password approvals, and MFA code delivery unchanged.
+
+### Main files
+
+- `Backend/app/routers/auth.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed the post-login Gmail notification dispatch after successful `/login`
+- removed the post-login Gmail notification dispatch after successful `/auth/mfa/verify`
+- kept password-reset, welcome-password, and MFA-code email flows unchanged
+- added regression tests so login and MFA verification succeed even if the old login-notification dispatcher would fail
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior changed for:
+  - `POST /login`
+  - `POST /auth/mfa/verify`
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_api.py -k "login_does_not_dispatch_gmail_login_notification or mfa_verify_does_not_dispatch_gmail_login_notification"`.
+2. Log in through `POST /login` with a non-MFA user and confirm no Gmail login-notification email is sent.
+3. Complete `POST /auth/mfa/verify` for an MFA challenge and confirm no Gmail login-completed notification email is sent.
+4. Confirm password-related emails such as welcome credentials, forgot-password approval, and MFA code delivery still work.
+
+## 2026-03-28 - Remove SMTP transport and standardize outbound email on Gmail API only
+
+### Purpose
+
+Removed the backend SMTP delivery path so all transactional mail now uses the Google Gmail API with OAuth, then added regression coverage that the bulk student import flow still hands off onboarding emails after import completion.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service/config.py`
+- `Backend/app/services/email_service/transport.py`
+- `Backend/app/services/email_service/__init__.py`
+- `Backend/app/routers/users/students.py`
+- `Backend/scripts/generate_google_oauth_refresh_token.py`
+- `Backend/scripts/send_test_email.py`
+- `Backend/app/tests/test_config.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `docker-compose.yml`
+
+### Backend changes
+
+- removed the SMTP send path, SMTP authentication handling, and SMTP connection checks from the shared email service
+- kept only `EMAIL_TRANSPORT=gmail_api` as the supported outbound mail transport
+- renamed the active mail config surface to Gmail API-focused env names such as:
+  - `EMAIL_TIMEOUT_SECONDS`
+  - `EMAIL_SENDER_EMAIL`
+  - `EMAIL_FROM_EMAIL`
+  - `EMAIL_FROM_NAME`
+  - `EMAIL_REPLY_TO`
+  - `EMAIL_GOOGLE_ACCOUNT_TYPE`
+  - `EMAIL_GOOGLE_ALLOW_CUSTOM_FROM`
+- kept temporary fallback reads from legacy `SMTP_*` env names so existing deployments can roll forward without an immediate secret rewrite
+- updated the smoke-test and OAuth helper scripts to report Gmail API-only behavior
+- changed manual student-create email errors to report a generic email-delivery failure instead of an SMTP-specific failure
+- added regression tests that:
+  - Gmail API delivery is the only validated mail path
+  - successful import batches still queue onboarding email work
+  - the import onboarding worker logs `status=sent` after a successful send
+  - failed import-email task publishing now falls back to an inline send attempt
+  - import onboarding delivery logs now use `status=failed` only when both task publishing and the inline fallback send fail
+
+### Route or schema impact
+
+- no HTTP route paths changed
+- no request or response schemas changed
+- runtime behavior changed for all outbound email features:
+  - MFA code emails
+  - forgot-password approval emails
+  - user welcome emails
+  - bulk-import onboarding emails
+
+### Configuration impact
+
+- deployments should now set Gmail API-focused env names instead of SMTP transport settings
+- `EMAIL_TRANSPORT` should be `gmail_api` whenever outbound email is required
+- old `SMTP_*` names are only migration aliases; the backend no longer opens SMTP connections
+
+### Migration impact
+
+- no database migration
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_config.py Backend/app/tests/test_email_service.py Backend/app/tests/test_student_import_email_delivery.py`.
+2. Run `cd Backend && python scripts/send_test_email.py --recipient your-address@example.com --check-only`.
+3. Run `cd Backend && python scripts/send_test_email.py --recipient your-address@example.com`.
+4. Import students through `POST /api/admin/import-students/preview` then `POST /api/admin/import-students`, and confirm onboarding email work is queued and logged in `email_delivery_logs`.
+5. Stop Celery or break broker publishing, rerun the import, and confirm onboarding emails still send through the inline fallback path.
+
 ## 2026-03-27 - Fix attendance response validation for students without external student IDs
 
 ### Purpose
@@ -1285,15 +1439,15 @@ Simplified deployment by removing the separate production Compose file and movin
 - changed Compose build paths to `./Backend` and `./Frontend` so Linux deployments do not fail on case-sensitive filesystems
 - added a one-shot `migrate` service that runs `alembic upgrade head` before backend, worker, and beat start
 - changed backend health checks to probe `GET /health` instead of only checking the root route
-- changed Postgres, Redis, Mailpit, pgAdmin, and direct backend port mappings to loopback by default
+- changed Postgres, Redis, pgAdmin, and direct backend port mappings to loopback by default
 - moved `pgadmin` to an optional `tools` profile so the app stack is smaller by default
-- kept Mailpit in the main stack so local email flows still work without extra setup
+- removed the dedicated local SMTP sandbox from the main stack so outbound email is opt-in through explicit SMTP or Gmail configuration
 
 ### Configuration impact
 
 - `DATABASE_URL` in `.env` remains the host-side value for scripts and local non-Docker runs
 - Docker Compose now injects the container-internal database URL directly, so host-style `localhost` values in `.env` no longer break the containers
-- `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, and `PGADMIN_PORT` can now be set from `.env`
+- `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, and `PGADMIN_PORT` can now be set from `.env`
 - `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` can be set when the `tools` profile is enabled
 
 ### Migration impact

@@ -42,7 +42,6 @@ from app.services.auth_session import (
     validate_login_account_state,
 )
 from app.services.auth_task_dispatcher import (
-    dispatch_account_security_notification,
     dispatch_mfa_code_email,
 )
 from app.services.notification_center_service import send_account_security_notification
@@ -214,17 +213,6 @@ def login_with_email(
         request=request,
     )
 
-    dispatch_account_security_notification(
-        background_tasks,
-        user_id=user.id,
-        subject="New Login Detected",
-        message=(
-            "A new login to your VALID8 account was detected. "
-            "If this wasn't you, reset your password immediately."
-        ),
-        metadata_json={"event": "login"},
-    )
-
     db.commit()
     return response_payload
 
@@ -241,7 +229,7 @@ def verify_mfa_and_login(
         raise HTTPException(status_code=404, detail="User not found")
     validate_login_account_state(db, user)
 
-    challenge = verify_mfa_challenge(
+    verify_mfa_challenge(
         db,
         user=user,
         challenge_id=payload.challenge_id,
@@ -263,15 +251,6 @@ def verify_mfa_and_login(
             else "mfa"
         ),
         request=request,
-    )
-    dispatch_account_security_notification(
-        background_tasks,
-        user_id=user.id,
-        subject="MFA Login Completed",
-        message=(
-            "A multi-factor login was completed successfully on your VALID8 account."
-        ),
-        metadata_json={"event": "mfa_login", "challenge_id": challenge.id},
     )
     db.commit()
     return response_payload

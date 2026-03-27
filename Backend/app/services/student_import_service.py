@@ -24,6 +24,7 @@ from app.models.associations import program_department_association
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.repositories.import_repository import ImportRepository
+from app.services.email_service import send_import_onboarding_email
 from app.services.import_file_service import load_tabular_rows_from_bytes
 from app.services.import_validation_service import (
     EXPECTED_HEADERS,
@@ -145,7 +146,7 @@ class StudentImportService:
             )
 
         validation_context = self._build_validation_context(target_school_id)
-        shared_password_hash = self._build_shared_import_password_hash()
+        temporary_password, shared_password_hash = self._build_shared_import_password_credentials()
 
         failed_report_dir = Path(settings.import_storage_dir) / "reports"
         failed_report_dir.mkdir(parents=True, exist_ok=True)
@@ -209,6 +210,7 @@ class StudentImportService:
                         job_id=job_id,
                         row_buffer=row_buffer,
                         student_role_id=student_role_id,
+                        temporary_password=temporary_password,
                         shared_password_hash=shared_password_hash,
                     )
                     success_count += batch_success_count
@@ -244,6 +246,7 @@ class StudentImportService:
                     job_id=job_id,
                     row_buffer=row_buffer,
                     student_role_id=student_role_id,
+                    temporary_password=temporary_password,
                     shared_password_hash=shared_password_hash,
                 )
                 success_count += batch_success_count
@@ -312,7 +315,7 @@ class StudentImportService:
 
         row_buffer: List[dict] = []
         error_buffer: List[dict] = []
-        shared_password_hash = self._build_shared_import_password_hash()
+        temporary_password, shared_password_hash = self._build_shared_import_password_credentials()
 
         processed_rows = 0
         success_count = 0
@@ -337,6 +340,7 @@ class StudentImportService:
                     job_id=job_id,
                     row_buffer=row_buffer,
                     student_role_id=student_role_id,
+                    temporary_password=temporary_password,
                     shared_password_hash=shared_password_hash,
                     trust_preview=True,
                 )
@@ -373,6 +377,7 @@ class StudentImportService:
                 job_id=job_id,
                 row_buffer=row_buffer,
                 student_role_id=student_role_id,
+                temporary_password=temporary_password,
                 shared_password_hash=shared_password_hash,
                 trust_preview=True,
             )
@@ -445,6 +450,7 @@ class StudentImportService:
         job_id: str,
         row_buffer: List[dict],
         student_role_id: int,
+        temporary_password: str,
         shared_password_hash: str,
         trust_preview: bool = False,
     ) -> tuple[int, int, List[dict]]:
@@ -464,6 +470,7 @@ class StudentImportService:
                 user_id=row["user_id"],
                 email=row["email"],
                 first_name=row.get("first_name"),
+                temporary_password=temporary_password,
             )
 
         return len(success_rows), len(batch_errors), batch_errors
@@ -475,7 +482,9 @@ class StudentImportService:
         user_id: int,
         email: str,
         first_name: str | None = None,
+        temporary_password: str,
     ) -> None:
+        publish_error_message: str | None = None
         try:
             celery_app.send_task(
                 "app.workers.tasks.send_student_import_onboarding_email",
@@ -484,33 +493,104 @@ class StudentImportService:
                     user_id,
                     email,
                     first_name,
+                    temporary_password,
                 ],
             )
             return
         except Exception as exc:
+            publish_error_message = str(exc)
             logger.warning(
-                "Deferring onboarding email delivery for import job %s and user %s because task publishing failed.",
+                "Falling back to inline onboarding email delivery for import job %s and user %s because task publishing failed.",
                 job_id,
                 user_id,
                 exc_info=True,
             )
 
+        self._send_account_ready_email_inline(
+            job_id=job_id,
+            user_id=user_id,
+            email=email,
+            first_name=first_name,
+            temporary_password=temporary_password,
+            publish_error_message=publish_error_message,
+        )
+
+    def _send_account_ready_email_inline(
+        self,
+        *,
+        job_id: str,
+        user_id: int,
+        email: str,
+        first_name: str | None = None,
+        temporary_password: str,
+        publish_error_message: str | None = None,
+    ) -> None:
+        try:
+            send_import_onboarding_email(
+                recipient_email=email,
+                first_name=first_name,
+                temporary_password=temporary_password,
+            )
+        except Exception as exc:
+            error_message = str(exc)
+            if publish_error_message:
+                error_message = (
+                    f"Task publish failed: {publish_error_message}; "
+                    f"inline send failed: {error_message}"
+                )
+            logger.warning(
+                "Inline onboarding email delivery failed for import job %s and user %s.",
+                job_id,
+                user_id,
+                exc_info=True,
+            )
+            self._log_account_ready_email_delivery(
+                job_id=job_id,
+                user_id=user_id,
+                email=email,
+                status="failed",
+                error_message=error_message,
+            )
+            return
+
+        logger.info(
+            "Delivered onboarding email inline for import job %s and user %s after task publish fallback.",
+            job_id,
+            user_id,
+        )
+        self._log_account_ready_email_delivery(
+            job_id=job_id,
+            user_id=user_id,
+            email=email,
+            status="sent",
+        )
+
+    def _log_account_ready_email_delivery(
+        self,
+        *,
+        job_id: str,
+        user_id: int,
+        email: str,
+        status: str,
+        error_message: str | None = None,
+    ) -> None:
         with SessionLocal() as db:
             repo = ImportRepository(db)
             repo.log_email_delivery(
                 job_id=job_id,
                 user_id=user_id,
                 email=email,
-                status="deferred",
-                error_message=str(exc),
+                status=status,
+                error_message=error_message,
                 retry_count=0,
             )
             db.commit()
 
-    def _build_shared_import_password_hash(self) -> str:
-        # Imported accounts start in a password-pending state so the job avoids one bcrypt hash per user.
-        pending_password = generate_secure_password(min_length=20, max_length=24)
-        return hash_password_bcrypt(pending_password)
+    def _build_shared_import_password_credentials(self) -> tuple[str, str]:
+        # Imported accounts still share one generated password per job so the import
+        # path avoids one bcrypt hash per user while emails can include real credentials.
+        temporary_password = generate_secure_password(min_length=10, max_length=14)
+        return temporary_password, hash_password_bcrypt(temporary_password)
 
     def _build_validation_context(self, target_school_id: int) -> ValidationContext:
         with SessionLocal() as db:

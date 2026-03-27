@@ -46,8 +46,9 @@ Use this supported flow instead:
 - skip normal row validation during the standard import path because preview is the authoritative validation step
 - keep defensive database conflict handling only for late races, such as another process creating the same email after preview approval
 - create missing `departments`, `programs`, and `program_department_association` rows for the target school in bulk before student profiles are inserted
-- assign one shared password-pending bcrypt hash per import job instead of generating a unique temporary password hash for every imported user
-- queue onboarding emails outside the critical import path; if email task publishing fails, the job logs deferred delivery instead of blocking on direct SMTP
+- assign one shared temporary password per import job and store its bcrypt hash on each imported user instead of generating and hashing a unique password for every imported user
+- queue onboarding emails outside the critical import path; the worker task now sends the same credentials-style message used by create-user flows
+- if onboarding-email task publishing fails, the import falls back to an inline Gmail API send attempt for that student instead of silently dropping delivery work
 
 ## Response Contract
 
@@ -78,11 +79,13 @@ Use this supported flow instead:
 
 - retry-failed imports still rebuild a workbook and create a new job, because that flow is explicitly for rows that failed after queueing
 - preview manifests live on disk, so `IMPORT_STORAGE_DIR` must be writable by the API and worker processes
-- when Celery is unavailable, import processing still runs in the API process, but onboarding email delivery is deferred instead of falling back to direct per-user SMTP
+- when Celery is unavailable, import processing still runs in the API process, and onboarding email delivery now falls back to direct Gmail API sends during the background import run
 - preview approval belongs to the user and school that created it; another user or school cannot consume the same token
 - large preview duplicate checks should not use one giant SQL `IN (...)` expression; the repository now chunks those lookups to avoid PostgreSQL stack-depth failures
 - PostgreSQL import locking is now scoped per school, so concurrent imports from different schools can run at the same time while same-school jobs still serialize safely
-- imported users now start in a password-pending onboarding state; for first access they should use the existing forgot-password flow and wait for Campus Admin approval
+- imported users receive the generated temporary password by email and can sign in with the emailed credentials
+- successful worker-side or inline-fallback onboarding sends are recorded in `email_delivery_logs` with `status=sent`
+- if both task publishing and the inline fallback fail, the error is recorded in `email_delivery_logs` with `status=failed`
 
 ## How To Test
 
@@ -97,5 +100,9 @@ Use this supported flow instead:
 9. From an invalid preview, download the preview error report and retry file and confirm both files contain the failed preview rows.
 10. From an invalid preview that still has at least one valid row, call `POST /api/admin/import-preview-errors/{preview_token}/remove-invalid` and confirm the response changes to `can_commit=true` with `invalid_rows=0`.
 11. Import using that same cleaned `preview_token` and confirm the job is queued successfully.
-12. If Celery is unavailable, confirm the job still completes and `email_delivery_logs` records deferred onboarding delivery instead of blocking the import.
-13. Call both deprecated `/school-settings/me/users/import*` routes and confirm they return `410 Gone` with the replacement admin-import endpoints in the error detail.
+12. Open an imported user's onboarding email and confirm it includes the student email, temporary password, and frontend login URL.
+13. Sign in with an imported account using the emailed password and confirm login succeeds.
+14. If Celery is unavailable, confirm the job still completes and imported accounts still receive onboarding emails through the inline fallback path.
+15. In that same fallback case, confirm `email_delivery_logs` records `status=sent` on success or `status=failed` if the Gmail API send also fails.
+16. If the worker is available and Gmail API delivery is configured correctly, confirm imported accounts create `email_delivery_logs` rows with `status=sent`.
+17. Call both deprecated `/school-settings/me/users/import*` routes and confirm they return `410 Gone` with the replacement admin-import endpoints in the error detail.

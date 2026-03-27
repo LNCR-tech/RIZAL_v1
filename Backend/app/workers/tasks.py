@@ -108,11 +108,13 @@ def _send_student_import_onboarding_email(
     user_id: int,
     email: str,
     first_name: str | None = None,
+    temporary_password: str | None = None,
 ) -> None:
     try:
         send_import_onboarding_email(
             recipient_email=email,
             first_name=first_name,
+            temporary_password=temporary_password or "",
         )
         with SessionLocal() as db:
             repo = ImportRepository(db)

@@ -44,29 +44,18 @@ def send_welcome_email(
 def send_import_onboarding_email(
     *,
     recipient_email: str,
+    temporary_password: str,
     first_name: str | None = None,
     system_name: str | None = None,
     login_url: str | None = None,
 ) -> None:
-    from . import get_settings, _send_email
-    from .rendering import build_import_onboarding_email_content
-
-    settings = get_settings()
-
-    resolved_first_name = (first_name or "").strip() or "User"
-    resolved_system_name = (system_name or "").strip() or "Valid8 Attendance Recognition System"
-    resolved_login_url = (login_url or "").strip() or settings.login_url
-
-    subject, body, html_body = build_import_onboarding_email_content(
-        first_name=resolved_first_name,
-        system_name=resolved_system_name,
-        login_url=resolved_login_url,
-    )
-    _send_email(
-        subject=subject,
+    send_welcome_email(
         recipient_email=recipient_email,
-        body=body,
-        html_body=html_body,
+        temporary_password=temporary_password,
+        first_name=first_name,
+        system_name=system_name,
+        login_url=login_url,
+        password_is_temporary=True,
     )
 
 
