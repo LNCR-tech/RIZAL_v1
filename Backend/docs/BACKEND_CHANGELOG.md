@@ -14,6 +14,48 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-03-28 - Restore bulk import onboarding emails when Celery publish fails
+
+### Purpose
+
+Fixed bulk-import onboarding delivery so newly created users still receive onboarding emails when Celery task publishing fails (for example, broker outages or deployments without a worker).
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/tests/test_student_import_service.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+
+### Backend changes
+
+- changed `StudentImportService._queue_account_ready_email()` to fall back to inline `send_import_onboarding_email()` when Celery task publishing fails
+- changed fallback logging from `deferred` to explicit delivery outcomes:
+  - `sent` when inline fallback succeeds
+  - `failed` when both Celery publish and inline fallback delivery fail
+- preserved non-blocking import behavior so row import completion is not reverted by onboarding email delivery failures
+- added regression tests for both inline-fallback success and inline-fallback failure paths
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- no new configuration
+
+### Migration impact
+
+- no database migration
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_student_import_service.py`.
+2. Run `python -m pytest -q Backend/app/tests/test_admin_import_preview_flow.py -k falls_back_to_in_process_job_when_celery_dispatch_fails`.
+3. Trigger a bulk import in an environment where Celery publish is unavailable and confirm the job still completes.
+4. Check `email_delivery_logs` for imported users and confirm status is `sent` when inline fallback succeeds.
+5. Simulate inline SMTP failure and confirm `email_delivery_logs` records `failed` with the combined publish and inline error message.
+
 ## 2026-03-27 - Fix attendance response validation for students without external student IDs
 
 ### Purpose

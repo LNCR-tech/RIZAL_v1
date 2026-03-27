@@ -24,6 +24,7 @@ from app.models.associations import program_department_association
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.repositories.import_repository import ImportRepository
+from app.services.email_service import send_import_onboarding_email
 from app.services.import_file_service import load_tabular_rows_from_bytes
 from app.services.import_validation_service import (
     EXPECTED_HEADERS,
@@ -476,6 +477,7 @@ class StudentImportService:
         email: str,
         first_name: str | None = None,
     ) -> None:
+        publish_error: Exception | None = None
         try:
             celery_app.send_task(
                 "app.workers.tasks.send_student_import_onboarding_email",
@@ -488,12 +490,37 @@ class StudentImportService:
             )
             return
         except Exception as exc:
+            publish_error = exc
             logger.warning(
-                "Deferring onboarding email delivery for import job %s and user %s because task publishing failed.",
+                "Falling back to inline onboarding email delivery for import job %s and user %s because task publishing failed.",
                 job_id,
                 user_id,
                 exc_info=True,
             )
+
+        try:
+            send_import_onboarding_email(
+                recipient_email=email,
+                first_name=first_name,
+            )
+            with SessionLocal() as db:
+                repo = ImportRepository(db)
+                repo.log_email_delivery(
+                    job_id=job_id,
+                    user_id=user_id,
+                    email=email,
+                    status="sent",
+                    retry_count=0,
+                )
+                db.commit()
+            return
+        except Exception as exc:
+            inline_error_message = str(exc)
+            if publish_error is not None:
+                inline_error_message = (
+                    f"Celery publish failed: {publish_error}. "
+                    f"Inline delivery failed: {exc}"
+                )
 
         with SessionLocal() as db:
             repo = ImportRepository(db)
@@ -501,8 +528,8 @@ class StudentImportService:
                 job_id=job_id,
                 user_id=user_id,
                 email=email,
-                status="deferred",
-                error_message=str(exc),
+                status="failed",
+                error_message=inline_error_message,
                 retry_count=0,
             )
             db.commit()

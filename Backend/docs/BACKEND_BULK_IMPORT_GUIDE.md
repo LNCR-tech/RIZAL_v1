@@ -47,7 +47,7 @@ Use this supported flow instead:
 - keep defensive database conflict handling only for late races, such as another process creating the same email after preview approval
 - create missing `departments`, `programs`, and `program_department_association` rows for the target school in bulk before student profiles are inserted
 - assign one shared password-pending bcrypt hash per import job instead of generating a unique temporary password hash for every imported user
-- queue onboarding emails outside the critical import path; if email task publishing fails, the job logs deferred delivery instead of blocking on direct SMTP
+- queue onboarding emails outside the critical import path; if email task publishing fails, fall back to direct in-process delivery and log `sent` or `failed` accordingly
 
 ## Response Contract
 
@@ -78,7 +78,7 @@ Use this supported flow instead:
 
 - retry-failed imports still rebuild a workbook and create a new job, because that flow is explicitly for rows that failed after queueing
 - preview manifests live on disk, so `IMPORT_STORAGE_DIR` must be writable by the API and worker processes
-- when Celery is unavailable, import processing still runs in the API process, but onboarding email delivery is deferred instead of falling back to direct per-user SMTP
+- when Celery is unavailable, import processing still runs in the API process and onboarding email delivery now falls back to direct per-user SMTP for that row
 - preview approval belongs to the user and school that created it; another user or school cannot consume the same token
 - large preview duplicate checks should not use one giant SQL `IN (...)` expression; the repository now chunks those lookups to avoid PostgreSQL stack-depth failures
 - PostgreSQL import locking is now scoped per school, so concurrent imports from different schools can run at the same time while same-school jobs still serialize safely
@@ -97,5 +97,5 @@ Use this supported flow instead:
 9. From an invalid preview, download the preview error report and retry file and confirm both files contain the failed preview rows.
 10. From an invalid preview that still has at least one valid row, call `POST /api/admin/import-preview-errors/{preview_token}/remove-invalid` and confirm the response changes to `can_commit=true` with `invalid_rows=0`.
 11. Import using that same cleaned `preview_token` and confirm the job is queued successfully.
-12. If Celery is unavailable, confirm the job still completes and `email_delivery_logs` records deferred onboarding delivery instead of blocking the import.
+12. If Celery is unavailable, confirm the job still completes and `email_delivery_logs` records onboarding delivery as `sent` when inline fallback succeeds, or `failed` when inline fallback also fails.
 13. Call both deprecated `/school-settings/me/users/import*` routes and confirm they return `410 Gone` with the replacement admin-import endpoints in the error detail.
