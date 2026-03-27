@@ -28,6 +28,7 @@ logs/
 # Environment / secrets
 .env
 .env.*
+!**/.env.example
 !.env.smtp.example
 Frontend/.env.local
 Backend/.env

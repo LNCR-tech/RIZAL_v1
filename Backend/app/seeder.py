@@ -84,6 +84,7 @@ def seed_admin_user(db: Session, school: School):
     # Check if admin user already exists
     admin_email = os.getenv("ADMIN_EMAIL", "admin@university.edu")
     admin_password = os.getenv("ADMIN_PASSWORD", "AdminPass123!")
+    reset_password = os.getenv("SEED_ADMIN_RESET_PASSWORD", "false").strip().lower() in {"1", "true", "yes", "y"}
     
     existing_admin = db.query(User).filter(User.email == admin_email).first()
     
@@ -117,9 +118,37 @@ def seed_admin_user(db: Session, school: School):
         if getattr(existing_admin, "school_id", None) is not None:
             existing_admin.school_id = None
             updated = True
+        if not getattr(existing_admin, "is_active", True):
+            existing_admin.is_active = True
+            updated = True
         if getattr(existing_admin, "must_change_password", False):
             existing_admin.must_change_password = False
             updated = True
+
+        # Ensure the admin role assignment exists and is not null (legacy data/migrations can leave role_id null).
+        admin_role = db.query(Role).filter(Role.name == "admin").first()
+        if admin_role:
+            existing_assignments = (
+                db.query(UserRole)
+                .filter(UserRole.user_id == existing_admin.id)
+                .all()
+            )
+            if not existing_assignments:
+                db.add(UserRole(user_id=existing_admin.id, role_id=admin_role.id))
+                updated = True
+            else:
+                for assignment in existing_assignments:
+                    if getattr(assignment, "role_id", None) is None:
+                        assignment.role_id = admin_role.id
+                        updated = True
+
+        # Optional: make local login deterministic by forcing the password to match ADMIN_PASSWORD.
+        if reset_password:
+            existing_admin.set_password(admin_password)
+            existing_admin.must_change_password = False
+            updated = True
+            print(f"🔑 Admin password reset to: {admin_password}")
+
         if updated:
             db.commit()
         print("ℹ️  Admin user already exists")

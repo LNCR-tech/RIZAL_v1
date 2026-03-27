@@ -56,6 +56,44 @@ Fixed bulk-import onboarding delivery so newly created users still receive onboa
 4. Check `email_delivery_logs` for imported users and confirm status is `sent` when inline fallback succeeds.
 5. Simulate inline SMTP failure and confirm `email_delivery_logs` records `failed` with the combined publish and inline error message.
 
+## 2026-03-28 - Fix Docker migrations failing on Windows due to CRLF shell scripts
+
+### Purpose
+
+Prevent `docker compose up -d --build` from failing early on Windows when shell scripts are bind-mounted into Linux containers with CRLF line endings (which breaks `/bin/sh` parsing).
+
+### Main files
+
+- `Backend/scripts/run-service.sh`
+- `.gitattributes`
+- `docker-compose.yml`
+- `Backend/app/seeder.py`
+
+### Backend changes
+
+- normalized `*.sh` to LF line endings to ensure `/bin/sh` can execute scripts inside containers
+- added `.gitattributes` rule to keep `*.sh` as LF in the repo going forward
+- made dev seeding enforce a valid admin role assignment and (by default in Docker) reset the seeded admin password so login is deterministic
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- updated Docker default `SMTP_FROM_EMAIL` to a valid address to prevent startup failures in containerized dev
+
+### Migration impact
+
+- no migration content changes, but migrations can now run successfully in Docker on Windows checkouts
+
+### How to test
+
+1. Run `docker builder prune -f` to clear any stale build cache (optional).
+2. Run `docker compose up -d --build`.
+3. Confirm the one-shot `migrate` service completes successfully and the backend starts.
+
 ## 2026-03-27 - Fix attendance response validation for students without external student IDs
 
 ### Purpose

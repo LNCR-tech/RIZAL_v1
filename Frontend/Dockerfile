@@ -4,14 +4,12 @@ FROM node:20
 # Set working directory inside the container
 WORKDIR /app
 
-# Copy only dependency files first to leverage Docker caching
+# Note: we intentionally do NOT run `npm install` during image build.
+# On Docker Desktop/WSL2 + BuildKit, the esbuild postinstall can intermittently fail
+# with ETXTBSY ("text file busy"). Dependencies are installed at container startup
+# into the `/app/node_modules` volume by `scripts/dev-entrypoint.sh`.
 COPY package.json package-lock.json ./
-
-# Install dependencies using npm
-RUN npm install
-
-# Copy the rest of your app code
-COPY . .
+COPY scripts ./scripts
 
 # Expose the port used by Vite dev server
 EXPOSE 5173

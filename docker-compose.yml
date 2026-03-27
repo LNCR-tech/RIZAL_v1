@@ -1,4 +1,14 @@
+#
+# NOTE:
+# This must be a top-level `x-...` extension field (not a service), otherwise Compose/Bake
+# will treat it as a real build target and attempt to export the same image tag multiple
+# times in parallel (leading to: `image "...:dev" already exists`).
+#
+x-backend-image: &backend_image
+  image: aura_refractored-backend:dev
+
 services:
+
   db:
     image: postgres:15
     container_name: postgres-db
@@ -12,6 +22,11 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7-alpine
@@ -19,6 +34,11 @@ services:
     restart: always
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   mailpit:
     image: axllent/mailpit:latest
@@ -28,12 +48,51 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  migrate:
+    <<: *backend_image
+    container_name: backend_migrate_v2
+    command: sh /app/scripts/run-service.sh
+    environment:
+      - SERVICE_MODE=migrate
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+    volumes:
+      - ./Backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    <<: *backend_image
+    container_name: backend_seed_v2
+    command: python seed.py
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      # Deterministic dev bootstrap credentials (override as needed).
+      - DEFAULT_SCHOOL_NAME=${DEFAULT_SCHOOL_NAME:-Aurora University}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@yourdomain.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
+      # Keep local/dev login deterministic even if the user already exists (e.g., created by legacy migrations).
+      - SEED_ADMIN_RESET_PASSWORD=${SEED_ADMIN_RESET_PASSWORD:-true}
+    volumes:
+      - ./Backend:/app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   backend:
+    <<: *backend_image
+    # Build the backend image once. Other backend-adjacent services (worker/beat/migrate/seed)
+    # reference the same image tag without building to avoid parallel export conflicts and
+    # duplicated heavy dependency installs.
     build: ./Backend
     container_name: backend_v2
     ports:
       - "8000:8000"
+    command: sh /app/scripts/run-service.sh
     environment:
+      - SERVICE_MODE=web
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -48,7 +107,8 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-false}
-      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@valid8.local}
+      # Must be a syntactically valid, non-special-use domain because backend validates it at startup.
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@example.com}
       - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
       - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
     volumes:
@@ -57,15 +117,21 @@ services:
       - branding_storage:/tmp/valid8_school_logos
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
-      - mailpit
+      seed:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
 
   worker:
-    build: ./Backend
+    <<: *backend_image
     container_name: backend_worker_v2
-    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
+    command: sh /app/scripts/run-service.sh
     environment:
+      - SERVICE_MODE=worker
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -80,7 +146,7 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-false}
-      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@valid8.local}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@example.com}
       - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
       - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
     volumes:
@@ -89,15 +155,21 @@ services:
       - branding_storage:/tmp/valid8_school_logos
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
-      - mailpit
+      seed:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
 
   beat:
-    build: ./Backend
+    <<: *backend_image
     container_name: backend_beat_v2
-    command: celery -A app.workers.celery_app.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    command: sh /app/scripts/run-service.sh
     environment:
+      - SERVICE_MODE=beat
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -112,7 +184,7 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-false}
-      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@valid8.local}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@example.com}
       - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
       - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
     volumes:
@@ -121,9 +193,14 @@ services:
       - branding_storage:/tmp/valid8_school_logos
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
-      - mailpit
+      seed:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
 
   frontend:
     build: ./Frontend

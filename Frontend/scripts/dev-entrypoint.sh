@@ -29,10 +29,28 @@ if [ ! -d "node_modules/react-leaflet" ] || [ ! -d "node_modules/leaflet" ]; the
   needs_install="true"
 fi
 
+# If the dev server binary is missing, we definitely need an install.
+if [ ! -x "node_modules/.bin/vite" ]; then
+  needs_install="true"
+fi
+
 if [ "$needs_install" = "true" ]; then
   echo "Installing frontend dependencies..."
-  npm install
-  mkdir -p node_modules
+  # Prefer reproducible installs when lockfile exists.
+  # Fall back to `npm install` if CI mode fails (e.g., lockfile drift).
+  npm ci || npm install
+
+  if [ ! -x "node_modules/.bin/vite" ]; then
+    echo "ERROR: Frontend dependencies install did not produce vite. Retrying with a clean node_modules..." >&2
+    rm -rf node_modules
+    npm install
+  fi
+
+  if [ ! -x "node_modules/.bin/vite" ]; then
+    echo "ERROR: vite is still missing after install. Check npm logs above." >&2
+    exit 1
+  fi
+
   printf "%s" "$current_lock_hash" > "$STAMP_FILE"
 fi
 
