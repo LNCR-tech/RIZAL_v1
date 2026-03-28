@@ -15,9 +15,9 @@ import { resolveAssistantBaseUrl } from '@/services/assistantBaseUrl.js'
 import { streamAssistantReply } from '@/services/assistantApi.js'
 
 // ─── Shared singleton state ───────────────────────────────────────────────────
-const messages   = ref([
-  { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }
-])
+const messages   = ref([])
+
+
 const inputText  = ref('')
 const isTyping   = ref(false)
 const isMiniOpen = ref(false)

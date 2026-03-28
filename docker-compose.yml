@@ -160,6 +160,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_API_BASE=${OPENAI_API_BASE:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-}
+    volumes:
+      - ./Assistant:/app
     depends_on:
       db:
         condition: service_healthy

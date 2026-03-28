@@ -30,6 +30,18 @@
           </div>
 
           <div class="chat-header-actions">
+            <!-- Copy conversation to clipboard -->
+            <button
+              v-if="messages.length > 0"
+              class="chat-icon-btn"
+              :title="copied ? 'Copied!' : 'Copy conversation'"
+              aria-label="Copy conversation"
+              @click="copyConversation"
+            >
+              <Check v-if="copied" :size="15" />
+              <Copy v-else :size="15" />
+            </button>
+
             <!-- Minimize → return to mini pill -->
             <button
               class="chat-icon-btn"
@@ -98,7 +110,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { Minus, X, Send } from 'lucide-vue-next'
+import { Minus, X, Send, Copy, Check } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 
@@ -116,6 +128,28 @@ const {
 } = useChat()
 
 const inputEl = ref(null)
+const copied = ref(false)
+
+const copyConversation = async () => {
+  if (!messages.value.length) return
+
+  const formatted = messages.value
+    .map((m) => {
+      const prefix = m.sender === 'ai' ? 'Aura' : 'You'
+      return `${prefix}: ${m.text}`
+    })
+    .join('\n\n')
+
+  try {
+    await navigator.clipboard.writeText(formatted)
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy conversation:', err)
+  }
+}
 
 // Auto-focus input when window opens
 watch(isFullOpen, (val) => {
