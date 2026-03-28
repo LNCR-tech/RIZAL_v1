@@ -37,6 +37,8 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       LOGIN_URL: ${LOGIN_URL:-http://localhost}
@@ -76,6 +78,8 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       LOGIN_URL: ${LOGIN_URL:-http://localhost}
@@ -101,6 +105,8 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       LOGIN_URL: ${LOGIN_URL:-http://localhost}
@@ -116,13 +122,39 @@ services:
       - import_storage:/tmp/valid8_imports
       - branding_storage:/tmp/valid8_school_logos
 
+  assistant:
+    build:
+      context: ./Assistant
+    restart: unless-stopped
+    environment:
+      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      APP_DATABASE_URL: ${APP_DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      JWT_SECRET: ${SECRET_KEY:-change-this-secret-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ASSISTANT_AUTO_MIGRATE: ${ASSISTANT_AUTO_MIGRATE:-true}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_API_BASE: ${LLM_API_BASE:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./Frontend
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/__backend__}
+        VITE_API_TIMEOUT_MS: ${VITE_API_TIMEOUT_MS:-15000}
     restart: unless-stopped
+    environment:
+      # Used by nginx template to proxy /__backend__/ to the backend service.
+      BACKEND_ORIGIN: ${BACKEND_ORIGIN:-http://backend:8000}
+      ASSISTANT_ORIGIN: ${ASSISTANT_ORIGIN:-http://assistant:8500}
+      # Used by /docker-entrypoint.d/40-runtime-config.sh to generate runtime-config.js.
+      AURA_API_BASE_URL: ${AURA_API_BASE_URL:-/__backend__}
+      AURA_API_TIMEOUT_MS: ${AURA_API_TIMEOUT_MS:-15000}
+      AURA_ASSISTANT_BASE_URL: ${AURA_ASSISTANT_BASE_URL:-/__assistant__}
     depends_on:
       backend:
         condition: service_healthy

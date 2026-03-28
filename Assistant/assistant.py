@@ -183,6 +183,12 @@ def on_startup() -> None:
     init_db()
 
 
+@app.get("/health")
+def health() -> Dict[str, str]:
+    # Lightweight health endpoint for docker compose / probes.
+    return {"status": "ok"}
+
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
@@ -1247,6 +1253,90 @@ def _sse_event(event: str, data: Dict[str, Any]) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
+def _stream_text_as_sse(conversation_id: str, text: str) -> StreamingResponse:
+    """Stream plain assistant text as SSE `message` events, ending with a `done` event."""
+
+    def _gen() -> Generator[str, None, None]:
+        chunk_size = 180
+        for i in range(0, len(text), chunk_size):
+            yield _sse_event("message", {"conversation_id": conversation_id, "content": text[i : i + chunk_size]})
+        yield _sse_event(
+            "done",
+            {"conversation_id": conversation_id, "message_id": str(uuid.uuid4()), "finish_reason": "stop"},
+        )
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
+def _truncate_list(values: List[str], *, limit: int = 60) -> tuple[List[str], int]:
+    items = [v for v in values if isinstance(v, str) and v.strip()]
+    total = len(items)
+    if total <= limit:
+        return items, total
+    return items[:limit], total
+
+
+def _maybe_answer_capability_question(
+    user_message: str,
+    *,
+    user_id: str,
+    primary_role: str,
+    roles: List[str],
+    permissions: List[str],
+) -> Optional[str]:
+    """Return a safe, user-facing capability answer for scope/role/table questions."""
+    msg = (user_message or "").strip().lower()
+    if not msg:
+        return None
+
+    looks_like_capability_q = any(
+        needle in msg
+        for needle in (
+            "what tables",
+            "which tables",
+            "table list",
+            "what can you access",
+            "what data can you access",
+            "what do you have access",
+            "what permissions",
+            "my permissions",
+            "what is my role",
+            "my role",
+            "what can you do",
+            "your capabilities",
+            "access scope",
+            "scope rules",
+        )
+    )
+    if not looks_like_capability_q:
+        return None
+
+    policy = get_effective_policy(roles, permissions)
+    readable, total_readable = _truncate_list(sorted(policy.allowed_tables))
+    writable, total_writable = _truncate_list(sorted(policy.allowed_write_tables))
+    scope_rules = summarize_scope_rules(policy)
+
+    def _fmt_list(label: str, values: List[str], total: int) -> str:
+        if total == 0:
+            return f"- {label}: none"
+        suffix = "" if len(values) == total else f" (showing {len(values)} of {total})"
+        return f"- {label}{suffix}: " + ", ".join(values)
+
+    permissions_text = ", ".join(permissions) if permissions else "none"
+    scope_rules_text = "; ".join(scope_rules) if scope_rules else "none"
+
+    return (
+        "Here is what I can see from your current login token and role policy.\n\n"
+        f"- user_id: {user_id}\n"
+        f"- primary_role: {primary_role}\n"
+        f"- roles: {', '.join(roles)}\n"
+        f"- permissions: {permissions_text}\n"
+        f"{_fmt_list('readable_tables', readable, total_readable)}\n"
+        f"{_fmt_list('writable_tables', writable, total_writable)}\n"
+        f"- scope_rules: {scope_rules_text}\n"
+    )
+
+
 @app.post("/assistant/stream")
 async def assistant_stream(
     request: Request,
@@ -1278,6 +1368,18 @@ async def assistant_stream(
     history = _get_conversation_messages(db, conversation_id, limit=max_messages)
     _append_message(db, conversation_id, "user", body.message)
 
+    capability_answer = _maybe_answer_capability_question(
+        body.message,
+        user_id=request_user_id,
+        primary_role=primary_role,
+        roles=effective_roles,
+        permissions=effective_permissions,
+    )
+    if capability_answer:
+        _append_message(db, conversation_id, "assistant", capability_answer)
+        await _update_conversation_title(db, conversation_id)
+        return _stream_text_as_sse(conversation_id, capability_answer)
+
     # Do not reveal system prompts / hidden instructions / internal context.
     if await _validator_is_internal_prompt_request(body.message):
         safe_text = (
@@ -1287,17 +1389,7 @@ async def assistant_stream(
         _append_message(db, conversation_id, "assistant", safe_text)
         await _update_conversation_title(db, conversation_id)
 
-        def stream_safe() -> Generator[str, None, None]:
-            chunk_size = 160
-            for i in range(0, len(safe_text), chunk_size):
-                chunk = safe_text[i : i + chunk_size]
-                yield _sse_event("message", {"conversation_id": conversation_id, "content": chunk})
-            yield _sse_event(
-                "done",
-                {"conversation_id": conversation_id, "message_id": str(uuid.uuid4()), "finish_reason": "stop"},
-            )
-
-        return StreamingResponse(stream_safe(), media_type="text/event-stream")
+        return _stream_text_as_sse(conversation_id, safe_text)
 
     system_prompt = _load_system_prompt()
     identity_name = identity.get("name") or identity.get("user_name")

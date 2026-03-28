@@ -43,6 +43,8 @@ lerna-debug.log*
 .env.*
 !**/.env.example
 !.env.smtp.example
+# Keep the docker example env committed for onboarding.
+!Frontend/.env.docker.example
 .env.docker
 Frontend/.env.local
 Backend/.env
@@ -64,3 +66,6 @@ Backend/face_encodings.pkl
 Backend/.alembic.ini.swp
 Backend/.venv/
 GITHUB/
+
+# Local-only safety: we may temporarily park deprecated UI assets here during migrations.
+archive/Frontend_legacy_react/
