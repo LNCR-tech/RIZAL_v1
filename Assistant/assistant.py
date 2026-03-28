@@ -69,10 +69,10 @@ LLM_API_KEY = (
 LLM_API_BASE = os.getenv("LLM_API_BASE") or os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ASSISTANT_AUTO_MIGRATE = os.getenv("ASSISTANT_AUTO_MIGRATE", "true").lower() == "true"
-MCP_SCHEMA_URL = os.getenv("MCP_SCHEMA_URL") or "http://127.0.0.1:9001/schema"
-MCP_QUERY_URL = os.getenv("MCP_QUERY_URL") or "http://127.0.0.1:9002/query"
-MCP_SCHOOL_ADMIN_URL = os.getenv("MCP_SCHOOL_ADMIN_URL") or "http://127.0.0.1:9003/action"
-MCP_STUDENT_IMPORT_URL = os.getenv("MCP_STUDENT_IMPORT_URL") or "http://127.0.0.1:9004/action"
+MCP_SCHEMA_URL = os.getenv("MCP_SCHEMA_URL") or "http://127.0.0.1:8500/mcp/schema/schema"
+MCP_QUERY_URL = os.getenv("MCP_QUERY_URL") or "http://127.0.0.1:8500/mcp/query/query"
+MCP_SCHOOL_ADMIN_URL = os.getenv("MCP_SCHOOL_ADMIN_URL") or "http://127.0.0.1:8500/mcp/school-admin/action"
+MCP_STUDENT_IMPORT_URL = os.getenv("MCP_STUDENT_IMPORT_URL") or "http://127.0.0.1:8500/mcp/student-import/action"
 ASSISTANT_CONTEXT_MAX_MESSAGES = os.getenv("ASSISTANT_CONTEXT_MAX_MESSAGES")
 
 if not ASSISTANT_DB_URL:
@@ -161,7 +161,23 @@ class ConversationUpdate(BaseModel):
     title: str = Field(..., min_length=1, max_length=80)
 
 
-app = FastAPI(title="Agentic Assistant API")
+app = FastAPI(
+    title="Agentic Assistant API",
+    openapi_url="/__assistant__/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# Integrated MCP sub-apps (Role-scoped tools)
+from mcp.schema_server import app as schema_app
+from mcp.query_server import app as query_app
+from mcp.school_admin_server import app as school_admin_app
+from mcp.student_import_server import app as student_import_app
+
+app.mount("/mcp/schema", schema_app)
+app.mount("/mcp/query", query_app)
+app.mount("/mcp/school-admin", school_admin_app)
+app.mount("/mcp/student-import", student_import_app)
 
 # Dev-friendly CORS (adjust origins for production)
 app.add_middleware(

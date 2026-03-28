@@ -154,11 +154,13 @@ def test_send_import_onboarding_email_matches_welcome_credentials_copy(monkeypat
     )
 
     assert sent["recipient_email"] == "imported.user@example.com"
-    assert "Email: imported.user@example.com" in sent["body"]
-    assert "Temporary Password: ImportPass123!" in sent["body"]
+    assert "Your account has been created" in sent["body"]
+    assert "Forgot Password option" in sent["body"]
     assert "Login URL: https://valid8.example/login" in sent["body"]
-    assert "Forgot Password option" not in sent["body"]
-    assert "Login Credentials" in sent["html_body"]
+    # No longer includes raw credentials
+    assert "Email: " not in sent["body"]
+    assert "Temporary Password: " not in sent["body"]
+    assert "Account Ready" in sent["subject"]
 
 
 def test_validate_email_delivery_settings_accepts_gmail_api_transport() -> None:
