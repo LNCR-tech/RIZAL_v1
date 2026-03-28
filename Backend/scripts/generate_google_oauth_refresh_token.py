@@ -96,7 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--login-hint",
-        default=settings.smtp_username,
+        default=settings.email_sender_email,
         help="Optional Google account email to prefill during authorization.",
     )
     parser.add_argument(
@@ -257,6 +257,9 @@ def main() -> int:
         "GOOGLE_OAUTH_SCOPES": scopes,
         "EMAIL_TRANSPORT": "gmail_api",
     }
+    if args.login_hint.strip():
+        output["EMAIL_SENDER_EMAIL"] = args.login_hint.strip()
+        output["EMAIL_FROM_EMAIL"] = args.login_hint.strip()
 
     if args.json:
         print(json.dumps(output, indent=2))

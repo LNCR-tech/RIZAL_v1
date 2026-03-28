@@ -4,7 +4,6 @@ Role: Core setup layer. It keeps runtime configuration in one place.
 """
 
 import os
-import socket
 from pathlib import Path
 
 try:
@@ -69,6 +68,14 @@ def _as_email_list(value: str | None, default: list[str]) -> list[str]:
     return parsed or default
 
 
+def _get_first_env_value(*names: str, default: str = "") -> str:
+    for name in names:
+        value = os.getenv(name)
+        if value is not None:
+            return value
+    return default
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -107,21 +114,13 @@ class Settings:
     celery_result_backend: str
     celery_task_time_limit_seconds: int
 
-    smtp_host: str
-    smtp_port: int
-    smtp_timeout_seconds: int
-    smtp_username: str
-    smtp_password: str
-    smtp_from_email: str
-    smtp_from_name: str
-    smtp_reply_to: str
-    smtp_use_tls: bool
-    smtp_use_ssl: bool
-    smtp_ehlo_name: str
-    smtp_prefer_ipv4: bool
-    smtp_auth_mode: str
-    smtp_google_account_type: str
-    smtp_google_allow_custom_from: bool
+    email_timeout_seconds: int
+    email_sender_email: str
+    email_from_email: str
+    email_from_name: str
+    email_reply_to: str
+    email_google_account_type: str
+    email_google_allow_custom_from: bool
     google_oauth_client_id: str
     google_oauth_client_secret: str
     google_oauth_refresh_token: str
@@ -142,8 +141,7 @@ class Settings:
 
 def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-    smtp_host = os.getenv("SMTP_HOST", "").strip()
-    email_transport = (os.getenv("EMAIL_TRANSPORT") or ("smtp" if smtp_host else "disabled")).strip().lower()
+    email_transport = (os.getenv("EMAIL_TRANSPORT") or "disabled").strip().lower()
 
     return Settings(
         database_url=os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/fastapi_db"),
@@ -200,21 +198,27 @@ def get_settings() -> Settings:
         celery_broker_url=os.getenv("CELERY_BROKER_URL", redis_url),
         celery_result_backend=os.getenv("CELERY_RESULT_BACKEND", redis_url),
         celery_task_time_limit_seconds=max(60, int(os.getenv("CELERY_TASK_TIME_LIMIT_SECONDS", "10800"))),
-        smtp_host=smtp_host,
-        smtp_port=int(os.getenv("SMTP_PORT", "587")),
-        smtp_timeout_seconds=max(5, int(os.getenv("SMTP_TIMEOUT_SECONDS", "20"))),
-        smtp_username=os.getenv("SMTP_USERNAME", ""),
-        smtp_password=os.getenv("SMTP_PASSWORD", ""),
-        smtp_from_email=os.getenv("SMTP_FROM_EMAIL", ""),
-        smtp_from_name=os.getenv("SMTP_FROM_NAME", "VALID8 Notifications"),
-        smtp_reply_to=os.getenv("SMTP_REPLY_TO", ""),
-        smtp_use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), True),
-        smtp_use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
-        smtp_ehlo_name=(os.getenv("SMTP_EHLO_NAME") or socket.getfqdn()).strip(),
-        smtp_prefer_ipv4=_as_bool(os.getenv("SMTP_PREFER_IPV4"), False),
-        smtp_auth_mode=(os.getenv("SMTP_AUTH_MODE") or "auto").strip().lower(),
-        smtp_google_account_type=(os.getenv("SMTP_GOOGLE_ACCOUNT_TYPE") or "auto").strip().lower(),
-        smtp_google_allow_custom_from=_as_bool(os.getenv("SMTP_GOOGLE_ALLOW_CUSTOM_FROM"), False),
+        email_timeout_seconds=max(
+            5,
+            int(_get_first_env_value("EMAIL_TIMEOUT_SECONDS", "SMTP_TIMEOUT_SECONDS", default="20")),
+        ),
+        email_sender_email=_get_first_env_value("EMAIL_SENDER_EMAIL", "SMTP_USERNAME").strip(),
+        email_from_email=_get_first_env_value("EMAIL_FROM_EMAIL", "SMTP_FROM_EMAIL").strip(),
+        email_from_name=_get_first_env_value(
+            "EMAIL_FROM_NAME",
+            "SMTP_FROM_NAME",
+            default="VALID8 Notifications",
+        ).strip(),
+        email_reply_to=_get_first_env_value("EMAIL_REPLY_TO", "SMTP_REPLY_TO").strip(),
+        email_google_account_type=_get_first_env_value(
+            "EMAIL_GOOGLE_ACCOUNT_TYPE",
+            "SMTP_GOOGLE_ACCOUNT_TYPE",
+            default="auto",
+        ).strip().lower(),
+        email_google_allow_custom_from=_as_bool(
+            _get_first_env_value("EMAIL_GOOGLE_ALLOW_CUSTOM_FROM", "SMTP_GOOGLE_ALLOW_CUSTOM_FROM"),
+            False,
+        ),
         google_oauth_client_id=os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip(),
         google_oauth_client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip(),
         google_oauth_refresh_token=os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip(),

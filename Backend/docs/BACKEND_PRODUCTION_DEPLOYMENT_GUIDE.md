@@ -38,7 +38,7 @@ This guide documents the single Docker Compose release path for the repo. The st
   - `/media/school-logos/*`
 - added a one-shot `migrate` service so Alembic runs before backend, worker, and beat start
 - corrected the Compose build contexts to use the real `Backend/` and `Frontend/` directory casing so Linux deployments do not fail on case-sensitive filesystems
-- changed direct Postgres, Redis, Mailpit, pgAdmin, and backend port mappings to loopback by default for safer VM and cloud deployment
+- changed direct Postgres, Redis, pgAdmin, and backend port mappings to loopback by default for safer VM and cloud deployment
 - kept the reusable concurrent load-test script for health, login, events, and mixed authenticated traffic
 
 ## Release Startup
@@ -69,9 +69,9 @@ This guide documents the single Docker Compose release path for the repo. The st
 - frontend reverse proxies must preserve the `/api` prefix for backend private routes; only the proxied docs paths such as `/api/docs` should rewrite to backend docs endpoints
 - the backend startup script now creates the configured import and logo storage directories before `uvicorn` starts so Railway-mounted `/data/*` paths are writable on first boot
 - Celery worker and beat still require Redis and the same backend environment variables
-- the default local SMTP target is `mailpit`; set the Google mail variables in `Backend/.env.example` for real email delivery
+- the local Compose stack no longer provisions a mail sandbox; leave email disabled by default or set real Gmail API variables before testing outbound delivery
 - local backend runs now check both `Backend/.env` and the repo-root `.env`, while real exported environment variables still win over dotenv values
-- the backend now validates outbound email config during startup when `EMAIL_TRANSPORT=smtp` or `EMAIL_TRANSPORT=gmail_api`
+- the backend now validates outbound email config during startup when `EMAIL_TRANSPORT=gmail_api`
 - set `EMAIL_VERIFY_CONNECTION_ON_STARTUP=true` temporarily if you want the backend to fail fast on a broken Google mail login during rollout
 - face endpoints now lazy-load the optional `face_recognition` dependency so the backend can still boot for auth, import, attendance, and governance flows when that runtime is missing
 - when the optional face runtime is missing, face routes return an explicit `503` dependency error instead of crashing module import during startup
@@ -103,20 +103,14 @@ Set these before a real cloud deployment:
 - `POSTGRES_PASSWORD`
 - `DATABASE_ADMIN_URL` if tenant provisioning should connect through a separate admin database URL
 - `TENANT_DATABASE_PREFIX` if tenant database names and keys should use a prefix other than `school`
-- `EMAIL_TRANSPORT=smtp` if forgot-password, MFA, onboarding, or notification emails must leave the host
-- use `EMAIL_TRANSPORT=gmail_api` on Railway if SMTP still times out or your plan does not allow outbound SMTP
+- `EMAIL_TRANSPORT=gmail_api` if forgot-password, MFA, onboarding, or notification emails must leave the host
 - `EMAIL_REQUIRED_ON_STARTUP=true`
 - `FACE_SCAN_BYPASS_EMAILS` if you want specific student accounts such as `jrmsu@university.edu` to skip biometric verification in test or staging environments
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_TIMEOUT_SECONDS`, `SMTP_FROM_NAME`, `SMTP_FROM_EMAIL`, `SMTP_REPLY_TO`, `SMTP_USE_TLS`, `SMTP_USE_SSL`
-- `SMTP_AUTH_MODE`
-- `SMTP_USERNAME` and `SMTP_PASSWORD` for App Password or SMTP AUTH flows
-- `SMTP_GOOGLE_ACCOUNT_TYPE` and `SMTP_GOOGLE_ALLOW_CUSTOM_FROM` if you want a Workspace `no-reply@domain` sender
-- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`, `GOOGLE_OAUTH_AUTH_URL`, and `GOOGLE_OAUTH_TOKEN_URL` for `EMAIL_TRANSPORT=gmail_api` or `SMTP_AUTH_MODE=xoauth2`
-- `GOOGLE_OAUTH_SCOPES` and `GOOGLE_GMAIL_API_BASE_URL` for `EMAIL_TRANSPORT=gmail_api`
-- use exactly one SMTP transport mode:
-  - `SMTP_USE_TLS=true` and `SMTP_USE_SSL=false` for STARTTLS, commonly port `587`
-  - `SMTP_USE_TLS=false` and `SMTP_USE_SSL=true` for implicit SSL, commonly port `465`
-- see `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md` for the exact Google Workspace mailbox, Gmail App Password, SMTP relay, and XOAUTH2 setup steps
+- `EMAIL_TIMEOUT_SECONDS`, `EMAIL_SENDER_EMAIL`, `EMAIL_FROM_NAME`, `EMAIL_FROM_EMAIL`, `EMAIL_REPLY_TO`
+- `EMAIL_GOOGLE_ACCOUNT_TYPE` and `EMAIL_GOOGLE_ALLOW_CUSTOM_FROM` if you want a Workspace `no-reply@domain` sender
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`, `GOOGLE_OAUTH_AUTH_URL`, and `GOOGLE_OAUTH_TOKEN_URL`
+- `GOOGLE_OAUTH_SCOPES` and `GOOGLE_GMAIL_API_BASE_URL`
+- see `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md` for the exact Gmail API mailbox and send-as alias setup steps
 
 ## Load Testing
 
@@ -147,13 +141,13 @@ Set these before a real cloud deployment:
   - `npm run build`
 - verify backend tests still pass:
   - `Backend\\.venv\\Scripts\\python.exe -m pytest -q Backend/app/tests`
-- verify SMTP config and transport mode:
+- verify Gmail API config and transport mode:
   - `cd Backend && python -c "from app.services.email_service import get_email_delivery_summary; print(get_email_delivery_summary())"`
 - verify the configured mail transport and sender acceptance without sending a message:
   - `cd Backend && python scripts/send_test_email.py --recipient your-address@example.com --check-only`
 - send a real production-style smoke test:
   - `cd Backend && python scripts/send_test_email.py --recipient your-address@example.com`
-- generate a Gmail API refresh token when switching away from SMTP:
+- generate a Gmail API refresh token:
   - `cd Backend && python scripts/generate_google_oauth_refresh_token.py --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET`
 - verify the load-test tool help output:
   - `python tools/load_test.py --help`

@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+# Keep this script LF-only; Docker's /bin/sh will fail on CRLF line endings.
+
 LOCKFILE="package-lock.json"
 STAMP_FILE="node_modules/.package-lock.sha256"
 

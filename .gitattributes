@@ -2,4 +2,3 @@
 # Ensure shell scripts use LF in the repo (Windows CRLF breaks `/bin/sh` inside Linux containers).
 #
 *.sh text eol=lf
-

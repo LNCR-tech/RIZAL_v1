@@ -1,6 +1,6 @@
-"""Use: Verify backend email delivery and optionally send a real test message.
-Where to use: Run this from `Backend/` when validating SMTP or Gmail API mail setup locally or in production.
-Role: Operator script. It checks config, verifies the active mail transport, and sends a smoke-test email.
+"""Use: Verify backend Gmail API delivery and optionally send a real test message.
+Where to use: Run this from `Backend/` when validating Gmail API mail setup locally or in production.
+Role: Operator script. It checks config, verifies the active Gmail API sender, and sends a smoke-test email.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from app.services.email_service import (
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Verify email connectivity and send a transactional email smoke test."
+        description="Verify Gmail API connectivity and send a transactional email smoke test."
     )
     parser.add_argument(
         "--recipient",
@@ -86,12 +86,12 @@ def main() -> int:
             return 0
 
         timestamp = datetime.now(timezone.utc).isoformat()
-        subject = args.subject.strip() or f"VALID8 SMTP smoke test {timestamp}"
+        subject = args.subject.strip() or f"VALID8 Gmail API smoke test {timestamp}"
         body = args.body.strip() or (
-            "This is a real VALID8 transactional-email smoke test.\n\n"
+            "This is a real VALID8 Gmail API transactional-email smoke test.\n\n"
             f"UTC timestamp: {timestamp}\n"
-            "If you received this message, the backend connected to the configured mail transport "
-            "and completed a full send."
+            "If you received this message, the backend refreshed a Google OAuth token "
+            "and completed a full Gmail API send."
         )
         send_test_email(
             recipient_email=args.recipient.strip(),

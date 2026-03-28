@@ -39,6 +39,7 @@ Backend/.env
 *.sqlite3
 postgres_data/
 Backend/smoke.db
+Backend/storage/
 
 # Project-specific generated files
 Backend/face_encodings.pkl

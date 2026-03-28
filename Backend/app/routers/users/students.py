@@ -72,7 +72,7 @@ def create_student_account(
                 status_code=502,
                 detail=(
                     "Student account was not created because the welcome email could not be delivered. "
-                    f"SMTP error: {exc}"
+                    f"Email delivery error: {exc}"
                 ),
             ) from exc
 
