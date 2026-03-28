@@ -78,6 +78,20 @@ event: done
 data: {"conversation_id":"c_9a2f1d3b","message_id":"m_7812","finish_reason":"stop"}
 ```
 
+## Health
+
+**Request**
+
+`GET /health`
+
+**Response JSON**
+
+```json
+{
+  "status": "ok"
+}
+```
+
 ## List Conversations
 
 **Request**

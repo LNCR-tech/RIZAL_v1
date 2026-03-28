@@ -14,7 +14,6 @@ x-backend-image: &backend_image
 services:
   db:
     image: postgres:15
-    container_name: postgres-db
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -33,7 +32,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: valid8-redis
     restart: always
     ports:
       - "6379:6379"
@@ -47,7 +45,6 @@ services:
   # but is not used unless you later re-introduce an SMTP transport.
   mailpit:
     image: axllent/mailpit:latest
-    container_name: valid8-mailpit
     restart: unless-stopped
     ports:
       - "1025:1025"
@@ -55,7 +52,6 @@ services:
 
   migrate:
     <<: *backend_image
-    container_name: backend_migrate_v2
     command: sh /app/scripts/run-service.sh
     environment:
       - SERVICE_MODE=migrate
@@ -69,7 +65,6 @@ services:
 
   seed:
     <<: *backend_image
-    container_name: backend_seed_v2
     command: python seed.py
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
@@ -98,13 +93,15 @@ services:
     <<: *backend_image
     # Build the backend image once. Other backend-adjacent services reference the same image tag.
     build: ./Backend
-    container_name: backend_v2
     ports:
       - "8000:8000"
     command: sh /app/scripts/run-service.sh
     environment:
       - SERVICE_MODE=web
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      # Keep backend JWT settings explicit so other services (Assistant) can validate tokens consistently.
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
@@ -148,13 +145,34 @@ services:
       redis:
         condition: service_healthy
 
+  assistant:
+    build: ./Assistant
+    environment:
+      - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - APP_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - JWT_SECRET=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ASSISTANT_AUTO_MIGRATE=true
+      # LLM configuration (OpenAI-compatible). Required for real assistant replies.
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_BASE=${LLM_API_BASE:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   worker:
     <<: *backend_image
-    container_name: backend_worker_v2
     command: sh /app/scripts/run-service.sh
     environment:
       - SERVICE_MODE=worker
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
@@ -198,7 +216,6 @@ services:
 
   test_backend:
     <<: *backend_image
-    container_name: backend_test_v2
     command: pytest -q
     environment:
       # Tests use in-memory SQLite via fixtures; keep DATABASE_URL safe to import even if read.
@@ -215,7 +232,6 @@ services:
 
   auto_tests:
     <<: *backend_image
-    container_name: backend_auto_tests_v2
     profiles: ["test"]
     working_dir: /repo
     command: python cmpj/auto_tests/run_tests.py --base-url http://backend:8000 --out-dir /repo/cmpj
@@ -233,11 +249,12 @@ services:
 
   beat:
     <<: *backend_image
-    container_name: backend_beat_v2
     command: sh /app/scripts/run-service.sh
     environment:
       - SERVICE_MODE=beat
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
@@ -280,22 +297,25 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ./Frontend
-    container_name: frontend_v2
+    build:
+      context: ./Frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
+    environment:
+      # Used by nginx template to proxy /__backend__/ to the backend service.
+      - BACKEND_ORIGIN=http://backend:8000
+      - ASSISTANT_ORIGIN=http://assistant:8500
+      # Used by /docker-entrypoint.d/40-runtime-config.sh to generate runtime-config.js.
+      - AURA_API_BASE_URL=/__backend__
+      - AURA_API_TIMEOUT_MS=15000
+      - AURA_ASSISTANT_BASE_URL=/__assistant__
     depends_on:
       - backend
-    working_dir: /app
-    volumes:
-      - ./Frontend:/app
-      - /app/node_modules
-    command: sh /app/scripts/dev-entrypoint.sh
+      - assistant
     restart: unless-stopped
 
   pgadmin:
     image: dpage/pgadmin4
-    container_name: pgadmin
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
