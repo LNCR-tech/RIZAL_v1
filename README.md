@@ -37,7 +37,7 @@ powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1
 ### Any OS
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
 3. Open:
@@ -45,7 +45,13 @@ docker compose up --build
 - Backend API: `http://localhost:8000`
 - pgAdmin: `http://localhost:5050`
 
-If you used `-d` (detached mode) and want to re-print the URLs/credentials later:
+To print the seeded demo credentials (the `seed` one-shot container logs):
+
+```bash
+docker compose logs --no-color --tail=200 seed
+```
+
+If you're on Windows and want the URLs + credentials printed in a nicer format:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/dev-info.ps1
