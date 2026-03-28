@@ -108,6 +108,8 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
+      # Dev-only: bypass face verification gate so testers can automate privileged flows.
+      - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
       - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
       - LOGIN_URL=http://localhost:5173
       - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
@@ -156,6 +158,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
+      - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
       - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
       - LOGIN_URL=http://localhost:5173
       - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
@@ -193,6 +196,41 @@ services:
       redis:
         condition: service_healthy
 
+  test_backend:
+    <<: *backend_image
+    container_name: backend_test_v2
+    command: pytest -q
+    environment:
+      # Tests use in-memory SQLite via fixtures; keep DATABASE_URL safe to import even if read.
+      - DATABASE_URL=sqlite://
+      - EMAIL_TRANSPORT=disabled
+      - EMAIL_REQUIRED_ON_STARTUP=false
+      - EMAIL_VERIFY_CONNECTION_ON_STARTUP=false
+      - EMAIL_TIMEOUT_SECONDS=20
+      - LOGIN_URL=http://localhost:5173
+      - AUTH_ENABLE_MFA=false
+    volumes:
+      - ./Backend:/app
+    restart: "no"
+
+  auto_tests:
+    <<: *backend_image
+    container_name: backend_auto_tests_v2
+    profiles: ["test"]
+    working_dir: /repo
+    command: python cmpj/auto_tests/run_tests.py --base-url http://backend:8000 --out-dir /repo/cmpj
+    environment:
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@yourdomain.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
+      - TEST_SUITES=${TEST_SUITES:-health,core,governance,events,bulk,security}
+      - TEST_HEALTH_TIMEOUT_SECONDS=${TEST_HEALTH_TIMEOUT_SECONDS:-60}
+    volumes:
+      - ./:/repo
+    depends_on:
+      backend:
+        condition: service_started
+    restart: "no"
+
   beat:
     <<: *backend_image
     container_name: backend_beat_v2
@@ -203,6 +241,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
+      - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
       - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
       - LOGIN_URL=http://localhost:5173
       - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173

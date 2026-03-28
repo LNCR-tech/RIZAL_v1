@@ -11,7 +11,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, StaticPool
 
 from app.core.config import get_settings
 from app.models.base import Base
@@ -25,16 +25,35 @@ if SQL_ECHO:
 else:
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
-engine = create_engine(
-    settings.database_url,
-    echo=SQL_ECHO,
-    pool_pre_ping=True,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
-    pool_timeout=settings.db_pool_timeout_seconds,
-    pool_recycle=settings.db_pool_recycle_seconds,
-    pool_use_lifo=True,
-)
+database_url = (settings.database_url or "").strip()
+
+# Tests use in-memory SQLite; the Postgres pool params below are invalid for SQLite.
+if database_url.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+    if database_url in {"sqlite://", "sqlite:///:memory:"}:
+        engine = create_engine(
+            database_url,
+            echo=SQL_ECHO,
+            connect_args=connect_args,
+            poolclass=StaticPool,
+        )
+    else:
+        engine = create_engine(
+            database_url,
+            echo=SQL_ECHO,
+            connect_args=connect_args,
+        )
+else:
+    engine = create_engine(
+        database_url,
+        echo=SQL_ECHO,
+        pool_pre_ping=True,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout_seconds,
+        pool_recycle=settings.db_pool_recycle_seconds,
+        pool_use_lifo=True,
+    )
 
 SessionLocal = sessionmaker(
     autocommit=False,

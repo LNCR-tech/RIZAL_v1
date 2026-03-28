@@ -80,6 +80,7 @@ def test_queue_account_ready_email_falls_back_to_inline_delivery_when_publish_fa
         user_id=user.id,
         email=user.email,
         first_name=user.first_name,
+        temporary_password="TempPass123!",
     )
 
     assert sent_calls == [(user.email, user.first_name)]
@@ -127,6 +128,7 @@ def test_queue_account_ready_email_logs_failed_when_publish_and_inline_delivery_
         user_id=user.id,
         email=user.email,
         first_name=user.first_name,
+        temporary_password="TempPass123!",
     )
 
     test_db.expire_all()

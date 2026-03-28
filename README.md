@@ -57,6 +57,32 @@ If you're on Windows and want the URLs + credentials printed in a nicer format:
 powershell -ExecutionPolicy Bypass -File scripts/dev-info.ps1
 ```
 
+## Automated Testing
+
+Backend tests (pytest) run in Docker and use in-memory SQLite fixtures (no DB/Redis needed):
+
+```bash
+docker compose run --rm test_backend
+```
+
+Windows convenience wrapper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/test-backend.ps1
+```
+
+API-based tester suites (simulated user actions; writes PSV logs under `./cmpj/`):
+
+```powershell
+docker compose --profile test run --rm auto_tests
+```
+
+Windows one-liner wrapper (brings stack up without rebuild, then runs suites):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-auto-tests.ps1
+```
+
 ## Environment Notes
 - Backend mail example values are in `Backend/.env.example`.
 - Frontend API URL is configured in `Frontend/.env` (`VITE_API_URL`).

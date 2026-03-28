@@ -92,6 +92,7 @@ class Settings:
     face_match_threshold: float
     liveness_min_score: float
     allow_liveness_bypass_when_model_missing: bool
+    face_verification_bypass: bool
     anti_spoof_scale: float
     anti_spoof_model_path: str
     geo_max_allowed_accuracy_m: float
@@ -162,6 +163,10 @@ def get_settings() -> Settings:
         liveness_min_score=float(os.getenv("LIVENESS_MIN_SCORE", "0.85")),
         allow_liveness_bypass_when_model_missing=_as_bool(
             os.getenv("ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING"),
+            False,
+        ),
+        face_verification_bypass=_as_bool(
+            os.getenv("FACE_VERIFICATION_BYPASS"),
             False,
         ),
         anti_spoof_scale=float(os.getenv("ANTI_SPOOF_SCALE", "2.7")),

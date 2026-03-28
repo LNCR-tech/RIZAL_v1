@@ -232,6 +232,9 @@ def _raise_face_verification_required() -> None:
 
 
 def _enforce_face_verification_gate(token_data: TokenData, request: Request) -> None:
+    if getattr(settings, "face_verification_bypass", False):
+        return
+
     if not token_data.face_pending:
         return
 

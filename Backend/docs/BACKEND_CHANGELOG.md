@@ -120,6 +120,54 @@ Prevent Docker local dev from breaking with `IndentationError` by removing accid
 3. Open `http://localhost:8000/docs` and confirm it loads.
 4. Log in with `student1@demo.example.com` / `Student123!` and confirm the frontend no longer shows "Failed to fetch".
 
+## 2026-03-28 - Enable automated backend tests inside Docker (SQLite-safe engine init)
+
+### Purpose
+
+Allow running `pytest` inside Docker without needing Postgres by making the engine initialization SQLite-safe when `DATABASE_URL` is a SQLite URL.
+
+### Main files
+
+- `Backend/app/core/database.py`
+- `docker-compose.yml`
+- `Backend/app/tests/test_student_import_service.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- `app/core/database.py` now detects `sqlite` URLs and avoids Postgres-only pool arguments (enables in-memory SQLite test runs)
+- updated import-onboarding email fallback tests to pass the required `temporary_password` and match the logged error-message format
+
+### How to test
+
+1. Run the backend tests in Docker: `docker compose run --rm test_backend`.
+2. Confirm it finishes with `194 passed`.
+
+## 2026-03-28 - Dev-only: allow automated testers to bypass face-verification gate
+
+### Purpose
+
+Unblock API-based automated tester suites that need to perform privileged admin/campus-admin flows without having to complete real face verification.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/core/security.py`
+- `docker-compose.yml`
+- `cmpj/auto_tests/run_tests.py`
+
+### Backend changes
+
+- added `FACE_VERIFICATION_BYPASS` (default false in code) to skip the face-verification gate in `get_current_user*` dependency checks
+- enabled the bypass in local `docker-compose.yml` by default (override with `FACE_VERIFICATION_BYPASS=false` if you want to manually test face verification)
+
+### How to test
+
+1. Start stack: `docker compose up -d`.
+2. Run tester runner: `docker compose --profile test run --rm auto_tests`.
+3. Confirm the admin can hit `POST /api/school/admin/create-school-it` without getting `code=face_verification_required`.
+
 ## 2026-03-28 - Disable Gmail login notification emails after successful sign-in
 
 ### Purpose
