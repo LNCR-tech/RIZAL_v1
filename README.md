@@ -26,6 +26,16 @@ Valid8 Attendance Recognition System (Dockerized full stack).
 1. Install Docker Desktop.
 2. From project root, run:
 
+### Windows (recommended)
+
+This runs Docker in the background and prints the local URLs plus the seeded user credentials in the same terminal output.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1
+```
+
+### Any OS
+
 ```bash
 docker compose up --build
 ```
@@ -34,6 +44,12 @@ docker compose up --build
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8000`
 - pgAdmin: `http://localhost:5050`
+
+If you used `-d` (detached mode) and want to re-print the URLs/credentials later:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev-info.ps1
+```
 
 ## Environment Notes
 - Backend mail example values are in `Backend/.env.example`.

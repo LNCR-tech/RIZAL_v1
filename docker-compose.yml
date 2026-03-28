@@ -77,8 +77,16 @@ services:
       - DEFAULT_SCHOOL_NAME=${DEFAULT_SCHOOL_NAME:-Aurora University}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@yourdomain.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
+      # Used only for printing dev bootstrap info (pgAdmin reads these too).
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin123}
       # Keep local/dev login deterministic even if the user already exists (e.g., legacy migrations).
       - SEED_ADMIN_RESET_PASSWORD=${SEED_ADMIN_RESET_PASSWORD:-true}
+      # Demo user templates for local dev.
+      - SEED_DEMO_USERS=${SEED_DEMO_USERS:-true}
+      - SEED_DEMO_RESET_PASSWORD=${SEED_DEMO_RESET_PASSWORD:-true}
+      # Print URLs + seeded credentials into the seed container logs.
+      - SEED_PRINT_DEV_INFO=${SEED_PRINT_DEV_INFO:-true}
     volumes:
       - ./Backend:/app
     depends_on:
@@ -251,8 +259,8 @@ services:
     container_name: pgadmin
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
     ports:
       - "5050:80"
     depends_on:
@@ -262,4 +270,3 @@ volumes:
   postgres_data:
   import_storage:
   branding_storage:
-

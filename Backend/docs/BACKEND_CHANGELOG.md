@@ -55,6 +55,48 @@ Changed student bulk import onboarding emails so they now include the imported u
 3. Sign in with an imported account using the emailed password and confirm login succeeds.
 4. If Celery task publish fails, confirm the inline fallback still sends the same credentials-style email.
 
+## 2026-03-28 - Seed demo users and print dev bootstrap URLs/credentials
+
+### Purpose
+
+Reduce local setup friction by seeding a small set of demo users (multiple roles plus governance memberships) and printing the local URLs and seeded credentials into the Docker seed logs.
+
+### Main files
+
+- `Backend/app/seeder.py`
+- `Backend/alembic/env.py`
+- `docker-compose.yml`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `scripts/dev-up.ps1`
+- `scripts/dev-info.ps1`
+
+### Backend changes
+
+- added demo user templates (role assignments, student profiles, governance units/members/permissions)
+- added optional password reset for demo users to keep local login deterministic across reruns
+- added a seed-log summary block that prints local URLs and the seeded demo credentials
+- fixed Alembic env loading so Docker-provided `DATABASE_URL` is not overridden by `Backend/.env`
+
+### Configuration impact
+
+- new seed environment variables:
+  - `SEED_DEMO_USERS` (default true in Docker)
+  - `SEED_DEMO_RESET_PASSWORD` (default true in Docker)
+  - `SEED_PRINT_DEV_INFO` (default true in Docker)
+- Docker now supports overriding pgAdmin bootstrap creds:
+  - `PGADMIN_DEFAULT_EMAIL` (default `admin@example.com`)
+  - `PGADMIN_DEFAULT_PASSWORD` (default `admin123`)
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Windows one-command local run with printed URLs/credentials: `powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1`.
+2. Alternatively, run `docker compose up -d --build` then inspect seed output: `docker compose logs --tail=200 seed`.
+3. Log in using one of the seeded demo accounts (printed in seed logs) and confirm dashboards load for the corresponding role(s).
+
 ## 2026-03-28 - Disable Gmail login notification emails after successful sign-in
 
 ### Purpose
