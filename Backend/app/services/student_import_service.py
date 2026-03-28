@@ -484,11 +484,7 @@ class StudentImportService:
         first_name: str | None = None,
         temporary_password: str,
     ) -> None:
-<<<<<<< HEAD
-        publish_error: Exception | None = None
-=======
         publish_error_message: str | None = None
->>>>>>> origin/AURA/Fix-bulk-import-and-email-sender
         try:
             celery_app.send_task(
                 "app.workers.tasks.send_student_import_onboarding_email",
@@ -502,11 +498,7 @@ class StudentImportService:
             )
             return
         except Exception as exc:
-<<<<<<< HEAD
-            publish_error = exc
-=======
             publish_error_message = str(exc)
->>>>>>> origin/AURA/Fix-bulk-import-and-email-sender
             logger.warning(
                 "Falling back to inline onboarding email delivery for import job %s and user %s because task publishing failed.",
                 job_id,
@@ -514,8 +506,6 @@ class StudentImportService:
                 exc_info=True,
             )
 
-<<<<<<< HEAD
-=======
         self._send_account_ready_email_inline(
             job_id=job_id,
             user_id=user_id,
@@ -535,33 +525,10 @@ class StudentImportService:
         temporary_password: str,
         publish_error_message: str | None = None,
     ) -> None:
->>>>>>> origin/AURA/Fix-bulk-import-and-email-sender
         try:
             send_import_onboarding_email(
                 recipient_email=email,
                 first_name=first_name,
-<<<<<<< HEAD
-            )
-            with SessionLocal() as db:
-                repo = ImportRepository(db)
-                repo.log_email_delivery(
-                    job_id=job_id,
-                    user_id=user_id,
-                    email=email,
-                    status="sent",
-                    retry_count=0,
-                )
-                db.commit()
-            return
-        except Exception as exc:
-            inline_error_message = str(exc)
-            if publish_error is not None:
-                inline_error_message = (
-                    f"Celery publish failed: {publish_error}. "
-                    f"Inline delivery failed: {exc}"
-                )
-
-=======
                 temporary_password=temporary_password,
             )
         except Exception as exc:

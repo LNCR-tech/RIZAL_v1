@@ -97,6 +97,29 @@ Reduce local setup friction by seeding a small set of demo users (multiple roles
 2. Alternatively, run `docker compose up -d --build` then inspect seed output: `docker compose logs --tail=200 seed`.
 3. Log in using one of the seeded demo accounts (printed in seed logs) and confirm dashboards load for the corresponding role(s).
 
+## 2026-03-28 - Fix: Remove leftover merge-conflict markers that crash the backend
+
+### Purpose
+
+Prevent Docker local dev from breaking with `IndentationError` by removing accidentally committed Git conflict markers in the student import service.
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed `<<<<<<<`, `=======`, `>>>>>>>` conflict markers inside `_queue_account_ready_email` so the app can import and start normally
+- kept the intended behavior: Celery task publish with inline fallback email delivery and audit logging
+
+### How to test
+
+1. Run `docker compose up -d --build`.
+2. Confirm the backend stays up: `docker compose ps` should show `backend` as `Up` (not restarting).
+3. Open `http://localhost:8000/docs` and confirm it loads.
+4. Log in with `student1@demo.example.com` / `Student123!` and confirm the frontend no longer shows "Failed to fetch".
+
 ## 2026-03-28 - Disable Gmail login notification emails after successful sign-in
 
 ### Purpose
