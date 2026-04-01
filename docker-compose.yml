@@ -1,0 +1,333 @@
+#
+# Docker Compose (dev)
+#
+# Goals:
+# - One-command local run: `docker compose up -d --build`
+# - DB + Redis included
+# - Migrations + seeding run automatically (one-shot services)
+# - Avoid multi-service parallel builds exporting the same image tag
+#
+
+x-backend-image: &backend_image
+  image: aura_refractored-backend:dev
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fastapi_db
+    ports:
+      # Expose Postgres on 5433 to avoid conflicts with any local Windows PostgreSQL service.
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # NOTE: Backend email delivery is Gmail API only in this branch; Mailpit stays here for convenience
+  # but is not used unless you later re-introduce an SMTP transport.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  migrate:
+    <<: *backend_image
+    command: sh /app/scripts/run-service.sh
+    environment:
+      - SERVICE_MODE=migrate
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+    volumes:
+      - ./Backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    <<: *backend_image
+    command: python seed.py
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      # Deterministic dev bootstrap credentials (override as needed).
+      - DEFAULT_SCHOOL_NAME=${DEFAULT_SCHOOL_NAME:-Aurora University}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@yourdomain.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
+      # Used only for printing dev bootstrap info (pgAdmin reads these too).
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin123}
+      # Keep local/dev login deterministic even if the user already exists (e.g., legacy migrations).
+      - SEED_ADMIN_RESET_PASSWORD=${SEED_ADMIN_RESET_PASSWORD:-true}
+      # Demo user templates for local dev.
+      - SEED_DEMO_USERS=${SEED_DEMO_USERS:-true}
+      - SEED_DEMO_RESET_PASSWORD=${SEED_DEMO_RESET_PASSWORD:-true}
+      # Print URLs + seeded credentials into the seed container logs.
+      - SEED_PRINT_DEV_INFO=${SEED_PRINT_DEV_INFO:-true}
+    volumes:
+      - ./Backend:/app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  backend:
+    <<: *backend_image
+    # Build the backend image once. Other backend-adjacent services reference the same image tag.
+    build: ./Backend
+    ports:
+      - "8000:8000"
+    command: sh /app/scripts/run-service.sh
+    environment:
+      - SERVICE_MODE=web
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      # Keep backend JWT settings explicit so other services (Assistant) can validate tokens consistently.
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AUTH_ENABLE_MFA=false
+      # Dev-only: bypass face verification gate so testers can automate privileged flows.
+      - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
+      - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
+      - LOGIN_URL=http://localhost:5173
+      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
+      - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
+      # Email (Gmail API only). Leave disabled in dev unless you configure OAuth values.
+      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
+      - EMAIL_REQUIRED_ON_STARTUP=${EMAIL_REQUIRED_ON_STARTUP:-false}
+      - EMAIL_VERIFY_CONNECTION_ON_STARTUP=${EMAIL_VERIFY_CONNECTION_ON_STARTUP:-false}
+      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
+      - EMAIL_SENDER_EMAIL=${EMAIL_SENDER_EMAIL:-}
+      - EMAIL_FROM_EMAIL=${EMAIL_FROM_EMAIL:-noreply@example.com}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-VALID8 Notifications}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+      - EMAIL_GOOGLE_ACCOUNT_TYPE=${EMAIL_GOOGLE_ACCOUNT_TYPE:-auto}
+      - EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=${EMAIL_GOOGLE_ALLOW_CUSTOM_FROM:-false}
+      - GOOGLE_GMAIL_API_BASE_URL=${GOOGLE_GMAIL_API_BASE_URL:-https://gmail.googleapis.com/gmail/v1}
+      - GOOGLE_OAUTH_AUTH_URL=${GOOGLE_OAUTH_AUTH_URL:-https://accounts.google.com/o/oauth2/v2/auth}
+      - GOOGLE_OAUTH_TOKEN_URL=${GOOGLE_OAUTH_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - GOOGLE_OAUTH_REFRESH_TOKEN=${GOOGLE_OAUTH_REFRESH_TOKEN:-}
+      - GOOGLE_OAUTH_SCOPES=${GOOGLE_OAUTH_SCOPES:-https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/gmail.settings.basic}
+      - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
+      - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
+    volumes:
+      - ./Backend:/app
+      - import_storage:/tmp/valid8_imports
+      - branding_storage:/tmp/valid8_school_logos
+    restart: unless-stopped
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  assistant:
+    build: ./Assistant
+    environment:
+      - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - APP_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - JWT_SECRET=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ASSISTANT_AUTO_MIGRATE=true
+      # LLM configuration (OpenAI-compatible). Required for real assistant replies.
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_BASE=${LLM_API_BASE:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-}
+    volumes:
+      - ./Assistant:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    <<: *backend_image
+    command: sh /app/scripts/run-service.sh
+    environment:
+      - SERVICE_MODE=worker
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AUTH_ENABLE_MFA=false
+      - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
+      - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
+      - LOGIN_URL=http://localhost:5173
+      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
+      - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
+      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
+      - EMAIL_REQUIRED_ON_STARTUP=${EMAIL_REQUIRED_ON_STARTUP:-false}
+      - EMAIL_VERIFY_CONNECTION_ON_STARTUP=${EMAIL_VERIFY_CONNECTION_ON_STARTUP:-false}
+      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
+      - EMAIL_SENDER_EMAIL=${EMAIL_SENDER_EMAIL:-}
+      - EMAIL_FROM_EMAIL=${EMAIL_FROM_EMAIL:-noreply@example.com}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-VALID8 Notifications}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+      - EMAIL_GOOGLE_ACCOUNT_TYPE=${EMAIL_GOOGLE_ACCOUNT_TYPE:-auto}
+      - EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=${EMAIL_GOOGLE_ALLOW_CUSTOM_FROM:-false}
+      - GOOGLE_GMAIL_API_BASE_URL=${GOOGLE_GMAIL_API_BASE_URL:-https://gmail.googleapis.com/gmail/v1}
+      - GOOGLE_OAUTH_AUTH_URL=${GOOGLE_OAUTH_AUTH_URL:-https://accounts.google.com/o/oauth2/v2/auth}
+      - GOOGLE_OAUTH_TOKEN_URL=${GOOGLE_OAUTH_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - GOOGLE_OAUTH_REFRESH_TOKEN=${GOOGLE_OAUTH_REFRESH_TOKEN:-}
+      - GOOGLE_OAUTH_SCOPES=${GOOGLE_OAUTH_SCOPES:-https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/gmail.settings.basic}
+      - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
+      - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
+    volumes:
+      - ./Backend:/app
+      - import_storage:/tmp/valid8_imports
+      - branding_storage:/tmp/valid8_school_logos
+    restart: unless-stopped
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  test_backend:
+    <<: *backend_image
+    command: pytest -q
+    environment:
+      # Tests use in-memory SQLite via fixtures; keep DATABASE_URL safe to import even if read.
+      - DATABASE_URL=sqlite://
+      - EMAIL_TRANSPORT=disabled
+      - EMAIL_REQUIRED_ON_STARTUP=false
+      - EMAIL_VERIFY_CONNECTION_ON_STARTUP=false
+      - EMAIL_TIMEOUT_SECONDS=20
+      - LOGIN_URL=http://localhost:5173
+      - AUTH_ENABLE_MFA=false
+    volumes:
+      - ./Backend:/app
+    restart: "no"
+
+  auto_tests:
+    <<: *backend_image
+    profiles: ["test"]
+    working_dir: /repo
+    command: python cmpj/auto_tests/run_tests.py --base-url http://backend:8000 --out-dir /repo/cmpj
+    environment:
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@yourdomain.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
+      - TEST_SUITES=${TEST_SUITES:-health,core,governance,events,bulk,security}
+      - TEST_HEALTH_TIMEOUT_SECONDS=${TEST_HEALTH_TIMEOUT_SECONDS:-60}
+    volumes:
+      - ./:/repo
+    depends_on:
+      backend:
+        condition: service_started
+    restart: "no"
+
+  beat:
+    <<: *backend_image
+    command: sh /app/scripts/run-service.sh
+    environment:
+      - SERVICE_MODE=beat
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AUTH_ENABLE_MFA=false
+      - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
+      - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
+      - LOGIN_URL=http://localhost:5173
+      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
+      - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
+      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
+      - EMAIL_REQUIRED_ON_STARTUP=${EMAIL_REQUIRED_ON_STARTUP:-false}
+      - EMAIL_VERIFY_CONNECTION_ON_STARTUP=${EMAIL_VERIFY_CONNECTION_ON_STARTUP:-false}
+      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
+      - EMAIL_SENDER_EMAIL=${EMAIL_SENDER_EMAIL:-}
+      - EMAIL_FROM_EMAIL=${EMAIL_FROM_EMAIL:-noreply@example.com}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-VALID8 Notifications}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+      - EMAIL_GOOGLE_ACCOUNT_TYPE=${EMAIL_GOOGLE_ACCOUNT_TYPE:-auto}
+      - EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=${EMAIL_GOOGLE_ALLOW_CUSTOM_FROM:-false}
+      - GOOGLE_GMAIL_API_BASE_URL=${GOOGLE_GMAIL_API_BASE_URL:-https://gmail.googleapis.com/gmail/v1}
+      - GOOGLE_OAUTH_AUTH_URL=${GOOGLE_OAUTH_AUTH_URL:-https://accounts.google.com/o/oauth2/v2/auth}
+      - GOOGLE_OAUTH_TOKEN_URL=${GOOGLE_OAUTH_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - GOOGLE_OAUTH_REFRESH_TOKEN=${GOOGLE_OAUTH_REFRESH_TOKEN:-}
+      - GOOGLE_OAUTH_SCOPES=${GOOGLE_OAUTH_SCOPES:-https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/gmail.settings.basic}
+      - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
+      - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
+    volumes:
+      - ./Backend:/app
+      - import_storage:/tmp/valid8_imports
+      - branding_storage:/tmp/valid8_school_logos
+    restart: unless-stopped
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./Frontend
+    ports:
+      - "5173:80"
+    environment:
+      # Used by nginx template to proxy /__backend__/ to the backend service.
+      - BACKEND_ORIGIN=http://backend:8000
+      - ASSISTANT_ORIGIN=http://assistant:8500
+      # Used by /docker-entrypoint.d/40-runtime-config.sh to generate runtime-config.js.
+      - AURA_API_BASE_URL=/__backend__
+      - AURA_API_TIMEOUT_MS=15000
+      - AURA_ASSISTANT_BASE_URL=/__assistant__
+    depends_on:
+      - backend
+      - assistant
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  import_storage:
+  branding_storage:
