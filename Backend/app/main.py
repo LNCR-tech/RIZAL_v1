@@ -114,24 +114,3 @@ async def root():
         }
     }
 
-from app.database import SessionLocal
-from app.models.user import User
-from app.services.notification_center_service import send_account_security_notification
-
-
-@app.get("/test-notification")
-def test_notification():
-    db = SessionLocal()
-    user = db.query(User).first()
-
-    result = send_account_security_notification(
-        db=db,
-        user=user,
-        subject="Test Notification",
-        message="Testing if working",
-        metadata_json={"suspicious": True}
-    )
-
-    return {"result": result}
-
-
