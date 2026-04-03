@@ -1,7 +1,7 @@
 <template>
-  <MobileDashboardHome v-bind="$attrs" />
+  <LegacyHomeView v-bind="$attrs" />
 </template>
 
 <script setup>
-import MobileDashboardHome from '@/components/dashboard/MobileDashboardHome.vue'
+import LegacyHomeView from '@/views/dashboard/HomeView.vue'
 </script>
