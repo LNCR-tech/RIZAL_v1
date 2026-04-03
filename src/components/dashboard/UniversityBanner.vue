@@ -61,7 +61,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { ArrowRight } from 'lucide-vue-next'
-import { withMediaCacheKey } from '@/services/backendMedia.js'
+import { resolveBackendMediaCandidates, resolveLoadableMediaUrl } from '@/services/backendMedia.js'
 
 const props = defineProps({
   schoolName: {
@@ -70,59 +70,59 @@ const props = defineProps({
   },
   schoolLogo: {
     type: String,
-    default: '/logos/university_logo.svg',
+    default: '',
   },
   schoolLogoCandidates: {
     type: Array,
     default: () => [],
+  },
+  apiBaseUrl: {
+    type: String,
+    default: '',
   },
 })
 
 defineEmits(['announcement-click'])
 
 const logoUnavailable = ref(false)
-const logoCandidateIndex = ref(0)
-const logoRetryKey = ref(0)
+const resolvedLogoSrc = ref('')
 const schoolInitials = computed(() => buildInitials(props.schoolName))
 const resolvedLogoCandidates = computed(() => {
   const candidates = props.schoolLogoCandidates.length
     ? props.schoolLogoCandidates
     : [props.schoolLogo]
 
-  return candidates
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
+  return resolveBackendMediaCandidates(candidates, props.apiBaseUrl)
 })
-const resolvedLogoSrc = computed(() => (
-  logoUnavailable.value
-    ? null
-    : withMediaCacheKey(
-      resolvedLogoCandidates.value[logoCandidateIndex.value] || null,
-      logoRetryKey.value || ''
-    )
-))
+let logoRequestId = 0
 
 function onLogoError() {
-  if (logoCandidateIndex.value < resolvedLogoCandidates.value.length - 1) {
-    logoCandidateIndex.value += 1
-    return
-  }
-
-  if (!logoRetryKey.value) {
-    logoRetryKey.value = Date.now()
-    return
-  }
-
   logoUnavailable.value = true
 }
 
 watch(
-  () => resolvedLogoCandidates.value.join('|'),
-  () => {
+  () => [props.apiBaseUrl, resolvedLogoCandidates.value.join('|')],
+  async () => {
+    const requestId = ++logoRequestId
     logoUnavailable.value = false
-    logoCandidateIndex.value = 0
-    logoRetryKey.value = 0
-  }
+    resolvedLogoSrc.value = ''
+
+    if (!resolvedLogoCandidates.value.length) {
+      logoUnavailable.value = true
+      return
+    }
+
+    const nextLogoSrc = await resolveLoadableMediaUrl(
+      resolvedLogoCandidates.value,
+      props.apiBaseUrl
+    )
+
+    if (requestId !== logoRequestId) return
+
+    resolvedLogoSrc.value = nextLogoSrc || ''
+    logoUnavailable.value = !nextLogoSrc
+  },
+  { immediate: true }
 )
 
 function buildInitials(value) {

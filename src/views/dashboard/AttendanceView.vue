@@ -159,7 +159,7 @@ import {
   resolveAttendanceCompletionState,
   resolveAttendanceActionState,
 } from '@/services/attendanceFlow.js'
-import { getCurrentPositionWithinAccuracyOrThrow } from '@/services/devicePermissions.js'
+import { getCurrentPositionWithinAccuracyOrThrow, requestCameraPermission } from '@/services/devicePermissions.js'
 import {
   getEventTimeStatus,
   recordFaceScanAttendance as postFaceScanAttendance,
@@ -1213,6 +1213,12 @@ async function startCamera() {
   cameraStartPromise = (async () => {
     if (!mediaStream.value) {
       cameraState.value = 'requesting'
+      const cameraPermission = await requestCameraPermission()
+      if (!cameraPermission.granted) {
+        cameraState.value = 'denied'
+        videoReady.value = false
+        return
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user' },

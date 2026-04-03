@@ -239,7 +239,7 @@ import {
   RefreshCw,
 } from 'lucide-vue-next'
 import { applyTheme, loadUnbrandedTheme } from '@/config/theme.js'
-import { getCurrentPositionOrThrow } from '@/services/devicePermissions.js'
+import { getCurrentPositionOrThrow, requestCameraPermission } from '@/services/devicePermissions.js'
 import {
   describePublicAttendanceError,
   fetchNearbyPublicAttendanceEvents,
@@ -486,6 +486,11 @@ function humanizeCameraError(error) {
 
 async function startCamera() {
   if (mediaStream) return
+
+  const cameraPermission = await requestCameraPermission()
+  if (!cameraPermission.granted) {
+    throw new Error(cameraPermission.message || 'Camera permission was denied. Allow camera access and try again.')
+  }
 
   if (!navigator?.mediaDevices?.getUserMedia) {
     throw new Error('Camera access is not supported on this browser.')

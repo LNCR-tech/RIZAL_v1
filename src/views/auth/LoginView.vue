@@ -88,9 +88,6 @@
               Powered by Aura Ai
             </span>
           </div>
-          <p class="quick-attendance-link-note">
-            Use Quick Attendance to mark public event sign in or sign out without logging in.
-          </p>
         </div>
 
       </div>
@@ -169,14 +166,5 @@ function openQuickAttendance() {
 /* When keyboard is open (viewport shrinks), allow scrolling */
 .login-page {
   -webkit-overflow-scrolling: touch;
-}
-
-.quick-attendance-link-note {
-  margin: 0;
-  max-width: 260px;
-  font-size: 12px;
-  line-height: 1.45;
-  text-align: center;
-  color: var(--color-text-secondary);
 }
 </style>

@@ -153,8 +153,9 @@
         <UniversityBanner
           class="md:flex-1"
           :school-name="resolvedSchoolName"
-          :school-logo="resolvedSchoolLogoCandidates[0] || null"
-          :school-logo-candidates="resolvedSchoolLogoCandidates"
+          :school-logo="schoolLogoCandidates[0] || null"
+          :school-logo-candidates="schoolLogoCandidates"
+          :api-base-url="apiBaseUrl"
           @announcement-click="handleAnnouncementClick"
         />
       </Transition>
@@ -231,7 +232,6 @@ import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
-import { resolveBackendMediaCandidates } from '@/services/backendMedia.js'
 import { primeLocationAccess } from '@/services/devicePermissions.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import { resolveAttendanceLocation, resolveEventDetailLocation } from '@/services/routeWorkspace.js'
@@ -251,7 +251,7 @@ const isMobileAiOpen = ref(false)
 const mobileInputEl = ref(null)
 const router = useRouter()
 const route = useRoute()
-const { currentUser, schoolSettings, events, hasAttendanceForEvent, hasOpenAttendanceForEvent } = useDashboardSession()
+const { currentUser, schoolSettings, events, hasAttendanceForEvent, hasOpenAttendanceForEvent, apiBaseUrl } = useDashboardSession()
 const authMeta = useStoredAuthMeta()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : schoolSettings.value)
@@ -264,12 +264,12 @@ const resolvedSchoolName = computed(() => (
   'University Name'
 ))
 
-const resolvedSchoolLogoCandidates = computed(() => (
-  resolveBackendMediaCandidates([
-    activeSchoolSettings.value?.logo_url,
-    authMeta.value?.logoUrl,
-  ])
-))
+const schoolLogoCandidates = computed(() => [
+  activeSchoolSettings.value?.logo_url,
+  activeUser.value?.school_logo_url,
+  activeUser.value?.school?.logo_url,
+  authMeta.value?.logoUrl,
+].filter(Boolean))
 
 const schoolEvents = computed(() => {
   const schoolId = Number(activeUser.value?.school_id)
