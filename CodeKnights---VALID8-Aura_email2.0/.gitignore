@@ -1,0 +1,71 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+
+# Node / frontend builds
+node_modules/
+dist/
+dist-ssr/
+*.local
+Frontend/node_modules/
+Frontend/dist/
+Frontend/dist-ssr/
+Frontend/.vite/
+Frontend/.pnp.*
+Frontend/.yarn/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!**/.env.example
+!.env.smtp.example
+# Keep the docker example env committed for onboarding.
+!Frontend/.env.docker.example
+.env.docker
+Frontend/.env.local
+Backend/.env
+
+# Database / local artifacts
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+Backend/smoke.db
+Backend/storage/
+
+# Capacitor
+android/
+ios/
+
+# Project-specific generated files
+Backend/face_encodings.pkl
+Backend/.alembic.ini.swp
+Backend/.venv/
+GITHUB/
+
+# Local-only safety: we may temporarily park deprecated UI assets here during migrations.
+archive/Frontend_legacy_react/

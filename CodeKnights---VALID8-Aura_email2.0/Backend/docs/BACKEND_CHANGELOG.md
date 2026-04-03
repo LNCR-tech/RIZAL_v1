@@ -1,0 +1,4965 @@
+# Backend Change Log
+
+This file records backend behavior changes that should stay visible after code merges.
+
+## Documentation Rule
+
+For every backend code change in `Backend/`, update this file.
+
+At minimum include:
+
+- date
+- purpose
+- affected files
+- route or schema changes
+- migration or configuration impact
+
+## 2026-03-28 - Make bulk import onboarding emails match the create-user credentials email
+
+### Purpose
+
+Changed student bulk import onboarding emails so they now include the imported user's email, temporary password, and frontend login URL, matching the create-user email style instead of telling imported users to use forgot-password first.
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/workers/tasks.py`
+- `Backend/app/services/email_service/use_cases.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- bulk import now keeps the generated shared temporary password long enough to include it in onboarding emails
+- import onboarding emails now use the same credentials-style email content as manual student creation
+- import onboarding worker and inline fallback paths now pass the temporary password through to the email sender
+- imported students can now use the emailed temporary password directly on the frontend login page
+- kept the existing import-performance approach of sharing one generated password per import job instead of hashing a unique password for every imported row
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_student_import_email_delivery.py Backend/app/tests/test_email_service.py`.
+2. Run a bulk import and confirm the onboarding email includes the student email, temporary password, and frontend login URL.
+3. Sign in with an imported account using the emailed password and confirm login succeeds.
+4. If Celery task publish fails, confirm the inline fallback still sends the same credentials-style email.
+
+## 2026-03-28 - Seed demo users and print dev bootstrap URLs/credentials
+
+### Purpose
+
+Reduce local setup friction by seeding a small set of demo users (multiple roles plus governance memberships) and printing the local URLs and seeded credentials into the Docker seed logs.
+
+### Main files
+
+- `Backend/app/seeder.py`
+- `Backend/alembic/env.py`
+- `docker-compose.yml`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `scripts/dev-up.ps1`
+- `scripts/dev-info.ps1`
+
+### Backend changes
+
+- added demo user templates (role assignments, student profiles, governance units/members/permissions)
+- added optional password reset for demo users to keep local login deterministic across reruns
+- added a seed-log summary block that prints local URLs and the seeded demo credentials
+- fixed Alembic env loading so Docker-provided `DATABASE_URL` is not overridden by `Backend/.env`
+
+### Configuration impact
+
+- new seed environment variables:
+  - `SEED_DEMO_USERS` (default true in Docker)
+  - `SEED_DEMO_RESET_PASSWORD` (default true in Docker)
+  - `SEED_PRINT_DEV_INFO` (default true in Docker)
+- Docker now supports overriding pgAdmin bootstrap creds:
+  - `PGADMIN_DEFAULT_EMAIL` (default `admin@example.com`)
+  - `PGADMIN_DEFAULT_PASSWORD` (default `admin123`)
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Windows one-command local run with printed URLs/credentials: `powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1`.
+2. Alternatively, run `docker compose up -d --build` then inspect seed output: `docker compose logs --tail=200 seed`.
+3. Log in using one of the seeded demo accounts (printed in seed logs) and confirm dashboards load for the corresponding role(s).
+
+## 2026-03-28 - Fix: Remove leftover merge-conflict markers that crash the backend
+
+### Purpose
+
+Prevent Docker local dev from breaking with `IndentationError` by removing accidentally committed Git conflict markers in the student import service.
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed `<<<<<<<`, `=======`, `>>>>>>>` conflict markers inside `_queue_account_ready_email` so the app can import and start normally
+- kept the intended behavior: Celery task publish with inline fallback email delivery and audit logging
+
+### How to test
+
+1. Run `docker compose up -d --build`.
+2. Confirm the backend stays up: `docker compose ps` should show `backend` as `Up` (not restarting).
+3. Open `http://localhost:8000/docs` and confirm it loads.
+4. Log in with `student1@demo.example.com` / `Student123!` and confirm the frontend no longer shows "Failed to fetch".
+
+## 2026-03-28 - Enable automated backend tests inside Docker (SQLite-safe engine init)
+
+### Purpose
+
+Allow running `pytest` inside Docker without needing Postgres by making the engine initialization SQLite-safe when `DATABASE_URL` is a SQLite URL.
+
+### Main files
+
+- `Backend/app/core/database.py`
+- `docker-compose.yml`
+- `Backend/app/tests/test_student_import_service.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- `app/core/database.py` now detects `sqlite` URLs and avoids Postgres-only pool arguments (enables in-memory SQLite test runs)
+- updated import-onboarding email fallback tests to pass the required `temporary_password` and match the logged error-message format
+
+### How to test
+
+1. Run the backend tests in Docker: `docker compose run --rm test_backend`.
+2. Confirm it finishes with `194 passed`.
+
+## 2026-03-28 - Dev-only: allow automated testers to bypass face-verification gate
+
+### Purpose
+
+Unblock API-based automated tester suites that need to perform privileged admin/campus-admin flows without having to complete real face verification.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/core/security.py`
+- `docker-compose.yml`
+- `cmpj/auto_tests/run_tests.py`
+
+### Backend changes
+
+- added `FACE_VERIFICATION_BYPASS` (default false in code) to skip the face-verification gate in `get_current_user*` dependency checks
+- enabled the bypass in local `docker-compose.yml` by default (override with `FACE_VERIFICATION_BYPASS=false` if you want to manually test face verification)
+
+### How to test
+
+1. Start stack: `docker compose up -d`.
+2. Run tester runner: `docker compose --profile test run --rm auto_tests`.
+3. Confirm the admin can hit `POST /api/school/admin/create-school-it` without getting `code=face_verification_required`.
+
+## 2026-03-28 - Disable Gmail login notification emails after successful sign-in
+
+### Purpose
+
+Stopped the backend from sending Gmail security-notification emails after every successful `/login` and `/auth/mfa/verify`, while keeping password-related emails such as onboarding credentials, forgot-password approvals, and MFA code delivery unchanged.
+
+### Main files
+
+- `Backend/app/routers/auth.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed the post-login Gmail notification dispatch after successful `/login`
+- removed the post-login Gmail notification dispatch after successful `/auth/mfa/verify`
+- kept password-reset, welcome-password, and MFA-code email flows unchanged
+- added regression tests so login and MFA verification succeed even if the old login-notification dispatcher would fail
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior changed for:
+  - `POST /login`
+  - `POST /auth/mfa/verify`
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_api.py -k "login_does_not_dispatch_gmail_login_notification or mfa_verify_does_not_dispatch_gmail_login_notification"`.
+2. Log in through `POST /login` with a non-MFA user and confirm no Gmail login-notification email is sent.
+3. Complete `POST /auth/mfa/verify` for an MFA challenge and confirm no Gmail login-completed notification email is sent.
+4. Confirm password-related emails such as welcome credentials, forgot-password approval, and MFA code delivery still work.
+
+## 2026-03-28 - Remove SMTP transport and standardize outbound email on Gmail API only
+
+### Purpose
+
+Removed the backend SMTP delivery path so all transactional mail now uses the Google Gmail API with OAuth, then added regression coverage that the bulk student import flow still hands off onboarding emails after import completion.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service/config.py`
+- `Backend/app/services/email_service/transport.py`
+- `Backend/app/services/email_service/__init__.py`
+- `Backend/app/routers/users/students.py`
+- `Backend/scripts/generate_google_oauth_refresh_token.py`
+- `Backend/scripts/send_test_email.py`
+- `Backend/app/tests/test_config.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `docker-compose.yml`
+
+### Backend changes
+
+- removed the SMTP send path, SMTP authentication handling, and SMTP connection checks from the shared email service
+- kept only `EMAIL_TRANSPORT=gmail_api` as the supported outbound mail transport
+- renamed the active mail config surface to Gmail API-focused env names such as:
+  - `EMAIL_TIMEOUT_SECONDS`
+  - `EMAIL_SENDER_EMAIL`
+  - `EMAIL_FROM_EMAIL`
+  - `EMAIL_FROM_NAME`
+  - `EMAIL_REPLY_TO`
+  - `EMAIL_GOOGLE_ACCOUNT_TYPE`
+  - `EMAIL_GOOGLE_ALLOW_CUSTOM_FROM`
+- kept temporary fallback reads from legacy `SMTP_*` env names so existing deployments can roll forward without an immediate secret rewrite
+- updated the smoke-test and OAuth helper scripts to report Gmail API-only behavior
+- changed manual student-create email errors to report a generic email-delivery failure instead of an SMTP-specific failure
+- added regression tests that:
+  - Gmail API delivery is the only validated mail path
+  - successful import batches still queue onboarding email work
+  - the import onboarding worker logs `status=sent` after a successful send
+  - failed import-email task publishing now falls back to an inline send attempt
+  - import onboarding delivery logs now use `status=failed` only when both task publishing and the inline fallback send fail
+
+### Route or schema impact
+
+- no HTTP route paths changed
+- no request or response schemas changed
+- runtime behavior changed for all outbound email features:
+  - MFA code emails
+  - forgot-password approval emails
+  - user welcome emails
+  - bulk-import onboarding emails
+
+### Configuration impact
+
+- deployments should now set Gmail API-focused env names instead of SMTP transport settings
+- `EMAIL_TRANSPORT` should be `gmail_api` whenever outbound email is required
+- old `SMTP_*` names are only migration aliases; the backend no longer opens SMTP connections
+>>>>>>> origin/AURA/Fix-bulk-import-and-email-sender
+
+### Migration impact
+
+- no database migration
+
+### How to test
+
+<<<<<<< HEAD
+1. Run `python -m pytest -q Backend/app/tests/test_student_import_service.py`.
+2. Run `python -m pytest -q Backend/app/tests/test_admin_import_preview_flow.py -k falls_back_to_in_process_job_when_celery_dispatch_fails`.
+3. Trigger a bulk import in an environment where Celery publish is unavailable and confirm the job still completes.
+4. Check `email_delivery_logs` for imported users and confirm status is `sent` when inline fallback succeeds.
+5. Simulate inline SMTP failure and confirm `email_delivery_logs` records `failed` with the combined publish and inline error message.
+
+## 2026-03-28 - Fix Docker migrations failing on Windows due to CRLF shell scripts
+
+### Purpose
+
+Prevent `docker compose up -d --build` from failing early on Windows when shell scripts are bind-mounted into Linux containers with CRLF line endings (which breaks `/bin/sh` parsing).
+
+### Main files
+
+- `Backend/scripts/run-service.sh`
+- `.gitattributes`
+- `docker-compose.yml`
+- `Backend/app/seeder.py`
+
+### Backend changes
+
+- normalized `*.sh` to LF line endings to ensure `/bin/sh` can execute scripts inside containers
+- added `.gitattributes` rule to keep `*.sh` as LF in the repo going forward
+- made dev seeding enforce a valid admin role assignment and (by default in Docker) reset the seeded admin password so login is deterministic
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- updated Docker default `SMTP_FROM_EMAIL` to a valid address to prevent startup failures in containerized dev
+
+### Migration impact
+
+- no migration content changes, but migrations can now run successfully in Docker on Windows checkouts
+
+### How to test
+
+1. Run `docker builder prune -f` to clear any stale build cache (optional).
+2. Run `docker compose up -d --build`.
+3. Confirm the one-shot `migrate` service completes successfully and the backend starts.
+=======
+1. Run `python -m pytest -q Backend/app/tests/test_config.py Backend/app/tests/test_email_service.py Backend/app/tests/test_student_import_email_delivery.py`.
+2. Run `cd Backend && python scripts/send_test_email.py --recipient your-address@example.com --check-only`.
+3. Run `cd Backend && python scripts/send_test_email.py --recipient your-address@example.com`.
+4. Import students through `POST /api/admin/import-students/preview` then `POST /api/admin/import-students`, and confirm onboarding email work is queued and logged in `email_delivery_logs`.
+5. Stop Celery or break broker publishing, rerun the import, and confirm onboarding emails still send through the inline fallback path.
+>>>>>>> origin/AURA/Fix-bulk-import-and-email-sender
+
+## 2026-03-27 - Fix attendance response validation for students without external student IDs
+
+### Purpose
+
+Fixed production `500` errors on attendance endpoints where valid student profiles had `student_profile.student_id = null`, which caused response-model validation failures and surfaced in the browser as CORS-style fetch errors.
+
+### Main files
+
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/tests/test_attendance_schemas.py`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+
+### Backend changes
+
+- changed attendance-facing response schemas to allow `student_id = null` for student records, summaries, and overview rows
+- hardened the student self-service attendance records response so `/api/attendance/me/records` no longer fails when the logged-in student's external student ID is missing
+- hardened related attendance overview and report payloads that reuse the same `student_id` field shape
+- added regression tests covering nullable `student_id` values in attendance responses
+
+### Route or schema impact
+
+- `GET /api/attendance/me/records` may now return `"student_id": null`
+- `GET /api/attendance/students/records` may now return `"student_id": null`
+- `GET /api/attendance/students/{student_id}/report` may now return `"student": { "student_id": null, ... }`
+- `GET /api/attendance/students/overview` may now return rows with `"student_id": null`
+- no request payload changes
+
+### Configuration impact
+
+- no new configuration
+
+### Migration impact
+
+- no database migration
+
+### How to test
+
+1. Log in as a student whose `student_profile.student_id` is still null.
+2. Open the student upcoming events, event check-in, or events attended page.
+3. Confirm `GET /api/attendance/me/records` returns `200` instead of `500`.
+4. Confirm attendance JSON may include `"student_id": null`.
+
+## 2026-03-27 - Show upcoming events to all students while keeping active event scope restrictions
+
+### Purpose
+
+Changed student event-list visibility so every student in the same school can see upcoming events, even before the event reaches the active attendance window, while preserving scope checks for ongoing and completed events.
+
+### Main files
+
+- `Backend/app/routers/events/shared.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+
+### Backend changes
+
+- changed student event-list filtering so `upcoming` events are visible to all students in the same school
+- kept department and program scope filtering for non-upcoming events
+- kept active event detail access restrictions for out-of-scope students on non-upcoming events
+- added regression coverage that upcoming out-of-scope events appear in `/api/events/` while out-of-scope ongoing events stay hidden
+
+### Route or schema impact
+
+- `GET /api/events/` now returns all same-school upcoming events to student accounts
+- no request payload changes
+- no response schema changes
+
+### Configuration impact
+
+- no new configuration
+
+### Migration impact
+
+- no database migration
+
+### How to test
+
+1. Log in as a student in a school with both in-scope and out-of-scope future events.
+2. Open the student upcoming-events page and confirm all same-school upcoming events appear.
+3. Confirm out-of-scope ongoing events still do not appear in the same list.
+4. Run `python -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py -k upcoming_events`.
+
+## 2026-03-27 - Fix student face registration 500 for profiles without a student ID
+
+### Purpose
+
+Fixed a production crash on student face registration where `POST /api/face/register` and `POST /api/face/register-upload` could return `500` for valid student accounts whose `student_profile.student_id` was still null.
+
+### Main files
+
+- `Backend/app/schemas/face_recognition.py`
+- `Backend/app/tests/test_face_recognition_schemas.py`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- changed `FaceRegistrationResponse.student_id` to allow `null`
+- preserved successful face registration even when the student profile has not been assigned a human-readable student ID yet
+- added a regression test so the face-registration response no longer fails Pydantic validation on `student_id=None`
+
+### Route or schema impact
+
+- `POST /face/register` may now return `"student_id": null`
+- `POST /face/register-upload` may now return `"student_id": null`
+- no request payload changes
+
+### Configuration impact
+
+- no new configuration
+
+### Migration impact
+
+- no database migration
+
+### How to test
+
+1. Sign in as a student whose profile exists but `student_id` is null.
+2. Call `POST /api/face/register` or use the student face registration page.
+3. Confirm the response succeeds instead of returning `500`.
+4. Confirm the JSON response may include `"student_id": null`.
+
+## 2026-03-27 - Harden sign-out delay migration for redeploys and drifted environments
+
+### Purpose
+
+Made the sign-out delay migration safe to rerun against environments where the `events.sign_out_open_delay_minutes` column already exists, so Railway and other redeploy targets do not fail on duplicate-column errors.
+
+### Main files
+
+- `Backend/alembic/versions/b8e4c1d2f7a9_add_event_sign_out_open_delay_minutes.py`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+
+### Backend changes
+
+- changed the migration to inspect the `events` table before adding or dropping `sign_out_open_delay_minutes`
+- kept the same schema outcome while making upgrade and downgrade paths tolerant of partially reconciled databases
+
+### Route or schema impact
+
+- no API contract changes
+- no model field changes
+
+### Configuration impact
+
+- no new configuration
+
+### Migration impact
+
+- `Backend/alembic/versions/b8e4c1d2f7a9_add_event_sign_out_open_delay_minutes.py` now no-ops if the target column is already present
+
+### How to test
+
+1. Run `alembic upgrade head` against a database at or before `a6c4e2f1b9d7`.
+2. Confirm the upgrade succeeds whether `events.sign_out_open_delay_minutes` is missing or already present.
+3. Confirm the resulting `events` table still includes `sign_out_open_delay_minutes`.
+
+## 2026-03-27 - Add delayed sign-out windows, incomplete attendance visibility, test-account bypass, and in-app attendance notifications
+
+### Purpose
+
+Completed the attendance refactor so sign-out can be delayed per event, a student is only treated as validly present after both sign-in and sign-out, the `jrmsu@university.edu` test account can bypass face matching, and attendance actions now generate in-app notifications.
+
+### Main files
+
+- `Backend/app/models/event.py`
+- `Backend/alembic/versions/b8e4c1d2f7a9_add_event_sign_out_open_delay_minutes.py`
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/services/attendance_face_scan.py`
+- `Backend/app/routers/attendance/records.py`
+- `Backend/app/routers/attendance/reports.py`
+- `Backend/app/routers/events/attendance_queries.py`
+- `Backend/app/services/notification_center_service.py`
+- `Backend/app/routers/notifications.py`
+- `Backend/app/core/config.py`
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/schemas/face_recognition.py`
+- `Backend/app/schemas/user.py`
+
+### Backend changes
+
+- added `events.sign_out_open_delay_minutes` so sign-out can open after `end_datetime + delay`
+- introduced computed `sign_out_pending` between event end and the configured sign-out open time
+- updated check-in rules so new sign-ins are blocked once the event is waiting for or already inside sign-out
+- kept stored `attendances.status` as the finalized database status, but now exposed:
+  - `display_status`
+  - `completion_state`
+  - `is_valid_attendance`
+- marked unfinished sign-ins as `display_status = incomplete` until sign-out succeeds
+- changed reports and summaries to count only completed `present` and `late` rows as valid attendance
+- added student in-app inbox delivery through notification logs and new attendance notifications for:
+  - successful sign-in
+  - successful sign-out
+  - late attendance
+- added manual dispatch support for event reminder notifications
+- added a configured face-scan bypass for `jrmsu@university.edu` through `FACE_SCAN_BYPASS_EMAILS`
+- allowed the student face attendance request to omit `image_base64` only for configured bypass accounts while still enforcing event scope, event timing, and geofence rules
+
+### Route or schema impact
+
+- event payloads now support `sign_out_open_delay_minutes`
+- event time-status responses can now return `sign_out_pending`
+- attendance payloads now expose `display_status`, `completion_state`, and `is_valid_attendance`
+- report payloads now expose incomplete counts:
+  - `AttendanceReportResponse.incomplete_attendees`
+  - `ProgramBreakdownItem.incomplete`
+  - `StudentAttendanceSummary.incomplete_events`
+- `GET /api/notifications/inbox/me`
+- `POST /api/notifications/dispatch/event-reminders`
+
+### Configuration impact
+
+- added `FACE_SCAN_BYPASS_EMAILS`, a comma-separated list of student emails that may bypass live face matching
+
+### Migration impact
+
+- new migration `Backend/alembic/versions/b8e4c1d2f7a9_add_event_sign_out_open_delay_minutes.py`
+
+### How to test
+
+1. Run `docker compose exec backend pytest app/tests -q`.
+2. Create or update an event with `sign_out_open_delay_minutes > 0` and confirm sign-out is rejected before that delayed open time.
+3. Sign in to the event and confirm the returned attendance record shows `display_status = incomplete` until sign-out is recorded.
+4. Sign out during the allowed sign-out window and confirm the same record becomes valid `present` or `late`.
+5. Sign in as `jrmsu@university.edu` and confirm the attendance flow succeeds without uploading a face frame while location and event timing still apply.
+6. Open `GET /api/notifications/inbox/me` after sign-in or sign-out and confirm the new in-app attendance notification appears.
+
+## 2026-03-27 - Fix legacy school-settings import-template test path typo
+
+### Purpose
+
+Corrected a test-only path typo so the deprecated legacy school-settings import-template route is exercised correctly.
+
+### Main files
+
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- fixed the legacy import-template test request path to `GET /school-settings/me/users/import-template`
+- fixed the legacy import test request path to `POST /school-settings/me/users/import`
+- no runtime behavior changes
+
+### Route or schema impact
+
+- no route or schema changes
+
+### Configuration impact
+
+- no configuration changes
+
+### Migration impact
+
+- no database migration changes
+
+### How to test
+
+1. Run `python -m pytest -q app/tests/test_api.py -k legacy_school_settings_import_template`.
+
+## 2026-03-25 - Cleanup follow-up: remove deprecated unprefixed private routes
+
+### Purpose
+
+Finished the route cleanup by removing the old unprefixed private backend aliases now that active frontend callers and tests use the canonical `/api/*` paths.
+
+### Main files
+
+- `Backend/app/main.py`
+- `Backend/app/core/security.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Frontend/src/api/academicApi.ts`
+- `Frontend/src/api/attendanceApi.ts`
+- `Frontend/src/api/faceScanApi.ts`
+- `Frontend/src/api/userApi.ts`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+- `Backend/docs/BACKEND_FRONTEND_AUTH_ONBOARDING_GUIDE.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+
+### Backend changes
+
+- removed the hidden unprefixed private router mounts for users, events, programs, departments, attendance, security-center, and face routes
+- updated face-pending security exemptions so privileged onboarding still allows only the canonical `/api/auth/security/face-*` paths
+- kept public/auth entry routes such as `/login`, `/token`, `/auth/mfa/verify`, `/auth/change-password`, `/public-attendance/*`, and `/health` unchanged
+
+### Route or schema impact
+
+- removed deprecated private aliases:
+  - `/users/*`
+  - `/events/*`
+  - `/attendance/*`
+  - `/programs/*`
+  - `/departments/*`
+  - `/auth/security/*`
+  - `/face/*`
+- canonical private routes remain:
+  - `/api/users/*`
+  - `/api/events/*`
+  - `/api/attendance/*`
+  - `/api/programs/*`
+  - `/api/departments/*`
+  - `/api/auth/security/*`
+  - `/api/face/*`
+- no request or response schema changes
+
+### Configuration impact
+
+- frontend and automation callers must use `/api/*` for private backend access
+- any remaining scripts, bookmarks, proxy rewrites, or QA smoke tests that still call the removed unprefixed private routes must be updated
+
+### Migration impact
+
+- no database migration changes
+
+### How to test
+
+1. Run `python -m pytest -q app/tests/test_api.py app/tests/test_governance_hierarchy_api.py`.
+2. Run `npm run build` in `Frontend/`.
+3. Confirm `GET /api/users/me/` and `GET /api/auth/security/mfa-status` still work with a valid bearer token.
+4. Confirm the removed aliases such as `GET /users/me/` and `GET /auth/security/mfa-status` now return `404`.
+
+## 2026-03-25 - Phase 6 cleanup: remove final backend compatibility shims and legacy event-attendance tables
+
+### Purpose
+
+Completed the planned Phase 6 cleanup by removing the remaining backend compatibility import paths and legacy worker task aliases, then adding the final schema cleanup migration for unused event-attendance tables.
+
+### Main files
+
+- `Backend/app/workers/tasks.py`
+- `Backend/app/tests/test_auth_task_dispatcher.py`
+- `Backend/alembic/versions/a6c4e2f1b9d7_drop_legacy_event_attendance_tables.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_DATABASE_CLEANUP_GUIDE.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- removed the compatibility shim modules:
+  - `Backend/app/database.py`
+  - `Backend/app/services/auth_background.py`
+  - `Backend/app/worker/__init__.py`
+  - `Backend/app/worker/celery_app.py`
+  - `Backend/app/worker/tasks.py`
+- removed the legacy `app.worker.tasks.*` Celery task-name registrations from `Backend/app/workers/tasks.py`
+- kept the canonical `app.workers.tasks.*` task names and canonical `app.workers.celery_app.celery_app` startup path unchanged
+- added an idempotent Alembic migration that drops the unused legacy `event_attendance` and `ssg_event_attendance` tables when they still exist
+
+### Route or schema impact
+
+- no backend HTTP route path changes
+- no request or response schema changes
+- Celery producers and operational commands must now use `app.workers.*` import paths and canonical `app.workers.tasks.*` task names only
+
+### Configuration impact
+
+- no new environment variables
+- update any remaining worker startup scripts, task dispatch strings, or maintenance commands that still reference `app.worker.*`
+
+### Migration impact
+
+- requires `Backend/alembic/versions/a6c4e2f1b9d7_drop_legacy_event_attendance_tables.py`
+- removes `event_attendance` and `ssg_event_attendance` when present
+
+### How to test
+
+1. From `Backend/`, run `alembic upgrade head`.
+2. Run `python -m pytest -q app/tests/test_auth_task_dispatcher.py app/tests/test_admin_import_preview_flow.py`.
+3. Start Celery with `celery -A app.workers.celery_app.celery_app worker --loglevel=info` and confirm worker boot succeeds without any `app.worker` import path.
+4. Trigger login MFA or admin import flows and confirm the canonical task names are used:
+   - `app.workers.tasks.send_login_mfa_code_email`
+   - `app.workers.tasks.send_login_security_notification`
+   - `app.workers.tasks.process_student_import_job`
+
+## 2026-03-25 - Phase 4 completion: split oversized backend routers and services into domain packages
+
+### Purpose
+
+Completed the Phase 4 backend modularization pass by replacing several oversized routers and services with domain packages while preserving public import paths and mounted route behavior.
+
+### Main files
+
+- `Backend/app/routers/users/__init__.py`
+- `Backend/app/routers/users/accounts.py`
+- `Backend/app/routers/users/students.py`
+- `Backend/app/routers/users/roles.py`
+- `Backend/app/routers/users/passwords.py`
+- `Backend/app/routers/users/shared.py`
+- `Backend/app/routers/events/__init__.py`
+- `Backend/app/routers/events/crud.py`
+- `Backend/app/routers/events/queries.py`
+- `Backend/app/routers/events/workflow.py`
+- `Backend/app/routers/events/attendance_queries.py`
+- `Backend/app/routers/events/shared.py`
+- `Backend/app/routers/attendance/__init__.py`
+- `Backend/app/routers/attendance/check_in_out.py`
+- `Backend/app/routers/attendance/reports.py`
+- `Backend/app/routers/attendance/overrides.py`
+- `Backend/app/routers/attendance/records.py`
+- `Backend/app/routers/attendance/shared.py`
+- `Backend/app/services/email_service/__init__.py`
+- `Backend/app/services/email_service/config.py`
+- `Backend/app/services/email_service/transport.py`
+- `Backend/app/services/email_service/rendering.py`
+- `Backend/app/services/email_service/use_cases.py`
+- `Backend/app/services/governance_hierarchy_service/__init__.py`
+- `Backend/app/services/governance_hierarchy_service/permissions.py`
+- `Backend/app/services/governance_hierarchy_service/unit_lifecycle.py`
+- `Backend/app/services/governance_hierarchy_service/membership.py`
+- `Backend/app/services/governance_hierarchy_service/engagement.py`
+- `Backend/app/services/governance_hierarchy_service/shared.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/app/tests/test_auth_task_dispatcher.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+
+### Backend changes
+
+- replaced the monolithic `users.py`, `events.py`, and `attendance.py` routers with package-based router modules grouped by domain concern
+- kept the public imports `app.routers.users`, `app.routers.events`, and `app.routers.attendance` stable by moving those names to package roots that re-export the router objects and compatibility helpers
+- replaced the monolithic `email_service.py` module with a package split into config, transport, rendering, and use-case senders while preserving the `app.services.email_service` import surface for callers and tests
+- replaced the monolithic `governance_hierarchy_service.py` module with a package that exposes domain submodules for permissions, unit lifecycle, membership, and engagement
+- kept `governance_hierarchy_service/shared.py` as a temporary internal compatibility layer so the public governance service behavior does not drift during the refactor
+- changed `POST /users/students/` to create the canonical `student` role on demand if it has not been seeded yet, so single-call student onboarding still succeeds in a fresh database
+
+### Route or schema impact
+
+- no route path changes
+- no request or response schema changes
+- `POST /users/students/` now succeeds in fresh environments even when the `student` role row does not exist yet
+- package-root compatibility exports preserve the old import paths used by tests and existing backend modules
+
+### Configuration impact
+
+- no environment variable changes
+
+### Migration impact
+
+- no database migration changes
+
+### How to test
+
+1. From `Backend/`, run `python -m pytest -q app/tests/test_api.py app/tests/test_email_service.py app/tests/test_governance_hierarchy_api.py app/tests/test_auth_task_dispatcher.py`.
+2. Call `POST /users/students/` in a database where only the acting admin role exists and confirm the request still succeeds and assigns the `student` role.
+3. Smoke-test representative event and attendance routes and confirm the split routers still serve the same mounted endpoints.
+4. Import `app.routers.users`, `app.routers.events`, `app.routers.attendance`, `app.services.email_service`, and `app.services.governance_hierarchy_service` from a Python shell and confirm the expected public symbols still resolve.
+
+## 2026-03-25 - Phase 3 completion: canonical `/api` private routes and backend compatibility aliases
+
+### Purpose
+
+Finished the remaining Phase 3 route normalization by making `/api/*` the canonical private API family for active frontend traffic, while keeping the old unprefixed private routes mounted as backend compatibility aliases during the deprecation window.
+
+### Main files
+
+- `Backend/app/main.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+- `Backend/docs/BACKEND_FRONTEND_AUTH_ONBOARDING_GUIDE.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+
+### Backend changes
+
+- mounted the active private routers under `/api` as the canonical route family
+- kept the existing unprefixed private route families mounted as hidden compatibility aliases
+- kept already-canonical `/api/admin/*`, `/api/school/*`, `/api/audit-logs/*`, `/api/notifications/*`, `/api/subscription/*`, and `/api/governance/*` routes unchanged
+- kept public and auth entry routes such as `/login`, `/token`, `/auth/mfa/verify`, `/public-attendance/*`, and `/health` unchanged
+
+### Route or schema impact
+
+- added canonical route families:
+  - `/api/users/*`
+  - `/api/events/*`
+  - `/api/attendance/*`
+  - `/api/programs/*`
+  - `/api/departments/*`
+  - `/api/auth/security/*`
+  - `/api/face/*`
+- kept the unprefixed route families above as temporary compatibility aliases
+- no request or response schema changes
+
+### Configuration impact
+
+- frontend reverse proxies must now forward `/api/*` to the backend without stripping the `/api` prefix
+- old direct `/users/*`, `/events/*`, `/attendance/*`, `/programs/*`, `/departments/*`, `/auth/security/*`, and `/face/*` forwarding can remain temporarily for compatibility
+
+### Migration impact
+
+- no database migration changes
+
+### How to test
+
+1. Call `GET /api/users/me/` with a valid bearer token and confirm it returns the same payload as `GET /users/me/`.
+2. Call `GET /api/auth/security/mfa-status` with a valid bearer token and confirm it returns the current user's MFA settings.
+3. Call representative canonical private routes such as `GET /api/events/`, `GET /api/attendance/me/records`, `GET /api/programs/`, and `GET /api/departments/`.
+4. Confirm the same unprefixed routes still respond during the compatibility window.
+5. Run `python -m pytest -q app/tests/test_api.py -k canonical_api_prefix`.
+
+## 2026-03-25 - Phase 3 start: retire legacy school-settings import routes and finish session migration on active frontend pages
+
+### Purpose
+
+Removed the duplicate school-scoped import implementation from `school_settings.py` so the admin import pipeline is now the only supported bulk-import flow, and finished the active-page frontend auth migration away from ad hoc token storage reads.
+
+### Main files
+
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed the embedded legacy user-import implementation from `school_settings.py`
+- changed `GET /school-settings/me/users/import-template` to an explicit deprecated `410 Gone` response
+- changed `POST /school-settings/me/users/import` to an explicit deprecated `410 Gone` response
+- kept `POST /api/admin/import-students/preview`, `POST /api/admin/import-students`, and `GET /api/admin/import-students/template` as the supported import flow
+- kept school branding and school audit-log behavior under `school_settings.py` unchanged
+
+### Route or schema impact
+
+- deprecated route: `GET /school-settings/me/users/import-template`
+- deprecated route: `POST /school-settings/me/users/import`
+- both deprecated routes now return `410 Gone` with the replacement admin-import endpoints in the response detail
+- no request or response schema changes for the supported admin-import routes
+
+### Configuration impact
+
+- no environment variable changes
+
+### Migration impact
+
+- no database migration changes
+
+### How to test
+
+1. Call `GET /school-settings/me/users/import-template` as an admin or campus admin and confirm it returns `410 Gone` with the admin-import replacement paths.
+2. Call `POST /school-settings/me/users/import` as an admin or campus admin and confirm it also returns `410 Gone`.
+3. Call `GET /api/admin/import-students/template` and confirm the supported template download still works.
+4. Call `POST /api/admin/import-students/preview` and `POST /api/admin/import-students` with a valid preview token and confirm the supported import flow is unchanged.
+5. Run `python -m pytest -q app/tests/test_api.py -k legacy_school_settings_import`.
+
+## 2026-03-25 - Phase 2 hardening: lazy face runtime loading and compose file fixes
+
+### Purpose
+
+Hardened runtime startup so missing optional face-recognition binaries do not crash unrelated backend boot, and fixed stale Docker Compose configuration that could break case-sensitive deployments or production config validation.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+
+### Backend changes
+
+- changed the face-recognition service to lazy-load the `face_recognition` runtime only when a face route actually needs it
+- changed face-related runtime failures to return an explicit `503 Service Unavailable` instead of crashing app startup during module import
+- changed security face-status responses so `anti_spoof_ready` is reported as unavailable when the face-recognition runtime is missing
+- kept the existing face route shapes and business logic unchanged for environments where the optional dependency is installed
+
+### Route or schema impact
+
+- no route path changes
+- no request or response schema changes
+- face routes now fail explicitly at request time if the optional runtime is unavailable instead of failing app import/startup
+
+### Configuration impact
+
+- no new environment variables
+- existing `ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING` still applies only to the anti-spoof model, not to the missing `face_recognition` runtime
+- `docker-compose.yml` now uses the real `Backend/` and `Frontend/` path casing
+- `docker-compose.prod.yml` now has a valid Redis restart policy
+
+### Migration impact
+
+- no database migration changes
+
+### How to test
+
+1. Run `python -m compileall Backend/app`.
+2. Start the backend without the `face_recognition` Python package installed and confirm non-face endpoints still boot successfully.
+3. Call a face endpoint such as `POST /face/register` and confirm it fails with a clear `503` dependency message instead of an import crash.
+4. Call `GET /auth/security/face-status` and confirm it reports the face runtime as unavailable through the readiness fields.
+5. Run:
+   - `docker compose -f docker-compose.yml config -q`
+   - `docker compose -f docker-compose.prod.yml config -q`
+
+## 2026-03-25 - Phase 1 cleanup: archive legacy notification and tenant code, remove broken SSG files
+
+### Purpose
+
+Started the Phase 1 refactor cleanup by removing broken dead files from the active runtime and moving legacy-but-possibly-useful modules into a quarantine archive. The goal was to reduce maintenance noise without changing supported routes or business-critical flows.
+
+### Main files
+
+- `Backend/app/routers/ssg_events_alias.py`
+- `Backend/app/routers/ssg_notifications_admin.py`
+- `Backend/app/services/ssg_event_service.py`
+- `Backend/app/worker/tasks_notifications.py`
+- `Backend/app/core/tenant_database.py`
+- `Backend/app/models/notification.py`
+- `Backend/app/models/event_attendance.py`
+- `Backend/app/routers/notification_center.py`
+- `Backend/app/schemas/notification_center.py`
+- `Backend/app/services/notification_service.py`
+- `Backend/app/worker/tasks_attendance.py`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `archive/2026-03-refactor-quarantine/`
+
+### Backend changes
+
+- removed broken unmounted SSG router aliases from the active backend tree
+- removed the broken legacy SSG notification service and worker task from the active backend tree
+- moved the legacy notification-center backend files into `archive/2026-03-refactor-quarantine/` so rollback is still possible without keeping them in the runtime path
+- moved the inactive `event_attendance` model into the same quarantine archive
+- moved the experimental `tenant_database.py` module into the quarantine archive because it was not part of the active runtime and referenced missing model definitions
+- moved the broken legacy worker attendance task into the quarantine archive
+
+### Route or schema impact
+
+- no active mounted route changes
+- no request or response schema changes for supported APIs
+- removed only unmounted or inactive legacy files from the active runtime path
+
+### Configuration impact
+
+- no environment variable changes
+
+### Migration impact
+
+- no database migration changes in this step
+- legacy notification and event-attendance table cleanup remains a later schema phase, not part of this runtime cleanup
+
+### How to test
+
+1. Run `python -m compileall Backend/app`.
+2. Confirm these supported routes still load and behave as before:
+   - `POST /login`
+   - `POST /users/students/`
+   - `POST /api/admin/import-students/preview`
+   - `POST /api/admin/import-students`
+   - `GET /api/notifications/preferences/me`
+   - `GET /health`
+3. Confirm the removed legacy files no longer exist under `Backend/app/` and now live under `archive/2026-03-refactor-quarantine/` where applicable.
+
+## 2026-03-25 - Add Gmail API HTTPS mail transport and OAuth refresh-token tooling
+
+### Purpose
+
+Added a production-ready Gmail API mail transport so VALID8 can deliver transactional email over HTTPS when cloud SMTP egress is blocked or unreliable. This is the recommended fallback for the current Railway deployment because live Google SMTP delivery still times out from that host.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/scripts/send_test_email.py`
+- `Backend/scripts/generate_google_oauth_refresh_token.py`
+- `Backend/.env.example`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `EMAIL_TRANSPORT=gmail_api`
+- added Gmail API delivery through `https://gmail.googleapis.com/gmail/v1/users/me/messages/send`
+- kept existing welcome, forgot-password, MFA, and generic transactional email helpers unchanged at the call site
+- changed connection validation so Gmail API transport refreshes the access token and optionally verifies custom send-as aliases
+- added Gmail API specific failure handling for invalid refresh tokens, missing scopes, custom sender rejection, rate limits, and HTTPS timeouts
+- added a local OAuth helper script to generate a Gmail API refresh token using a browser-based Google consent flow
+- changed the operator smoke-test script so it validates the active mail transport, not only SMTP
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- new environment variables:
+  - `GOOGLE_OAUTH_AUTH_URL`
+  - `GOOGLE_OAUTH_SCOPES`
+  - `GOOGLE_GMAIL_API_BASE_URL`
+- `EMAIL_TRANSPORT` now supports:
+  - `smtp`
+  - `gmail_api`
+  - `disabled`
+- Gmail API delivery still uses `SMTP_USERNAME`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, and `SMTP_REPLY_TO` as the visible sender settings
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. Generate a refresh token with `python Backend/scripts/generate_google_oauth_refresh_token.py`.
+2. Set `EMAIL_TRANSPORT=gmail_api` plus the returned Google OAuth values in the deployment environment.
+3. Redeploy the backend.
+4. Run `python Backend/scripts/send_test_email.py --recipient your-address@example.com`.
+5. Create a student or approve a password reset and confirm the email is sent successfully.
+
+## 2026-03-25 - Add IPv4-preferred SMTP mode for Railway-hosted Google email delivery
+
+### Purpose
+
+Fixed a production delivery failure where Railway-hosted outbound email attempts to Google SMTP could fail with `Network is unreachable` before welcome or reset emails were sent. The backend now supports an explicit IPv4-preferred SMTP socket mode so Gmail delivery can avoid broken IPv6 routing in cloud environments.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/tests/test_config.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/.env.example`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `SMTP_PREFER_IPV4` to backend settings
+- added IPv4-preferred SMTP client implementations for both STARTTLS and implicit SSL modes
+- changed the shared SMTP client builder so deployments can force IPv4 without changing sender logic, auth mode, or message formatting
+- kept the default behavior unchanged unless `SMTP_PREFER_IPV4=true`
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- new optional environment variable: `SMTP_PREFER_IPV4`
+- set `SMTP_PREFER_IPV4=true` in Railway-like environments if `smtp.gmail.com` resolves to IPv6 first and SMTP sends fail with `Network is unreachable`
+- recommended with Google SMTP on Railway: enable `EMAIL_VERIFY_CONNECTION_ON_STARTUP=true` after confirming the transport works so bad mail networking fails fast on boot
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. Set `SMTP_PREFER_IPV4=true` in the deployment environment.
+2. Redeploy the backend.
+3. Run the SMTP smoke test or create a student through `POST /users/students/`.
+4. Confirm the route now returns success and the transactional email is accepted instead of returning `502`.
+
+## 2026-03-24 - Add single-call campus student creation with required welcome email delivery
+
+### Purpose
+
+Added a dedicated backend route for creating one student account from the campus-admin flow in a single transaction. This avoids the old two-step frontend pattern where the user could be created successfully but the student profile or welcome email could fail afterward.
+
+### Main files
+
+- `Backend/app/routers/users.py`
+- `Backend/app/schemas/user.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_FRONTEND_AUTH_ONBOARDING_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `POST /users/students/` for admin and campus-admin callers
+- the new route always creates the account inside the caller's school scope
+- the new route always assigns the `student` role
+- the new route validates that `department_id` and `program_id` belong to the same school and valid department-program pairing
+- the new route generates a random password internally and sends it through the existing welcome-email mailer
+- changed this student-onboarding route to roll back the database transaction if welcome-email delivery fails so the system does not leave behind an unusable account with an unknown password
+- fixed `POST /users/admin/students/` so `student_id=null` no longer collides with existing null student IDs during duplicate checks
+- changed student-profile creation paths to default `year_level` to `1` when omitted
+
+### Route or schema impact
+
+- new route: `POST /users/students/`
+- new request schema: `StudentAccountCreate`
+- `POST /users/students/` request body:
+  - `email`
+  - `first_name`
+  - optional `middle_name`
+  - `last_name`
+  - `department_id`
+  - `program_id`
+  - optional `year_level`, default `1`
+- response uses the existing `UserWithRelations` shape and includes the created `student_profile`
+
+### Configuration impact
+
+- no new environment variables
+- existing SMTP configuration must remain valid because this route now depends on successful welcome-email delivery
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. Call `POST /users/students/` as a campus admin with a valid email, department, and program from the same school.
+2. Confirm the created user has `school_id` equal to the campus admin's school and has the `student` role.
+3. Confirm a `student_profiles` row is created with the selected `department_id` and `program_id`.
+4. Confirm the welcome email is delivered and contains the generated password.
+5. Break SMTP intentionally and confirm `POST /users/students/` fails instead of leaving behind a partial student account.
+
+## 2026-03-24 - Add production-ready Google email delivery modes and startup validation
+
+### Purpose
+
+Upgraded the backend mailer from a basic username/password SMTP helper into a production-ready Google delivery service that supports App Password SMTP, Google XOAUTH2, and Google Workspace SMTP relay while failing clearly on invalid startup config and providing an operator smoke-test script.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/main.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/tests/test_config.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/scripts/send_test_email.py`
+- `Backend/.env.example`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `EMAIL_TRANSPORT`, `EMAIL_REQUIRED_ON_STARTUP`, and `EMAIL_VERIFY_CONNECTION_ON_STARTUP` so email can be enforced explicitly at startup
+- added `SMTP_AUTH_MODE` with `password`, `xoauth2`, and `none` support
+- added `SMTP_FROM_NAME`, `SMTP_REPLY_TO`, `SMTP_TIMEOUT_SECONDS`, and `SMTP_EHLO_NAME`
+- added Google-specific sender controls through `SMTP_GOOGLE_ACCOUNT_TYPE` and `SMTP_GOOGLE_ALLOW_CUSTOM_FROM`
+- added Google OAuth token settings for XOAUTH2 SMTP auth
+- changed the email service to send HTML plus plain-text transactional emails through one shared `send_transactional_email(...)` path
+- changed personal Gmail behavior to fall back to the authenticated Gmail address when an unsupported custom `From` sender is configured
+- changed Workspace custom-domain sender behavior to require explicit opt-in so invalid `no-reply@domain` configs fail clearly instead of silently sending from the wrong mailbox
+- added a reusable SMTP connection checker and a real `Backend/scripts/send_test_email.py` smoke-test script
+- added FastAPI startup validation so bad production mail config fails early instead of waiting for the first forgot-password or MFA send
+- added Google-specific SMTP error messages for auth failures, sender rejections, and temporary relay throttling
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- new environment variables:
+  - `EMAIL_TRANSPORT`
+  - `EMAIL_REQUIRED_ON_STARTUP`
+  - `EMAIL_VERIFY_CONNECTION_ON_STARTUP`
+  - `SMTP_TIMEOUT_SECONDS`
+  - `SMTP_FROM_NAME`
+  - `SMTP_REPLY_TO`
+  - `SMTP_EHLO_NAME`
+  - `SMTP_AUTH_MODE`
+  - `SMTP_GOOGLE_ACCOUNT_TYPE`
+  - `SMTP_GOOGLE_ALLOW_CUSTOM_FROM`
+  - `GOOGLE_OAUTH_CLIENT_ID`
+  - `GOOGLE_OAUTH_CLIENT_SECRET`
+  - `GOOGLE_OAUTH_REFRESH_TOKEN`
+  - `GOOGLE_OAUTH_TOKEN_URL`
+- `Backend/.env.example` now documents supported Google mailer modes
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. From `Backend/`, run `python -m pytest -q app/tests/test_config.py app/tests/test_email_service.py`.
+2. Run `python scripts/send_test_email.py --recipient your-address@example.com --check-only`.
+3. Run `python scripts/send_test_email.py --recipient your-address@example.com`.
+4. Approve a real password reset and confirm the temporary-password email is delivered.
+5. If using Workspace `no-reply@domain`, test both sender acceptance and actual inbox delivery before production rollout.
+
+## 2026-03-24 - Restore forgot-password request creation for Campus Admin accounts
+
+### Purpose
+
+Fixed the public forgot-password flow so active school-scoped `campus_admin` accounts can submit reset requests again. Before this, the endpoint returned the normal success message for Campus Admin emails but silently created no `password_reset_requests` row, which made the flow look successful while doing nothing.
+
+### Main files
+
+- `Backend/app/routers/auth.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `POST /auth/forgot-password` to allow active school-scoped `campus_admin` accounts to create pending password-reset requests
+- kept platform admins without a school assignment excluded from the public forgot-password flow
+- changed the public success copy from `Campus Admin approval` to `administrator approval` so the message also fits Campus Admin resets that require platform-admin approval
+- changed `GET /auth/password-reset-requests` so campus-admin viewers only see requests they are allowed to approve
+- kept privileged-target approval enforcement in place so campus admins still cannot approve resets for `admin` or `campus_admin` accounts
+
+### Route or schema impact
+
+- `POST /auth/forgot-password` now creates pending requests for active school-scoped `campus_admin` accounts
+- `GET /auth/password-reset-requests` now hides privileged-target requests from campus-admin viewers
+- no request or response schema shape changes
+
+### Configuration impact
+
+- no new environment variables
+- existing SMTP settings still apply when approvals send temporary passwords
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. Call `POST /auth/forgot-password` for an active student account and confirm a `password_reset_requests` row is created.
+2. Call `POST /auth/forgot-password` for an active school-scoped `campus_admin` account and confirm a `password_reset_requests` row is also created.
+3. Call `GET /auth/password-reset-requests` as a platform admin and confirm privileged-target requests are visible.
+4. Call `GET /auth/password-reset-requests` as a campus admin in the same school and confirm privileged-target requests are hidden.
+5. Approve a visible request and confirm the temporary reset password still forces `POST /auth/change-password` after login.
+
+## 2026-03-24 - Restore real SMTP config loading and add SSL transport support
+
+### Purpose
+
+Fixed the backend mailer so local runtime loads the repo-root `.env` SMTP settings and the SMTP transport can use either STARTTLS or implicit SSL. Without this, local backend runs could silently miss `SMTP_*` settings and providers that require SSL on port `465` were unsupported.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/tests/test_config.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed environment loading so config checks both `Backend/.env` and the repo-root `.env`
+- changed dotenv loading to preserve already-exported environment variables instead of overriding them
+- added `smtp_use_ssl` to backend settings and wired it to `SMTP_USE_SSL`
+- changed the email sender to use `smtplib.SMTP_SSL` when `SMTP_USE_SSL=true`
+- changed STARTTLS mode to use an explicit TLS context and `EHLO` negotiation before and after `STARTTLS`
+- added validation so `SMTP_USE_SSL` and `SMTP_USE_TLS` cannot both be enabled at the same time
+- added validation so `SMTP_USERNAME` and `SMTP_PASSWORD` must be configured together
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- existing repo-root `.env` files are now picked up during local backend runs
+- existing `SMTP_USE_SSL` values now affect runtime behavior
+- valid SMTP transport modes are:
+  - `SMTP_USE_TLS=true` and `SMTP_USE_SSL=false` for STARTTLS, commonly port `587`
+  - `SMTP_USE_TLS=false` and `SMTP_USE_SSL=true` for implicit SSL, commonly port `465`
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. From `Backend/`, clear any shell-exported `SMTP_*` variables and run `python -c "from app.core.config import get_settings; s=get_settings(); print(s.smtp_host, s.smtp_from_email, s.smtp_use_ssl)"` to confirm the repo-root `.env` is still loaded.
+2. Run `python -m pytest -q app/tests/test_config.py app/tests/test_email_service.py`.
+3. Test STARTTLS with `SMTP_USE_TLS=true`, `SMTP_USE_SSL=false`, and your provider's port `587`.
+4. Test implicit SSL with `SMTP_USE_TLS=false`, `SMTP_USE_SSL=true`, and your provider's port `465`.
+
+## 2026-03-23 - Accelerate bulk student import with CSV normalization and catalog auto-creation
+
+### Purpose
+
+Refactored student bulk import for large school uploads so `.xlsx` files are normalized into CSV-backed rows, missing departments/programs are created automatically during import, and the hot path no longer spends one bcrypt hash per imported user.
+
+### Main files
+
+- `Backend/app/services/import_file_service.py`
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/services/import_validation_service.py`
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/workers/tasks.py`
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/tests/test_import_repository.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a shared import-file helper so preview and queued import jobs accept `.csv` directly and normalize `.xlsx` uploads into CSV bytes before processing
+- changed preview validation so new department names, program names, and department-program combinations can pass preview instead of being rejected as missing catalog data
+- changed the repository import path to auto-create missing `departments`, `programs`, and `program_department_association` rows for the target school before inserting student profiles
+- kept duplicate email and duplicate `Student_ID` checks in place, including late-race handling after preview approval
+- changed bulk import account provisioning to use one password-pending bcrypt hash per job instead of generating and hashing a unique temporary password for every imported user
+- changed import-side email behavior to queue onboarding guidance instead of temporary-password emails and to record deferred delivery when task publishing fails instead of blocking on direct SMTP
+- changed PostgreSQL advisory locking from one global import lock to a school-scoped lock so different schools can import concurrently
+- made advisory-lock import helpers no-op outside PostgreSQL so local SQLite-based smoke coverage can still exercise the repository path
+
+### Route or schema impact
+
+- `POST /api/admin/import-students/preview` now accepts both `.csv` and `.xlsx` uploads
+- no request or response schema shape changes
+
+### Configuration impact
+
+- no new environment variables
+- existing `IMPORT_CHUNK_SIZE`, `IMPORT_STORAGE_DIR`, and Celery/SMTP settings still apply
+- a real Celery worker remains recommended if onboarding emails should leave the queue promptly after large imports
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. Preview the same sample file as `.xlsx` and `.csv` and confirm both return the same approved rows and `preview_token` behavior.
+2. Preview a file that references a new department and new program and confirm `can_commit=true`.
+3. Import that preview and confirm the target school now contains the new catalog rows plus the imported student accounts.
+4. Preview a file that duplicates an existing email or `Student_ID` and confirm preview still reports those conflicts.
+5. Break Celery task publishing and confirm the import still completes while `email_delivery_logs` records deferred onboarding delivery.
+
+## 2026-03-22 - Restore missing Alembic SSG RBAC revision
+
+### Purpose
+
+Restored the missing Alembic source file for revision `e7b1c2d3f4ab`. The revision still existed as compiled bytecode locally, but the missing `.py` file broke `alembic upgrade head` and any fresh deployment that needed to traverse the full migration chain.
+
+### Main files
+
+- `Backend/alembic/versions/e7b1c2d3f4ab_add_ssg_rbac_tables.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+
+### Backend changes
+
+- restored the SSG RBAC/event migration source for revision `e7b1c2d3f4ab`
+- restored creation of:
+  - `ssg_permissions`
+  - `ssg_roles`
+  - `ssg_role_permissions`
+  - `ssg_user_roles`
+  - `ssg_events`
+  - `ssg_announcements`
+- restored the missing `ssg_event_status` enum creation step and permission seed inserts
+- added a merge revision so both event-migration branches converge to one head
+- made `b45c67d89e01_add_event_late_threshold_minutes.py` idempotent so fresh databases do not fail when both branches have already introduced `events.late_threshold_minutes`
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- no new environment variables
+
+### Migration impact
+
+- `alembic upgrade head` works again for fresh environments and remote deploys that need the complete migration graph
+- added a merge revision so the graph has one canonical head instead of separate `b1a2c3d4e5f6` and `d5f4c3b2a1e0` heads
+
+### How to test
+
+1. Run `alembic heads` from `Backend/` and confirm the migration graph resolves.
+2. Run `alembic upgrade head` against a disposable database and confirm the full chain applies without missing-revision errors.
+
+## 2026-03-22 - Restore missing tenant database settings
+
+### Purpose
+
+Fixed a runtime configuration gap where tenant-database code referenced settings that were never exposed by `get_settings()`. Without this fix, tenant provisioning and any flow importing `app.core.tenant_database` could fail with `AttributeError`.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/tests/test_config.py`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `database_admin_url` to the backend `Settings` object and wired it to `DATABASE_ADMIN_URL`
+- added `tenant_database_prefix` to the backend `Settings` object and wired it to `TENANT_DATABASE_PREFIX`
+- kept `DATABASE_ADMIN_URL` optional so existing single-database deployments continue to fall back to `DATABASE_URL`
+- added regression coverage so the settings loader exposes both tenant-related values
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- new optional environment variable: `DATABASE_ADMIN_URL`
+- new optional environment variable: `TENANT_DATABASE_PREFIX`
+- tenant provisioning now reliably uses `TENANT_DATABASE_PREFIX`, defaulting to `school` when unset
+
+### Migration impact
+
+- no database migration file changes
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_config.py`.
+2. Set `DATABASE_ADMIN_URL` and `TENANT_DATABASE_PREFIX` in the environment and confirm `app.core.tenant_database` imports without raising missing-setting errors.
+
+## 2026-03-22 - Add Railway-ready backend service modes for cloud deployment
+
+### Purpose
+
+Made the production backend image reusable across Railway web, worker, beat, and one-shot migration services so the backend can be deployed in a cloud layout without maintaining separate container definitions. Also hardened student bulk import so it can fall back to in-process execution when Celery or Redis is unavailable.
+
+### Main files
+
+- `Backend/Dockerfile.prod`
+- `Backend/scripts/run-service.sh`
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Backend/app/tests/test_public_attendance.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed the production container entrypoint to call a shared runtime launcher script
+- added `SERVICE_MODE` support with these values:
+  - `web`
+  - `worker`
+  - `beat`
+  - `migrate`
+- changed the web mode to honor Railway-style `PORT` injection instead of always binding to `8000`
+- changed the web startup path to create the configured import and school-logo storage directories before boot so Railway-mounted volumes do not fail with `PermissionError`
+- changed the production image to run as the container default user so the app can write to mounted Railway volumes at `/data`
+- kept the same `uvicorn`, Celery worker, and Celery beat commands used by the Docker deployment path
+- changed student bulk import job dispatch to fall back to FastAPI background tasks when Celery publishing fails
+- changed welcome-email dispatch during imports to fall back to in-process delivery and email-delivery logging when Celery publishing fails
+- stabilized public-attendance tests so they use the backend event timezone instead of the host machine timezone
+
+### Route or schema impact
+
+- no API route changes
+- no request or response schema changes
+
+### Configuration impact
+
+- new runtime variable: `SERVICE_MODE`
+- supported values:
+  - `web` for FastAPI
+  - `worker` for Celery worker
+  - `beat` for Celery beat
+  - `migrate` for Alembic upgrade
+- web mode now respects `PORT` when provided by the hosting platform
+- the production image now expects the container user to be able to initialize the configured storage directories, including Railway-mounted `/data/*` paths
+- bulk import now remains functional when the Celery broker is unavailable, but periodic scheduler behavior still requires a real worker and beat deployment if you need automatic time-based jobs
+
+### Migration impact
+
+- no database migration file changes
+- deployment/runtime change only
+
+### How to test
+
+1. Build the production image with `docker build -f Backend/Dockerfile.prod -t valid8-backend Backend`.
+2. Run `docker run --rm -e SERVICE_MODE=web -e PORT=8000 valid8-backend sh -c "python -V && /app/scripts/run-service.sh"` and confirm the API boot command starts.
+3. Run `docker run --rm -v "<repo>\\Backend:/workspace" -w /workspace valid8-backend-test python -m pytest -q app/tests`.
+4. Temporarily break Celery broker access and confirm `POST /api/admin/import-students` still completes through the in-process fallback path.
+5. Deploy separate cloud services with `SERVICE_MODE=web`, `worker`, `beat`, and optional `migrate` and confirm they start with the expected command paths.
+
+## 2026-03-22 - Restore landing-page public kiosk and stabilize bcrypt login checks
+
+### Purpose
+
+Fixed the login flow so bcrypt-backed verification no longer depends on the broken live `passlib` + `bcrypt 5.x` combination, kept oversized passwords from crashing auth, and restored the public face-attendance kiosk on the landing page so the shipped backend public-attendance routes are reachable from the UI.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/models/user.py`
+- `Backend/app/utils/passwords.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_models.py`
+- `Frontend/src/api/publicAttendanceApi.ts`
+- `Frontend/src/components/PublicAttendanceKiosk.tsx`
+- `Frontend/src/css/PublicAttendanceKiosk.css`
+- `Frontend/src/components/Home.tsx`
+- `Frontend/src/components/LoginForm.tsx`
+- `Frontend/src/App.css`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `verify_password()` and shared password helpers to use `bcrypt.checkpw()` directly instead of runtime `passlib` verification
+- unified `User.set_password()`, `User.check_password()`, and `hash_password_bcrypt()` on the same bcrypt-only helper path so live login, password resets, and generated passwords use one compatible implementation
+- kept support for existing stored bcrypt hashes, including hashes originally created through the older passlib-backed helper
+- kept the existing auth contract so `/login`, `/token`, and `/auth/change-password` stay on their normal invalid-credential path instead of crashing
+- added regression coverage for oversized password checks and legacy bcrypt-hash verification compatibility
+
+### Frontend behavior impact
+
+- the landing page now renders a public face-attendance kiosk beneath the login panel
+- the kiosk discovers nearby geofenced events from the browser's current GPS position, lets the operator select one event, and streams multi-face scans against the backend public-attendance APIs
+- the login form now accepts passwords up to `255` characters instead of truncating at `30`
+
+### Route or schema changes
+
+- no API route changes
+- no schema changes
+
+### Configuration impact
+
+- no new environment variables
+- `PUBLIC_ATTENDANCE_ENABLED` still controls whether the kiosk routes respond; the landing-page UI now surfaces backend disabled or location errors directly
+
+### Migration impact
+
+- no new database migration file
+
+### How to test
+
+1. Run `Backend\\.venv\\Scripts\\python.exe -m pytest -q Backend/app/tests/test_api.py -k oversized_password`.
+2. Run `Backend\\.venv\\Scripts\\python.exe -m pytest -q Backend/app/tests/test_api.py -k legacy_passlib`.
+3. Run `Backend\\.venv\\Scripts\\python.exe -m pytest -q Backend/app/tests/test_models.py -k oversized_password`.
+4. Run `npm run build` from `Frontend/`.
+5. Open `/login`, allow geolocation, and confirm nearby public attendance events load in the kiosk.
+6. Select a nearby event, start the camera, arm the live scan, and confirm scan outcomes appear without logging the student into the app.
+7. Log in with a known-good existing account and confirm the API now accepts the correct password again.
+8. Submit a login attempt with a password longer than `72` bytes and confirm the UI no longer shows `Network error: 500`.
+
+## 2026-03-22 - Consolidate Docker deployment into one compose file
+
+### Purpose
+
+Simplified deployment by removing the separate production Compose file and moving the practical cloud-safe runtime behavior into the main `docker-compose.yml`.
+
+### Main files
+
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+- `README.md`
+- `.env.example`
+- `.gitignore`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Deployment changes
+
+- removed `docker-compose.prod.yml`
+- changed `docker-compose.yml` to use the production backend and frontend Dockerfiles
+- changed Compose build paths to `./Backend` and `./Frontend` so Linux deployments do not fail on case-sensitive filesystems
+- added a one-shot `migrate` service that runs `alembic upgrade head` before backend, worker, and beat start
+- changed backend health checks to probe `GET /health` instead of only checking the root route
+- changed Postgres, Redis, pgAdmin, and direct backend port mappings to loopback by default
+- moved `pgadmin` to an optional `tools` profile so the app stack is smaller by default
+- removed the dedicated local SMTP sandbox from the main stack so outbound email is opt-in through explicit SMTP or Gmail configuration
+
+### Configuration impact
+
+- `DATABASE_URL` in `.env` remains the host-side value for scripts and local non-Docker runs
+- Docker Compose now injects the container-internal database URL directly, so host-style `localhost` values in `.env` no longer break the containers
+- `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, and `PGADMIN_PORT` can now be set from `.env`
+- `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` can be set when the `tools` profile is enabled
+
+### Migration impact
+
+- no new database migration file
+- deployment now automatically runs Alembic on container startup through the `migrate` service
+
+### How to test
+
+1. Run `docker compose config -q`.
+2. Run `docker compose up -d --build`.
+3. Confirm the frontend opens at `http://localhost:5173`.
+4. Confirm the backend health check succeeds at `http://127.0.0.1:8000/health`.
+5. Run `docker compose --profile tools up -d pgadmin` and confirm pgAdmin is reachable at `http://127.0.0.1:5050`.
+
+## 2026-03-22 - Optimize Manage SG and Manage ORG list loading
+
+### Purpose
+
+Reduced `Manage SG` and `Manage ORG` load time by making `GET /api/governance/units` return lightweight unit summaries with `member_count`, so the frontend no longer needs to hydrate every listed SG or ORG with a full detail request on first page load.
+
+### Main files
+
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Frontend/src/api/governanceHierarchyApi.ts`
+- `Frontend/src/pages/ManageSg.tsx`
+- `Frontend/src/pages/ManageOrg.tsx`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `GET /api/governance/units` to use a summary query instead of loading full unit members and permissions for every listed governance unit
+- added `member_count` to `GovernanceUnitSummaryResponse`
+- kept `GET /api/governance/units/{governance_unit_id}` as the full-detail route for member and permission management
+
+### Frontend behavior impact
+
+- `Manage SG` now loads SG cards from the lightweight summary list and only fetches full SG details when the user opens member or permission management
+- `Manage ORG` now follows the same pattern for ORG cards
+- department and program lookups are reused during the page session instead of being re-fetched on every unit refresh
+
+### Testing
+
+1. Open `SSG -> Manage SG` and confirm the first load shows SG cards without waiting for one detail request per SG unit.
+2. Open `SG -> Manage ORG` and confirm the first load shows ORG cards without waiting for one detail request per ORG unit.
+3. Open the `Members` and `Permissions` tabs for one unit and confirm the detail data still loads correctly.
+4. Run `Backend\\.venv\\Scripts\\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py -k "governance_units_are_listed_only_within_the_actor_school or dashboard_overview_endpoint_returns_lightweight_summary or accessible_students_endpoint_supports_skip_and_limit"`.
+
+## 2026-03-22 - Optimize SSG, SG, and ORG dashboard loading
+
+### Purpose
+
+Reduced governance dashboard load time by replacing the heaviest dashboard calls with one lightweight backend overview route and by deduplicating the duplicate governance-unit detail request that the sidebar and dashboard page were making at the same time.
+
+### Main files
+
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Frontend/src/api/governanceHierarchyApi.ts`
+- `Frontend/src/hooks/useGovernanceWorkspace.ts`
+- `Frontend/src/dashboard/SSGDashboard.tsx`
+- `Frontend/src/pages/GovernanceDashboardPage.tsx`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `GET /api/governance/units/{governance_unit_id}/dashboard-overview`
+- changed dashboard data loading so child unit cards use aggregated member counts instead of fetching full details for every SG or ORG child unit
+- changed dashboard student totals to use a count query instead of returning the full accessible student list just to compute `.length`
+- changed dashboard announcement loading to return only the recent items plus a published count, instead of loading the whole announcement history for the card view
+- added a regression test for the new dashboard overview response
+
+### Frontend changes
+
+- changed `SSGDashboard`, `SgDashboard`, and `OrgDashboard` to use the single dashboard overview API for stats, recent announcements, and child unit summaries
+- changed `useGovernanceWorkspace()` to dedupe simultaneous `fetchGovernanceUnitDetails()` requests so the dashboard page and the sidebar can share one in-flight unit-detail call
+
+### Route or schema impact
+
+- added `GET /api/governance/units/{governance_unit_id}/dashboard-overview`
+- added dashboard response schemas for:
+  - recent announcement summaries
+  - child unit summaries with `member_count`
+  - dashboard overview counts
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Log in as an `SSG`, `SG`, or `ORG` officer with dashboard access.
+2. Open `/ssg_dashboard`, `/sg_dashboard`, or `/org_dashboard` and confirm the page loads with the same cards, recent announcements, and child unit lists as before.
+3. Confirm the browser now calls `GET /api/governance/units/{governance_unit_id}/dashboard-overview` instead of loading the full accessible student list and then one detail request per child unit.
+4. For `SSG` and `SG`, confirm child unit cards still show the correct member counts.
+5. For any unit with many students, confirm the dashboard still shows the correct total without loading the whole student directory first.
+
+## 2026-03-22 - Reduce Manage Users page-load overhead
+
+### Purpose
+
+Improved `Manage Users` load time by making the `/users/` list routes eager-load the relations that page serialization needs and by deferring department and program lookups until the edit modal is opened.
+
+### Main files
+
+- `Backend/app/routers/users.py`
+- `Backend/app/tests/test_api.py`
+- `Frontend/src/pages/ManageUsers.tsx`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `/users/` and `/users/by-role/{role_name}` to eager-load `roles.role` and `student_profile` before serialization
+- changed actor-scoped single-user lookups to reuse the same eager-loading helper so edit, delete, and detail responses do not fall back to lazy relation queries
+- added a regression test that confirms paginated `/users/` responses still include the student profile fields Manage Users uses
+
+### Frontend changes
+
+- stopped loading `/departments/` and `/programs/` during the initial Manage Users page open
+- changed the edit modal flow to fetch academic options only when a user starts editing
+- changed the edit state bootstrap to use `department_id` and `program_id` directly from the paged user payload
+
+### Route or schema impact
+
+- no route shape changes
+- no schema changes
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Log in as an `admin` or `campus_admin` user with more than `100` users in the current school.
+2. Open `Manage Users` and confirm the first page loads without waiting for department and program option requests.
+3. Open an edit modal for a student user and confirm department and program dropdown values still populate correctly.
+4. Page through `Manage Users` and confirm the list still returns student IDs, roles, and academic IDs correctly.
+
+## 2026-03-22 - Paginate governance student directories for SSG, SG, and ORG
+
+### Purpose
+
+Stopped the governance student pages from loading every accessible student at once by adding backend pagination support and wiring the SSG, SG, and ORG student directories to page through `100` records at a time.
+
+### Main files
+
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Frontend/src/api/governanceHierarchyApi.ts`
+- `Frontend/src/pages/SsgStudents.tsx`
+- `Frontend/src/pages/GovernanceStudentsPage.tsx`
+- `Frontend/src/css/SsgWorkspace.css`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `get_accessible_students()` to accept `skip` and `limit`
+- changed `GET /api/governance/students` to accept pagination query params without changing the response body shape
+- kept old callers compatible by leaving `limit` optional so existing consumers can still request the full accessible list when needed
+
+### Frontend changes
+
+- changed `/ssg_students`, `/sg_students`, and `/org_students` to fetch `101` rows, render `100`, and use the extra row to decide whether a next page exists
+- added `Previous` and `Next` controls plus page summaries to the governance student directory screens
+- updated the stats labels on those pages so they describe the current loaded page instead of the full governance scope
+
+### Route or schema impact
+
+- `GET /api/governance/students` now supports:
+  - `skip`
+  - `limit`
+- response shape remains `list[GovernanceAccessibleStudentResponse]`
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Log in as an `SSG`, `SG`, or `ORG` user with `view_students` or `manage_students`.
+2. Ensure the accessible governance scope contains more than `100` students.
+3. Open the corresponding student page and confirm only `100` rows load at a time.
+4. Click `Next` and confirm the next page of students appears.
+5. Confirm `Previous` returns to the earlier page.
+
+## 2026-03-22 - Add preview cleanup action to remove invalid rows
+
+### Purpose
+
+Added a preview-side cleanup action so Campus Admin users can drop preview-failed rows and continue importing only the already valid rows without re-uploading the workbook.
+
+### Main files
+
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Frontend/src/api/schoolSettingsApi.ts`
+- `Frontend/src/pages/SchoolImportUsers.tsx`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `POST /api/admin/import-preview-errors/{preview_token}/remove-invalid`
+- changed preview manifest handling so the same preview token can be rewritten after invalid rows are removed
+- changed the cleanup route to keep only previously approved rows, clear `error_rows`, and return an updated preview response
+- added an audit log entry when a user cleans an invalid preview into an importable one
+
+### Frontend changes
+
+- added a `Remove Invalid Rows` button to the preview error actions
+- changed the preview screen to let users continue with the valid rows after cleanup instead of forcing a full re-upload
+
+### Route or schema impact
+
+- added `POST /api/admin/import-preview-errors/{preview_token}/remove-invalid`
+- the route returns the standard `ImportPreviewResponse` shape with updated counts after cleanup
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Preview a workbook that contains both valid rows and invalid rows.
+2. Confirm the preview shows the new `Remove Invalid Rows` action.
+3. Click `Remove Invalid Rows` and confirm the preview changes to `can_commit=true` and `invalid_rows=0`.
+4. Import using the same preview token and confirm the job is queued successfully.
+
+## 2026-03-22 - Add preview error downloads for student bulk import
+
+### Purpose
+
+Added preview-side error actions so users can download a full preview error report and a retry workbook containing only preview-failed rows before the import job is queued.
+
+### Main files
+
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Frontend/src/api/schoolSettingsApi.ts`
+- `Frontend/src/pages/SchoolImportUsers.tsx`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed preview manifest storage to persist both approved rows and preview-failed rows
+- changed preview tokens to be stored even when preview has invalid rows so preview-only downloads can use the same token
+- added `GET /api/admin/import-preview-errors/{preview_token}/download` to export an Excel error report
+- added `GET /api/admin/import-preview-errors/{preview_token}/retry-download` to export an Excel retry file with only failed preview rows
+- changed `POST /api/admin/import-students` to reject preview tokens whose manifest still has invalid rows
+
+### Frontend changes
+
+- added preview-side buttons for `Download Preview Errors` and `Download Retry File`
+- kept the main import button blocked while preview still has invalid rows
+
+### Route or schema impact
+
+- `POST /api/admin/import-students/preview` still returns `preview_token`, but the token now exists for invalid previews too when a preview manifest is created
+- added `GET /api/admin/import-preview-errors/{preview_token}/download`
+- added `GET /api/admin/import-preview-errors/{preview_token}/retry-download`
+- `POST /api/admin/import-students` now returns `400` with `Preview still has invalid rows. Fix them before importing.` when an invalid preview token is submitted
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Preview a workbook with invalid rows.
+2. Confirm the preview section shows `Download Preview Errors` and `Download Retry File`.
+3. Download the preview error report and confirm the workbook includes an `Error` column.
+4. Download the retry file and confirm it contains only the failed preview rows in template format.
+5. Submit that invalid preview token to `POST /api/admin/import-students` and confirm the backend returns `400`.
+
+## 2026-03-22 - Prevent large preview duplicate checks from crashing PostgreSQL
+
+### Purpose
+
+Fixed a bulk import preview crash where large uploads could fail with `500 Internal Server Error` because duplicate-check queries generated an oversized `IN (...)` expression for student IDs.
+
+### Main files
+
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/tests/test_import_repository.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `existing_emails(...)` to query in chunks instead of one large `IN (...)` list
+- changed `existing_school_student_pairs(...)` to group lookups by school and query student IDs in chunks
+- removed the large tuple-based `(school_id, student_id) IN (...)` lookup that could trigger PostgreSQL `stack depth limit exceeded` on large previews
+
+### Route or schema impact
+
+- no route or schema shape change
+- `POST /api/admin/import-students/preview` now remains stable for larger files when checking existing student IDs and emails
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Preview a larger student workbook that previously failed with a generic preview error.
+2. Confirm the backend no longer returns `500` during the duplicate-check phase.
+3. Confirm duplicate emails and duplicate `Student_ID` values already in the database still appear as preview row errors.
+
+## 2026-03-22 - Validate department and course pairing during student import preview
+
+### Purpose
+
+Closed a validation gap in student bulk import so preview now rejects rows where the selected course exists and the department exists, but that course is not actually offered by that department.
+
+### Main files
+
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/services/import_validation_service.py`
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended the bulk import validation context with department-course association pairs from `program_department_association`
+- changed row validation to reject mismatched department and course combinations with `Course is not offered by the selected Department`
+- kept the same validation rule available in both preview validation and legacy workbook revalidation paths such as retry imports
+
+### Route or schema impact
+
+- no route shape change
+- preview responses can now include `Course is not offered by the selected Department` in row errors
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Create a department and a course that are linked in the school and confirm preview accepts that row when the rest of the data is valid.
+2. Preview a row that uses an existing department and an existing course that are not linked in `program_department_association`.
+3. Confirm preview marks the row invalid with `Course is not offered by the selected Department`.
+
+## 2026-03-22 - Make student bulk import preview the authoritative validation step
+
+### Purpose
+
+Moved student bulk import to a preview-first contract so validation errors are found during preview and the import route only queues a previously approved preview artifact.
+
+### Main files
+
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/schemas/import_job.py`
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Frontend/src/api/schoolSettingsApi.ts`
+- `Frontend/src/pages/SchoolImportUsers.tsx`
+- `Backend/docs/BACKEND_BULK_IMPORT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `POST /api/admin/import-students/preview` to perform both workbook validation and persistent database conflict checks before approval
+- added preview manifest storage under `IMPORT_STORAGE_DIR/previews/` for preview-approved rows
+- changed `POST /api/admin/import-students` to require a preview approval token instead of accepting a direct workbook upload
+- changed the worker to consume preview manifest JSON files without re-running row validation during the normal import path
+- kept defensive insert-time conflict handling for late races that can happen after preview approval
+
+### Frontend changes
+
+- changed the school bulk import page to call preview first and submit the returned `preview_token` on import
+- added a user-facing error if the preview token is missing or expired before import is started
+
+### Route or schema impact
+
+- `POST /api/admin/import-students/preview` now returns `preview_token` for stored preview manifests, and only `can_commit=true` previews are import-eligible
+- `POST /api/admin/import-students` now expects multipart form data with `preview_token`
+- direct file-only submissions to `POST /api/admin/import-students` now return `400` with `Preview the file first before importing.`
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none beyond using the existing `IMPORT_STORAGE_DIR` for preview manifests
+
+### How to test
+
+1. Upload a valid `.xlsx` file to `POST /api/admin/import-students/preview` and confirm the response includes `can_commit=true` and a non-empty `preview_token`.
+2. Submit the returned `preview_token` to `POST /api/admin/import-students` and confirm the job is queued successfully.
+3. Submit the same workbook directly to `POST /api/admin/import-students` without preview and confirm the route returns `400` with `Preview the file first before importing.`
+4. Preview a workbook that uses an email or `Student_ID` already present in the target school and confirm the duplicate is reported during preview instead of surfacing only during import.
+
+## 2026-03-22 - Stabilize `/users/` pagination for large Manage Users lists
+
+### Purpose
+
+Fixed the Campus Admin Manage Users roster so imported student accounts beyond the first backend page can be loaded reliably after large bulk imports.
+
+### Main files
+
+- `Backend/app/routers/users.py`
+- `Frontend/src/pages/ManageUsers.tsx`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+
+### Backend changes
+
+- changed `GET /users/` to apply a stable ascending `User.id` sort before pagination
+- changed `GET /users/by-role/{role_name}` to apply the same stable ascending `User.id` sort before pagination
+- normalized `skip` to a minimum of `0`
+- capped `limit` to the range `1..500` so callers can page through large schools without unbounded reads
+
+### Frontend changes
+
+- updated `Manage Users` to request all pages in batches instead of relying on the backend default first page
+- this keeps imported students visible in the roster even when the school has more than 100 users
+
+### Route or schema impact
+
+- `GET /users/` still returns the same `UserWithRelations[]` schema, but pagination order is now deterministic
+- `GET /users/by-role/{role_name}` still returns the same `UserWithRelations[]` schema, but pagination order is now deterministic
+
+### Migration impact
+
+- none
+
+### Configuration impact
+
+- none
+
+### How to test
+
+1. Import more than 100 students into one school.
+2. Call `GET /users/?skip=0&limit=100` and `GET /users/?skip=100&limit=100` with the same school-scoped Campus Admin token and confirm the two pages are ordered by increasing user ID with no overlap.
+3. Open `Manage Users` as that Campus Admin and confirm the roster includes imported students beyond the first 100 users.
+4. Search for one of the newly imported `student_id` values in `Manage Users` and confirm the record appears.
+
+## 2026-03-22 - Add public login-page multi-face attendance kiosk
+
+### Purpose
+
+Added a public attendance kiosk flow for the login page so nearby geofenced events can record multi-face event attendance without signing students into the web app.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/main.py`
+- `Backend/app/routers/public_attendance.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/schemas/public_attendance.py`
+- `Backend/app/services/attendance_face_scan.py`
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/tests/test_public_attendance.py`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a new unauthenticated public kiosk router under `/public-attendance`
+- added nearby-event discovery that:
+  - uses the caller GPS location
+  - returns only geofenced events whose radius currently passes
+  - supports multiple active schools and returns nearby events across campuses
+  - only returns events in an active sign-in or sign-out phase
+- added public multi-face attendance scanning that:
+  - detects multiple faces in one frame
+  - runs per-face liveness and encoding
+  - enforces a max-faces-per-frame limit
+  - prevents the same student from being accepted twice in one frame
+  - supports client cooldown hints so the same accepted student is not reprocessed every frame
+- added phase-based kiosk attendance persistence:
+  - sign-in phase creates `time_in` only when no active attendance exists
+  - sign-in phase returns `already_signed_in` or `already_signed_out` instead of creating duplicates
+  - sign-out phase creates `time_out` only when an active attendance exists
+  - sign-out phase rejects students who do not have an active event sign-in
+- public scan outcomes now distinguish:
+  - `time_in`
+  - `time_out`
+  - `already_signed_in`
+  - `already_signed_out`
+  - `rejected`
+  - `out_of_scope`
+  - `no_match`
+  - `liveness_failed`
+  - `duplicate_face`
+  - `cooldown_skipped`
+- tightened the authenticated `/face/face-scan-with-recognition` route so its match candidate pool now follows the event scope instead of searching every registered student in the school
+- reused existing event scope rules:
+  - no department/program scope means campus-wide
+  - department-only scope means SG-style department scope
+  - program scope means ORG-style program scope, optionally together with the department on the event
+
+### Route or schema impact
+
+- added `POST /public-attendance/events/nearby`
+- added `POST /public-attendance/events/{event_id}/multi-face-scan`
+- added new public request/response schemas in `Backend/app/schemas/public_attendance.py`
+- authenticated `POST /face/face-scan-with-recognition` now matches only students inside the selected event scope
+
+### Migration impact
+
+- no database migration required
+- new backend configuration values:
+  - `PUBLIC_ATTENDANCE_ENABLED`
+  - `PUBLIC_ATTENDANCE_MAX_FACES_PER_FRAME`
+  - `PUBLIC_ATTENDANCE_SCAN_COOLDOWN_SECONDS`
+  - `PUBLIC_ATTENDANCE_EVENT_LOOKAHEAD_HOURS`
+
+### How to test
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_public_attendance.py Backend/app/tests/test_event_geolocation_service.py Backend/app/tests/test_geolocation.py`
+- run `npm run build` from `Frontend/`
+- manual check:
+  - open `/login` or `/`
+  - allow browser location and confirm nearby events appear only when the device is inside an event geofence
+  - select an event and allow camera access
+  - confirm multiple visible students can be processed in one frame
+  - confirm repeated frames do not keep logging the same accepted student during the cooldown window
+  - confirm sign-in phase creates new attendance records, sign-out phase only closes active records, and out-of-scope or unmatched faces show rejection results without exposing directory data
+
+## 2026-03-21 - Add near-start attendance override windows for event create and edit
+
+### Purpose
+
+Preserved the full configured `present` and `late` attendance windows when an event is created or edited too close to its scheduled `start_datetime`, without changing the schedule-based workflow status rules.
+
+### Main files
+
+- `Backend/app/models/event.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/services/event_geolocation.py`
+- `Backend/app/services/event_workflow_status.py`
+- `Backend/app/tests/test_event_time_status.py`
+- `Backend/app/tests/test_event_geolocation_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/b1a2c3d4e5f6_add_event_attendance_override_windows.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added two nullable event fields:
+  - `present_until_override_at`
+  - `late_until_override_at`
+- on event create and edit, the backend now checks whether the scheduled start is too close to the current Manila time to preserve the full configured early/present window
+- when the event starts soon enough to need help and the schedule is still valid, the backend automatically stores:
+  - `present_until_override_at = now + early_check_in_minutes`
+  - `late_until_override_at = present_until_override_at + late_threshold_minutes`
+- the backend now rejects create or edit when that near-start override would be needed but:
+  - the event start is already in the past, or
+  - there is not enough remaining time from now until `end_datetime` to fit:
+    - the full configured present window
+    - the full configured late window
+    - a fixed `20-minute` absent window before sign-out
+- check-in decisions now use the effective attendance cutoffs:
+  - before `effective_present_until_at` -> `present`
+  - after that until `effective_late_until_at` -> `late`
+  - after that until `end_datetime` -> `absent`
+- workflow auto-sync still stays schedule-based:
+  - `upcoming` / `ongoing` / `completed` are still computed from the scheduled start and end times
+  - the near-start override only changes attendance marking, not the event lifecycle
+- geolocation and student-facing attendance decision payloads now expose:
+  - `attendance_override_active`
+  - `effective_present_until_at`
+  - `effective_late_until_at`
+- opening sign-out early now clears the two attendance override fields because the event ends immediately at that point
+
+### Route or schema impact
+
+- no request body change for normal event create or edit
+- read-only event responses now include:
+  - `present_until_override_at`
+  - `late_until_override_at`
+- time-status and attendance-decision response shapes now include:
+  - `attendance_override_active`
+  - `effective_present_until_at`
+  - `effective_late_until_at`
+
+### Migration impact
+
+- new migration: `Backend/alembic/versions/b1a2c3d4e5f6_add_event_attendance_override_windows.py`
+- database change:
+  - adds `events.present_until_override_at`
+  - adds `events.late_until_override_at`
+
+### How to test
+
+- run `python -m py_compile Backend/app/models/event.py Backend/app/schemas/event.py Backend/app/routers/events.py Backend/app/routers/attendance.py Backend/app/routers/face_recognition.py Backend/app/services/event_time_status.py Backend/app/services/event_geolocation.py Backend/app/services/event_workflow_status.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_time_status.py Backend/app/tests/test_event_geolocation_service.py Backend/app/tests/test_governance_hierarchy_api.py -k "override or near_start"`
+- manual check:
+  - create an event far in the future and confirm both override fields stay `null`
+  - create an event that starts in `1 minute`, ends in `71 minutes`, and uses `early=30`, `late=10`; confirm the event saves and returns override timestamps for `now + 30` and `now + 40`
+  - create an event that starts in `1 minute`, ends in `59 minutes`, and uses `early=30`, `late=10`; confirm the API rejects it because it cannot leave the fixed `20-minute` absent window
+  - edit a far-future event so it starts in `1 minute` and confirm the override timestamps are added
+  - edit that same event back to a far-future start and confirm the override timestamps clear again
+
+## 2026-03-21 - Reject invalid manual event status changes that conflict with event timing
+
+### Purpose
+
+Stopped the event status route from returning misleading success messages when a user tries to manually set an event status that conflicts with the computed event time window.
+
+### Main files
+
+- `Backend/app/routers/events.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added conflict guards in `PATCH /events/{event_id}/status` for manual `status=ongoing` and `status=upcoming`
+- if the current Manila time is still before `start_datetime`, trying to set `ongoing` now returns `409`
+- if the event timing is already in progress, trying to set `upcoming` now returns `409`
+- the response detail now explains the specific timing conflict, such as:
+  - event has not started yet
+  - event is already in progress
+- if the stored event status is already `completed`, the response now says it cannot be reopened because it is already completed
+- reopening a cancelled event during sign-out now succeeds and returns `ongoing` after auto-sync
+- reopening a cancelled event after the full time window closes now succeeds and returns `completed` after auto-sync
+- this prevents the previous flow where the frontend could show a success message even though auto-sync immediately restored the computed status
+
+### Route or schema impact
+
+- route changed: `PATCH /events/{event_id}/status`
+- no request or response schema changes
+- new error behavior:
+  - `409 Conflict` when trying to set `ongoing` before the scheduled start time
+  - `409 Conflict` when trying to set `upcoming` after the event has already moved into an in-progress, sign-out, or closed time window
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/routers/events.py Backend/app/tests/test_governance_hierarchy_api.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_cannot_start_before_scheduled_start_time Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_cannot_reopen_closed_event_to_upcoming Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_reopen_during_sign_out_syncs_back_to_ongoing Backend/app/tests/test_governance_hierarchy_api.py::test_sg_event_status_reopen_closed_cancelled_event_syncs_to_completed`
+- manual check:
+  - create an event with a future `start_datetime`
+  - call `PATCH /events/{event_id}/status?status=ongoing`
+  - confirm the API returns `409` with a message that the event cannot be started yet
+  - confirm the stored status stays `upcoming`
+  - create or use an event whose scheduled window is already closed
+  - mark one closed event as `completed` and confirm `PATCH /events/{event_id}/status?status=upcoming` returns `409` with the completed-event message
+  - mark one closed event as `cancelled` and confirm the same request succeeds but the returned status becomes `completed`
+  - create or use a cancelled event that is still inside its sign-out grace window and confirm the same request succeeds but the returned status becomes `ongoing`
+
+## 2026-03-21 - Change early sign-out to use event end time plus grace minutes
+
+### Purpose
+
+Changed early sign-out so it no longer depends on the old override-close timestamp flow. Opening sign-out early now ends the event at the current time and uses either the current `sign_out_grace_minutes` or a custom close-after-minutes value to decide when sign-out closes.
+
+### Main files
+
+- `Backend/app/routers/events.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/tests/test_event_time_status.py`
+- `Backend/app/tests/test_event_workflow_status.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a new early sign-out request shape with:
+  - `use_sign_out_grace_minutes`
+  - `close_after_minutes`
+- changed early sign-out opening to:
+  - require the event to have already started
+  - require the event to still be before its scheduled `end_datetime`
+  - set `end_datetime = now`
+  - keep the current `sign_out_grace_minutes` when `use_sign_out_grace_minutes = true`
+  - update `sign_out_grace_minutes` to `close_after_minutes` when `use_sign_out_grace_minutes = false`
+- stopped using `sign_out_override_until` in the live event time-status calculation
+- cleared `sign_out_override_until` when the early sign-out route is used
+- updated the computed time-status ordering so a finished event opens sign-out immediately even if the old late-threshold time would otherwise still be in the future
+
+### Route or schema impact
+
+- added `POST /events/{event_id}/sign-out/open-early`
+- kept `POST /events/{event_id}/sign-out-override/open` as a compatibility alias to the same backend behavior
+- replaced the old `override_minutes` request body with:
+  - `use_sign_out_grace_minutes`
+  - `close_after_minutes`
+- removed `sign_out_override_until` from the public event request/response schema layer and from the public time-status response metadata
+
+### Migration impact
+
+- no database migration required
+- the existing `events.sign_out_override_until` column is still present for compatibility but is no longer used for the live close-window calculation
+
+### How to test
+
+- run `python -m py_compile Backend/app/schemas/event.py Backend/app/routers/events.py Backend/app/services/event_time_status.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_time_status.py Backend/app/tests/test_event_workflow_status.py Backend/app/tests/test_governance_hierarchy_api.py::test_sg_manual_attendance_sign_out_requires_early_open_and_preserves_status_audit_fields Backend/app/tests/test_governance_hierarchy_api.py::test_sg_sign_out_early_cannot_open_before_event_start`
+- manual check:
+  - create an event ending at `1:30 PM` with `sign_out_grace_minutes = 10`
+  - call `POST /events/{event_id}/sign-out/open-early` at `1:20 PM` with `{"use_sign_out_grace_minutes": true}` and confirm sign-out closes at `1:30 PM`
+  - call the same route with `{"use_sign_out_grace_minutes": false, "close_after_minutes": 5}` and confirm sign-out closes at `1:25 PM`
+
+## 2026-03-21 - Remove unused backend helper functions outside the current live workflow
+
+### Purpose
+
+Removed backend helper functions that were confirmed to have no caller in the current router-backed, frontend-triggered, or worker-backed runtime flow.
+
+### Main files
+
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/core/event_defaults.py`
+- `Backend/app/core/security.py`
+- `Backend/app/tests/test_attendance_status_support.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- removed unused helpers from `Backend/app/services/attendance_status.py`:
+  - `resolve_time_in_status`
+- removed unused helpers from `Backend/app/services/governance_hierarchy_service.py`:
+  - `can_create_child_unit`
+  - `user_has_governance_unit_type`
+- removed unused helper from `Backend/app/core/event_defaults.py`:
+  - `build_event_default_value_map`
+- removed unused helpers from `Backend/app/core/security.py`:
+  - `get_password_hash`
+  - `ensure_same_school`
+  - `get_user_with_required_roles`
+- removed the attendance-status tests that only covered the deleted `resolve_time_in_status()` helper
+- kept the current live replacements unchanged:
+  - `get_attendance_decision()`
+  - `finalize_completed_attendance_status()`
+  - `_ensure_can_create_child_unit()`
+  - `get_user_governance_unit_types()`
+  - `require_current_user_with_roles()`
+  - `User.set_password()`
+  - `hash_password_bcrypt()`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/attendance_status.py Backend/app/services/governance_hierarchy_service.py Backend/app/core/event_defaults.py Backend/app/core/security.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests`
+
+## 2026-03-21 - Remove non-live geolocation utility helpers
+
+### Purpose
+
+Removed geolocation helpers that were confirmed to be outside the current frontend-backed and router-backed runtime workflow.
+
+### Main files
+
+- `Backend/app/services/geolocation.py`
+- `Backend/app/tests/test_geolocation.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- removed `recommended_accuracy_limit_m()` from `Backend/app/services/geolocation.py`
+- removed `is_accuracy_ok()` from `Backend/app/services/geolocation.py`
+- kept the active live geolocation path unchanged:
+  - `geofence_check()`
+  - `haversine_m()`
+- removed the dedicated tests that only covered those deleted helpers
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes for the current event geofence and attendance scan flow
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/geolocation.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests/test_geolocation.py Backend/app/tests/test_event_geolocation_service.py`
+
+## 2026-03-21 - Mark non-live geolocation utility helpers as test-only code paths
+
+### Purpose
+
+Clarified which geolocation helpers are part of the active frontend-backed runtime flow and which ones are currently retained only as utility or test helpers.
+
+### Main files
+
+- `Backend/app/services/geolocation.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- marked `recommended_accuracy_limit_m()` as a retained utility helper that is not used by the current live router workflow
+- marked `is_accuracy_ok()` as a retained utility helper that is not used by the current live router workflow
+- documented that the current live geolocation path continues to use:
+  - `geofence_check()`
+  - `haversine_m()`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/geolocation.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests/test_geolocation.py Backend/app/tests/test_event_geolocation_service.py`
+
+## 2026-03-21 - Modernize backend schema and ORM conventions for current library versions
+
+### Purpose
+
+Updated the backend to current SQLAlchemy 2 and Pydantic 2 patterns so the codebase matches the supported 2026-style APIs and avoids deprecated validation or serialization helpers.
+
+### Main files
+
+- `Backend/app/models/base.py`
+- `Backend/app/schemas/user.py`
+- `Backend/app/schemas/program.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/routers/users.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+
+### Backend changes
+
+- switched the shared ORM base import to `sqlalchemy.orm.declarative_base`
+- replaced remaining Pydantic v1-style schema config blocks with `ConfigDict(from_attributes=True)`
+- replaced deprecated validator and forward-reference patterns with `field_validator` and `model_rebuild()`
+- replaced deprecated user-router serialization calls with `model_validate(..., from_attributes=True)` and `model_copy(...)`
+- replaced deprecated schema example declarations with `json_schema_extra`
+
+### Route or schema impact
+
+- no route path changes
+- no request or response payload changes
+- internal schema serialization and validation now follow current Pydantic 2 patterns
+
+### Migration impact
+
+- no database migration required
+- no runtime configuration change required
+
+### How to test
+
+- run `python -m py_compile Backend/app/models/base.py Backend/app/schemas/user.py Backend/app/schemas/program.py Backend/app/schemas/governance_hierarchy.py Backend/app/routers/users.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest Backend/app/tests`
+
+## 2026-03-17 - Load Backend/.env for app and Alembic
+
+### Purpose
+
+Let local development use a single `Backend/.env` file without exporting shell variables for the app, seeder, or Alembic.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/alembic/env.py`
+- `Backend/.env`
+
+### Backend changes
+
+- backend settings now load `Backend/.env` when present
+- Alembic now loads the same `Backend/.env` before reading `DATABASE_URL`
+- `.env` values now override any existing process env vars when present
+- added a local `.env` template with default dev values
+
+### Route or schema impact
+
+- no route or schema changes
+
+### Migration impact
+
+- no migration required
+- Alembic now reads `DATABASE_URL` from `Backend/.env` when present
+
+### How to test
+
+1. Edit `Backend/.env` with your local PostgreSQL password.
+2. Run `alembic upgrade head` and confirm it connects without exporting `DATABASE_URL` in the shell.
+3. Start `uvicorn app.main:app --reload` and confirm `GET /health` succeeds.
+
+## 2026-03-21 - Make health checks respect the active database binding
+
+### Purpose
+
+Adjusted the health endpoint so it checks the same database binding used by the current request context. This preserves deployment health reporting while letting tests and alternate session bindings return the correct database status.
+
+### Main files
+
+- `Backend/app/routers/health.py`
+- `Backend/app/core/database.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- changed `GET /health` to use the injected `get_db` session instead of opening a connection directly from the global engine
+- updated pool snapshot generation so it can inspect the engine behind the active request bind
+- kept the same response payload and degraded `503` behavior when the active database binding is unavailable
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- runtime behavior changed for tests and alternate database bindings because `GET /health` now follows the bound session instead of always probing the global engine
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m pytest Backend/app/tests/test_api.py -k health`
+- call `GET /health` in the deployed stack and confirm it still reports the active PostgreSQL state and pool snapshot
+- run the full backend test suite for broader regression coverage
+
+## 2026-03-21 - Remove unused in-memory face helper methods
+
+### Purpose
+
+Removed the unused local-file and in-memory face helper methods from the face recognition service because the active frontend and API flows already use database-backed face encodings only.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- removed these unused service helpers from `Backend/app/services/face_recognition.py`:
+  - `register_face`
+  - `recognize_face`
+  - `save_encodings`
+  - `load_encodings`
+- removed the unused `known_faces` in-memory store from the service
+- removed file-persistence code that depended on `pickle`
+- kept the active route-facing methods unchanged:
+  - `extract_encoding_from_bytes`
+  - `compare_encodings`
+  - `find_best_match`
+  - `check_liveness`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes for the frontend-backed flows
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/face_recognition.py`
+- smoke-test the active frontend-backed routes:
+  - `POST /face/register`
+  - `POST /face/register-upload`
+  - `POST /face/verify`
+  - `POST /face/face-scan-with-recognition`
+  - `POST /auth/security/face-verify`
+
+## 2026-03-21 - Mark legacy in-memory face helpers as non-frontend code paths
+
+### Purpose
+
+Clarified that the local-file face helper methods in the face recognition service are legacy utilities and are not part of the current frontend-backed or router-backed runtime flow.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- marked these methods as legacy local-file or in-memory helpers in `Backend/app/services/face_recognition.py`:
+  - `register_face`
+  - `recognize_face`
+  - `save_encodings`
+  - `load_encodings`
+- clarified that current frontend and HTTP route flows use database-backed face encodings instead of `self.known_faces`
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/face_recognition.py`
+- confirm active frontend-backed flows still map to the router endpoints instead of the legacy local-file helpers:
+  - `POST /face/register`
+  - `POST /face/register-upload`
+  - `POST /face/verify`
+  - `POST /face/face-scan-with-recognition`
+  - `POST /auth/security/face-verify`
+
+## 2026-03-21 - Adapt face recognition service comments without changing caller names
+
+### Purpose
+
+Updated the face recognition service with a more explanatory structure based on a provided rewrite, while preserving the current snake_case method names and data-field names already used by the routers and security flow.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- rewrote `Backend/app/services/face_recognition.py` with clearer section comments and docstrings
+- kept the existing public service contract unchanged, including:
+  - `to_dict`
+  - `encoding_bytes`
+  - `known_faces`
+  - `decode_base64_image`
+  - `load_rgb_from_bytes`
+  - `compute_image_sha256`
+  - `encoding_to_bytes`
+  - `encoding_from_bytes`
+  - `anti_spoof_status`
+  - `liveness_passed`
+  - `check_liveness`
+  - `extract_encoding_from_bytes`
+  - `compare_encodings`
+  - `find_best_match`
+- did not switch the file to camelCase names because that would break current route and security-center callers
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no intended runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m py_compile Backend/app/services/face_recognition.py`
+- smoke-test:
+  - `POST /face/register`
+  - `POST /face/register-upload`
+  - `POST /face/verify`
+  - `POST /face/face-scan-with-recognition`
+  - `POST /auth/security/face-liveness`
+  - `POST /auth/security/face-reference`
+  - `POST /auth/security/face-verify`
+
+## 2026-03-20 - Add simple module comments across backend Python files
+
+### Purpose
+
+Made the backend easier to read by adding short, basic-English module comments to the Python files. Each file now starts with a simple header that explains what the file does, where it is used, and what role it has in the backend.
+
+### Main files
+
+- `Backend/app/main.py`
+- `Backend/app/core/*.py`
+- `Backend/app/models/*.py`
+- `Backend/app/schemas/*.py`
+- `Backend/app/services/*.py`
+- `Backend/app/routers/*.py`
+- `Backend/app/repositories/*.py`
+- `Backend/app/utils/*.py`
+- `Backend/app/workers/*.py`
+- `Backend/app/worker/*.py`
+- `Backend/app/tests/*.py`
+- `Backend/alembic/env.py`
+- `Backend/alembic/versions/*.py`
+- `Backend/migrations/env.py`
+- `Backend/seed.py`
+- `Backend/run_simple_test.py`
+- `Backend/migration_script.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added one short module header to backend Python files with:
+  - `Use`
+  - `Where to use`
+  - `Role`
+- kept all backend logic, routes, schemas, models, migrations, and worker behavior unchanged
+- kept existing migration revision details visible in Alembic version files
+
+### Route or schema impact
+
+- no route changes
+- no request or response schema changes
+- no runtime behavior changes
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+- run `python -m compileall Backend/app Backend/alembic Backend/migrations Backend/seed.py Backend/run_simple_test.py Backend/migration_script.py`
+
+## 2026-03-17 - Sync Campus Admin status with school lockout
+
+### Purpose
+
+Aligned Campus Admin account activation with school activation so disabling a Campus Admin now disables the whole school and re-enabling that Campus Admin restores the school for all otherwise-active school-scoped users.
+
+### Main files
+
+- `Backend/app/routers/school.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_FRONTEND_AUTH_ONBOARDING_GUIDE.md`
+
+### Backend changes
+
+- changed `PATCH /api/school/admin/school-it-accounts/{user_id}/status` so it now:
+  - updates the targeted Campus Admin account
+  - updates the linked `School.active_status`
+  - syncs every Campus Admin account in that same school to the same active state
+- changed `PATCH /api/school/admin/{school_id}/status` so `active_status` updates also sync all Campus Admin accounts in that school
+- kept `subscription_status`-only school updates from changing Campus Admin account activation
+- kept login and protected-route auth on the existing inactive-school guard, so blocked users still receive `This account's school is inactive.`
+- expanded school audit details to record the synchronized school and Campus Admin state
+
+### Route or schema impact
+
+- no request or response schema changes
+- runtime behavior change only for:
+  - `PATCH /api/school/admin/school-it-accounts/{user_id}/status`
+  - `PATCH /api/school/admin/{school_id}/status`
+
+### How to test
+
+1. Call `PATCH /api/school/admin/school-it-accounts/{user_id}/status` with `{"is_active": false}` for a Campus Admin account.
+2. Confirm the targeted Campus Admin and any other Campus Admin accounts in that school now have `is_active=false`.
+3. Confirm the linked school now has `active_status=false`.
+4. Try `POST /login` for a student in that school and confirm the response is `403` with `This account's school is inactive.`
+5. Use a previously issued token for a user in that school on `GET /users/me/` and confirm it also returns `403`.
+6. Call the same Campus Admin status route with `{"is_active": true}` and confirm the school plus all Campus Admin accounts return to active state.
+7. Call `PATCH /api/school/admin/{school_id}/status` with `{"active_status": false}` and then `{"active_status": true}` and confirm Campus Admin accounts stay synchronized both times.
+8. Call `PATCH /api/school/admin/{school_id}/status` with only `{"subscription_status": "paid"}` and confirm Campus Admin `is_active` values do not change.
+9. After reactivating the school, try logging in with a user whose own `is_active=false` and confirm the response still says `This account is inactive. Contact your administrator.`
+
+### Migration impact
+
+- no database migration required
+
+## 2026-03-16 - Add production Docker release path and concurrent load-test harness
+
+### Purpose
+
+Added a release-oriented deployment path beside the current dev stack so the system can be built and tested in a production-style container setup without `vite dev` or `uvicorn --reload`.
+
+### Main files
+
+- `Backend/Dockerfile.prod`
+- `Backend/.dockerignore`
+- `Frontend/Dockerfile.prod`
+- `Frontend/nginx.prod.conf`
+- `Frontend/.dockerignore`
+- `docker-compose.prod.yml`
+- `tools/load_test.py`
+- `Backend/docs/BACKEND_PRODUCTION_DEPLOYMENT_GUIDE.md`
+
+### Backend changes
+
+- added a backend production image that runs `uvicorn` with worker processes and no hot reload
+- kept Celery worker and beat on the same production image base so the stack stays consistent
+- added a production compose file that keeps the backend internal and serves the app through the frontend proxy
+- corrected the production build contexts to use the real `Backend/` and `Frontend/` directory casing for Linux compatibility
+- added a concurrent load-test utility that can exercise health, login, event, and mixed authenticated API traffic
+
+### Route or schema impact
+
+- no API route paths changed
+- no request or response schemas changed
+- runtime deployment and operational tooling only
+
+### Migration impact
+
+- no database migration required
+- new production Docker/runtime configuration only
+
+### Testing
+
+- run `docker compose -f docker-compose.prod.yml config -q`
+- run `npm run lint`
+- run `npm run build`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests`
+- run `python tools/load_test.py --help`
+- optional smoke/load checks:
+  - `python tools/load_test.py --base-url http://127.0.0.1:8000 --scenario health --requests 20 --concurrency 5`
+  - after starting the production stack, open `/api/docs` through the frontend proxy and verify `/openapi.json` resolves correctly
+
+## 2026-03-16 - Add school event defaults plus SG/ORG override defaults for future events
+
+### Purpose
+
+Moved attendance-window defaults for future events out of frontend hardcoding and into backend-managed school and governance settings, so:
+
+- Campus Admin controls the school-wide defaults
+- `SG` and `ORG` can override those defaults for their own future events
+- new events automatically inherit the effective default when the client omits the timing fields
+
+### Main files
+
+- `Backend/app/core/event_defaults.py`
+- `Backend/app/models/school.py`
+- `Backend/app/models/governance_hierarchy.py`
+- `Backend/app/models/event.py`
+- `Backend/app/schemas/school.py`
+- `Backend/app/schemas/school_settings.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/routers/school.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/f5d2c8a1b4e9_add_school_and_governance_event_defaults.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+
+### Backend changes
+
+- added school-level default fields on `school_settings`:
+  - `event_default_early_check_in_minutes`
+  - `event_default_late_threshold_minutes`
+  - `event_default_sign_out_grace_minutes`
+- added optional SG/ORG override fields on `governance_units`:
+  - `event_default_early_check_in_minutes`
+  - `event_default_late_threshold_minutes`
+  - `event_default_sign_out_grace_minutes`
+- changed `POST /events/` so omitted timing fields now resolve in this order:
+  - `ORG` override
+  - else `SG` override
+  - else school default
+  - else hard fallback `30 / 10 / 20`
+- kept explicit per-event request values higher priority than defaults when the client does send them
+- added governance event-default read/update service logic for SG/ORG units
+- kept `SSG` tied to the school default instead of giving SSG its own separate override layer
+
+### Route or schema impact
+
+- changed school response schemas:
+  - `GET /api/school/me`
+  - `PUT /api/school/update`
+  - `GET /school-settings/me`
+  - `PUT /school-settings/me`
+- added new governance routes:
+  - `GET /api/governance/units/{governance_unit_id}/event-defaults`
+  - `PUT /api/governance/units/{governance_unit_id}/event-defaults`
+- new governance route behavior:
+  - `SG` and `ORG` may store override values
+  - `SSG` update attempts are rejected and must use school settings instead
+
+### Migration impact
+
+- requires `Backend/alembic/versions/f5d2c8a1b4e9_add_school_and_governance_event_defaults.py`
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py -k "default_attendance_window or school_event_defaults"`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py -k event_default_override`
+- run `npm run build` in `Frontend/`
+- manual checks:
+  - as Campus Admin, update the school event defaults from the Events page
+  - create a new school-wide or SSG event and confirm it uses the school defaults without manually entering the three timing values
+  - as SG or ORG with `manage_events`, save a unit override and confirm the next new event in that workspace uses the override
+  - reset the SG/ORG override to inherit and confirm the next new event falls back to the school default
+
+## 2026-03-16 - Set default event attendance windows for new events
+
+### Purpose
+
+Changed the default attendance timing values applied to newly created events so governance users start with practical windows without manually filling all three fields every time.
+
+### Main files
+
+- `Backend/app/models/event.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed the event model defaults to:
+  - `early_check_in_minutes = 30`
+  - `late_threshold_minutes = 10`
+  - `sign_out_grace_minutes = 20`
+- changed the event create schema defaults to the same values
+- added a regression test proving `POST /events/` persists those defaults when the client omits the timing fields
+
+### Route or schema impact
+
+- no route path changes
+- `POST /events/` now defaults missing attendance-window fields to:
+  - `30` minutes early check-in
+  - `10` minutes late threshold
+  - `20` minutes sign-out grace
+
+### Migration impact
+
+- no migration required
+- existing events keep their stored values
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py -k default_attendance_window`
+- run `npm run build` in `Frontend/`
+- manual checks:
+  - open Create Event in the governance Events page
+  - confirm the default form values are `30`, `10`, and `20`
+  - create an event without changing them and confirm the saved event keeps those values
+
+## 2026-03-16 - Make sign-out override duration user-defined instead of fixed
+
+### Purpose
+
+Changed the early sign-out override flow so the caller now supplies the override duration dynamically, instead of the backend always forcing a fixed 15-minute window.
+
+### Main files
+
+- `Backend/app/schemas/event.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a request schema for opening sign-out override with `override_minutes`
+- changed `POST /events/{event_id}/sign-out-override/open` to set:
+  - `sign_out_override_until = now + override_minutes`
+- removed the hardcoded 15-minute duration from the route logic
+
+### Route or schema impact
+
+- changed route contract:
+  - `POST /events/{event_id}/sign-out-override/open`
+- the route now expects a JSON body:
+
+```json
+{
+  "override_minutes": 12
+}
+```
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py -k override`
+- run `npm run build` in `Frontend/`
+- manual checks:
+  - open the governance event details page
+  - choose `Open Sign-Out Override`
+  - enter a custom minute value
+  - confirm the returned `sign_out_override_until` matches the requested duration
+  - cancel or leave the prompt blank and confirm the scheduled sign-out timing remains unchanged
+
+## 2026-03-16 - Make Alembic respect DATABASE_URL for local and Docker migrations
+
+### Purpose
+
+Fixed the migration runner so Alembic now uses the same `DATABASE_URL` environment variable path as the backend app, instead of relying only on the Docker-oriented hostname inside `alembic.ini`.
+
+### Main files
+
+- `Backend/alembic/env.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- Alembic now loads the database URL from `DATABASE_URL` through the shared backend settings path
+- if `DATABASE_URL` is set, it overrides the static URL in `alembic.ini`
+- `alembic.ini` now defaults to `localhost` for local development
+- if `DATABASE_URL` is not set, Alembic falls back to the URL in `alembic.ini` before using the backend settings default
+- this keeps Docker behavior working while also allowing local Windows and localhost PostgreSQL migrations without editing code each time
+
+### Route or schema impact
+
+- no route changes
+- no schema changes
+- migration runner behavior only
+
+### Migration impact
+
+- no new migration file
+- runtime migration configuration change only
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m py_compile Backend/alembic/env.py`
+- with Docker DB: run Alembic as before and confirm it still connects through `db`
+- with local PostgreSQL: set `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fastapi_db` and run Alembic from `Backend/`
+
+## 2026-03-16 - Add event attendance windows, sign-out override, audit fields, and effective-close auto-finalization
+
+### Purpose
+
+Implemented per-event attendance timing so events can control early check-in, late/absent check-in, sign-out grace, and a temporary early sign-out override while preserving final attendance reporting.
+
+### Main files
+
+- `Backend/app/models/event.py`
+- `Backend/app/models/attendance.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/services/event_attendance_service.py`
+- `Backend/app/services/event_workflow_status.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/tests/test_event_time_status.py`
+- `Backend/app/tests/test_attendance_status_support.py`
+- `Backend/app/tests/test_event_workflow_status.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/e4b7c1d9f6a2_add_event_attendance_window_controls.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+
+### Backend changes
+
+- added event timing fields:
+  - `early_check_in_minutes`
+  - `sign_out_grace_minutes`
+  - `sign_out_override_until`
+- added attendance audit fields:
+  - `check_in_status`
+  - `check_out_status`
+- replaced the old `upcoming/open/late/closed` attendance window model with:
+  - `before_check_in`
+  - `early_check_in`
+  - `late_check_in`
+  - `absent_check_in`
+  - `sign_out_open`
+  - `closed`
+- implemented explicit check-in and sign-out decision helpers
+- added the early sign-out override endpoint
+- changed workflow auto-sync so events stay `ongoing` through the sign-out window and complete only after the effective sign-out close
+- changed attendance finalization so missing sign-out rows and missing participants are marked absent after the effective sign-out close
+- updated manual and operator face-scan attendance routes to branch on active attendance first so sign-out works correctly during the override window
+
+### Route or schema impact
+
+- new route:
+  - `POST /events/{event_id}/sign-out-override/open`
+- changed event response and request schemas:
+  - `early_check_in_minutes`
+  - `sign_out_grace_minutes`
+  - `sign_out_override_until`
+- changed attendance response schemas:
+  - `check_in_status`
+  - `check_out_status`
+- runtime behavior changed for:
+  - `POST /attendance/manual`
+  - `POST /attendance/face-scan`
+  - `POST /attendance/{attendance_id}/time-out`
+  - `POST /attendance/face-scan-timeout`
+  - `POST /face/face-scan-with-recognition`
+  - `GET /events/{event_id}/time-status`
+  - `POST /events/{event_id}/verify-location`
+
+### Migration impact
+
+- requires `Backend/alembic/versions/e4b7c1d9f6a2_add_event_attendance_window_controls.py`
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_event_time_status.py Backend/app/tests/test_attendance_status_support.py Backend/app/tests/test_event_workflow_status.py Backend/app/tests/test_governance_hierarchy_api.py -k "override or attendance or workflow or time_status"`
+- run `npm run build` in `Frontend/`
+- manual checks:
+  - create an event with early check-in, late threshold, and sign-out grace values
+  - verify check-in before start is `present`, exact start is `late`, and after the threshold is `absent`
+  - verify sign-out is blocked before sign-out opens
+  - call `POST /events/{event_id}/sign-out-override/open` and confirm the same active attendance can sign out
+  - confirm the event stays `ongoing` until the effective sign-out close and only then becomes `completed`
+
+## 2026-03-16 - Preserve inactive governance memberships so deleted officers can be re-added cleanly
+
+### Purpose
+
+Fixed the governance member reactivation bug where deleting an officer and then assigning the same student again could fail on Manage `SSG`, `SG`, or `ORG`.
+
+### Main files
+
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+
+### Backend changes
+
+- changed the governance response-preparation helpers to stop mutating live SQLAlchemy relationship collections during sorting/filtering
+- preserved inactive `governance_members` rows during later unit reads instead of accidentally orphaning them for deletion
+- restored the intended behavior for `POST /api/governance/units/{governance_unit_id}/members`:
+  - if the student already has an inactive membership in that unit, the backend now reactivates the same membership row
+  - member permissions are re-applied cleanly on reactivation
+
+### Route or schema impact
+
+- no route changes
+- no schema changes
+- behavior fix for:
+  - `POST /api/governance/units/{governance_unit_id}/members`
+  - `DELETE /api/governance/members/{governance_member_id}`
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py -k reactivate`
+- in the frontend or API, add a governance member with permissions, delete that member, then add the same student again
+- confirm the second add succeeds for `SSG`, `SG`, and `ORG` management flows and the officer regains the selected permission set
+
+## 2026-03-16 - Rename Campus Admin frontend routes and lock the academic scope wording
+
+### Purpose
+
+Finished the naming cleanup for the Campus Admin frontend entry paths and clarified the governance documentation so the academic structure matches the intended model: `SSG` is campus-wide, `department` is the college-level scope, and `program` is the program/org-level scope.
+
+### Main files
+
+- `Frontend/src/App.tsx`
+- `Frontend/src/authFlow.ts`
+- `Frontend/src/components/NavbarSchoolIT.tsx`
+- `Frontend/src/dashboard/SchoolITDashboard.tsx`
+- `Frontend/src/pages/SecurityCenter.tsx`
+- `Frontend/src/utils/redirects.ts`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+
+### Frontend changes
+
+- renamed the primary Campus Admin route family from `/school_it_*` to `/campus_admin_*`
+- updated Campus Admin navbar, dashboard cards, auth redirect targets, and security-center links to the new path family
+- kept legacy `/school_it_*` routes as redirects so existing bookmarks and older links still work
+- expanded the redirect allowlist to accept both the new `campus_admin` paths and the legacy `school_it` paths during the transition
+
+### Documentation changes
+
+- removed the implication that a separate `colleges` table is still expected for governance
+- clarified that this system intentionally uses:
+  - `SSG` for the whole campus
+  - `department_id` for the college-level scope
+  - `program_id` for the program/org-level scope
+- updated the governance guide route examples and test steps to use the new `/campus_admin_*` paths
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `npm run build` in `Frontend/`
+- log in as a Campus Admin user and confirm the app lands on `/campus_admin_dashboard`
+- open the old `/school_it_dashboard` path and confirm it redirects to `/campus_admin_dashboard`
+- open `/campus_admin_governance_hierarchy` and confirm the Manage SSG page still loads
+
+## 2026-03-16 - Enforce server-side role guards before protected route handlers execute
+
+### Purpose
+
+Moved protected-route role validation into reusable backend dependencies so the server now rejects unsupported roles before protected handlers run. This keeps the backend aligned with the current role model and stops frontend-only protection from being the only gate.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/audit_logs.py`
+- `Backend/app/routers/departments.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/governance.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/routers/notifications.py`
+- `Backend/app/routers/programs.py`
+- `Backend/app/routers/school.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/routers/subscription.py`
+- `Backend/app/routers/users.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+
+### Backend changes
+
+- added reusable role-guard helpers in `security.py`:
+  - `ensure_user_has_any_role()`
+  - `require_current_user_with_roles()`
+  - `get_current_admin_or_campus_admin`
+  - `get_current_application_user`
+  - `get_current_student_user`
+- moved fixed-role route protection to dependency-level checks for:
+  - Campus Admin or admin routes
+  - student-only face registration routes
+  - general authenticated app routes that must still match a supported role
+- added a governance-specific route guard that allows:
+  - `admin`
+  - `campus_admin`
+  - `student`
+  - legacy governance-role users
+  - users with active governance membership even if their base role is transitional
+- preserved governance permission checks in services, so this change adds an outer server role gate instead of replacing the existing permission model
+
+### Route or schema impact
+
+- no schema changes
+- no new public routes
+- role enforcement now runs earlier on protected routes backed by:
+  - `/api/governance/*`
+  - `/users/*`
+  - `/departments/*`
+  - `/programs/*`
+  - `/school-settings/*`
+  - `/api/audit-logs`
+  - `/api/notifications/*`
+  - `/api/subscription/*`
+  - `/auth/security/*`
+  - selected `/auth/*` self-service and password-reset routes
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- manual checks:
+  - Campus Admin can still open Campus Admin routes like `/users/`, `/school-settings/me`, and `/api/governance/announcements/monitor`
+  - student face registration still works for student accounts only
+  - unsupported or stray roles get `403` on governance routes before handler logic runs
+  - governance officers can still access governance routes when their access comes from active membership
+
+## 2026-03-16 - Add Campus Admin monitoring routes for reports, attendance, and school-scoped governance announcements
+
+### Purpose
+
+Continued the Campus Admin rollout by exposing the existing school-scoped reports and attendance monitoring pages to Campus Admin and adding a read-only governance announcements monitor that only returns SSG, SG, and ORG announcements from the current campus.
+
+### Main files
+
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Frontend/src/api/governanceHierarchyApi.ts`
+- `Frontend/src/pages/CampusAnnouncementsMonitor.tsx`
+- `Frontend/src/pages/Reports.tsx`
+- `Frontend/src/pages/Records.tsx`
+- `Frontend/src/components/NavbarSchoolIT.tsx`
+- `Frontend/src/dashboard/SchoolITDashboard.tsx`
+- `Frontend/src/App.tsx`
+
+### Backend changes
+
+- added a Campus Admin announcement monitor service that aggregates governance announcements across the current school only
+- included governance unit metadata in the monitor response:
+  - `governance_unit_code`
+  - `governance_unit_name`
+  - `governance_unit_type`
+  - `governance_unit_description`
+- enforced Campus Admin or admin-school context on the monitor endpoint
+- added a regression test proving Campus Admin only sees announcement records from the same campus
+
+### Route or schema impact
+
+- new schema:
+  - `GovernanceAnnouncementMonitorResponse`
+- new route:
+  - `GET /api/governance/announcements/monitor`
+    - supports `status`
+    - supports `unit_type`
+    - supports `q`
+    - supports `limit`
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py`
+- run `npm run build` in `Frontend/`
+- verify in the UI:
+  - `Campus Admin -> Reports` opens school-scoped attendance reports
+  - `Campus Admin -> Attendance` opens the attendance monitoring page
+  - `Campus Admin -> Announcements` only lists SSG, SG, and ORG announcements from the current campus
+
+## 2026-03-16 - Persist governance announcements and student notes, filter student event visibility, and enable SG/ORG deactivation
+
+### Purpose
+
+Finished the next governance cleanup by moving SSG, SG, and ORG announcements plus governance student notes out of browser storage into backend tables, filtering normal student event visibility by the same department and program scope rules, and enabling safe SG and ORG deactivation.
+
+### Main files
+
+- `Backend/app/models/governance_hierarchy.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/f2a6b8c9d0e1_add_governance_announcements_and_student_.py`
+- `Frontend/src/api/governanceHierarchyApi.ts`
+- `Frontend/src/pages/SsgAnnouncements.tsx`
+- `Frontend/src/pages/GovernanceAnnouncementsPage.tsx`
+- `Frontend/src/pages/SsgStudents.tsx`
+- `Frontend/src/pages/GovernanceStudentsPage.tsx`
+- `Frontend/src/dashboard/SSGDashboard.tsx`
+- `Frontend/src/pages/GovernanceDashboardPage.tsx`
+- `Frontend/src/pages/ManageSg.tsx`
+- `Frontend/src/pages/ManageOrg.tsx`
+
+### Backend changes
+
+- added `governance_announcements` for SSG, SG, and ORG announcement persistence
+- added `governance_student_notes` for governance-only tags and notes per `governance_unit_id + student_profile_id`
+- added governance announcement CRUD endpoints
+- added governance student-note read and save endpoints
+- enforced unit-scoped permissions for:
+  - `manage_announcements`
+  - `view_students`
+  - `manage_students`
+- added soft-delete and deactivate behavior for `SG` and `ORG` units
+- blocked deletion of the fixed campus `SSG`
+- blocked governance unit deletion when active child units still exist
+- filtered normal student event lists and event detail access to:
+  - school-wide events
+  - department-wide events matching the student's department
+  - program-wide events matching the student's program
+
+### Route or schema impact
+
+- `GET /api/governance/units/{governance_unit_id}/announcements`
+- `POST /api/governance/units/{governance_unit_id}/announcements`
+- `PATCH /api/governance/announcements/{announcement_id}`
+- `DELETE /api/governance/announcements/{announcement_id}`
+- `GET /api/governance/units/{governance_unit_id}/student-notes/{student_profile_id}`
+- `PUT /api/governance/units/{governance_unit_id}/student-notes/{student_profile_id}`
+- `DELETE /api/governance/units/{governance_unit_id}`
+- `GET /events/`
+- `GET /events/ongoing`
+- `GET /events/{event_id}`
+- `GET /events/{event_id}/time-status`
+- `POST /events/{event_id}/verify-location`
+
+### Migration impact
+
+- apply `Backend/alembic/versions/f2a6b8c9d0e1_add_governance_announcements_and_student_.py`
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- run `npm run build` in `Frontend/`
+- apply the migration, then verify:
+  - SSG, SG, and ORG announcements persist after browser refresh and across logins
+  - SSG, SG, and ORG student notes persist after browser refresh
+  - a normal student only sees events aligned to school, department, or program scope
+  - deleting an `SG` or `ORG` deactivates it and removes it from the active unit list
+
+## 2026-03-16 - Harden governance-scoped event writes without explicit governance_context
+
+### Purpose
+
+Closed the event-write scope gap where governance officers could omit `governance_context` and submit their own `department_ids` or `program_ids`, which bypassed the intended `SSG`, `SG`, and `ORG` event scope rules.
+
+### Main files
+
+- `Backend/app/routers/events.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- event write routes now infer the caller's `manage_events` governance scope when the caller is not `admin` or `campus_admin` and `governance_context` is omitted
+- `SSG` event writes still resolve to school-wide scope
+- `SG` event writes still resolve to the officer's department-wide scope
+- `ORG` event writes still resolve to the officer's program-level scope
+- governance event update, delete, and status writes now reject out-of-scope events even when the request omits `governance_context`
+- governance accounts that can manage multiple event unit types must now send `governance_context=SSG|SG|ORG` for event writes so the backend does not guess the wrong scope
+
+### Route or schema impact
+
+- `POST /events/`
+- `PATCH /events/{event_id}`
+- `DELETE /events/{event_id}`
+- `PATCH /events/{event_id}/status`
+  - runtime behavior changed for governance writers when `governance_context` is omitted
+  - no schema changes
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py -k "event_queries_are_filtered or event_create_without_governance_context or event_update_without_governance_context"`
+- log in as an `SG` officer with `manage_events` and call `POST /events/` without `governance_context`
+  - submit another department in `department_ids`
+  - confirm the created event is still forced to the SG department only
+- log in as an `ORG` officer with `manage_events` and call `POST /events/` without `governance_context`
+  - submit another program in `program_ids`
+  - confirm the created event is still forced to the ORG program scope
+- log in as an `SG` officer with `manage_events` and call `PATCH /events/{event_id}` without `governance_context`
+  - target an event outside the SG department
+  - confirm the backend returns `404 Event not found`
+
+## 2026-03-16 - Finish SG/ORG workspace routing and enforce governance-scoped events and attendance
+
+### Purpose
+
+Completed the next governance layer so `SG` and `ORG` officers now have their own frontend workspaces, while backend event and attendance routes enforce department or program scope when the caller uses a governance context.
+
+### Main files
+
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Frontend/src/App.tsx`
+- `Frontend/src/authFlow.ts`
+- `Frontend/src/components/ProtectedRoute.tsx`
+- `Frontend/src/hooks/useGovernanceWorkspace.ts`
+- `Frontend/src/components/GovernanceSidebar.tsx`
+- `Frontend/src/pages/Events.tsx`
+- `Frontend/src/pages/Records.tsx`
+- `Frontend/src/pages/ManualAttendance.tsx`
+- `Frontend/src/pages/Profile.tsx`
+- `Frontend/src/pages/ManageSg.tsx`
+- `Frontend/src/pages/ManageOrg.tsx`
+- `Frontend/src/pages/GovernanceDashboardPage.tsx`
+- `Frontend/src/pages/GovernanceAnnouncementsPage.tsx`
+- `Frontend/src/pages/GovernanceStudentsPage.tsx`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added governance-context filtering to event routes through `governance_context=SSG|SG|ORG`
+- enforced governance event visibility by unit scope:
+  - `SSG` sees school-wide events only
+  - `SG` sees only its department-wide events
+  - `ORG` sees only its program-level events
+- enforced governance event write scope:
+  - `SSG` event writes become school-wide
+  - `SG` event writes are forced to the officer's department only
+  - `ORG` event writes are forced to the officer's program only
+- added governance-context filtering to attendance report and operator routes
+- enforced SG attendance operators to stay inside their department scope
+- enforced ORG attendance operators to stay inside their program scope
+- extended `GET /api/governance/students` so frontend pages can request a specific governance context
+- added backend regression tests for:
+  - SG department-scoped event listing
+  - ORG program-scoped event listing
+  - SG manual-attendance blocking for out-of-scope students
+
+### Route or schema impact
+
+- `GET /events/`
+- `GET /events/ongoing`
+- `GET /events/{event_id}`
+- `GET /events/{event_id}/time-status`
+- `POST /events/`
+- `PATCH /events/{event_id}`
+- `DELETE /events/{event_id}`
+- `GET /events/{event_id}/attendees`
+- `GET /events/{event_id}/stats`
+- `PATCH /events/{event_id}/status`
+  - all now accept optional `governance_context`
+- `GET /attendance/events/{event_id}/report`
+- `GET /attendance/students/overview`
+- `GET /attendance/students/{student_id}/report`
+- `POST /attendance/manual`
+- `POST /attendance/bulk`
+- `POST /attendance/events/{event_id}/mark-excused`
+- `GET /attendance/events/{event_id}/attendees`
+- `POST /attendance/{attendance_id}/time-out`
+- `POST /attendance/face-scan-timeout`
+- `GET /attendance/events/{event_id}/attendances`
+- `GET /attendance/events/{event_id}/attendances/{status}`
+- `GET /attendance/events/{event_id}/attendances-with-students`
+- `POST /attendance/mark-absent-no-timeout`
+  - all now accept optional `governance_context`
+- `GET /api/governance/students`
+  - now accepts optional `governance_context`
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py Backend/app/tests/test_api.py`
+- run `npm run build` in `Frontend/`
+- log in as an SG officer with `manage_events` and confirm:
+  - `/sg_dashboard` loads
+  - `/sg_events` opens
+  - only SG department events are visible
+- log in as an ORG officer with `manage_events` and confirm:
+  - `/org_dashboard` loads
+  - `/org_events` opens
+  - only ORG program events are visible
+- log in as an SG officer with `manage_attendance` and confirm:
+  - `/sg_records` and `/sg_manual_attendance` load
+  - out-of-scope students cannot be recorded manually for SG attendance
+
+## 2026-03-16 - Enforce school-scoped departments, programs, and governance-linked academic access
+
+### Purpose
+
+Fixed the cross-campus data leak where Campus Admin users could see academic scope records and governance-linked data from another campus because `departments` and `programs` were still effectively global.
+
+### Main files
+
+- `Backend/app/models/department.py`
+- `Backend/app/models/program.py`
+- `Backend/app/schemas/department.py`
+- `Backend/app/schemas/program.py`
+- `Backend/app/services/department_service.py`
+- `Backend/app/services/program_service.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/routers/departments.py`
+- `Backend/app/routers/programs.py`
+- `Backend/app/routers/users.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/d8e2f4c1b7aa_scope_departments_and_programs_per_school.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `school_id` to `departments` and `programs`
+- changed department and program uniqueness from global `name` uniqueness to per-school uniqueness
+- filtered `GET /departments`, `GET /departments/{id}`, `GET /programs`, and `GET /programs/{id}` by the authenticated actor's `school_id`
+- scoped department and program create, update, and delete operations to the actor's campus
+- tightened governance validation so `department_id` and `program_id` must belong to the same school as the governance unit being created
+- tightened student-profile create and update validation so department/program ids from another school are rejected
+- filtered bulk import validation lookups by the target school
+- filtered event department/program assignment to the event's school
+- filtered attendance report program metadata to the event's school
+- fixed the migration implementation to build the event-to-school lookup with explicit row iteration so `alembic upgrade head` works under the container's SQLAlchemy runtime
+
+### Route or schema impact
+
+- `Department` responses now include `school_id`
+- `Program` responses now include `school_id`
+- `GET /departments/` now returns only the caller's campus departments
+- `GET /departments/{department_id}` now returns `404` for another campus department
+- `GET /programs/` now returns only the caller's campus programs
+- `GET /programs/{program_id}` now returns `404` for another campus program
+- `POST /api/governance/units`
+  - now rejects foreign-campus `department_id` and `program_id` values
+
+### Migration impact
+
+- added `Backend/alembic/versions/d8e2f4c1b7aa_scope_departments_and_programs_per_school.py`
+- the migration:
+  - adds `school_id` to `departments` and `programs`
+  - backfills or duplicates old rows per school based on student, governance, and event usage
+  - rebuilds academic association tables with school-scoped ids
+  - replaces global `name` uniqueness with per-school uniqueness
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- run `alembic upgrade head`
+- log in as Campus Admin for campus A and confirm:
+  - `/departments/` shows only campus A departments
+  - `/programs/` shows only campus A programs
+  - `/api/governance/units` shows only campus A governance units
+- try creating an `SG` from campus A using a department from campus B and confirm the backend rejects it with `Invalid department_id for this school`
+
+## 2026-03-16 - Add governance-scoped student list route for SSG pages
+
+### Purpose
+
+Fixed the SSG dashboard and student-directory permission error caused by those pages still calling the Campus Admin-only `/users/` endpoint.
+
+### Main files
+
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `GET /api/governance/students`
+- reused `get_accessible_students()` so the returned student list follows the existing governance scope rules
+- included `department_name` and `program_name` in the student profile response used by SSG pages
+- eagerly load user, department, and program relations for the accessible-student query
+
+### Route or schema impact
+
+- new route:
+  - `GET /api/governance/students`
+- new response schema:
+  - `GovernanceAccessibleStudentResponse`
+- extended `GovernanceStudentProfileSummary` with:
+  - `department_name`
+  - `program_name`
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- log in as an `SSG` officer with `view_students` or `manage_students`
+- confirm `/ssg_dashboard` and `/ssg_students` no longer fail with `Requires admin or Campus Admin role`
+
+## 2026-03-16 - Finalize base-role cleanup for governance membership access
+
+### Purpose
+
+Finished the runtime cleanup toward the planned role scheme:
+
+- base auth roles:
+  - `admin`
+  - `campus_admin`
+  - `student`
+- governance access:
+  - `SSG`
+  - `SG`
+  - `ORG`
+  - derived from governance membership and permissions only
+
+This removed the last live dependencies on legacy `ssg` and `event-organizer` base roles, aligned campus-admin wording across active routes, and added a schema migration to drop unused legacy governance artifacts.
+
+### Main files
+
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/routers/audit_logs.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/governance.py`
+- `Backend/app/routers/notifications.py`
+- `Backend/app/routers/school.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/routers/subscription.py`
+- `Backend/app/routers/users.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/c3d91e4ab2f6_drop_legacy_governance_role_artifacts.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- active Campus Admin privilege checks now use `campus_admin` as the live role name while still allowing legacy `school_IT` rows through normalization
+- SSG, SG, and ORG access now relies on:
+  - `governance_members`
+  - `position_title`
+  - `governance_member_permissions`
+- removed live runtime dependence on:
+  - base `ssg` role
+  - base `event-organizer` role
+  - `governance_members.role_id`
+  - `ssg_profiles`
+  - `event_ssg_association`
+- updated user-management and admin-facing text to consistently say `Campus Admin`
+- updated welcome-email wording to direct users to `Campus Admin`
+
+### Route or schema impact
+
+- no public route paths changed
+- `GET /api/governance/access/me`
+  - now represents the only active source of governance feature access for `SSG`, `SG`, and `ORG`
+- `POST /api/governance/units/{governance_unit_id}/members`
+  - no longer depends on any governance `role_id`
+  - officer access comes only from membership and permission codes
+- `DELETE /api/governance/members/{governance_member_id}`
+  - now only deactivates governance membership and clears officer permissions
+  - no legacy `ssg_profile` or base-role cleanup remains in the active model
+
+### Migration impact
+
+- added `Backend/alembic/versions/c3d91e4ab2f6_drop_legacy_governance_role_artifacts.py`
+- run `alembic upgrade head`
+- the new migration:
+  - ensures legacy `ssg` and `event-organizer` users keep the `student` base role when needed
+  - removes `ssg` and `event-organizer` from `user_roles`
+  - deletes `ssg` and `event-organizer` from `roles`
+  - drops `governance_members.role_id`
+  - drops `ssg_profiles`
+  - drops `event_ssg_association`
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py Backend/app/tests/test_auth_session_login_guard.py`
+- run `alembic upgrade head`
+- verify the database no longer contains:
+  - `ssg_profiles`
+  - `event_ssg_association`
+  - `roles.name = 'ssg'`
+  - `roles.name = 'event-organizer'`
+- log in as a student who is an active SSG officer and confirm:
+  - the base role is still `student`
+  - `/api/governance/access/me` returns the `SSG` unit membership
+  - SSG routes appear only from governance permissions, not from a base `ssg` role
+
+## 2026-03-15 - Clean up legacy campus and governance role records
+
+### Purpose
+
+Aligned the stored role model to the planned hierarchy by making `campus_admin` the canonical campus role, removing duplicated base-role behavior for `SG` and `ORG`, and keeping only the legacy `ssg` identity role where the current app still depends on it.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/services/security_service.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/users.py`
+- `Backend/app/routers/school.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/schemas/user.py`
+- `Backend/app/schemas/auth.py`
+- `Backend/app/seeder.py`
+- `Backend/alembic/versions/b4c8f12d9e77_cleanup_legacy_role_records.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- made `campus_admin` the canonical database role for the former `school_IT` account type
+- kept `school_IT` accepted as a backward-compatible alias in auth and role checks
+- updated role lookup and user-management flows so incoming `school_IT` requests resolve to the stored `campus_admin` role
+- removed duplicated governance base-role behavior for `SG` and `ORG`
+- `SG` and `ORG` memberships now derive access from:
+  - `governance_members`
+  - `position_title`
+  - `governance_member_permissions`
+- kept the legacy `ssg` role and `ssg_profile` sync in place because current SSG auth, events, attendance, and profile screens still depend on them
+- kept the legacy `event-organizer` role in place because current event-organizer routes still depend on it
+- updated the default role seeder so fresh environments no longer seed:
+  - `school_IT`
+  - `sg`
+  - `org`
+
+### Route or schema impact
+
+- no route path changes
+- `/users`
+  - now stores `campus_admin` when a caller submits the legacy `school_IT` role value
+- `/users/{user_id}/roles`
+  - now stores `campus_admin` when a caller submits the legacy `school_IT` role value
+- `POST /api/governance/units/{governance_unit_id}/members`
+  - still auto-attaches the legacy `ssg` role for `SSG`
+  - no longer auto-attaches base `sg` or `org` roles for `SG` or `ORG`
+- `PATCH /api/governance/members/{governance_member_id}`
+  - keeps `SSG` role sync only
+  - rejects `role_id` for `SG` and `ORG` membership updates because those levels now use governance membership plus permissions only
+- `Backend/app/schemas/user.py`
+  - added `campus_admin` as an accepted role enum value while keeping `school_IT` as a compatibility alias
+- `Backend/app/schemas/auth.py`
+  - added `campus_admin` as an accepted role enum value while keeping `school_IT` as a compatibility alias
+
+### Migration impact
+
+- added `Backend/alembic/versions/b4c8f12d9e77_cleanup_legacy_role_records.py`
+- run `alembic upgrade head`
+- the new migration:
+  - renames or merges `school_IT` into `campus_admin`
+  - nulls old `governance_members.role_id` references to `sg` or `org`
+  - deletes `sg` and `org` from `user_roles`
+  - deletes `sg` and `org` from `roles`
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py Backend/app/tests/test_governance_hierarchy_api.py Backend/app/tests/test_auth_session_login_guard.py`
+- run `alembic upgrade head`
+- verify the `roles` table now contains `campus_admin` and no longer contains `sg` or `org`
+- log in as a Campus Admin account created before the migration and confirm campus-admin routes still work
+- assign an SG member and confirm:
+  - the membership succeeds
+  - no base `sg` role is created or attached to the student
+  - governance access still comes from the assigned permission codes
+
+## 2026-03-15 - Seed missing SG and ORG identity roles for governance member assignment
+
+### Purpose
+
+Fixed the `Role configuration error: sg role not found` failure during `Manage SG` member assignment by ensuring the governance identity roles exist in both existing and fresh databases.
+
+### Main files
+
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/seeder.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/alembic/versions/9c4d2e7f1a8b_seed_missing_sg_and_org_roles.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `sg` and `org` to the default role seeder for fresh environments
+- made governance member assignment self-heal missing governance identity roles:
+  - `ssg`
+  - `sg`
+  - `org`
+- kept the existing SSG behavior unchanged while allowing SG member assignment to proceed even if an older database was missing the `sg` role row
+
+### Route or schema impact
+
+- no route contract change
+- `POST /api/governance/units/{governance_unit_id}/members`
+  - now auto-recovers if the backing governance identity role row is missing for `SSG`, `SG`, or `ORG`
+
+### Migration impact
+
+- added `Backend/alembic/versions/9c4d2e7f1a8b_seed_missing_sg_and_org_roles.py`
+- run `alembic upgrade head` so existing databases get the missing `sg` and `org` roles permanently
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- if you use Docker, run `docker exec backend_v2 alembic upgrade head`
+- log in as an `ssg` officer with `manage_members`
+- open `/ssg_manage_sg`
+- assign a student to an SG and confirm the request succeeds instead of returning `Role configuration error: sg role not found`
+
+## 2026-03-15 - Enforce one SG per department, one ORG per program, and add SSG Manage SG flow
+
+### Purpose
+
+Locked the next governance layer so `SSG` can manage `SG` units cleanly: only one active `SG` per department, only one active `ORG` per program, parent-managed SG memberships, and a matching SSG frontend page for `Manage SG`.
+
+### Main files
+
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- enforced one active `SG` per `department_id`
+- enforced one active `ORG` per `program_id`
+- restricted `SG` and `ORG` unit editing to authorized parent-unit officers instead of the child unit managing itself
+- changed governance-student search so:
+  - `Campus Admin` remains the only actor for `SSG` candidate search
+  - `SSG` can search `SG` candidates only inside the selected SG department
+  - `SG` can search future `ORG` candidates only inside the selected ORG program scope
+- enforced scoped member assignment:
+  - `SG` members must come from the SG department
+  - `ORG` members must come from the ORG program
+- required `position_title` for SG members too
+- separated SG member editing permissions:
+  - `manage_members` for member identity and position changes
+  - `assign_permissions` for officer permission changes
+- validated governance permission codes by unit type so invalid mixes like `create_sg` on an `SG` member are rejected
+
+### Route or schema impact
+
+- `POST /api/governance/units`
+  - now rejects a second active `SG` in the same department
+  - now rejects a second active `ORG` in the same program
+- `PATCH /api/governance/units/{governance_unit_id}`
+  - now allows authorized parent-unit officers to edit child units
+- `GET /api/governance/students/search`
+  - now applies SG or ORG scope filtering when a target child unit is supplied
+- `POST /api/governance/units/{governance_unit_id}/members`
+  - now enforces SG department scope
+  - now enforces unit-type permission whitelists
+- `PATCH /api/governance/members/{governance_member_id}`
+  - now splits `manage_members` and `assign_permissions` checks by field update
+
+### Migration impact
+
+- no new migration
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- log in as an `ssg` user with `create_sg`, `manage_members`, and `assign_permissions`
+- open `/ssg_manage_sg`
+- create an `SG` and confirm the same department cannot be used again
+- search SG candidates and confirm only students in the SG department appear
+- try assigning `create_sg` to an SG member and confirm the backend rejects it
+- create an `ORG` and confirm the same program cannot be used again
+
+## 2026-03-15 - Re-scope SG and ORG hierarchy to department-wide SG and program-level ORG
+
+### Purpose
+
+Aligned the governance hierarchy with the campus structure where `department_id` acts as the current college scope, `SG` is department-wide, and `ORG` is program-level under that department.
+
+### Main files
+
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `SG` validation so an `SG` must include `department_id` and cannot include `program_id`
+- changed `ORG` validation so an `ORG` must include `program_id`
+- enforced that `ORG.program_id` must belong to the parent `SG` department scope
+- kept `ORG` blocked when a request tries to override the parent `SG` department
+- made the hierarchy meaning explicit:
+  - `department_id` = current college-like scope
+  - `SG` = department-wide government
+  - `ORG` = program-level organization
+
+### Route or schema impact
+
+- `POST /api/governance/units`
+  - `SG` requests now fail if `program_id` is provided
+  - `ORG` requests now fail if `program_id` is missing
+  - `ORG` requests now fail if `program_id` is not linked to the parent `SG` department
+
+### Migration impact
+
+- no new migration
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- create an `SG` from an `SSG` member and confirm it succeeds with `department_id` only
+- try creating an `SG` with `program_id` and confirm the backend rejects it
+- try creating an `ORG` without `program_id` and confirm the backend rejects it
+- try creating an `ORG` with a program outside the parent `SG` department and confirm the backend rejects it
+
+## 2026-03-15 - Lock Campus Admin user management to student accounts and require explicit SSG positions
+
+### Purpose
+
+Closed the remaining Campus Admin role-management shortcuts so imported users stay student accounts in user-management flows, while SSG officer access is granted only from Manage SSG with an explicit position title.
+
+### Main files
+
+- `Backend/app/routers/users.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed Campus Admin user creation through `/users/` so non-admin school-scoped actors can only assign the `student` role
+- blocked Campus Admin role updates through `/users/{user_id}/roles` so Manage Users can no longer promote `ssg` or `event-organizer`
+- tightened the legacy school-settings import route so school-scoped imports only create `student` accounts and no longer accept `ssg_position`
+- required an explicit `position_title` when assigning or updating `SSG` officers through governance membership
+- removed the old fallback that silently defaulted missing SSG positions to `Representative`
+- cleaned up the legacy `ssg_profile` when a student no longer has any active `SSG` membership
+
+### Route or schema impact
+
+- `POST /users/`
+  - Campus Admin can only create `student` users from user-management flows
+- `PUT /users/{user_id}/roles`
+  - Campus Admin now receives a `403` and must use Manage SSG for officer access instead
+- `POST /api/governance/units/{governance_unit_id}/members`
+  - `position_title` is now required for `SSG`
+- `PATCH /api/governance/members/{governance_member_id}`
+  - clearing `position_title` on `SSG` officers is now rejected
+
+### Migration impact
+
+- no new migration
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py Backend/app/tests/test_governance_hierarchy_api.py`
+- log in as `school_IT` and confirm Manage Users no longer offers role changes for Campus Admin
+- try calling `PUT /users/{user_id}/roles` as Campus Admin and confirm it returns `403`
+- open Manage SSG and confirm adding an officer without `position_title` is blocked
+- remove an SSG officer and confirm the student drops back to a regular student role without a lingering `ssg_profile`
+
+## 2026-03-15 - Convert campus SSG setup into a fixed default Manage SSG flow
+
+### Purpose
+
+Changed the Campus Admin SSG setup from a create-if-missing flow into a fixed single-SSG management flow with a default campus SSG record, editable SSG details, and a frontend UI built around SSG info and officer-management modals.
+
+### Main files
+
+- `Backend/app/models/governance_hierarchy.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/alembic/versions/8b7e6d5c4a3f_add_governance_unit_description_and_ssg_.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `governance_units.description` so the fixed SSG card can store editable details, not just code and name
+- added `GET /api/governance/ssg/setup`, which automatically creates the default campus SSG when it does not exist yet
+- default SSG bootstrap now uses:
+  - `unit_code = SSG`
+  - `unit_name = Supreme Students Government`
+  - default description for the campus-wide SSG card
+- kept the single-SSG guard in place so the school still cannot end up with multiple SSG rows
+- changed candidate search for the SSG member picker so already-added active officers are excluded from add-member search results
+
+### Route or schema impact
+
+- added response schema `GovernanceSsgSetupResponse`
+- added optional `description` on governance unit create, update, summary, and detail schemas
+- added `GET /api/governance/ssg/setup`
+
+### Migration impact
+
+- run `alembic upgrade head` to add `governance_units.description`
+- the new migration also backfills a default description for existing `SSG` rows
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- log in as `school_IT` and open `/school_it_governance_hierarchy`
+- confirm the page opens with a default `SSG` even if the school had no prior SSG row
+- edit the SSG name/description and confirm the update persists
+- add an imported student as an SSG officer, then search again and confirm that officer no longer appears in add-member search results
+- remove an officer and confirm the user drops back to the regular student role unless another governance membership still applies
+
+## 2026-03-15 - Refine campus SSG setup with single-SSG guard and officer-level permissions
+
+### Purpose
+
+Refined the first governance rollout so Campus Admin can manage exactly one school-wide SSG, search imported students as officer candidates, and assign permissions per officer instead of giving every SSG member the same feature set.
+
+### Main files
+
+- `Backend/app/models/governance_hierarchy.py`
+- `Backend/app/models/__init__.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/alembic/versions/7c9e4b2a1d33_add_governance_member_permissions_and_single_ssg_guard.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `governance_member_permissions` so governance access is now granted per officer membership
+- changed effective SSG feature access to use member-level permissions instead of unit-level permissions
+- enforced one `SSG` per school in both the service layer and a database-level unique partial index
+- added searchable imported-student lookup for governance assignment
+- changed SSG membership assignment so Campus Admin selects existing imported student users and the backend automatically adds the `ssg` role
+- added SSG member update and removal logic, including cleanup of the `ssg` role when the user no longer has an active SSG membership
+- kept the existing unit-permission route for future rollout work, but the active SSG feature gating now comes from officer-level permissions
+
+### Route or schema impact
+
+- added `GET /api/governance/students/search`
+- added `PATCH /api/governance/units/{governance_unit_id}`
+- added `PATCH /api/governance/members/{governance_member_id}`
+- added `DELETE /api/governance/members/{governance_member_id}`
+- extended governance member request and response schemas to include `permission_codes`, nested `student_profile`, and nested `member_permissions`
+
+### Migration impact
+
+- run `alembic upgrade head` to add `governance_member_permissions`
+- the new migration also adds the database guard that blocks multiple `SSG` rows per school
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- log in as `school_IT` and open `/school_it_governance_hierarchy`
+- create the single campus `SSG`
+- search an imported student by name or `student_id`, assign them as an officer, and give them `manage_events` or `manage_attendance`
+- edit that officer and confirm the assigned student, position, and permission set update correctly
+- remove the officer and confirm the user no longer keeps the `ssg` role from governance membership alone
+
+## 2026-03-15 - Add governance hierarchy foundation for School IT, SSG, SG, and ORG
+
+### Purpose
+
+Added a clean governance hierarchy layer that lets School IT bootstrap school governance units, assign members and permissions, and enforce safe parent-child and student-scope rules without mixing the logic into routers.
+
+### Main files
+
+- `Backend/app/models/governance_hierarchy.py`
+- `Backend/app/schemas/governance_hierarchy.py`
+- `Backend/app/services/governance_hierarchy_service.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/main.py`
+- `Backend/app/models/__init__.py`
+- `Backend/alembic/env.py`
+- `Backend/alembic/versions/6f8c1234ab56_add_governance_hierarchy_management.py`
+- `Backend/app/tests/test_governance_hierarchy_api.py`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `governance_units`, `governance_members`, `governance_permissions`, and `governance_unit_permissions`
+- added `GovernanceUnitType` and `PermissionCode` enums for readable, reusable hierarchy rules
+- kept routers thin by moving creation, member assignment, permission assignment, scope validation, and accessible-student filtering into `governance_hierarchy_service.py`
+- added `GET /api/governance/access/me` so the frontend can resolve active governance memberships and aggregated permission codes for the current user
+- enforced that only `School IT` can create `SSG`
+- enforced that only active `SSG` members with `create_sg` can create `SG`
+- enforced that only active `SG` members with `create_org` can create `ORG`
+- enforced that `ORG` units stay inside the same department scope as their parent `SG`
+- adapted the proposed schema to the current backend by using `department_id` and `program_id` only, because the project does not yet have a `colleges` table
+- kept `SSG` hierarchy membership aligned with the existing auth model by requiring assigned `SSG` users to already have the existing `ssg` role
+- added `get_accessible_students()` so student visibility can be filtered by school, department, and program scope
+- changed SSG feature behavior so the `ssg` role no longer implies active features by default; SSG attendance features now require `manage_attendance`, and SSG event-management writes require `manage_events`
+
+### Route or schema impact
+
+- added `POST /api/governance/units`
+- added `GET /api/governance/units`
+- added `GET /api/governance/units/{governance_unit_id}`
+- added `GET /api/governance/access/me`
+- added `POST /api/governance/units/{governance_unit_id}/members`
+- added `POST /api/governance/units/{governance_unit_id}/permissions`
+- added new request and response schemas in `Backend/app/schemas/governance_hierarchy.py`
+
+### Migration impact
+
+- run `alembic upgrade head` to create the governance hierarchy tables
+- the migration also seeds the initial governance permission catalog
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
+- log in as `school_IT` and open `/school_it_governance_hierarchy` to exercise the School IT bootstrap UI
+- create an `SSG` as `School IT`, assign an `ssg` user, and grant `create_sg`
+- log in as an `ssg` user before assigning any governance permissions and confirm SSG feature routes stay empty or blocked
+- grant `manage_events` or `manage_attendance` to the SSG unit and confirm the matching SSG feature becomes available
+- log in as that `SSG` member and confirm `SG` creation works only under the correct parent
+- grant `create_org` to an `SG` and confirm `ORG` creation is blocked outside the parent department scope
+
+## 2026-03-15 - Add optional first-login password prompt and align onboarding credential flows
+
+### Purpose
+
+Completed the new onboarding flow where brand-new users are only encouraged, not forced, to change their password before continuing to face onboarding, while still keeping reset-issued passwords enforced through the existing forced-change gate.
+
+### Main files
+
+- `Backend/app/models/user.py`
+- `Backend/alembic/versions/1e5b4a7c9d01_add_should_prompt_password_change_to_users.py`
+- `Backend/app/core/security.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/services/password_change_policy.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/users.py`
+- `Backend/app/routers/school.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/schemas/user.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+- `Backend/docs/BACKEND_FRONTEND_AUTH_ONBOARDING_GUIDE.md`
+
+### Backend changes
+
+- added `users.should_prompt_password_change` as a persistent one-time onboarding prompt flag
+- login and pending-face responses now return `password_change_recommended` based on that stored prompt flag instead of reusing `must_change_password`
+- `/auth/change-password` now clears both `must_change_password` and `should_prompt_password_change`
+- added `POST /auth/password-change-prompt/dismiss` so a new user can skip the suggestion and continue onboarding without seeing the same prompt on the next login
+- allowed the dismiss route and `/auth/change-password` to stay accessible during `face_pending` onboarding sessions
+- new accounts created through `/users/`, `/api/school/admin/create-school-it`, school-settings CSV import, and bulk student import now set `should_prompt_password_change=true`
+- reset-password flows keep `must_change_password=true` but now explicitly keep `should_prompt_password_change=false` so forced-reset and suggested-change states do not overlap
+- `/users/` now honors a submitted password when present and otherwise returns `generated_temporary_password`
+- `/api/school/admin/create-school-it` now honors `school_it_password` when supplied and only returns `generated_temporary_password` when the backend generated one
+- welcome-email copy now switches between temporary-password wording and normal password wording depending on how the account credentials were created
+
+### Route or schema impact
+
+- added login response field `password_change_recommended`
+- added `POST /auth/password-change-prompt/dismiss`
+- changed `/users/` response model to include optional `generated_temporary_password`
+- `POST /api/school/admin/create-school-it` now returns `generated_temporary_password` only when the backend generated the password
+
+### Migration impact
+
+- run `alembic upgrade head` to add `users.should_prompt_password_change`
+- existing rows are backfilled with `false`
+
+### Testing
+
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_api.py Backend/app/tests/test_email_service.py`
+- create a new user without supplying a password and confirm the response returns `generated_temporary_password`
+- create a new user with a supplied password and confirm login works with that exact password
+- log in as a prompted user and confirm the response includes `password_change_recommended=true`
+- skip the prompt through `POST /auth/password-change-prompt/dismiss` and confirm the next login no longer recommends a password change
+- log in as a privileged `face_pending` user and confirm both skip and `/auth/change-password` still work before face onboarding
+- approve a password reset and confirm the reset password still forces `/auth/change-password`
+
+## 2026-03-14 - Reorganize backend wiring into core, services, schemas, and workers
+
+### Purpose
+
+Refactored the backend into clearer layers so shared DB wiring lives under `core`, canonical Celery code lives under `workers`, thin CRUD routers delegate to services, and attendance request payloads no longer live inside a router module.
+
+### Main files
+
+- `Backend/app/core/database.py`
+- `Backend/app/core/dependencies.py`
+- `Backend/app/database.py`
+- `Backend/app/workers/celery_app.py`
+- `Backend/app/workers/tasks.py`
+- `Backend/app/worker/celery_app.py`
+- `Backend/app/worker/tasks.py`
+- `Backend/app/services/auth_task_dispatcher.py`
+- `Backend/app/services/auth_background.py`
+- `Backend/app/services/department_service.py`
+- `Backend/app/services/program_service.py`
+- `Backend/app/schemas/attendance_requests.py`
+- `Backend/app/routers/departments.py`
+- `Backend/app/routers/programs.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/admin_import.py`
+- `Backend/app/tests/test_auth_task_dispatcher.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_PROJECT_STRUCTURE_GUIDE.md`
+
+### Backend changes
+
+- moved the canonical SQLAlchemy engine/session setup into `app/core/database.py`
+- moved the shared `get_db()` dependency into `app/core/dependencies.py`
+- turned `app/database.py` into a compatibility wrapper so the refactor does not break legacy imports immediately
+- moved the canonical Celery app and task bodies into `app/workers/`
+- kept `app/worker/` as a compatibility wrapper and kept legacy task-name aliases registered during the transition
+- extracted department and program CRUD business rules into dedicated service modules so those routers stay thin
+- extracted manual and bulk attendance request schemas into `app/schemas/attendance_requests.py`
+- replaced debug `print()` calls in `attendance.py` with structured logging
+- renamed auth-side async dispatch orchestration to `auth_task_dispatcher.py` and left `auth_background.py` as a compatibility shim
+
+### Route or schema impact
+
+- no HTTP route paths changed
+- no existing request or response JSON field names changed
+- new internal request-schema module: `Backend/app/schemas/attendance_requests.py`
+- `departments` and `programs` routes now delegate to service-layer functions instead of embedding DB business rules inline
+
+### Migration impact
+
+- no database migration required
+- runtime/deployment change only: worker and beat should now start from `app.workers.celery_app.celery_app`
+
+### Testing
+
+- run `python -m compileall Backend/app`
+- run `Backend\.venv\Scripts\python.exe -m pytest -q Backend/app/tests/test_auth_task_dispatcher.py Backend/app/tests/test_models.py Backend/app/tests/test_api.py`
+- restart Celery worker and beat so they load the canonical `app.workers` package
+- smoke-test `POST /login`, `POST /api/admin/import-students`, `POST /attendance/manual`, `GET /departments`, and `GET /programs`
+
+## 2026-03-14 - Align forced password-change verification with login hashing
+
+### Purpose
+
+Fixed the forced password-change flow so the temporary password that works at login also works as the `current_password` on `/auth/change-password`, without changing the broader auth, reset, or onboarding logic.
+
+### Main files
+
+- `Backend/app/routers/auth.py`
+- `Backend/app/core/security.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `/auth/change-password` to validate `current_password` with the same `verify_password()` helper used by `/login`
+- removed the hashing-path mismatch between login verification and forced password-change verification
+- kept password reset approval, token issuance, and `must_change_password` behavior unchanged
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response field names changed
+- `/auth/change-password` still expects `current_password` and `new_password`
+
+### Migration impact
+
+- no migration required
+- runtime verification change only
+
+### Testing
+
+- run `python -m pytest -q app/tests/test_api.py`
+- log in with a temporary password and submit `/auth/change-password` using that same temporary password as `current_password`
+- confirm both model-hashed and passlib-hashed stored passwords can complete the forced change successfully
+
+## 2026-03-14 - Allow onboarding accounts to use issued temporary passwords without forced first-login change
+
+### Purpose
+
+Removed the forced first-login password-change flag from newly created and imported accounts so new users can sign in with their issued temporary password without being blocked behind the change-password gate, while keeping reset-password flows unchanged.
+
+### Main files
+
+- `Backend/app/services/password_change_policy.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/routers/users.py`
+- `Backend/app/routers/school.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a shared password-change policy helper so onboarding flows and reset flows can intentionally behave differently
+- new accounts created through `/users/`, school creation, school-settings CSV import, and bulk import now persist `must_change_password=false`
+- password reset approval and manual reset flows still persist `must_change_password=true`
+- welcome-email copy now matches the new onboarding behavior and no longer claims a forced first-login password change for brand-new accounts
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response field names changed
+- `/login` and `/token` still return `must_change_password`; onboarding-created accounts now return `false` unless a later reset flow turns it back on
+
+### Migration impact
+
+- no migration required
+- runtime behavior only; existing stored `must_change_password` values are unchanged
+
+### Testing
+
+- run `python -m pytest -q app/tests/test_api.py app/tests/test_email_service.py`
+- create a new user through onboarding and confirm login is not forced to `/auth/change-password`
+- approve or perform a password reset and confirm the temporary reset password still requires a password change after login
+
+## 2026-03-13 - Fix bcrypt and passlib compatibility warning in auth runtime
+
+### Purpose
+
+Removed the backend password-stack compatibility warning that appeared during login and other bcrypt-backed password operations.
+
+### Main files
+
+- `Backend/requirements.txt`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- pinned `bcrypt` to `4.0.1` so it stays compatible with `passlib==1.7.4`
+- removed the noisy runtime warning caused by newer `bcrypt` releases dropping the internal `__about__` attribute that `passlib` still checks
+- kept the login, password hashing, MFA, and password-reset logic unchanged
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- frontend auth flow remains compatible
+
+### Migration impact
+
+- no migration required
+- dependency/runtime change only; rebuild the backend image or reinstall Python dependencies before retesting
+
+### Testing
+
+- run `python -m pytest app/tests`
+- rebuild the backend container or reinstall dependencies in the local virtual environment
+- smoke-test `POST /login`
+- confirm backend logs no longer show the `bcrypt` / `__about__` compatibility traceback during password verification
+
+## 2026-03-13 - Finalize face-recognition naming and normalize attendance payloads
+
+### Purpose
+
+Finished the face-recognition naming cleanup and normalized the event-attendance error payloads without changing the public `/face/...` routes or the success response contract.
+
+### Main files
+
+- `Backend/app/services/event_geolocation.py`
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/schemas/face_recognition.py`
+- `Backend/app/models/face_recognition.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/tests/conftest.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_models.py`
+- `Backend/app/tests/test_event_geolocation_service.py`
+- `Frontend/src/api/studentEventCheckInApi.ts`
+- `Backend/docs/BACKEND_FACE_GEO_MERGE_GUIDE.md`
+
+### Backend changes
+
+- renamed the student face router module from `app.routers.face` to `app.routers.face_recognition`
+- kept the public route prefix and endpoints unchanged at `/face/...`
+- added structured error payloads for attendance geolocation failures and required geolocation input failures
+- added a message field to attendance travel-risk failures while preserving the existing distance metrics
+- included optional `time_status` and `attendance_decision` context in the attendance geolocation response object
+- renamed the legacy pytest fixture file to `conftest.py` and switched the backend test harness to a self-contained SQLite setup
+- updated the legacy API tests to match the current auth rules and protected-route behavior
+
+### Route or schema impact
+
+- no route paths changed
+- no JSON request or response field names changed
+- internal router naming is now aligned with the face-recognition service, schema, and model module names
+- `POST /events/{event_id}/verify-location` still uses the same request payload and returns the same core geolocation fields
+- `POST /face/face-scan-with-recognition` still uses the same request payload and returns the same success fields
+- attendance geolocation failure payloads now consistently include `code` and `message` alongside the existing geofence fields
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `python -m pytest -q`
+- smoke-test `GET /`
+- smoke-test `POST /events/{event_id}/verify-location` with inside-geofence and outside-geofence coordinates
+- smoke-test `POST /face/face-scan-with-recognition` for both success and geolocation/travel-risk failure payloads
+
+## 2026-03-13 - Reduce login latency by moving auth side effects off the request path
+
+### Purpose
+
+Reduced perceived login latency by removing forced SQL query logging and moving login email/notification side effects out of the synchronous request path.
+
+### Main files
+
+- `Backend/app/routers/auth.py`
+- `Backend/app/services/auth_background.py`
+- `Backend/app/services/email_service.py`
+- `Backend/app/services/notification_center_service.py`
+- `Backend/app/worker/tasks.py`
+- `Backend/app/database.py`
+- `Backend/app/tests/test_auth_background.py`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- `/login` now queues account-security notifications asynchronously instead of waiting for SMTP work before responding
+- `/login` MFA delivery now validates SMTP configuration first, then dispatches MFA email asynchronously
+- `/auth/mfa/verify` now queues the MFA-completed security notification asynchronously
+- login-side async dispatch uses Celery first and falls back to FastAPI background tasks if task publishing fails
+- SQL query logging is now enabled only when `SQL_ECHO=true`
+
+### Route or schema impact
+
+- no route paths changed
+- no login request or response field names changed
+- frontend login flow remains compatible
+
+### Migration impact
+
+- no migration required
+
+### Testing
+
+- run `python -m pytest -q`
+- smoke-test `POST /login`
+- smoke-test `POST /auth/mfa/verify`
+- smoke-test frontend production build
+
+## 2026-03-12 - Drop legacy unused database tables
+
+### Purpose
+
+Removed legacy database tables that are no longer used by the active backend models, routers, or services.
+
+### Main files
+
+- `Backend/alembic/versions/9b3e1f2c4d5a_drop_legacy_unused_tables.py`
+- `Backend/docs/BACKEND_DATABASE_CLEANUP_GUIDE.md`
+
+### Backend changes
+
+- added a cleanup migration that drops unused legacy tables only when they exist
+- preserved all active tables used by current auth, attendance, event, import, notification, security, subscription, and governance flows
+- kept the cleanup idempotent by using `DROP TABLE IF EXISTS`
+
+### Route or schema impact
+
+- no HTTP routes changed
+- no active request or response schemas changed
+
+### Migration impact
+
+- requires `9b3e1f2c4d5a_drop_legacy_unused_tables.py`
+- removes `ai_logs`, `anomaly_logs`, `attendance_predictions`, `event_consumption_logs`, `event_flags`, `event_predictions`, `model_metadata`, `notifications`, `outbox_events`, `recommendation_cache`, `security_alerts`, and `student_risk_scores`
+
+### Testing
+
+- run `alembic upgrade head` on the target PostgreSQL database
+- verify the removed tables no longer appear in `information_schema.tables`
+- smoke-test login, attendance, events, notifications, security center, governance, and bulk import flows
+
+## 2026-03-11 - Celery Beat automatic event status scheduling
+
+### Purpose
+
+Extended automatic event workflow status sync so it runs even without user traffic, using Celery Beat plus the existing worker and Redis setup.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/event_workflow_status.py`
+- `Backend/app/worker/celery_app.py`
+- `Backend/app/worker/tasks.py`
+- `Backend/app/tests/test_event_workflow_status.py`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+- `docker-compose.yml`
+
+### Backend changes
+
+- added scheduler settings for event auto-status sync enable/interval
+- added a periodic Celery task that scans active events and syncs their workflow status
+- added summary reporting for scheduler runs so logs show transitions and attendance finalization counts
+- added a dedicated Docker `beat` service for local and container deployments
+- kept the request-driven route sync as a fallback for resiliency
+
+### Route or task impact
+
+- new scheduled task: `app.worker.tasks.sync_event_workflow_statuses`
+- no new HTTP routes were required
+
+### Migration impact
+
+- no migration required
+
+## 2026-03-11 - Automatic event workflow status sync
+
+### Purpose
+
+Added automatic backend syncing of stored event workflow status based on event schedule time, while preserving the existing computed attendance-window status system.
+
+### Main files
+
+- `Backend/app/services/event_workflow_status.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/tests/test_event_workflow_status.py`
+- `Backend/docs/BACKEND_EVENT_AUTO_STATUS_GUIDE.md`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+
+### Backend changes
+
+- added a reusable service that maps computed time status into stored workflow status
+- synced event `status` automatically on relevant event, attendance, and face routes
+- preserved `cancelled` as a manual terminal state
+- treated `completed` as sticky during automatic sync to avoid accidental reopening
+- auto-finalized attendance when time-driven sync moved an event into `completed`
+
+### Route impact
+
+- event list/detail routes now refresh stale workflow status before returning data
+- attendance and face attendance helpers now refresh stale workflow status before attendance checks
+- no new API routes were required
+
+### Migration impact
+
+- no migration required
+
+## 2026-03-11 - Add `late` attendance status support
+
+### Purpose
+
+Added `late` as a valid attendance status across the backend and database without replacing the repo's current attendance, reporting, face-scan, or event logic.
+
+### Main files
+
+- `Backend/app/models/attendance.py`
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/services/notification_center_service.py`
+- `Backend/alembic/versions/a12b34c56d78_add_late_to_attendance_status_enum.py`
+- `Backend/app/tests/test_attendance_status_support.py`
+- `Backend/docs/BACKEND_ATTENDANCE_STATUS_GUIDE.md`
+
+### Backend changes
+
+- added `late` to the SQLAlchemy and Pydantic attendance enums
+- added a safe PostgreSQL enum migration using `ADD VALUE IF NOT EXISTS`
+- updated reports and summaries so `late` counts as attended
+- updated status-count dictionaries so `late` is included and does not cause missing-key errors
+- left automatic late-threshold assignment out because this repo does not already have that feature
+
+### Migration impact
+
+- requires `a12b34c56d78_add_late_to_attendance_status_enum.py`
+
+## 2026-03-11 - Event late threshold and automatic absent finalization
+
+### Purpose
+
+Added an event-level late-threshold field and automatic absent materialization when an event is completed.
+
+### Main files
+
+- `Backend/app/models/event.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/services/event_attendance_service.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/alembic/versions/b45c67d89e01_add_event_late_threshold_minutes.py`
+
+### Backend changes
+
+- events now store `late_threshold_minutes`
+- student sign-ins can finalize as `late` when the time-in exceeds the event threshold
+- when an event becomes `completed`, the backend auto-creates `absent` records for scoped students with no attendance
+- active attendances with no `time_out` are also auto-marked `absent` on event completion
+
+### Migration impact
+
+- requires `b45c67d89e01_add_event_late_threshold_minutes.py`
+
+## 2026-03-11 - Face recognition and geolocation merge from `GITHUB`
+
+### Purpose
+
+Merged the reference face recognition and event geolocation logic from `GITHUB/Backend` into the live `RIZAL_v1` backend.
+
+### Main files
+
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/models/platform_features.py`
+- `Backend/app/models/event.py`
+- `Backend/app/models/attendance.py`
+- `Backend/alembic/versions/f8b2c1d4e6a7_add_face_profiles_and_event_geo_fields.py`
+
+### Backend changes
+
+- added privileged-user face profiles
+- added pending face verification sessions for `admin` and `school_IT`
+- added anti-spoof backed privileged face enrollment and verification routes
+- added event geofence fields and location verification route
+- added combined student face plus geofence attendance scanning
+
+### Important routes
+
+- `POST /auth/login`
+- `GET /auth/security/face-status`
+- `POST /auth/security/face-liveness`
+- `POST /auth/security/face-reference`
+- `POST /auth/security/face-verify`
+- `POST /face/register`
+- `POST /face/register-upload`
+- `POST /face/verify`
+- `POST /face/face-scan-with-recognition`
+- `POST /events/{event_id}/verify-location`
+
+### Migration impact
+
+- requires `f8b2c1d4e6a7_add_face_profiles_and_event_geo_fields.py`
+
+## 2026-03-11 - Geolocation validation hardening
+
+### Purpose
+
+Improved geofence decision safety and reason codes for student attendance and event location verification.
+
+### Main files
+
+- `Backend/app/services/geolocation.py`
+- `Backend/app/tests/test_geolocation.py`
+
+### Backend changes
+
+- added coordinate validation helpers
+- added radius validation helpers
+- added safer accuracy normalization
+- added stable location reason codes
+- added optional buffered geofence decision mode
+- added recommended GPS accuracy helper
+
+### Configuration impact
+
+- no database migration required
+
+## 2026-03-17 - Database pooling, login query reduction, and health telemetry
+
+### Purpose
+
+Hardened the FastAPI backend for login-heavy concurrency by replacing the tiny default SQLAlchemy pool, reducing repeated auth queries, and exposing pool diagnostics for production monitoring.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/core/database.py`
+- `Backend/app/core/security.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/health.py`
+- `Backend/app/main.py`
+- `Backend/app/tests/test_api.py`
+- `.env.example`
+- `Backend/docs/BACKEND_AUTH_LOGIN_PERFORMANCE_GUIDE.md`
+
+### Backend changes
+
+- added configurable DB pool settings:
+  - `DB_POOL_SIZE`
+  - `DB_MAX_OVERFLOW`
+  - `DB_POOL_TIMEOUT_SECONDS`
+  - `DB_POOL_RECYCLE_SECONDS`
+- set SQLAlchemy engine pooling explicitly with `pool_pre_ping`, `pool_use_lifo`, and `expire_on_commit=False`
+- added `get_database_pool_snapshot()` so runtime pool pressure can be inspected safely
+- added `GET /health` to report DB reachability and current pool usage
+- reduced login-path queries by eager-loading roles, school settings, and face profile in the auth lookup
+- converted login/auth dependency callables from `async def` to sync callables so synchronous SQLAlchemy and bcrypt work do not block FastAPI's event loop
+- reduced repeated school lookups by reusing eager-loaded school/settings data when available
+
+### How to test
+
+1. Set `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS`, and `DB_POOL_RECYCLE_SECONDS` in your deployment environment.
+2. Start the backend and call `GET /health`; confirm the reported pool settings match the environment.
+3. Log in with a student account and confirm `POST /login` still returns a valid token.
+4. Log in with an admin or Campus Admin account and confirm MFA or face-pending behavior still works.
+5. Run a concurrent login test and watch `/health` while traffic is active; confirm pool utilization rises without immediate `QueuePool limit` failures.
+
+### Migration impact
+
+- no database migration required
+
+## 2026-03-17 - Deactivated schools now block all school-scoped sessions
+
+### Purpose
+
+Closed the gap where login rejected inactive schools, but already-issued student sessions could still access protected routes after a school was deactivated.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/tests/test_api.py`
+
+### Backend changes
+
+- extracted shared account-state validation so login and protected-route auth use the same inactive-account and inactive-school guard
+- protected routes now reject school-scoped users when their school is inactive, even if their token was issued before the school was deactivated
+- platform admins without a school assignment remain allowed
+
+### How to test
+
+1. Deactivate a school through `PATCH /api/school/admin/{school_id}/status` with `active_status=false`.
+2. Try `POST /login` for a student or Campus Admin in that school and confirm the response is `403` with `This account's school is inactive.`
+3. Use a previously issued bearer token for a user in that school against a protected route such as `GET /users/me/` and confirm it now also returns `403`.
+4. Reactivate the school and confirm normal login works again for the same accounts.
+
+### Migration impact
+
+- no database migration required
+
+## 2026-03-11 - Attendance sign-in/sign-out completion logic
+
+### Purpose
+
+Made attendance status depend on both sign-in and sign-out completion, aligned with the event schedule.
+
+### Main files
+
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/attendance.py`
+
+### Backend changes
+
+- sign-in now creates a provisional attendance record
+- sign-out finalizes the attendance record
+- final status becomes `present` only when the recorded attendance window aligns with the event schedule
+- unfinished attendance cleanup was adjusted to preserve correct processing
+
+### Route impact
+
+- behavior changed in `POST /face/face-scan-with-recognition`
+
+## 2026-03-11 - Dynamic event time status for attendance decisions
+
+### Purpose
+
+Added a computed event time-status layer so attendance windows can be enforced automatically from event schedule data without writing a second status to the database.
+
+### Main files
+
+- `Backend/app/services/event_time_status.py`
+- `Backend/app/services/attendance_status.py`
+- `Backend/app/routers/events.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/attendance.py`
+- `Backend/app/tests/test_event_time_status.py`
+- `Backend/app/tests/test_attendance_status_support.py`
+- `Backend/docs/BACKEND_EVENT_TIME_STATUS_GUIDE.md`
+
+### Backend changes
+
+- added `get_event_status()` for computed `upcoming/open/late/closed` event windows
+- added `get_attendance_decision()` for `present/late/reject` attendance decisions
+- exposed `GET /events/{event_id}/time-status`
+- extended `POST /events/{event_id}/verify-location` to include dynamic time-status and attendance-decision payloads
+- enforced automatic `upcoming` and `closed` rejection for new student and staff attendance check-ins
+- normalized event schedule and attendance timestamps more safely for `Asia/Manila`
+
+### Migration impact
+
+- no database migration required
+
+## 2026-03-11 - Login guard for invalid school and admin account state
+
+### Purpose
+
+Stopped invalid accounts from logging in and then failing later with misleading school-context errors.
+
+### Main files
+
+- `Backend/app/services/auth_session.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/tests/test_auth_session_login_guard.py`
+
+### Backend changes
+
+- login now rejects inactive accounts
+- login now rejects accounts with no assigned role
+- login now rejects school-scoped accounts that are missing a valid school assignment
+- login now rejects accounts linked to inactive schools
+- MFA verification re-checks the same account-state guard before completing login
+
+### Migration impact
+
+- no database migration required
