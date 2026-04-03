@@ -8,18 +8,17 @@ click
 colorama
 coverage
 cryptography
-dlib
 dnspython
 ecdsa
 email_validator
-face-recognition
-face_recognition_models
+faiss-cpu
 fastapi
 greenlet
 h11
 httpx
 idna
 iniconfig
+insightface
 Mako
 MarkupSafe
 numpy
@@ -50,3 +49,4 @@ starlette
 typing-inspection
 typing_extensions
 uvicorn
+# Silent-Face-Anti-Spoofing MiniFASNetV2 inference runs from the checked-in ONNX model path.

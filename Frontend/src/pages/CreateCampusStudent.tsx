@@ -17,6 +17,7 @@ interface StudentFormState {
   middle_name: string;
   last_name: string;
   email: string;
+  student_id: string;
   department_id: string;
   program_id: string;
 }
@@ -26,6 +27,7 @@ const initialFormState: StudentFormState = {
   middle_name: "",
   last_name: "",
   email: "",
+  student_id: "",
   department_id: "",
   program_id: "",
 };
@@ -118,6 +120,16 @@ const CreateCampusStudent = () => {
     } else if (!/\S+@\S+\.\S+/.test(form.email)) {
       nextErrors.email = "Email must be valid.";
     }
+    if (!form.student_id.trim()) {
+      nextErrors.student_id = "Student ID is required.";
+    } else if (!/^[A-Za-z0-9-]+$/.test(form.student_id.trim())) {
+      nextErrors.student_id = "Student ID may only contain letters, numbers, and hyphens.";
+    } else {
+      const normalizedStudentId = form.student_id.trim();
+      if (!/[A-Za-z]/.test(normalizedStudentId) || !/[0-9]/.test(normalizedStudentId)) {
+        nextErrors.student_id = "Student ID must contain at least one letter and one number.";
+      }
+    }
     if (!form.department_id) {
       nextErrors.department_id = "Department is required.";
     }
@@ -148,6 +160,7 @@ const CreateCampusStudent = () => {
         first_name: form.first_name.trim(),
         middle_name: form.middle_name.trim() || null,
         last_name: form.last_name.trim(),
+        student_id: form.student_id.trim().toUpperCase(),
         department_id: Number(form.department_id),
         program_id: Number(form.program_id),
       });
@@ -308,6 +321,23 @@ const CreateCampusStudent = () => {
                   />
                   {validationErrors.email && (
                     <div className="invalid-feedback">{validationErrors.email}</div>
+                  )}
+                </div>
+
+                <div className="col-md-6">
+                  <label className="form-label" htmlFor="student-student-id">
+                    Student ID
+                  </label>
+                  <input
+                    id="student-student-id"
+                    type="text"
+                    className={`form-control ${validationErrors.student_id ? "is-invalid" : ""}`}
+                    value={form.student_id}
+                    onChange={(event) => handleChange("student_id", event.target.value)}
+                    placeholder="CS-2023-001"
+                  />
+                  {validationErrors.student_id && (
+                    <div className="invalid-feedback">{validationErrors.student_id}</div>
                   )}
                 </div>
 

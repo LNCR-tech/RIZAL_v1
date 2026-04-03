@@ -18,6 +18,7 @@ import {
 } from "../authFlow";
 import { primeGovernanceAccessCache } from "../hooks/useGovernanceAccess";
 import { useUser } from "../context/UserContext";
+import { clearStoredAuthSession } from "../lib/auth/sessionStore";
 import { FaUser, FaLock, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -98,6 +99,7 @@ const LoginForm = () => {
     event.preventDefault();
     setIsLoading(true);
     setAuthError(null);
+    clearStoredAuthSession();
     clearPendingFaceAuthSession();
 
     try {

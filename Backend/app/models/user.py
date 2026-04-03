@@ -3,15 +3,26 @@ Where to use: Use this when the backend needs to store or load users, roles, and
 Role: Model layer. It maps Python objects to database tables and relationships.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, LargeBinary, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
+
 from app.models.base import Base
 from app.utils.passwords import hash_password_bcrypt, verify_password_bcrypt
-from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=True)
@@ -23,30 +34,31 @@ class User(Base):
     must_change_password = Column(Boolean, default=True, nullable=False, index=True)
     should_prompt_password_change = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    
+
     # Relationships
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     school = relationship("School", back_populates="users")
     face_profile = relationship("UserFaceProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    
+
     def set_password(self, password: str):
         if len(password) < 8:
             raise ValueError("Password must be at least 8 characters")
         self.password_hash = hash_password_bcrypt(password)
-    
+
     def check_password(self, password: str) -> bool:
         return verify_password_bcrypt(password, self.password_hash)
 
 class UserRole(Base):
     __tablename__ = "user_roles"
-    
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), index=True)
-    
+
     user = relationship("User", back_populates="roles")
     role = relationship("Role")
+
 
 # app/models/user.py (StudentProfile class)
 class StudentProfile(Base):
@@ -54,7 +66,7 @@ class StudentProfile(Base):
     __table_args__ = (
         UniqueConstraint("school_id", "student_id", name="uq_student_profiles_school_student_id"),
     )
-    
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
     school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=False)
@@ -62,33 +74,44 @@ class StudentProfile(Base):
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="RESTRICT"), index=True)
     program_id = Column(Integer, ForeignKey("programs.id", ondelete="RESTRICT"), index=True)
     year_level = Column(Integer, nullable=False, default=1)
-    face_encoding = Column(LargeBinary)  # Changed from String(2000) to LargeBinary
+    face_encoding = Column(LargeBinary)
+    embedding_provider = Column(String(32), nullable=True)
+    embedding_dtype = Column(String(16), nullable=True)
+    embedding_dimension = Column(Integer, nullable=True)
+    embedding_normalized = Column(Boolean, nullable=False, default=True)
 
-      # Add these:
     is_face_registered = Column(Boolean, default=False, index=True)
-    face_image_url = Column(String(500), nullable=True)  # Made nullable
+    face_image_url = Column(String(500), nullable=True)
     registration_complete = Column(Boolean, default=False, index=True)
-    
-    # Consider adding:
-    section = Column(String(50), nullable=True, index=True)  # Made nullable
-    rfid_tag = Column(String(100), unique=True, nullable=True)  # Alternative auth  
-    last_face_update = Column(DateTime, nullable=True)  # Added this missing field
-    
+
+    section = Column(String(50), nullable=True, index=True)
+    rfid_tag = Column(String(100), unique=True, nullable=True)
+    last_face_update = Column(DateTime, nullable=True)
+
     # Relationships
     user = relationship("User", back_populates="student_profile")
     school = relationship("School", back_populates="student_profiles")
     attendances = relationship("Attendance", back_populates="student", cascade="all, delete-orphan")
 
-    department = relationship("Department")  # REMOVED lazy="joined"
-    program = relationship("Program")        # REMOVED lazy="joined"
+    department = relationship("Department")
+    program = relationship("Program")
 
-    
-    # ===== ADD THIS METHOD =====
-    def update_face_encoding(self, embedding: bytes):
-        """Safe update of face data"""
-        if len(embedding) > 2048:  # Sanity check for embedding size
-            raise ValueError("Face embedding too large (max 2048 bytes)")
+    def update_face_encoding(
+        self,
+        embedding: bytes,
+        *,
+        provider: str | None = None,
+        dtype: str | None = None,
+        dimension: int | None = None,
+        normalized: bool = True,
+    ) -> None:
+        """Persist one face embedding plus its canonical serialization metadata."""
+        if len(embedding) > 8192:
+            raise ValueError("Face embedding too large (max 8192 bytes)")
         self.face_encoding = embedding
+        self.embedding_provider = provider
+        self.embedding_dtype = dtype
+        self.embedding_dimension = dimension
+        self.embedding_normalized = normalized
         self.is_face_registered = True
         self.last_face_update = datetime.utcnow()
-    # ==========================

@@ -1,12 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import {
+  clearBranding,
   fetchSchoolSettings,
   getStoredBranding,
   normalizeLogoUrl,
   SchoolSettings,
 } from "../api/schoolSettingsApi";
 import { getAuthToken } from "../api/authApi";
+import {
+  isStoredPlatformAdmin,
+  readStoredUserSession,
+} from "../lib/auth/storedUser";
 
 interface UserContextType {
   avatar: string | null;
@@ -47,12 +52,38 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshBranding = useCallback(async () => {
     const token = getAuthToken();
-    if (!token) return;
+    if (!token) {
+      clearBranding();
+      setBranding(null);
+      return;
+    }
+
+    const storedSession = readStoredUserSession();
+    if (storedSession?.mustChangePassword) {
+      clearBranding();
+      setBranding(null);
+      return;
+    }
+
+    if (isStoredPlatformAdmin()) {
+      clearBranding();
+      setBranding(null);
+      return;
+    }
 
     try {
       const live = await fetchSchoolSettings();
       setBranding(live);
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message === "No school assigned to user." ||
+          error.message === "School not found.")
+      ) {
+        clearBranding();
+        setBranding(null);
+      }
+
       // Branding fetch is best-effort so auth navigation is not blocked.
     }
   }, []);

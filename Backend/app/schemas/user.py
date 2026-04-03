@@ -27,6 +27,20 @@ class UserBase(BaseModel):
     last_name: str
 
 
+def _normalize_student_id_or_raise(value: str | None) -> str | None:
+    """Normalize student IDs into a shared uppercase validation format."""
+    if value is None:
+        return value
+    normalized_value = value.strip().upper()
+    if not normalized_value:
+        return None
+    if not any(char.isalpha() for char in normalized_value):
+        raise ValueError("Student ID must contain at least one letter")
+    if not any(char.isdigit() for char in normalized_value):
+        raise ValueError("Student ID must contain at least one number")
+    return normalized_value
+
+
 class StudentProfileBase(BaseModel):
     student_id: str | None = Field(
         None,
@@ -65,6 +79,14 @@ class UserCreate(UserBase):
 
 
 class StudentAccountCreate(UserBase):
+    student_id: str | None = Field(
+        None,
+        min_length=3,
+        max_length=50,
+        pattern=r"^[A-Za-z0-9-]+$",
+        description="Official student ID assigned during campus-admin onboarding",
+        json_schema_extra={"example": "CS-2023-001"},
+    )
     department_id: int = Field(
         ...,
         description="ID of the department the student belongs to",
@@ -79,6 +101,12 @@ class StudentAccountCreate(UserBase):
         le=5,
         description="Year level defaults to 1 when omitted",
     )
+
+    @field_validator("student_id")
+    @classmethod
+    def validate_student_id_format(cls, value: str | None) -> str | None:
+        """Normalize and validate the campus-admin student ID when provided."""
+        return _normalize_student_id_or_raise(value)
 
 
 class UserUpdate(BaseModel):
@@ -100,13 +128,7 @@ class StudentProfileCreate(StudentProfileBase):
     @classmethod
     def validate_student_id_format(cls, value: str | None) -> str | None:
         """Require a mixed student identifier when one is provided."""
-        if value is None:
-            return value
-        if not any(char.isalpha() for char in value):
-            raise ValueError("Student ID must contain at least one letter")
-        if not any(char.isdigit() for char in value):
-            raise ValueError("Student ID must contain at least one number")
-        return value.upper()
+        return _normalize_student_id_or_raise(value)
 
 
 class PasswordUpdate(BaseModel):

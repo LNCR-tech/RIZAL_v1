@@ -19,6 +19,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.routers import security_center
 from app.routers import users as users_router
 from app.core.security import create_access_token, verify_password
 from app.services.security_service import create_mfa_challenge
@@ -229,6 +230,42 @@ def test_protected_endpoint(client, test_db):
 
     response = client.get(f"/api/users/me/")
     assert response.status_code == 401
+
+
+def test_current_user_profile_ignores_dangling_role_rows(client, test_db):
+    school = _create_school(test_db, code="DANGLING-ROLE")
+    valid_role = Role(name="student")
+    test_db.add(valid_role)
+    test_db.commit()
+
+    user = User(
+        email="dangling.role@example.com",
+        school_id=school.id,
+        first_name="Dangling",
+        last_name="Role",
+        must_change_password=False,
+    )
+    user.set_password("StudentPass123!")
+    test_db.add(user)
+    test_db.commit()
+
+    test_db.add_all(
+        [
+            UserRole(user_id=user.id, role_id=valid_role.id),
+            UserRole(user_id=user.id, role_id=999999),
+        ]
+    )
+    test_db.commit()
+
+    response = client.get(
+        "/api/users/me/",
+        headers=_auth_headers(user),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["email"] == user.email
+    assert payload["roles"] == [{"role": {"id": valid_role.id, "name": "student"}}]
 
 
 def test_users_router_supports_canonical_api_prefix(client, test_db):
@@ -1004,6 +1041,7 @@ def test_create_student_account_api_creates_student_and_sends_welcome_email(
             "first_name": "New",
             "middle_name": "",
             "last_name": "Student",
+            "student_id": "it-2026-001",
             "department_id": department.id,
             "program_id": program.id,
         },
@@ -1014,6 +1052,7 @@ def test_create_student_account_api_creates_student_and_sends_welcome_email(
     assert payload["email"] == "new.student@example.com"
     assert payload["school_id"] == school.id
     assert any(role["role"]["name"] == "student" for role in payload["roles"])
+    assert payload["student_profile"]["student_id"] == "IT-2026-001"
     assert payload["student_profile"]["department_id"] == department.id
     assert payload["student_profile"]["program_id"] == program.id
     assert payload["student_profile"]["year_level"] == 1
@@ -1030,6 +1069,7 @@ def test_create_student_account_api_creates_student_and_sends_welcome_email(
     )
     assert created_profile is not None
     assert created_profile.school_id == school.id
+    assert created_profile.student_id == "IT-2026-001"
     assert created_profile.department_id == department.id
     assert created_profile.program_id == program.id
     assert created_profile.year_level == 1
@@ -1038,6 +1078,85 @@ def test_create_student_account_api_creates_student_and_sends_welcome_email(
     assert sent["temporary_password"] == generated_password
     assert sent["first_name"] == "New"
     assert sent["password_is_temporary"] is True
+
+
+def test_create_student_account_api_rejects_duplicate_student_id_within_school(
+    client,
+    test_db,
+    monkeypatch,
+):
+    school = _create_school(test_db, code="STUDENT-DUP-ID")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="campus.dup.student@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+        first_name="Campus",
+        last_name="Admin",
+    )
+
+    department = Department(school_id=school.id, name="School of Science")
+    program = Program(school_id=school.id, name="BS Biology")
+    department.programs.append(program)
+    test_db.add_all([department, program])
+    test_db.commit()
+
+    existing_user = User(
+        email="existing.student@example.com",
+        school_id=school.id,
+        first_name="Existing",
+        last_name="Student",
+        password_hash="placeholder",
+    )
+    existing_user.set_password("ExistingPass123!")
+    test_db.add(existing_user)
+    test_db.commit()
+    test_db.refresh(existing_user)
+
+    test_db.add(
+        StudentProfile(
+            user_id=existing_user.id,
+            school_id=school.id,
+            student_id="SCI-2026-001",
+            department_id=department.id,
+            program_id=program.id,
+            year_level=1,
+        )
+    )
+    test_db.commit()
+
+    monkeypatch.setattr(
+        users_router,
+        "generate_secure_password",
+        lambda min_length=10, max_length=14: "TempPass123A",
+    )
+
+    def fake_send_welcome_email(**kwargs):
+        raise AssertionError("Welcome email should not be sent when the student ID is duplicated.")
+
+    monkeypatch.setattr(users_router, "send_welcome_email", fake_send_welcome_email)
+
+    response = client.post(
+        f"/api/users/students/",
+        headers=_auth_headers(campus_admin),
+        json={
+            "email": "duplicate.id.student@example.com",
+            "first_name": "Duplicate",
+            "middle_name": "",
+            "last_name": "Student",
+            "student_id": "sci-2026-001",
+            "department_id": department.id,
+            "program_id": program.id,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Student ID already in use"
+    assert (
+        test_db.query(User).filter(User.email == "duplicate.id.student@example.com").first()
+        is None
+    )
 
 
 def test_create_student_account_api_rolls_back_when_welcome_email_fails(
@@ -1081,6 +1200,7 @@ def test_create_student_account_api_rolls_back_when_welcome_email_fails(
             "first_name": "Rollback",
             "middle_name": "",
             "last_name": "Student",
+            "student_id": "BUS-2026-001",
             "department_id": department.id,
             "program_id": program.id,
         },
@@ -1435,6 +1555,46 @@ def test_face_pending_user_can_change_password_during_onboarding(client, test_db
     )
 
     assert response.status_code == 200
+
+
+def test_face_pending_user_can_check_face_status_before_password_change(
+    client, test_db, monkeypatch
+):
+    school = _create_school(test_db, code="FACE-STS")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="campus.face.status@example.com",
+        role_name="campus_admin",
+        password="TempPass123!",
+        school_id=school.id,
+        first_name="Campus",
+        last_name="Admin",
+        must_change_password=True,
+    )
+
+    monkeypatch.setattr(
+        security_center.face_service,
+        "face_recognition_status",
+        lambda mode="mfa": (True, None),
+    )
+    monkeypatch.setattr(
+        security_center.face_service,
+        "anti_spoof_status",
+        lambda: (True, None),
+    )
+
+    token = create_access_token({"sub": campus_admin.email, "face_pending": True})
+
+    response = client.get(
+        "/api/auth/security/face-status",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["user_id"] == campus_admin.id
+    assert body["face_runtime_ready"] is True
+    assert body["anti_spoof_ready"] is True
 
 
 def test_face_pending_user_can_dismiss_password_change_prompt(client, test_db):

@@ -42,10 +42,13 @@ router = APIRouter(prefix="/public-attendance", tags=["public-attendance"])
 face_service = FaceRecognitionService()
 settings = get_settings()
 PUBLIC_SCAN_REQUEST_MIN_INTERVAL_SECONDS = 0.75
+# Keep a tiny in-memory throttle so one kiosk/browser cannot hammer the same
+# event scan endpoint multiple times per second inside a single app process.
 _PUBLIC_SCAN_REQUEST_TIMESTAMPS: dict[str, float] = {}
 
 
 def _ensure_public_attendance_enabled() -> None:
+    """Stop public kiosk routes when the feature is disabled in config."""
     if not settings.public_attendance_enabled:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -54,6 +57,7 @@ def _ensure_public_attendance_enabled() -> None:
 
 
 def _get_public_event_or_404(db: Session, event_id: int) -> EventModel:
+    """Load one kiosk-visible event, refresh its workflow state, or raise an HTTP error."""
     event = (
         db.query(EventModel)
         .options(
@@ -70,6 +74,8 @@ def _get_public_event_or_404(db: Session, event_id: int) -> EventModel:
     )
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+    # Public kiosk requests should not depend on beat having already updated the
+    # row, so resync the workflow status against the current clock on read.
     sync_result = sync_event_workflow_status(db, event)
     if sync_result.changed:
         db.commit()
@@ -80,6 +86,7 @@ def _get_public_event_or_404(db: Session, event_id: int) -> EventModel:
 
 
 def _event_scope_label(event: EventModel) -> str:
+    """Build the short scope label shown on the kiosk for one event."""
     department_names = [department.name for department in event.departments]
     program_names = [program.name for program in event.programs]
     if not department_names and not program_names:
@@ -90,6 +97,7 @@ def _event_scope_label(event: EventModel) -> str:
 
 
 def _event_phase_message(event: EventModel, phase: str) -> str:
+    """Return the user-facing kiosk message for the event's active attendance phase."""
     if phase == "sign_out":
         return get_sign_out_decision(
             start_time=event.start_datetime,
@@ -117,11 +125,13 @@ def _event_phase_message(event: EventModel, phase: str) -> str:
 
 
 def _request_throttle_key(request: Request, event_id: int) -> str:
+    """Group rapid scan requests by client host and event so the kiosk can throttle them."""
     client_host = request.client.host if request.client else "anonymous"
     return f"{client_host}:{event_id}"
 
 
 def _enforce_public_scan_throttle(request: Request, event_id: int) -> None:
+    """Reject repeated public scan requests that arrive too quickly for one client/event pair."""
     now = time.monotonic()
     key = _request_throttle_key(request, event_id)
     last_timestamp = _PUBLIC_SCAN_REQUEST_TIMESTAMPS.get(key)
@@ -147,6 +157,7 @@ def list_nearby_public_events(
     payload: PublicAttendanceNearbyEventsRequest,
     db: Session = Depends(get_db),
 ):
+    """List nearby public-kiosk events that are inside the caller's live geofence and active window."""
     _ensure_public_attendance_enabled()
 
     timezone = get_event_timezone()
@@ -154,6 +165,8 @@ def list_nearby_public_events(
     lookahead_limit = now_local + timedelta(hours=settings.public_attendance_event_lookahead_hours)
     recent_cutoff = now_local - timedelta(hours=settings.public_attendance_event_lookahead_hours)
 
+    # First fetch events that are broadly eligible for the public kiosk, then
+    # apply the caller's live geolocation and attendance-window checks below.
     events = (
         db.query(EventModel)
         .options(
@@ -177,6 +190,8 @@ def list_nearby_public_events(
     matched_events: list[PublicAttendanceEventSummary] = []
     changed = False
     for event in events:
+        # Nearby-event discovery also nudges stale workflow state forward so the
+        # kiosk can still behave correctly even if scheduled sync is delayed.
         sync_result = sync_event_workflow_status(db, event)
         changed = changed or sync_result.changed
         if event.status in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:
@@ -249,6 +264,7 @@ def scan_public_attendance_event(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    """Process one kiosk frame, classify each detected face, and persist valid attendance scans."""
     _ensure_public_attendance_enabled()
     _enforce_public_scan_throttle(request, event_id)
 
@@ -260,6 +276,8 @@ def scan_public_attendance_event(
             detail="Attendance is not active for this event.",
         )
 
+    # Nearby-event lookup is only discovery. The write path rechecks the stricter
+    # attendance geofence here before any scan result can change attendance data.
     geo_response = verify_event_geolocation_for_attendance(
         event,
         latitude=payload.latitude,
@@ -273,6 +291,7 @@ def scan_public_attendance_event(
             image_bytes,
             enforce_liveness=True,
             max_faces=settings.public_attendance_max_faces_per_frame,
+            mode="group",
         )
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
@@ -291,6 +310,9 @@ def scan_public_attendance_event(
         )
 
     event_candidates = get_registered_face_candidates_for_event(db, event)
+    # Event-scoped candidates decide whether a face is actually eligible for
+    # this event. School-wide candidates let us tell "known student, wrong
+    # scope" apart from "no registered student matched this face".
     school_candidates = (
         event_candidates
         if not event.departments and not event.programs
@@ -304,6 +326,8 @@ def scan_public_attendance_event(
     }
     outcomes: list[PublicAttendanceFaceOutcome] = []
 
+    # Process each detected face in a strict order: reject spoof/unencodable
+    # faces first, then classify the match, then persist only valid scan hits.
     for probe in probes:
         if probe.error_code == "spoof_detected":
             outcomes.append(
@@ -333,6 +357,7 @@ def scan_public_attendance_event(
             event_candidates=event_candidates,
             school_candidates=school_candidates,
             threshold=payload.threshold,
+            mode="group",
         )
         if match_scope == "no_match" or student is None or match.candidate is None:
             outcomes.append(

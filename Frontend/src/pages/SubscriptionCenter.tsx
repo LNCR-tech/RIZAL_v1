@@ -27,12 +27,26 @@ const SubscriptionCenter = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const parseSelectedSchoolId = () => {
+    const trimmed = schoolId.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : NaN;
+  };
+
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const parsedSchoolId = schoolId ? Number(schoolId) : undefined;
-      const result = await fetchSubscription(parsedSchoolId);
+      const parsedSchoolId = parseSelectedSchoolId();
+      if (isPlatformAdmin && parsedSchoolId === null) {
+        setData(null);
+        return;
+      }
+      if (Number.isNaN(parsedSchoolId)) {
+        throw new Error("Enter a valid School ID before loading subscription settings.");
+      }
+      const result = await fetchSubscription(parsedSchoolId ?? undefined);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load subscription");
@@ -53,7 +67,13 @@ const SubscriptionCenter = () => {
     setError(null);
     setSuccess(null);
     try {
-      const parsedSchoolId = schoolId ? Number(schoolId) : undefined;
+      const parsedSchoolId = parseSelectedSchoolId();
+      if (isPlatformAdmin && parsedSchoolId === null) {
+        throw new Error("Enter a School ID before saving subscription settings.");
+      }
+      if (Number.isNaN(parsedSchoolId)) {
+        throw new Error("Enter a valid School ID before saving subscription settings.");
+      }
       const updated = await updateSubscription(
         {
           plan_name: data.plan_name,
@@ -64,7 +84,7 @@ const SubscriptionCenter = () => {
           auto_renew: data.auto_renew,
           reminder_days_before: data.reminder_days_before,
         },
-        parsedSchoolId
+        parsedSchoolId ?? undefined
       );
       setData(updated);
       setSuccess("Subscription settings updated.");
@@ -79,8 +99,14 @@ const SubscriptionCenter = () => {
     setError(null);
     setSuccess(null);
     try {
-      const parsedSchoolId = schoolId ? Number(schoolId) : undefined;
-      const result = await runSubscriptionReminders(parsedSchoolId);
+      const parsedSchoolId = parseSelectedSchoolId();
+      if (isPlatformAdmin && parsedSchoolId === null) {
+        throw new Error("Enter a School ID before running renewal reminders.");
+      }
+      if (Number.isNaN(parsedSchoolId)) {
+        throw new Error("Enter a valid School ID before running renewal reminders.");
+      }
+      const result = await runSubscriptionReminders(parsedSchoolId ?? undefined);
       setSuccess(
         `Checked ${result.schools_checked}, created ${result.reminders_created}, sent ${result.reminders_sent}.`
       );
@@ -114,9 +140,19 @@ const SubscriptionCenter = () => {
           </div>
         )}
 
-        {!data || loading ? (
+        {loading ? (
           <div className="card">
             <div className="card-body">Loading...</div>
+          </div>
+        ) : isPlatformAdmin && !schoolId.trim() ? (
+          <div className="card">
+            <div className="card-body">
+              Enter a School ID above to load subscription settings for a specific campus.
+            </div>
+          </div>
+        ) : !data ? (
+          <div className="card">
+            <div className="card-body">Subscription settings are not available yet.</div>
           </div>
         ) : (
           <>

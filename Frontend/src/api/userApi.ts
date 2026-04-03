@@ -55,6 +55,7 @@ export interface StudentAccountCreatePayload {
   first_name: string;
   middle_name?: string | null;
   last_name: string;
+  student_id?: string | null;
   department_id: number;
   program_id: number;
 }

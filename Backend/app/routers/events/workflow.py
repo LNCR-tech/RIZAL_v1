@@ -14,6 +14,7 @@ def open_sign_out_early(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    """End the event early so the sign-out window opens before the scheduled end time."""
     _ensure_event_attendance_manager(db, current_user)
     school_id = _require_school_scope(current_user)
 
@@ -66,6 +67,10 @@ def open_sign_out_early(
     if not payload.use_sign_out_grace_minutes:
         event.sign_out_grace_minutes = selected_sign_out_grace_minutes
 
+    # Current early sign-out behavior works by ending the event "now" so the
+    # shared time-status service immediately recomputes the event into the
+    # sign-out window. The legacy override timestamp is cleared here because the
+    # live flow no longer depends on a separate sign_out_override_until value.
     event.end_datetime = now_local
     event.sign_out_override_until = None
     event.present_until_override_at = None
@@ -84,6 +89,7 @@ def update_event_status(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    """Manually update event workflow status while still respecting automated timing rules."""
     try:
         _ensure_event_manager(db, current_user)
         school_id = _require_school_scope(current_user)

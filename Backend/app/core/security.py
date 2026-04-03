@@ -52,6 +52,9 @@ FACE_VERIFICATION_EXEMPT_PATH_PREFIXES = {
     "/api/auth/security/face-reference",
     "/api/auth/security/face-verify",
 }
+PASSWORD_CHANGE_EXEMPT_PATH_PREFIXES = (
+    EXEMPT_PATH_PREFIXES | FACE_VERIFICATION_EXEMPT_PATH_PREFIXES
+)
 
 
 def normalize_role_name(role_name: str) -> str:
@@ -247,7 +250,7 @@ def _enforce_password_change_gate(user: User, request: Request) -> None:
         return
 
     path = request.url.path
-    if any(path.startswith(prefix) for prefix in EXEMPT_PATH_PREFIXES):
+    if any(path.startswith(prefix) for prefix in PASSWORD_CHANGE_EXEMPT_PATH_PREFIXES):
         return
 
     _raise_password_change_required()

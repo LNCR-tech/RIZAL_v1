@@ -20,8 +20,17 @@ def _frame_payload() -> str:
     return "data:image/jpeg;base64," + base64.b64encode(b"public-kiosk-frame").decode("ascii")
 
 
+def _embedding_vector(value: float) -> np.ndarray:
+    vector = np.zeros(512, dtype=np.float32)
+    primary_index = abs(int(round(value * 100))) % 512
+    secondary_index = (primary_index + 113) % 512
+    vector[primary_index] = 0.8
+    vector[secondary_index] = 0.6
+    return vector / np.linalg.norm(vector)
+
+
 def _face_encoding(value: float) -> bytes:
-    return np.asarray([value], dtype=np.float64).tobytes()
+    return _embedding_vector(value).astype(np.float32).tobytes()
 
 
 def _real_probe(index: int, value: float) -> DetectedFaceProbe:
@@ -29,7 +38,7 @@ def _real_probe(index: int, value: float) -> DetectedFaceProbe:
         index=index,
         location=(10 + index, 20 + index, 30 + index, 40 + index),
         liveness=LivenessResult(label="Real", score=0.99),
-        encoding=np.asarray([value], dtype=np.float64),
+        encoding=_embedding_vector(value),
         error_code=None,
     )
 
@@ -108,6 +117,10 @@ def _create_student(
         program_id=program.id if program is not None else None,
         year_level=1,
         face_encoding=_face_encoding(face_value),
+        embedding_provider="arcface",
+        embedding_dtype="float32",
+        embedding_dimension=512,
+        embedding_normalized=True,
         is_face_registered=True,
         registration_complete=True,
     )

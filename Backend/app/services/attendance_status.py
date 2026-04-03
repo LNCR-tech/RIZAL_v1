@@ -29,6 +29,7 @@ ATTENDANCE_DISPLAY_STATUS_VALUES: tuple[str, ...] = (
 
 
 def normalize_attendance_status(value: Any) -> str:
+    """Normalize any stored or enum status value into a lowercase string for comparisons."""
     if value is None:
         return ""
     if isinstance(value, Enum):
@@ -37,10 +38,12 @@ def normalize_attendance_status(value: Any) -> str:
 
 
 def is_attended_status(value: Any) -> bool:
+    """Return True when the status counts as a successful attended result."""
     return normalize_attendance_status(value) in ATTENDED_STATUS_VALUES
 
 
 def is_attendance_completed(*, time_out: datetime | None) -> bool:
+    """Return True when the attendance already has a sign-out time."""
     return time_out is not None
 
 
@@ -49,6 +52,7 @@ def resolve_attendance_display_status(
     stored_status: Any,
     time_out: datetime | None,
 ) -> str:
+    """Resolve the API-facing display status, including the special incomplete state."""
     if not is_attendance_completed(time_out=time_out):
         return "incomplete"
 
@@ -63,14 +67,17 @@ def is_completed_attended_status(
     stored_status: Any,
     time_out: datetime | None,
 ) -> bool:
+    """Return True only for completed attendances that count as attended."""
     return is_attendance_completed(time_out=time_out) and is_attended_status(stored_status)
 
 
 def empty_attendance_status_counts() -> dict[str, int]:
+    """Build an empty counter map for final stored attendance statuses."""
     return {status: 0 for status in ALL_ATTENDANCE_STATUS_VALUES}
 
 
 def empty_attendance_display_status_counts() -> dict[str, int]:
+    """Build an empty counter map for API display statuses, including incomplete."""
     return {status: 0 for status in ATTENDANCE_DISPLAY_STATUS_VALUES}
 
 
@@ -78,6 +85,7 @@ def normalize_attendance_datetime(
     value: datetime,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Normalize attendance timestamps into the shared event timezone."""
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(get_event_timezone(timezone_name))
@@ -88,6 +96,7 @@ def late_cutoff_datetime(
     late_threshold_minutes: Any,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Return the timestamp after which a check-in is no longer counted as late."""
     localized_start = normalize_event_datetime(event_start, timezone_name)
     return localized_start + timedelta(minutes=normalize_late_threshold_minutes(late_threshold_minutes))
 
@@ -99,6 +108,7 @@ def is_late_arrival(
     late_threshold_minutes: Any,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> bool:
+    """Return True when a time-in lands between event start and the late cutoff."""
     localized_time_in = normalize_attendance_datetime(time_in, timezone_name)
     localized_start = normalize_event_datetime(event_start, timezone_name)
     if localized_time_in < localized_start:
@@ -115,6 +125,7 @@ def finalize_completed_attendance_status(
     check_in_status: Any,
     check_out_status: Any,
 ) -> tuple[str, str | None]:
+    """Apply the final attendance matrix after sign-out has been recorded or auto-finalized."""
     normalized_check_in_status = normalize_attendance_status(check_in_status)
     normalized_check_out_status = normalize_attendance_status(check_out_status)
 

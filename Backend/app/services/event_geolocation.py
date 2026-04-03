@@ -39,6 +39,7 @@ def validate_event_geolocation_fields(
     radius_m: float | None,
     required: bool,
 ) -> None:
+    """Ensure an event saves geofence fields as a complete, valid set."""
     provided = [latitude is not None, longitude is not None, radius_m is not None]
     if any(provided) and not all(provided):
         raise HTTPException(
@@ -53,6 +54,7 @@ def validate_event_geolocation_fields(
 
 
 def build_event_time_status_info(event: EventModel) -> EventTimeStatusInfo:
+    """Build the event time-window payload that geolocation responses expose to clients."""
     time_status = get_event_status(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
@@ -68,6 +70,7 @@ def build_event_time_status_info(event: EventModel) -> EventTimeStatusInfo:
 
 
 def build_event_attendance_decision_info(event: EventModel) -> EventAttendanceDecisionInfo:
+    """Build the current sign-in decision payload for location-check responses."""
     decision = get_attendance_decision(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
@@ -89,6 +92,7 @@ def build_event_location_verification_response(
     time_status: EventTimeStatusInfo | None = None,
     attendance_decision: EventAttendanceDecisionInfo | None = None,
 ) -> EventLocationVerificationResponse:
+    """Convert raw geofence output into the API response used by event location checks."""
     return EventLocationVerificationResponse(
         ok=geo_result.ok,
         reason=geo_result.reason,
@@ -112,6 +116,7 @@ def build_event_geolocation_error_detail(
     response: EventLocationVerificationResponse | None = None,
     **extra: object,
 ) -> dict[str, object]:
+    """Build a structured error payload so the frontend can explain location failures."""
     detail: dict[str, object] = {
         "code": code,
         "message": message,
@@ -123,6 +128,7 @@ def build_event_geolocation_error_detail(
 
 
 def _event_has_geolocation_config(event: EventModel) -> bool:
+    """Return True when the event actually has coordinates and a radius configured."""
     return (
         event.geo_latitude is not None
         and event.geo_longitude is not None
@@ -137,6 +143,7 @@ def _run_event_geolocation_check(
     longitude: float,
     accuracy_m: float | None,
 ) -> GeoCheckResult:
+    """Run the shared geofence check using the event's saved location settings."""
     return geofence_check(
         user_lat=latitude,
         user_lng=longitude,
@@ -158,6 +165,7 @@ def verify_event_geolocation(
     longitude: float,
     accuracy_m: float | None,
 ) -> EventLocationVerificationResponse:
+    """Validate a location against an event geofence without enforcing attendance rules."""
     if not _event_has_geolocation_config(event):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -188,6 +196,7 @@ def verify_event_geolocation_for_attendance(
     longitude: float | None,
     accuracy_m: float | None,
 ) -> EventLocationVerificationResponse | None:
+    """Enforce geolocation before a face/manual attendance scan is accepted."""
     if not _event_has_geolocation_config(event):
         if bool(event.geo_required):
             raise HTTPException(
@@ -242,6 +251,7 @@ def find_attendance_geolocation_travel_risk(
     longitude: float,
     scanned_at: datetime,
 ) -> AttendanceGeolocationTravelRisk | None:
+    """Flag impossible travel between the student's last scan and the current location."""
     previous = (
         db.query(AttendanceModel)
         .filter(

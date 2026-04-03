@@ -5,7 +5,9 @@ Role: Router layer. It receives HTTP requests, checks access rules, and returns 
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime
+from typing import Callable
 
 from jose import JWTError, jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -51,6 +53,16 @@ from app.services.face_recognition import FaceRecognitionService
 
 router = APIRouter(prefix="/auth/security", tags=["security"])
 face_service = FaceRecognitionService()
+FACE_STATUS_TIMEOUT_SECONDS = 1.5
+_face_runtime_status_executor = ThreadPoolExecutor(
+    max_workers=1,
+    thread_name_prefix="face-runtime-status",
+)
+_anti_spoof_status_executor = ThreadPoolExecutor(
+    max_workers=1,
+    thread_name_prefix="anti-spoof-status",
+)
+_StatusProbe = Callable[[], tuple[bool, str | None]]
 
 
 def _extract_current_jti(token: str) -> str | None:
@@ -60,6 +72,39 @@ def _extract_current_jti(token: str) -> str | None:
         return str(jti) if jti else None
     except JWTError:
         return None
+
+
+def _require_current_mfa_reference(profile: UserFaceRecognitionProfile) -> None:
+    """Reject legacy admin face references that were enrolled with the old provider."""
+    expected_provider = face_service.embedding_provider_for_mode("mfa")
+    if (profile.provider or "").strip().lower() != expected_provider:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Your saved face reference uses a legacy provider. "
+                "Delete it and enroll a new ArcFace reference before verifying."
+            ),
+        )
+
+
+def _run_status_probe_with_timeout(
+    probe: _StatusProbe,
+    *,
+    executor: ThreadPoolExecutor,
+    timeout_reason: str,
+    error_reason: str,
+) -> tuple[bool, str | None]:
+    """Return one status probe result without letting the route hang."""
+    future = executor.submit(probe)
+    try:
+        ready, reason = future.result(timeout=FACE_STATUS_TIMEOUT_SECONDS)
+        return bool(ready), reason
+    except FutureTimeoutError:
+        future.cancel()
+        return False, timeout_reason
+    except Exception:
+        future.cancel()
+        return False, error_reason
 
 
 @router.get("/mfa-status", response_model=MfaStatusResponse)
@@ -188,19 +233,32 @@ def get_face_status(
         .filter(UserFaceRecognitionProfile.user_id == current_user.id)
         .first()
     )
-    face_runtime_ready, face_runtime_reason = face_service.face_recognition_status()
-    anti_spoof_ready, anti_spoof_reason = face_service.anti_spoof_status()
-    if not face_runtime_ready:
-        anti_spoof_ready = False
-        anti_spoof_reason = face_runtime_reason
+    face_runtime_ready, face_runtime_reason = _run_status_probe_with_timeout(
+        lambda: face_service.face_recognition_status(mode="mfa"),
+        executor=_face_runtime_status_executor,
+        timeout_reason="insightface_warming_up",
+        error_reason="insightface_initialization_failed",
+    )
+    anti_spoof_ready, anti_spoof_reason = _run_status_probe_with_timeout(
+        face_service.anti_spoof_status,
+        executor=_anti_spoof_status_executor,
+        timeout_reason="session_unavailable",
+        error_reason="session_unavailable",
+    )
     return SecurityFaceStatusResponse(
         user_id=current_user.id,
         face_verification_required=True,
         face_reference_enrolled=profile is not None,
-        provider=(profile.provider if profile is not None else "face_recognition"),
+        provider=(
+            profile.provider
+            if profile is not None
+            else face_service.embedding_provider_for_mode("mfa")
+        ),
         updated_at=(profile.updated_at if profile is not None else None),
         last_verified_at=(profile.last_verified_at if profile is not None else None),
         liveness_enabled=True,
+        face_runtime_ready=face_runtime_ready,
+        face_runtime_reason=face_runtime_reason,
         anti_spoof_ready=anti_spoof_ready,
         anti_spoof_reason=anti_spoof_reason,
         live_capture_required=True,
@@ -214,7 +272,7 @@ def check_face_liveness(
 ):
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     rgb_image = face_service.load_rgb_from_bytes(image_bytes)
-    liveness = face_service.check_liveness(rgb_image)
+    liveness = face_service.check_liveness(rgb_image, mode="mfa")
     return SecurityFaceLivenessResponse(**liveness.to_dict())
 
 
@@ -229,6 +287,7 @@ def save_face_reference(
         image_bytes,
         require_single_face=True,
         enforce_liveness=True,
+        mode="mfa",
     )
 
     profile = (
@@ -240,12 +299,13 @@ def save_face_reference(
         profile = UserFaceRecognitionProfile(
             user_id=current_user.id,
             face_encoding=face_service.encoding_to_bytes(encoding),
-            provider="face_recognition",
+            provider=face_service.embedding_provider_for_mode("mfa"),
             reference_image_sha256=face_service.compute_image_sha256(image_bytes),
         )
         db.add(profile)
     else:
         profile.face_encoding = face_service.encoding_to_bytes(encoding)
+        profile.provider = face_service.embedding_provider_for_mode("mfa")
         profile.reference_image_sha256 = face_service.compute_image_sha256(image_bytes)
 
     db.commit()
@@ -294,17 +354,25 @@ def verify_face_reference(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No face reference is enrolled for this account.",
         )
+    _require_current_mfa_reference(profile)
 
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     encoding, liveness = face_service.extract_encoding_from_bytes(
         image_bytes,
         require_single_face=True,
         enforce_liveness=True,
+        mode="mfa",
     )
     comparison = face_service.compare_encodings(
         encoding,
-        face_service.encoding_from_bytes(bytes(profile.face_encoding)),
+        face_service.encoding_from_bytes(
+            bytes(profile.face_encoding),
+            dtype=face_service.settings.face_embedding_dtype,
+            dimension=face_service.settings.face_embedding_dim,
+            normalized=True,
+        ),
         threshold=payload.threshold,
+        mode="mfa",
     )
     token_data = decode_token_to_token_data(token)
     issued_session: dict[str, object | None] | None = None

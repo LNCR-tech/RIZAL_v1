@@ -2,6 +2,7 @@ const REDIRECT_ALLOWLIST = new Set<string>([
   "/",
   "/login",
   "/change-password",
+  "/face-verification",
   "/auth/face-verification",
   "/student_face_registration",
   "/student_event_checkin",

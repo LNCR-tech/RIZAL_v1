@@ -59,7 +59,9 @@ const ChangePassword = () => {
     setError(null);
     setSuccess(null);
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    const normalizedCurrentPassword = currentPassword.trim();
+
+    if (!normalizedCurrentPassword || !newPassword || !confirmPassword) {
       setError("All fields are required.");
       return;
     }
@@ -90,7 +92,7 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
-      await changePassword(currentPassword, newPassword);
+      await changePassword(normalizedCurrentPassword, newPassword);
 
       const updatedUser = {
         ...storedUser,

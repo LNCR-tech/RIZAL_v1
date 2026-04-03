@@ -14,15 +14,24 @@ import {
   updateDataRequestStatus,
   updateGovernanceSettings,
 } from "../api/platformOpsApi";
-import { isStoredCampusAdmin, readStoredUserSession } from "../lib/auth/storedUser";
+import {
+  isStoredCampusAdmin,
+  isStoredPlatformAdmin,
+  readStoredUserSession,
+} from "../lib/auth/storedUser";
 import { hasAnyRole } from "../utils/roleUtils";
 
 const DataGovernance = () => {
+  const storedSession = readStoredUserSession();
   const roles = readStoredUserSession()?.roles ?? [];
   const isSchoolIT = isStoredCampusAdmin();
+  const isPlatformAdmin = isStoredPlatformAdmin();
   const isPrivileged = hasAnyRole(roles, "admin", "campus_admin");
   const NavbarComponent = isSchoolIT ? NavbarSchoolIT : NavbarAdmin;
 
+  const [schoolId, setSchoolId] = useState<string>(
+    storedSession?.schoolId ? String(storedSession.schoolId) : ""
+  );
   const [settings, setSettings] = useState<GovernanceSettings | null>(null);
   const [requests, setRequests] = useState<DataRequestItem[]>([]);
   const [consentsCount, setConsentsCount] = useState(0);
@@ -32,15 +41,30 @@ const DataGovernance = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [dryRun, setDryRun] = useState(true);
 
+  const parseSelectedSchoolId = () => {
+    const trimmed = schoolId.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : NaN;
+  };
+
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [settingsData, requestsData, consentsData] = await Promise.all([
-        fetchGovernanceSettings(),
+      const parsedSchoolId = parseSelectedSchoolId();
+      if (Number.isNaN(parsedSchoolId)) {
+        throw new Error("Enter a valid School ID before loading governance settings.");
+      }
+
+      const [requestsData, consentsData, settingsData] = await Promise.all([
         fetchDataRequests({ limit: 100 }),
         fetchMyConsents(),
+        isPlatformAdmin && parsedSchoolId === null
+          ? Promise.resolve<GovernanceSettings | null>(null)
+          : fetchGovernanceSettings(parsedSchoolId ?? undefined),
       ]);
+
       setSettings(settingsData);
       setRequests(requestsData);
       setConsentsCount(consentsData.length);
@@ -62,12 +86,19 @@ const DataGovernance = () => {
     setError(null);
     setSuccess(null);
     try {
+      const parsedSchoolId = parseSelectedSchoolId();
+      if (isPlatformAdmin && parsedSchoolId === null) {
+        throw new Error("Enter a School ID before saving governance settings.");
+      }
+      if (Number.isNaN(parsedSchoolId)) {
+        throw new Error("Enter a valid School ID before saving governance settings.");
+      }
       const updated = await updateGovernanceSettings({
         attendance_retention_days: settings.attendance_retention_days,
         audit_log_retention_days: settings.audit_log_retention_days,
         import_file_retention_days: settings.import_file_retention_days,
         auto_delete_enabled: settings.auto_delete_enabled,
-      });
+      }, parsedSchoolId ?? undefined);
       setSettings(updated);
       setSuccess("Governance settings updated.");
     } catch (err) {
@@ -111,7 +142,14 @@ const DataGovernance = () => {
     setError(null);
     setSuccess(null);
     try {
-      const result = await runRetentionCleanup({ dry_run: dryRun });
+      const parsedSchoolId = parseSelectedSchoolId();
+      if (isPlatformAdmin && parsedSchoolId === null) {
+        throw new Error("Enter a School ID before running retention cleanup.");
+      }
+      if (Number.isNaN(parsedSchoolId)) {
+        throw new Error("Enter a valid School ID before running retention cleanup.");
+      }
+      const result = await runRetentionCleanup({ dry_run: dryRun }, parsedSchoolId ?? undefined);
       setSuccess(result.summary);
       await load();
     } catch (err) {
@@ -137,6 +175,23 @@ const DataGovernance = () => {
         {error && <div className="alert alert-danger">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
 
+        {isPlatformAdmin && (
+          <div className="card mb-3">
+            <div className="card-body d-flex gap-2 align-items-center">
+              <label className="form-label mb-0">School ID</label>
+              <input
+                className="form-control"
+                style={{ maxWidth: 180 }}
+                value={schoolId}
+                onChange={(e) => setSchoolId(e.target.value)}
+              />
+              <button className="btn btn-outline-primary" onClick={() => void load()}>
+                Load
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="card mb-3">
           <div className="card-header">Privacy & Data Requests</div>
           <div className="card-body d-flex flex-wrap gap-2">
@@ -153,9 +208,19 @@ const DataGovernance = () => {
           </div>
         </div>
 
-        {!settings || loading ? (
+        {loading ? (
           <div className="card mb-3">
             <div className="card-body">Loading governance settings...</div>
+          </div>
+        ) : isPlatformAdmin && !schoolId.trim() ? (
+          <div className="card mb-3">
+            <div className="card-body">
+              Enter a School ID above to load governance retention settings for a specific campus.
+            </div>
+          </div>
+        ) : !settings ? (
+          <div className="card mb-3">
+            <div className="card-body">Governance settings are not available yet.</div>
           </div>
         ) : (
           <form className="card mb-3" onSubmit={saveSettings}>

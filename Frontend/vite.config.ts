@@ -5,7 +5,6 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
   const proxyTarget = env.VITE_DEV_PROXY_TARGET || "http://backend:8000";
   const directProxyPaths = [
-    "/auth",
     "/attendance",
     "/departments",
     "/events",

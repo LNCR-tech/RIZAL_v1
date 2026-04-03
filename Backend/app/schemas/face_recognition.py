@@ -66,6 +66,8 @@ class SecurityFaceStatusResponse(BaseModel):
     updated_at: Optional[datetime] = None
     last_verified_at: Optional[datetime] = None
     liveness_enabled: bool
+    face_runtime_ready: bool
+    face_runtime_reason: Optional[str] = None
     anti_spoof_ready: bool
     anti_spoof_reason: Optional[str] = None
     live_capture_required: bool

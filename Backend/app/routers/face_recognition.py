@@ -59,6 +59,7 @@ face_service = FaceRecognitionService()
 
 
 def _require_student_profile(current_user: UserModel) -> StudentProfile:
+    """Ensure the current user has a student profile before using student-only face features."""
     profile = getattr(current_user, "student_profile", None)
     if profile is None:
         raise HTTPException(
@@ -69,6 +70,7 @@ def _require_student_profile(current_user: UserModel) -> StudentProfile:
 
 
 def _get_school_event_or_404(db: Session, event_id: int, school_id: int) -> EventModel:
+    """Load an event in the actor's school and auto-sync its workflow status first."""
     event = (
         db.query(EventModel)
         .filter(EventModel.id == event_id, EventModel.school_id == school_id)
@@ -86,6 +88,7 @@ def _get_school_event_or_404(db: Session, event_id: int, school_id: int) -> Even
 
 
 def _serialize_attendance_decision(decision) -> dict[str, object]:
+    """Convert attendance decision dataclasses into JSON-friendly router payloads."""
     payload = decision.to_dict()
     for key, value in list(payload.items()):
         if isinstance(value, datetime):
@@ -94,6 +97,7 @@ def _serialize_attendance_decision(decision) -> dict[str, object]:
 
 
 def _attendance_time_window_detail(event: EventModel, *, action: str = "check_in") -> dict[str, object]:
+    """Expose the current check-in or sign-out timing window for API error details."""
     decision = (
         get_sign_out_decision(
             start_time=event.start_datetime,
@@ -128,6 +132,7 @@ def _attendance_scan_error_detail(
     message: str,
     **extra: object,
 ) -> dict[str, object]:
+    """Build a consistent structured error body for face attendance failures."""
     detail: dict[str, object] = {
         "code": code,
         "message": message,
@@ -136,21 +141,37 @@ def _attendance_scan_error_detail(
     return detail
 
 
+def _has_current_canonical_embedding(profile: StudentProfile) -> bool:
+    """Return whether one stored student embedding matches the new canonical format."""
+    return (
+        bool(profile.face_encoding)
+        and (profile.embedding_provider or "").strip().lower() == "arcface"
+        and (profile.embedding_dtype or "").strip().lower() == face_service.settings.face_embedding_dtype
+        and int(profile.embedding_dimension or 0) == face_service.settings.face_embedding_dim
+        and bool(profile.embedding_normalized)
+    )
+
+
 @router.post("/register", response_model=FaceRegistrationResponse)
 def register_face_from_base64(
     payload: Base64ImageRequest,
     current_user: UserModel = Depends(get_current_student_user),
     db: Session = Depends(get_db),
 ):
+    """Register a student's reference face from a base64 camera capture."""
     profile = _require_student_profile(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     encoding, liveness = face_service.extract_encoding_from_bytes(
         image_bytes,
         require_single_face=True,
         enforce_liveness=True,
+        mode="single",
     )
 
-    profile.update_face_encoding(face_service.encoding_to_bytes(encoding))
+    profile.update_face_encoding(
+        face_service.encoding_to_bytes(encoding),
+        **face_service.embedding_metadata_for_mode("single"),
+    )
     profile.registration_complete = True
     db.commit()
     db.refresh(profile)
@@ -168,15 +189,20 @@ async def register_face_from_upload(
     current_user: UserModel = Depends(get_current_student_user),
     db: Session = Depends(get_db),
 ):
+    """Register a student's reference face from an uploaded image file."""
     profile = _require_student_profile(current_user)
     image_bytes = await file.read()
     encoding, liveness = face_service.extract_encoding_from_bytes(
         image_bytes,
         require_single_face=True,
         enforce_liveness=True,
+        mode="single",
     )
 
-    profile.update_face_encoding(face_service.encoding_to_bytes(encoding))
+    profile.update_face_encoding(
+        face_service.encoding_to_bytes(encoding),
+        **face_service.embedding_metadata_for_mode("single"),
+    )
     profile.registration_complete = True
     db.commit()
     db.refresh(profile)
@@ -194,12 +220,14 @@ def verify_face_against_registered_students(
     current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
+    """Match one probe image against all registered student faces in the school."""
     school_id = get_school_id_or_403(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     encoding, liveness = face_service.extract_encoding_from_bytes(
         image_bytes,
         require_single_face=True,
         enforce_liveness=True,
+        mode="single",
     )
 
     candidates = get_registered_face_candidates_for_school(db, school_id)
@@ -212,6 +240,7 @@ def verify_face_against_registered_students(
     match = face_service.find_best_match(
         encoding,
         [scoped_candidate.candidate for scoped_candidate in candidates],
+        mode="single",
     )
     if not match.matched or match.candidate is None:
         return FaceVerificationResponse(
@@ -250,6 +279,7 @@ def record_attendance_from_face_scan(
     current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
+    """Run the full face-scan attendance flow, including scope, location, and sign-in/out rules."""
     actor_is_staff_scan = has_any_role(
         current_user,
         ["admin", "campus_admin"],
@@ -298,6 +328,20 @@ def record_attendance_from_face_scan(
             status_code=status.HTTP_409_CONFLICT,
             detail="Register your student face before signing in to an event.",
         )
+    if (
+        actor_is_student_self_scan
+        and current_student_profile is not None
+        and not bypass_face_scan
+        and bool(current_student_profile.is_face_registered)
+        and not _has_current_canonical_embedding(current_student_profile)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Re-register your student face with the current ArcFace enrollment "
+                "before using face attendance."
+            ),
+        )
 
     if bypass_face_scan:
         participant_ids = set(get_event_participant_student_ids(db, event))
@@ -315,7 +359,11 @@ def record_attendance_from_face_scan(
         )
         match_distance = 0.0
         match_confidence = 1.0
-        match_threshold = float(payload.threshold or face_service.settings.face_match_threshold)
+        match_threshold = float(
+            payload.threshold
+            if payload.threshold is not None
+            else face_service.default_threshold_for_mode("single")
+        )
     else:
         if not payload.image_base64:
             raise HTTPException(
@@ -328,6 +376,7 @@ def record_attendance_from_face_scan(
             image_bytes,
             require_single_face=True,
             enforce_liveness=True,
+            mode="single",
         )
 
         candidates = get_registered_face_candidates_for_event(db, event)
@@ -341,6 +390,7 @@ def record_attendance_from_face_scan(
             encoding,
             [scoped_candidate.candidate for scoped_candidate in candidates],
             threshold=payload.threshold,
+            mode="single",
         )
         if not match.matched or match.candidate is None:
             raise HTTPException(

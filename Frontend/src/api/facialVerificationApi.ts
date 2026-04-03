@@ -27,6 +27,8 @@ type BackendFaceStatusResponse = {
   updated_at?: string | null;
   last_verified_at?: string | null;
   liveness_enabled?: boolean;
+  face_runtime_ready?: boolean;
+  face_runtime_reason?: string | null;
   anti_spoof_ready?: boolean;
   anti_spoof_reason?: string | null;
   live_capture_required?: boolean;
@@ -78,6 +80,8 @@ export interface FacialVerificationStatus {
   updatedAt: string | null;
   lastVerifiedAt: string | null;
   livenessEnabled: boolean;
+  faceRuntimeReady: boolean;
+  faceRuntimeReason: string | null;
   antiSpoofReady: boolean;
   antiSpoofReason: string | null;
   liveCaptureRequired: boolean;
@@ -359,6 +363,8 @@ export const fetchFacialVerificationStatus = async (
     updatedAt: body.updated_at ?? null,
     lastVerifiedAt: body.last_verified_at ?? null,
     livenessEnabled: Boolean(body.liveness_enabled ?? true),
+    faceRuntimeReady: Boolean(body.face_runtime_ready),
+    faceRuntimeReason: body.face_runtime_reason ?? null,
     antiSpoofReady: Boolean(body.anti_spoof_ready),
     antiSpoofReason: body.anti_spoof_reason ?? null,
     liveCaptureRequired: Boolean(body.live_capture_required ?? true),

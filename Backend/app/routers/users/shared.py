@@ -1,7 +1,7 @@
 """Shared helpers for the user router package."""
 
 import logging
-from typing import List
+from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -23,12 +23,13 @@ from app.models.governance_hierarchy import PermissionCode
 from app.models.program import Program
 from app.models.role import Role
 from app.models.school import School
-from app.models.user import StudentProfile, User as UserModel, UserRole
+from app.models.user import User as UserModel, UserRole
 from app.schemas.user import (
     PasswordUpdate,
     StudentAccountCreate,
     StudentProfileBase,
     StudentProfileCreate,
+    StudentProfile as StudentProfileSchema,
     UserCreate,
     UserCreateResponse,
     UserRoleUpdate,
@@ -49,9 +50,42 @@ logger = logging.getLogger(__name__)
 
 
 def _serialize_user(user: UserModel) -> UserWithRelations:
-    return UserWithRelations.model_validate(user, from_attributes=True).model_copy(
-        update={"face_scan_bypass_enabled": is_face_scan_bypass_enabled_for_user(user)}
-    )
+    valid_roles: list[dict[str, Any]] = []
+    dropped_role_count = 0
+    for user_role in user.roles or []:
+        role = getattr(user_role, "role", None)
+        if role is None or not getattr(role, "name", None):
+            dropped_role_count += 1
+            continue
+        valid_roles.append({"role": role})
+
+    if dropped_role_count:
+        logger.warning(
+            "Ignoring %s dangling role relation(s) while serializing user_id=%s",
+            dropped_role_count,
+            getattr(user, "id", None),
+        )
+
+    payload: dict[str, Any] = {
+        "id": user.id,
+        "email": user.email,
+        "first_name": user.first_name,
+        "middle_name": user.middle_name,
+        "last_name": user.last_name,
+        "school_id": user.school_id,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "roles": valid_roles,
+        "face_scan_bypass_enabled": is_face_scan_bypass_enabled_for_user(user),
+    }
+
+    if user.student_profile is not None:
+        payload["student_profile"] = StudentProfileSchema.model_validate(
+            user.student_profile,
+            from_attributes=True,
+        )
+
+    return UserWithRelations.model_validate(payload)
 
 
 def _serialize_users(users: list[UserModel]) -> list[UserWithRelations]:

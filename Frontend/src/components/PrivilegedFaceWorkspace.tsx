@@ -35,6 +35,7 @@ const MIN_LIVENESS_SCORE = 0.85;
 const SCAN_DURATION_MS = 8000;
 const LOGIN_MAX_SCAN_ATTEMPTS = 3;
 const COMPLETE_REDIRECT_DELAY_MS = 700;
+const STATUS_RETRY_DELAY_MS = 4000;
 
 type ScanCaptureState = {
   bestLiveBlob: Blob | null;
@@ -79,6 +80,29 @@ const describeAntiSpoofReason = (reason: string | null) => {
   }
 };
 
+const describeFaceRuntimeReason = (reason: string | null) => {
+  switch (reason) {
+    case "insightface_model_download_pending":
+      return "InsightFace is downloading its backend model package. This can take a few minutes the first time.";
+    case "insightface_warming_up":
+      return "InsightFace is starting on the backend. Please wait a moment.";
+    case "insightface_initialization_failed":
+      return "InsightFace could not finish starting on the backend.";
+    case "deepface_unavailable":
+      return "DeepFace is not installed or not ready on the backend.";
+    case "insightface_unavailable":
+      return "InsightFace is not installed or not ready on the backend.";
+    case "unsupported_mode":
+      return "The backend face verification mode is not supported.";
+    default:
+      return "Live face verification is not ready on the backend.";
+  }
+};
+
+const isRetryableFaceRuntimeReason = (reason: string | null) =>
+  reason === "insightface_model_download_pending" ||
+  reason === "insightface_warming_up";
+
 const toErrorDetail = (error: unknown) =>
   error instanceof Error ? error.message : "Face verification failed.";
 
@@ -99,6 +123,7 @@ const PrivilegedFaceWorkspace = ({
 }: PrivilegedFaceWorkspaceProps) => {
   const allowManagementActions = variant === "manage";
   const completionTimerRef = useRef<number | null>(null);
+  const statusRetryTimerRef = useRef<number | null>(null);
   const scanAnimationRef = useRef<number | null>(null);
   const scanTimeoutRef = useRef<number | null>(null);
   const scanStartedAtRef = useRef<number | null>(null);
@@ -120,6 +145,7 @@ const PrivilegedFaceWorkspace = ({
   const [failedAttempts, setFailedAttempts] = useState(0);
 
   const referenceEnrolled = Boolean(referenceStatus?.faceReferenceEnrolled);
+  const faceRuntimeReady = Boolean(referenceStatus?.faceRuntimeReady);
   const antiSpoofReady = Boolean(referenceStatus?.antiSpoofReady);
   const maxAttempts = variant === "login" ? LOGIN_MAX_SCAN_ATTEMPTS : null;
   const attemptsRemaining =
@@ -130,48 +156,55 @@ const PrivilegedFaceWorkspace = ({
       ? "Registering face..."
       : "Verifying face...";
 
-  const clearCompletionTimer = () => {
+  const clearCompletionTimer = useCallback(() => {
     if (completionTimerRef.current) {
       window.clearTimeout(completionTimerRef.current);
       completionTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const clearScanAnimation = () => {
+  const clearStatusRetryTimer = useCallback(() => {
+    if (statusRetryTimerRef.current) {
+      window.clearTimeout(statusRetryTimerRef.current);
+      statusRetryTimerRef.current = null;
+    }
+  }, []);
+
+  const clearScanAnimation = useCallback(() => {
     if (scanAnimationRef.current) {
       window.cancelAnimationFrame(scanAnimationRef.current);
       scanAnimationRef.current = null;
     }
-  };
+  }, []);
 
-  const clearScanTimeout = () => {
+  const clearScanTimeout = useCallback(() => {
     if (scanTimeoutRef.current) {
       window.clearTimeout(scanTimeoutRef.current);
       scanTimeoutRef.current = null;
     }
-  };
+  }, []);
 
-  const clearScanRuntime = () => {
+  const clearScanRuntime = useCallback(() => {
     clearScanAnimation();
     clearScanTimeout();
     scanStartedAtRef.current = null;
-  };
+  }, [clearScanAnimation, clearScanTimeout]);
 
-  const stopScanner = () => {
+  const stopScanner = useCallback(() => {
     clearScanRuntime();
     setStreamEnabled(false);
     setCameraReady(false);
-  };
+  }, [clearScanRuntime]);
 
-  const resetAttemptCounter = () => {
+  const resetAttemptCounter = useCallback(() => {
     failedAttemptsRef.current = 0;
     setFailedAttempts(0);
-  };
+  }, []);
 
-  const resetScanCapture = () => {
+  const resetScanCapture = useCallback(() => {
     scanCaptureRef.current = createEmptyScanCapture();
     setProgressPercent(0);
-  };
+  }, []);
 
   const handleScanFailure = useCallback(
     (message: string) => {
@@ -202,7 +235,7 @@ const PrivilegedFaceWorkspace = ({
       setStatusText(message);
       setErrorText(null);
     },
-    [onCancel, variant]
+    [clearCompletionTimer, onCancel, resetScanCapture, stopScanner, variant]
   );
 
   const finalizeRegistration = useCallback(
@@ -235,7 +268,7 @@ const PrivilegedFaceWorkspace = ({
         setBusyState(null);
       }
     },
-    [authToken, handleScanFailure, role, subjectId]
+    [authToken, handleScanFailure, resetAttemptCounter, role, subjectId]
   );
 
   const finalizeVerification = useCallback(
@@ -277,6 +310,7 @@ const PrivilegedFaceWorkspace = ({
       authToken,
       handleScanFailure,
       onVerified,
+      resetAttemptCounter,
       role,
       subjectId,
     ]
@@ -308,7 +342,13 @@ const PrivilegedFaceWorkspace = ({
 
       await finalizeVerification(bestLiveBlob);
     },
-    [finalizeRegistration, finalizeVerification, handleScanFailure]
+    [
+      clearScanRuntime,
+      finalizeRegistration,
+      finalizeVerification,
+      handleScanFailure,
+      stopScanner,
+    ]
   );
 
   const startScanner = useCallback(
@@ -326,18 +366,37 @@ const PrivilegedFaceWorkspace = ({
       setBusyState(null);
       setStreamEnabled(true);
     },
-    []
+    [clearCompletionTimer, clearScanRuntime, resetScanCapture]
   );
 
   const refreshState = useCallback(async () => {
     setStatusLoading(true);
     setErrorText(null);
     resetAttemptCounter();
+    clearStatusRetryTimer();
 
     try {
       const nextStatus = await fetchFacialVerificationStatus({ authToken });
       setReferenceStatus(nextStatus);
       resetScanCapture();
+
+      if (!nextStatus.faceRuntimeReady) {
+        setFlowStage("blocked");
+        stopScanner();
+        if (isRetryableFaceRuntimeReason(nextStatus.faceRuntimeReason)) {
+          setStatusText(
+            `${describeFaceRuntimeReason(
+              nextStatus.faceRuntimeReason
+            )} Retrying automatically.`
+          );
+          statusRetryTimerRef.current = window.setTimeout(() => {
+            void refreshState();
+          }, STATUS_RETRY_DELAY_MS);
+          return;
+        }
+        setStatusText(describeFaceRuntimeReason(nextStatus.faceRuntimeReason));
+        return;
+      }
 
       if (!nextStatus.antiSpoofReady) {
         setFlowStage("blocked");
@@ -362,7 +421,14 @@ const PrivilegedFaceWorkspace = ({
     } finally {
       setStatusLoading(false);
     }
-  }, [authToken, startScanner]);
+  }, [
+    authToken,
+    clearStatusRetryTimer,
+    resetAttemptCounter,
+    resetScanCapture,
+    startScanner,
+    stopScanner,
+  ]);
 
   useEffect(() => {
     void refreshState();
@@ -371,9 +437,10 @@ const PrivilegedFaceWorkspace = ({
   useEffect(
     () => () => {
       clearCompletionTimer();
+      clearStatusRetryTimer();
       clearScanRuntime();
     },
-    []
+    [clearCompletionTimer, clearScanRuntime, clearStatusRetryTimer]
   );
 
   useEffect(() => {
@@ -383,6 +450,7 @@ const PrivilegedFaceWorkspace = ({
       !cameraReady ||
       statusLoading ||
       busyState !== null ||
+      !faceRuntimeReady ||
       !antiSpoofReady ||
       scanStartedAtRef.current !== null
     ) {
@@ -421,9 +489,11 @@ const PrivilegedFaceWorkspace = ({
       }
     };
   }, [
+    faceRuntimeReady,
     antiSpoofReady,
     busyState,
     cameraReady,
+    clearScanRuntime,
     finishTimedScan,
     flowStage,
     scanMode,
@@ -457,6 +527,16 @@ const PrivilegedFaceWorkspace = ({
       return;
     }
 
+    if (
+      detail.toLowerCase().includes("deepface retinaface requires") ||
+      detail.toLowerCase().includes("deepface runtime is unavailable")
+    ) {
+      setFlowStage("blocked");
+      stopScanner();
+      setStatusText(detail);
+      return;
+    }
+
     scanCaptureRef.current.lastIssue = detail;
   };
 
@@ -464,6 +544,7 @@ const PrivilegedFaceWorkspace = ({
     if (
       statusLoading ||
       busyState !== null ||
+      !faceRuntimeReady ||
       !antiSpoofReady ||
       flowStage !== "scan"
     ) {

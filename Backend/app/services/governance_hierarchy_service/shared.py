@@ -118,6 +118,7 @@ DEFAULT_SSG_DESCRIPTION = "Fixed campus-wide student government unit for the sch
 
 
 def _governance_unit_query(db: Session):
+    """Build the base governance-unit query with the relationships most screens need."""
     return db.query(GovernanceUnit).options(
         selectinload(GovernanceUnit.parent_unit),
         selectinload(GovernanceUnit.members)
@@ -131,6 +132,7 @@ def _governance_unit_query(db: Session):
 
 
 def _governance_member_query(db: Session):
+    """Build the base governance-member query with user and permission details loaded."""
     return db.query(GovernanceMember).options(
         selectinload(GovernanceMember.governance_unit),
         selectinload(GovernanceMember.user).selectinload(User.student_profile),
@@ -139,14 +141,17 @@ def _governance_member_query(db: Session):
 
 
 def _student_candidate_query(db: Session):
+    """Build the base student query used when searching officer candidates."""
     return db.query(StudentProfile).options(selectinload(StudentProfile.user))
 
 
 def _is_school_it(current_user: User) -> bool:
+    """Return True when the actor is the Campus Admin for a specific school."""
     return has_any_role(current_user, ["campus_admin"]) and getattr(current_user, "school_id", None) is not None
 
 
 def _normalize_unit_code(unit_code: str) -> str:
+    """Clean and validate a governance unit code before saving it."""
     normalized = (unit_code or "").strip().upper()
     if not normalized:
         raise HTTPException(status_code=400, detail="unit_code is required")
@@ -154,6 +159,7 @@ def _normalize_unit_code(unit_code: str) -> str:
 
 
 def _normalize_unit_name(unit_name: str) -> str:
+    """Clean and validate a governance unit display name before saving it."""
     normalized = (unit_name or "").strip()
     if not normalized:
         raise HTTPException(status_code=400, detail="unit_name is required")
@@ -161,16 +167,19 @@ def _normalize_unit_name(unit_name: str) -> str:
 
 
 def _normalize_unit_description(description: str | None) -> str | None:
+    """Trim an optional governance unit description and collapse blanks to None."""
     normalized = (description or "").strip()
     return normalized or None
 
 
 def _normalize_position_title(position_title: str | None) -> str | None:
+    """Trim an optional officer position title and collapse blanks to None."""
     normalized = (position_title or "").strip()
     return normalized or None
 
 
 def _get_payload_fields_set(payload) -> set[str]:
+    """Return the fields that were explicitly provided in a Pydantic payload."""
     model_fields_set = getattr(payload, "model_fields_set", None)
     if model_fields_set is not None:
         return set(model_fields_set)
@@ -178,6 +187,7 @@ def _get_payload_fields_set(payload) -> set[str]:
 
 
 def _prepare_governance_member(governance_member: GovernanceMember) -> GovernanceMember:
+    """Sort member permissions so responses are stable and easier to read."""
     set_committed_value(
         governance_member,
         "member_permissions",
@@ -190,6 +200,7 @@ def _prepare_governance_member(governance_member: GovernanceMember) -> Governanc
 
 
 def _prepare_governance_unit(governance_unit: GovernanceUnit) -> GovernanceUnit:
+    """Sort active members and unit permissions before returning a unit payload."""
     set_committed_value(
         governance_unit,
         "members",
@@ -219,6 +230,7 @@ def _prepare_governance_unit(governance_unit: GovernanceUnit) -> GovernanceUnit:
 
 
 def _get_active_ssg_unit(db: Session, *, school_id: int) -> GovernanceUnit | None:
+    """Fetch the school's active top-level SSG unit, if it already exists."""
     governance_unit = (
         _governance_unit_query(db)
         .filter(
@@ -234,6 +246,7 @@ def _get_active_ssg_unit(db: Session, *, school_id: int) -> GovernanceUnit | Non
 
 
 def _count_imported_students(db: Session, *, school_id: int) -> int:
+    """Count imported student profiles for the school dashboard/setup flow."""
     return (
         db.query(func.count(StudentProfile.id))
         .filter(StudentProfile.school_id == school_id)
@@ -243,6 +256,7 @@ def _count_imported_students(db: Session, *, school_id: int) -> int:
 
 
 def _get_unit_in_school_or_404(db: Session, *, school_id: int, governance_unit_id: int) -> GovernanceUnit:
+    """Load one governance unit inside the school or raise a not-found error."""
     governance_unit = (
         _governance_unit_query(db)
         .filter(
@@ -257,10 +271,12 @@ def _get_unit_in_school_or_404(db: Session, *, school_id: int, governance_unit_i
 
 
 def _get_school_settings_in_school(db: Session, *, school_id: int) -> SchoolSetting | None:
+    """Load school settings used to inherit default event timing values."""
     return db.query(SchoolSetting).filter(SchoolSetting.school_id == school_id).first()
 
 
 def _get_member_in_school_or_404(db: Session, *, school_id: int, governance_member_id: int) -> GovernanceMember:
+    """Load one governance membership inside the school or raise a not-found error."""
     governance_member = (
         _governance_member_query(db)
         .join(GovernanceUnit, GovernanceMember.governance_unit_id == GovernanceUnit.id)
@@ -281,6 +297,7 @@ def _find_active_member(
     governance_unit_id: int,
     user_id: int,
 ) -> GovernanceMember | None:
+    """Find the actor's active membership record in a specific governance unit."""
     return (
         _governance_member_query(db)
         .filter(
@@ -293,6 +310,7 @@ def _find_active_member(
 
 
 def _membership_has_permission(governance_member: GovernanceMember | None, permission_code: PermissionCode) -> bool:
+    """Return True when an active membership includes one specific permission code."""
     if governance_member is None or not governance_member.is_active:
         return False
     return any(
@@ -305,6 +323,7 @@ def _membership_has_any_permission(
     governance_member: GovernanceMember | None,
     permission_codes: Iterable[PermissionCode],
 ) -> bool:
+    """Return True when a membership has at least one permission from a set."""
     return any(
         _membership_has_permission(governance_member, permission_code)
         for permission_code in permission_codes
@@ -317,6 +336,7 @@ def _unit_matches_student_scope(
     department_id: int | None,
     program_id: int | None,
 ) -> bool:
+    """Check whether a student's academic scope falls inside one governance unit."""
     if governance_unit.department_id is not None and governance_unit.department_id != department_id:
         return False
     if governance_unit.program_id is not None and governance_unit.program_id != program_id:
@@ -330,6 +350,7 @@ def _get_active_governance_memberships(
     school_id: int,
     user_id: int,
 ) -> list[GovernanceMember]:
+    """Load all active governance memberships for one user in one school."""
     memberships = (
         _governance_member_query(db)
         .join(GovernanceUnit, GovernanceMember.governance_unit_id == GovernanceUnit.id)
@@ -350,6 +371,7 @@ def _get_membership_for_unit(
     *,
     governance_unit_id: int,
 ) -> GovernanceMember | None:
+    """Pick the membership that belongs to one governance unit from a list."""
     for membership in memberships:
         if membership.governance_unit_id == governance_unit_id:
             return membership
@@ -359,6 +381,7 @@ def _get_membership_for_unit(
 def _get_membership_permission_codes(
     membership: GovernanceMember | None,
 ) -> set[PermissionCode]:
+    """Extract the permission-code set granted to one membership."""
     if membership is None:
         return set()
     return {
@@ -373,6 +396,7 @@ def _get_parent_membership(
     current_user: User,
     governance_unit: GovernanceUnit,
 ) -> GovernanceMember | None:
+    """Load the actor's active membership in the parent governance unit, if any."""
     if governance_unit.parent_unit_id is None:
         return None
 
@@ -390,6 +414,7 @@ def _actor_has_parent_permissions(
     governance_unit: GovernanceUnit,
     permission_codes: Iterable[PermissionCode],
 ) -> bool:
+    """Check whether the actor can control a child unit through parent-unit permissions."""
     parent_membership = _get_parent_membership(
         db,
         current_user=current_user,
@@ -402,6 +427,7 @@ def _actor_has_parent_permissions(
 
 
 def _can_edit_governance_unit(db: Session, *, current_user: User, governance_unit: GovernanceUnit) -> bool:
+    """Return whether the actor may edit the selected governance unit record."""
     if _is_school_it(current_user):
         return True
 
@@ -421,6 +447,7 @@ def _can_edit_governance_unit(db: Session, *, current_user: User, governance_uni
 
 
 def _can_view_governance_unit(db: Session, *, current_user: User, governance_unit: GovernanceUnit) -> bool:
+    """Return whether the actor may view the selected governance unit."""
     if _is_school_it(current_user):
         return True
 
@@ -436,6 +463,7 @@ def _can_view_governance_unit(db: Session, *, current_user: User, governance_uni
 
 
 def _can_manage_members(db: Session, *, current_user: User, governance_unit: GovernanceUnit) -> bool:
+    """Return whether the actor may add, update, or remove members for the unit."""
     if _is_school_it(current_user):
         return True
 
@@ -451,6 +479,7 @@ def _can_manage_members(db: Session, *, current_user: User, governance_unit: Gov
 
 
 def _can_assign_permissions(db: Session, *, current_user: User, governance_unit: GovernanceUnit) -> bool:
+    """Return whether the actor may grant or change member permissions for the unit."""
     if _is_school_it(current_user):
         return True
 
@@ -471,6 +500,7 @@ def _can_manage_event_defaults(
     current_user: User,
     governance_unit: GovernanceUnit,
 ) -> bool:
+    """Return whether the actor may override default event timing for the unit."""
     if _is_school_it(current_user):
         return True
 
@@ -487,6 +517,7 @@ def _build_governance_event_defaults_response(
     governance_unit: GovernanceUnit,
     school_settings: SchoolSetting | None,
 ) -> GovernanceEventDefaultsResponse:
+    """Build the response showing inherited and overridden event timing defaults."""
     (
         effective_early_check_in_minutes,
         effective_late_threshold_minutes,
@@ -521,6 +552,7 @@ def _require_unit_membership_permission(
     permission_codes: Iterable[PermissionCode],
     detail: str,
 ) -> GovernanceMember | None:
+    """Require that the actor holds one of the requested permissions in the unit."""
     if _is_school_it(current_user):
         return None
 
@@ -535,6 +567,7 @@ def _require_unit_membership_permission(
 
 
 def _announcement_query(db: Session):
+    """Build the base announcement query with unit and author data loaded."""
     return db.query(GovernanceAnnouncement).options(
         selectinload(GovernanceAnnouncement.governance_unit),
         selectinload(GovernanceAnnouncement.created_by_user),
@@ -543,6 +576,7 @@ def _announcement_query(db: Session):
 
 
 def _student_note_query(db: Session):
+    """Build the base student-note query with unit, student, and editor data loaded."""
     return db.query(GovernanceStudentNote).options(
         selectinload(GovernanceStudentNote.governance_unit),
         selectinload(GovernanceStudentNote.student_profile)
@@ -552,6 +586,7 @@ def _student_note_query(db: Session):
 
 
 def _normalize_announcement_title(title: str) -> str:
+    """Clean and validate a governance announcement title before saving it."""
     normalized = (title or "").strip()
     if not normalized:
         raise HTTPException(status_code=400, detail="Announcement title is required")
@@ -559,6 +594,7 @@ def _normalize_announcement_title(title: str) -> str:
 
 
 def _normalize_announcement_body(body: str) -> str:
+    """Clean and validate a governance announcement body before saving it."""
     normalized = (body or "").strip()
     if not normalized:
         raise HTTPException(status_code=400, detail="Announcement body is required")
@@ -566,6 +602,7 @@ def _normalize_announcement_body(body: str) -> str:
 
 
 def _normalize_governance_tags(tags: Iterable[str]) -> list[str]:
+    """Deduplicate, trim, and cap governance note tags to a safe small list."""
     normalized_tags: list[str] = []
     seen_tags: set[str] = set()
     for raw_tag in tags:
@@ -588,6 +625,7 @@ def _get_announcement_in_school_or_404(
     school_id: int,
     announcement_id: int,
 ) -> GovernanceAnnouncement:
+    """Load one announcement in the school or raise a not-found error."""
     announcement = (
         _announcement_query(db)
         .filter(
@@ -608,6 +646,7 @@ def _get_note_in_school(
     governance_unit_id: int,
     student_profile_id: int,
 ) -> GovernanceStudentNote | None:
+    """Load the note for one student inside one governance unit, if it exists."""
     return (
         _student_note_query(db)
         .filter(
@@ -626,6 +665,7 @@ def _get_student_profile_in_unit_scope_or_404(
     governance_unit: GovernanceUnit,
     student_profile_id: int,
 ) -> StudentProfile:
+    """Load a student only if that student belongs to the governance unit's scope."""
     query = (
         db.query(StudentProfile)
         .options(
@@ -654,6 +694,7 @@ def _validate_student_governance_candidate(
     user_id: int,
     governance_unit: GovernanceUnit | None = None,
 ) -> User:
+    """Ensure a target user is an active imported student and fits the unit scope."""
     target_user = (
         db.query(User)
         .options(selectinload(User.student_profile))
@@ -694,6 +735,7 @@ def _validate_student_governance_candidate(
 
 
 def _filter_student_query_to_governance_scope(query, *, governance_unit: GovernanceUnit):
+    """Apply department and program scope filters for one governance unit."""
     if governance_unit.department_id is not None:
         query = query.filter(StudentProfile.department_id == governance_unit.department_id)
     if governance_unit.program_id is not None:
@@ -706,6 +748,7 @@ def _get_permission_map(
     *,
     permission_codes: Iterable[PermissionCode],
 ) -> dict[PermissionCode, GovernancePermission]:
+    """Resolve permission codes into governance permission rows keyed by code."""
     unique_codes = {permission_code for permission_code in permission_codes}
     if not unique_codes:
         return {}
@@ -731,6 +774,7 @@ def _ensure_permission_codes_allowed_for_unit(
     permission_codes: Iterable[PermissionCode],
     target_label: str,
 ) -> None:
+    """Reject permissions that are not valid for the target unit type."""
     requested_codes = {permission_code for permission_code in permission_codes}
     if not requested_codes:
         return
@@ -758,6 +802,7 @@ def _sync_member_permissions(
     permission_codes: Iterable[PermissionCode],
     granted_by_user_id: int,
 ) -> None:
+    """Replace a member's granted permission set with the requested codes."""
     ensure_permission_catalog(db)
     requested_codes = {permission_code for permission_code in permission_codes}
     permission_map = _get_permission_map(db, permission_codes=requested_codes)
@@ -785,6 +830,7 @@ def _sync_member_permissions(
 
 
 def ensure_permission_catalog(db: Session) -> None:
+    """Seed missing governance permission definitions into the database."""
     existing_codes = {
         row.permission_code
         for row in db.query(GovernancePermission).all()
@@ -811,6 +857,7 @@ def _assert_program_belongs_to_department(
     program_id: int,
     detail: str,
 ) -> None:
+    """Verify that a program is actually linked to the requested department."""
     program_department_exists = db.execute(
         program_department_association.select().where(
             (program_department_association.c.department_id == department_id)
@@ -827,6 +874,7 @@ def _get_department_in_school_or_400(
     school_id: int,
     department_id: int,
 ) -> Department:
+    """Load a department inside the school or raise a validation error."""
     department = (
         db.query(Department)
         .filter(
@@ -846,6 +894,7 @@ def _get_program_in_school_or_400(
     school_id: int,
     program_id: int,
 ) -> Program:
+    """Load a program inside the school or raise a validation error."""
     program = (
         db.query(Program)
         .filter(
@@ -868,6 +917,7 @@ def validate_governance_scope(
     department_id: int | None,
     program_id: int | None,
 ) -> tuple[int | None, int | None]:
+    """Validate and normalize the academic scope allowed for a governance unit."""
     if department_id is not None:
         _get_department_in_school_or_400(
             db,
@@ -967,6 +1017,7 @@ def _ensure_can_create_child_unit(
     unit_type: GovernanceUnitType,
     parent_unit: GovernanceUnit | None,
 ) -> None:
+    """Enforce which parent unit and permission are required to create a child unit."""
     if unit_type == GovernanceUnitType.SSG:
         if not _is_school_it(current_user):
             raise HTTPException(status_code=403, detail="Only Campus Admin can create SSG units")
@@ -1009,6 +1060,7 @@ def get_user_governance_permission_codes(
     *,
     current_user: User,
 ) -> set[PermissionCode]:
+    """Return the union of governance permission codes held by the current user."""
     school_id = get_school_id_or_403(current_user)
     memberships = _get_active_governance_memberships(
         db,
@@ -1029,6 +1081,7 @@ def get_user_governance_unit_types(
     *,
     current_user: User,
 ) -> set[GovernanceUnitType]:
+    """Return the governance unit types the current user actively belongs to."""
     school_id = get_school_id_or_403(current_user)
     memberships = _get_active_governance_memberships(
         db,
@@ -1045,6 +1098,7 @@ def get_governance_units_with_permission(
     permission_code: PermissionCode,
     unit_type: GovernanceUnitType | None = None,
 ) -> list[GovernanceUnit]:
+    """Return governance units where the current user can perform one permissioned action."""
     school_id = get_school_id_or_403(current_user)
     memberships = _get_active_governance_memberships(
         db,
@@ -1074,6 +1128,7 @@ def governance_unit_matches_event_scope(
     department_ids: Iterable[int] | None,
     program_ids: Iterable[int] | None,
 ) -> bool:
+    """Check whether an event's department/program scope belongs to one governance unit."""
     department_scope = {department_id for department_id in department_ids or []}
     program_scope = {program_id for program_id in program_ids or []}
 
@@ -1103,6 +1158,7 @@ def governance_units_match_student_scope(
     department_id: int | None,
     program_id: int | None,
 ) -> bool:
+    """Return True when a student fits inside at least one governance unit scope."""
     return any(
         _unit_matches_student_scope(
             governance_unit,
@@ -1119,6 +1175,7 @@ def user_has_governance_permission(
     current_user: User,
     permission_code: PermissionCode,
 ) -> bool:
+    """Convenience helper for checking one governance permission on the current user."""
     return permission_code in get_user_governance_permission_codes(
         db,
         current_user=current_user,
@@ -1132,6 +1189,7 @@ def ensure_governance_permission(
     permission_code: PermissionCode,
     detail: str | None = None,
 ) -> None:
+    """Raise a permission error when the actor lacks the requested governance permission."""
     if user_has_governance_permission(
         db,
         current_user=current_user,
@@ -1150,6 +1208,7 @@ def get_current_governance_access(
     *,
     current_user: User,
 ) -> GovernanceAccessResponse:
+    """Build the frontend access payload that lists a user's units and permissions."""
     school_id = get_school_id_or_403(current_user)
     memberships = _get_active_governance_memberships(
         db,
@@ -1196,6 +1255,7 @@ def get_or_create_campus_ssg_setup(
     *,
     current_user: User,
 ) -> GovernanceSsgSetupResponse:
+    """Bootstrap the fixed campus SSG record and return its setup summary."""
     school_id = get_school_id_or_403(current_user)
     if not _is_school_it(current_user):
         raise HTTPException(status_code=403, detail="Only Campus Admin can manage the campus SSG")
@@ -1235,6 +1295,7 @@ def list_governance_units(
     parent_unit_id: int | None = None,
     include_inactive: bool = False,
 ) -> list[GovernanceUnitSummaryResponse]:
+    """List governance units the actor can see, with optional filtering."""
     school_id = get_school_id_or_403(current_user)
     ensure_permission_catalog(db)
 
@@ -1341,6 +1402,7 @@ def get_governance_unit_details(
     current_user: User,
     governance_unit_id: int,
 ) -> GovernanceUnit:
+    """Return the full details for one governance unit if the actor may view it."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -1360,6 +1422,7 @@ def get_governance_event_defaults(
     current_user: User,
     governance_unit_id: int,
 ) -> GovernanceEventDefaultsResponse:
+    """Return the effective event timing defaults for one governance unit."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -1384,6 +1447,7 @@ def update_governance_event_defaults(
     governance_unit_id: int,
     payload: GovernanceEventDefaultsUpdate,
 ) -> GovernanceEventDefaultsResponse:
+    """Update SG or ORG event default timing overrides for future events."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -1433,6 +1497,7 @@ def create_governance_unit(
     current_user: User,
     payload: GovernanceUnitCreate,
 ) -> GovernanceUnit:
+    """Create a new SSG, SG, or ORG unit after validating hierarchy and scope rules."""
     school_id = get_school_id_or_403(current_user)
     ensure_permission_catalog(db)
 
@@ -1554,6 +1619,7 @@ def update_governance_unit(
     governance_unit_id: int,
     payload: GovernanceUnitUpdate,
 ) -> GovernanceUnit:
+    """Update editable governance unit fields such as code, name, and description."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -1619,6 +1685,7 @@ def search_governance_student_candidates(
     governance_unit_id: int | None = None,
     limit: int = 20,
 ) -> list[GovernanceStudentCandidateResponse]:
+    """Search student records that are eligible to become governance members."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = None
 
@@ -1694,6 +1761,7 @@ def assign_governance_member(
     governance_unit_id: int,
     payload: GovernanceMemberAssign,
 ) -> GovernanceMember:
+    """Add or reactivate a student as an officer/member of a governance unit."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -1778,6 +1846,7 @@ def update_governance_member(
     governance_member_id: int,
     payload: GovernanceMemberUpdate,
 ) -> GovernanceMember:
+    """Update an existing governance membership, including officer permissions."""
     school_id = get_school_id_or_403(current_user)
     governance_member = _get_member_in_school_or_404(
         db,
@@ -1874,6 +1943,7 @@ def delete_governance_member(
     current_user: User,
     governance_member_id: int,
 ) -> None:
+    """Deactivate a governance member and remove all permissions granted to that membership."""
     school_id = get_school_id_or_403(current_user)
     governance_member = _get_member_in_school_or_404(
         db,
@@ -1902,6 +1972,7 @@ def assign_unit_permission(
     governance_unit_id: int,
     payload: GovernanceUnitPermissionAssign,
 ) -> GovernanceUnitPermission:
+    """Grant a governance-level permission to a unit configuration record."""
     school_id = get_school_id_or_403(current_user)
     ensure_permission_catalog(db)
 
@@ -1968,6 +2039,7 @@ def _count_accessible_students(
     permission_codes: Iterable[PermissionCode] | None = None,
     unit_type: GovernanceUnitType | None = None,
 ) -> int:
+    """Count how many students the actor may access through their governance scopes."""
     school_id = get_school_id_or_403(current_user)
     query = db.query(func.count(StudentProfile.id)).filter(StudentProfile.school_id == school_id)
 
@@ -2019,6 +2091,7 @@ def _list_dashboard_child_units(
     governance_unit: GovernanceUnit,
     memberships: list[GovernanceMember],
 ) -> list[GovernanceDashboardChildUnitSummaryResponse]:
+    """List child units that should appear on the selected governance dashboard."""
     child_unit_type = CHILD_DASHBOARD_UNIT_TYPE_MAP.get(governance_unit.unit_type)
     if child_unit_type is None:
         return []
@@ -2101,6 +2174,7 @@ def get_governance_dashboard_overview(
     current_user: User,
     governance_unit_id: int,
 ) -> GovernanceDashboardOverviewResponse:
+    """Build the summary card data shown on a governance unit dashboard."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -2199,6 +2273,7 @@ def get_accessible_students(
     skip: int = 0,
     limit: int | None = None,
 ) -> list[StudentProfile]:
+    """List student profiles the actor may view or manage through governance scope."""
     school_id = get_school_id_or_403(current_user)
     query = (
         db.query(StudentProfile)
@@ -2213,6 +2288,7 @@ def get_accessible_students(
     safe_limit = None if limit is None else max(1, min(limit, 250))
 
     def _finalize(student_query):
+        """Apply paging and ordering to the already-scoped student query."""
         student_query = student_query.order_by(StudentProfile.id.asc()).offset(safe_skip)
         if safe_limit is not None:
             student_query = student_query.limit(safe_limit)
@@ -2264,6 +2340,7 @@ def list_governance_announcements(
     current_user: User,
     governance_unit_id: int,
 ) -> list[GovernanceAnnouncement]:
+    """List announcements managed by one governance unit."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -2302,6 +2379,7 @@ def list_school_governance_announcements(
     search_term: str | None = None,
     limit: int = 100,
 ) -> list[GovernanceAnnouncementMonitorResponse]:
+    """Let school admins monitor governance announcements across the whole campus."""
     if not has_any_role(current_user, ["admin", "campus_admin"]):
         raise HTTPException(status_code=403, detail="Only admin or Campus Admin can monitor campus announcements")
 
@@ -2366,6 +2444,7 @@ def create_governance_announcement(
     governance_unit_id: int,
     payload: GovernanceAnnouncementCreate,
 ) -> GovernanceAnnouncement:
+    """Create a new announcement owned by a governance unit."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -2409,6 +2488,7 @@ def update_governance_announcement(
     announcement_id: int,
     payload: GovernanceAnnouncementUpdate,
 ) -> GovernanceAnnouncement:
+    """Edit an existing governance announcement and refresh its audit fields."""
     school_id = get_school_id_or_403(current_user)
     announcement = _get_announcement_in_school_or_404(
         db,
@@ -2452,6 +2532,7 @@ def delete_governance_announcement(
     current_user: User,
     announcement_id: int,
 ) -> None:
+    """Delete one governance announcement after permission checks pass."""
     school_id = get_school_id_or_403(current_user)
     announcement = _get_announcement_in_school_or_404(
         db,
@@ -2478,6 +2559,7 @@ def get_governance_student_note(
     governance_unit_id: int,
     student_profile_id: int,
 ) -> GovernanceStudentNote | GovernanceStudentNoteResponse:
+    """Return the saved governance note for a student, or an empty draft response."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -2533,6 +2615,7 @@ def upsert_governance_student_note(
     student_profile_id: int,
     payload: GovernanceStudentNoteUpdate,
 ) -> GovernanceStudentNote:
+    """Create or update the governance note attached to one student."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -2598,6 +2681,7 @@ def delete_governance_unit(
     current_user: User,
     governance_unit_id: int,
 ) -> None:
+    """Soft-delete a governance unit after confirming it has no active child units."""
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,

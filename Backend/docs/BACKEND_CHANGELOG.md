@@ -14,6 +14,771 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-03 - Bound admin face-status checks so warmup never stalls the page
+
+### Purpose
+
+Stopped `GET /api/auth/security/face-status` from hanging the admin face-verification screen when either the InsightFace runtime probe or the MiniFASNet readiness probe takes too long during first startup.
+
+### Main files
+
+- `Backend/app/routers/security_center.py`
+- `Backend/app/tests/test_routes_face.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- wrapped the face-runtime and anti-spoof status probes in bounded background checks inside the security router
+- added timeout fallbacks so the route returns warmup-state reasons instead of waiting indefinitely
+- preserved the existing response schema while making the route resilient to slow first-time model startup
+- added regression coverage for a slow face-runtime status probe
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- `GET /api/auth/security/face-status` now returns quickly with fallback readiness reasons when a status probe exceeds the route timeout
+- face-runtime timeout fallback: `insightface_warming_up`
+- anti-spoof timeout fallback: `session_unavailable`
+
+### Migration impact
+
+- no database migration required
+- no environment changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_routes_face.py -k "face_status"`.
+2. Call `GET /api/auth/security/face-status` while the backend is doing a first-time InsightFace warmup.
+3. Confirm the response returns quickly instead of hanging.
+4. Confirm the payload reports a warmup reason such as `insightface_warming_up` instead of leaving the frontend stuck on a loading state.
+
+## 2026-04-03 - Restore student account creation after router import regression
+
+### Purpose
+
+Fixed the campus-admin student account creation route after a router refactor left `StudentProfile` undefined at runtime, which caused student creation requests to fail with a `500` before welcome-email delivery could even run.
+
+### Main files
+
+- `Backend/app/routers/users/students.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added an explicit `StudentProfile` model import to the student-management router
+- restored duplicate-student-id checks and student-profile creation inside `POST /api/users/students/`
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- `POST /api/users/students/` now works again instead of failing with `NameError: StudentProfile is not defined`
+
+### Migration impact
+
+- no database migration required
+- no environment changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_api.py -k "create_student_account_api"`.
+2. Confirm the create-student route succeeds when the welcome email sender is mocked.
+3. Confirm the route rejects duplicate student IDs cleanly.
+4. Confirm the route rolls back the student creation when welcome-email delivery fails.
+
+## 2026-04-03 - Stop Docker from forcing email transport to disabled
+
+### Purpose
+
+Fixed local Docker backend services so password reset, welcome, and MFA email flows use the Gmail API settings from `Backend/.env` instead of silently overriding them with `EMAIL_TRANSPORT=disabled`.
+
+### Main files
+
+- `docker-compose.yml`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `env_file: ./Backend/.env` to the local Docker `backend`, `worker`, and `beat` services
+- removed the compose-level `EMAIL_*` and `GOOGLE_OAUTH_*` environment overrides that were shadowing `Backend/.env`
+- kept the non-email runtime overrides like database, Redis, CORS, and login URL in place
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- `POST /auth/forgot-password` and other email-backed flows now use the configured Gmail API transport in Docker when `Backend/.env` is populated
+
+### Migration impact
+
+- no database migration required
+- Docker local runtime now depends on `Backend/.env` for mail settings instead of compose fallback defaults
+
+### How to test
+
+1. Recreate the Docker backend services with `docker compose up -d --force-recreate backend worker beat`.
+2. Run `docker exec backend_v2 sh -lc "python - <<'PY'\nfrom app.core.config import get_settings\nprint(get_settings().email_transport)\nPY"` and confirm it prints `gmail_api`.
+3. Trigger a password reset request and confirm it no longer fails with `EMAIL_TRANSPORT is disabled`.
+4. If delivery still fails, inspect the next error detail because the transport will now be reaching the Gmail API configuration and network checks.
+
+## 2026-04-03 - Make face-status non-blocking during first InsightFace startup
+
+### Purpose
+
+Stopped the admin face-verification page from hanging on `Loading face verification.` while the backend performed the first-time InsightFace model download and runtime warmup.
+
+### Main files
+
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `InsightFaceEngine.runtime_status()` so the status path no longer blocks on full `FaceAnalysis.prepare()` startup
+- added lightweight local-model detection for the `buffalo_l` bundle under `~/.insightface/models/`
+- added background warmup for InsightFace so the first readiness check can trigger model download or runtime initialization without holding the HTTP response open
+- fixed the warmup lock path so repeated `GET /api/auth/security/face-status` calls do not block behind an already-running InsightFace initialization thread
+- added new runtime-reason codes for warmup states:
+  - `insightface_model_download_pending`
+  - `insightface_warming_up`
+  - `insightface_initialization_failed`
+
+### Route or schema impact
+
+- no route paths changed
+- `GET /api/auth/security/face-status` still returns the same schema
+- `face_runtime_reason` can now report the new warmup codes above so the frontend can distinguish a missing runtime from a first-time model download
+
+### Migration impact
+
+- no database migration required
+- no environment changes required
+- first-time InsightFace startup may still take time in the background while the `buffalo_l` model bundle downloads
+
+### How to test
+
+1. Restart the backend container or process so the updated non-blocking status logic is loaded.
+2. Call `GET /api/auth/security/face-status` for an admin or campus admin account on a clean InsightFace cache.
+3. Confirm the response returns quickly with either `insightface_model_download_pending` or `insightface_warming_up` instead of hanging until timeout.
+4. Wait for the background warmup to finish and call the endpoint again.
+5. Confirm the response eventually reports `face_runtime_ready=true`, then load the frontend face-verification page and verify it advances past the initial loading state.
+
+## 2026-04-03 - Disable container auto-reload to stop dropped backend requests
+
+### Purpose
+
+Stopped the backend container from restarting Uvicorn in the middle of active requests, which was causing intermittent `ERR_EMPTY_RESPONSE` failures during login and other live API calls.
+
+### Main files
+
+- `Backend/Dockerfile`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed `--reload` from the backend container startup command
+- kept the same FastAPI app entrypoint and port configuration
+- documented that backend code changes now require a manual container restart or recreate in the Docker dev stack
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime reliability improved for all backend endpoints, especially:
+  - `POST /login`
+  - `GET /api/auth/security/face-status`
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+
+### Migration impact
+
+- no database migration required
+- rebuild or recreate the backend container so the updated Docker startup command takes effect
+
+### How to test
+
+1. Rebuild and recreate the backend container.
+2. Run `Invoke-WebRequest http://localhost:8000/health`.
+3. Retry `POST /login` from the frontend and confirm the request no longer fails with `ERR_EMPTY_RESPONSE` during normal use.
+4. Retry one face-verification flow and confirm the backend does not restart mid-request.
+
+## 2026-04-03 - Remove dead face-provider backend configuration
+
+### Purpose
+
+Removed backend code that still exposed per-mode face-provider settings even though the runtime had already been standardized on InsightFace for every face-recognition flow.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/face_engine/factory.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/.env`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed the unused `face_provider_single` and `face_provider_group` settings from the backend configuration object
+- removed the dead provider-selection branch from the face-engine factory so `single`, `group`, and `mfa` all instantiate InsightFace directly
+- removed the test that only existed to protect the deleted legacy provider override path
+- removed stale local `.env` keys for `FACE_PROVIDER_SINGLE` and `FACE_PROVIDER_GROUP`
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior is unchanged because the backend was already using InsightFace for all three face-engine modes
+
+### Migration impact
+
+- no database migration required
+- clean any leftover `FACE_PROVIDER_SINGLE` and `FACE_PROVIDER_GROUP` values from deployed environments because the backend no longer reads them
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_face_engines.py Backend/app/tests/test_routes_face.py Backend/app/tests/test_face_recognition_schemas.py Backend/app/tests/test_public_attendance.py`.
+2. Restart the backend so the cleaned settings object is reloaded.
+3. Re-test one single-face scan, one public multi-face scan, and one admin face-verification flow to confirm behavior stays unchanged.
+
+## 2026-04-03 - Standardize all face-recognition modes on InsightFace
+
+### Purpose
+
+Retired the active DeepFace runtime path so student single-face enrollment, student single attendance, public multi-face attendance, and admin face MFA now all use the same InsightFace-based recognition engine on top of the canonical ArcFace embedding contract.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/face_engine/factory.py`
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/services/face_engine/__init__.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/app/tests/test_routes_face.py`
+- `Backend/requirements.txt`
+- `Backend/.env`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed the active face-engine factory so `single`, `group`, and `mfa` modes all resolve to `InsightFaceEngine`
+- updated the default single-face provider setting from `deepface` to `insightface`
+- kept ArcFace `512-d float32 normalized` embeddings unchanged, so no face-template storage format changed in this step
+- updated the local backend env to align `FACE_PROVIDER_SINGLE` with the new all-InsightFace runtime
+- removed `deepface` and `tf-keras` from backend runtime dependencies because the active request path no longer needs the DeepFace RetinaFace stack
+- updated face-engine tests so they now verify InsightFace is used for every route mode, including protection against stale `deepface` provider settings
+- updated face-status tests to report `insightface_unavailable` instead of `deepface_unavailable` for the MFA runtime
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior changed for:
+  - `POST /api/face/register`
+  - `POST /api/face/register-upload`
+  - `POST /api/face/verify`
+  - `POST /api/face/face-scan-with-recognition`
+  - `POST /public-attendance/events/{event_id}/multi-face-scan`
+  - `GET /api/auth/security/face-status`
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+- all of those routes now rely on InsightFace detection and ArcFace embeddings instead of the previous hybrid DeepFace-plus-InsightFace split
+
+### Migration impact
+
+- no database migration required
+- restart the backend after reinstalling backend Python dependencies
+- environments should stop setting `FACE_PROVIDER_SINGLE=deepface`
+- re-enroll any faces captured during the earlier hybrid DeepFace-plus-InsightFace rollout so all stored templates come from the active InsightFace runtime
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_face_engines.py Backend/app/tests/test_routes_face.py Backend/app/tests/test_face_recognition_schemas.py Backend/app/tests/test_public_attendance.py`.
+2. Reinstall backend dependencies with the updated `Backend/requirements.txt`.
+3. Restart the backend so the new provider settings are loaded.
+4. Re-test one student registration, one single-student attendance scan, one admin face MFA scan, and one public attendance scan.
+
+## 2026-04-03 - Let privileged face-verification routes work during mandatory password change
+
+### Purpose
+
+Fixed the privileged login onboarding flow so admins and Campus Admins who are using a temporary password can still complete live face verification before they are redirected to the forced password-change screen.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended the password-change exemption list to include the privileged face-verification routes that were already exempt from the face-pending gate
+- kept the forced password-change guard active for all other protected resources
+- added regression coverage proving a `face_pending` Campus Admin with `must_change_password=true` can still call `GET /api/auth/security/face-status`
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior changed for the privileged face-verification onboarding routes:
+  - `GET /api/auth/security/face-status`
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+- these routes now remain accessible during the forced password-change phase so face verification can complete first
+
+### Migration impact
+
+- no database migration required
+- no environment changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_api.py -k face_pending_user_can_check_face_status_before_password_change`.
+2. Log in as an admin or Campus Admin account that both requires face verification and has `must_change_password=true`.
+3. Confirm the frontend face-verification page can load `GET /api/auth/security/face-status` without a `403`.
+4. Complete face verification and confirm the frontend then redirects to `/change-password`.
+
+## 2026-04-03 - Prevent `/api/users/me/` crashes from dangling role rows and skip school branding fetches for platform admins
+
+### Purpose
+
+Fixed a profile-page failure where `/api/users/me/` could raise a backend `500` when a user had a broken `user_roles` relation with no matching `roles` row, and reduced frontend noise by skipping `/api/school/me` branding fetches for platform admins who intentionally have no school assignment.
+
+### Main files
+
+- `Backend/app/routers/users/shared.py`
+- `Backend/app/tests/test_api.py`
+- `Frontend/src/context/UserContext.tsx`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed the shared user serializer to build a sanitized response payload instead of passing raw SQLAlchemy role relations directly into Pydantic
+- ignored dangling `user_roles` entries whose related `role` record is missing, while keeping valid roles in the API response
+- added a regression test that proves `GET /api/users/me/` still returns `200` when one broken role row exists in the database
+
+### Frontend changes
+
+- skipped `GET /api/school/me` branding fetches for stored platform-admin sessions that have no `school_id`
+- cleared stale branding when the current session has no school assignment so platform admins do not inherit a previous school's logo or colors
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schema names changed
+- runtime behavior improved for:
+  - `GET /api/users/me/`
+  - `GET /api/school/me` consumers in the frontend user context
+
+### Migration impact
+
+- no database migration required
+- no environment changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_api.py -k "protected_endpoint or current_user_profile_ignores_dangling_role_rows or users_router_supports_canonical_api_prefix"`.
+2. Log in as a normal school-scoped user and open the profile page; confirm `GET /api/users/me/` returns `200`.
+3. Log in as a platform admin with no `school_id`; confirm the frontend no longer spams `GET /api/school/me` with `404` requests.
+4. If you previously saw a browser CORS error for `/api/users/me/`, re-test and confirm the underlying backend `500` is gone.
+
+## 2026-04-03 - Fix false spoof detections by cropping MiniFASNet input from the original frame
+
+### Purpose
+
+Fixed the anti-spoof pipeline so MiniFASNet now receives real image context around the detected face instead of a face-only crop with synthetic edge padding, which was causing live webcam faces to be mislabeled as spoof attempts.
+
+### Main files
+
+- `Backend/app/services/face_engine/base.py`
+- `Backend/app/services/face_engine/deepface_adapter.py`
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/services/face_engine/liveness.py`
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended face-crop objects to carry the original RGB frame alongside the detected face bbox
+- changed DeepFace and InsightFace detection adapters to preserve the original frame on each detected face
+- updated MiniFASNet preprocessing to crop from the original frame using the upstream Silent-Face bbox-scale logic before resize and inference
+- kept the old padded-crop path only as a fallback when original frame context is unavailable
+- updated the face-recognition service to pass original frame and bbox data into liveness evaluation
+- added regression coverage that verifies liveness preprocessing now uses real frame context instead of an all-face crop
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior improved for:
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+  - `POST /api/face/register`
+  - `POST /api/face/register-upload`
+  - `POST /api/face/verify`
+  - `POST /api/face/face-scan-with-recognition`
+  - `POST /public-attendance/events/{event_id}/multi-face-scan`
+
+### Migration impact
+
+- no database migration required
+- no env key changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_face_engines.py Backend/app/tests/test_routes_face.py Backend/app/tests/test_face_recognition_schemas.py`.
+2. Restart the backend or let the live-reload container pick up the code change.
+3. Call `POST /api/auth/security/face-liveness` with a live webcam frame that contains one face.
+4. Confirm the response now returns `label=Real` for normal live captures instead of repeated spoof detections caused by the old padded-crop path.
+
+## 2026-04-03 - Surface DeepFace RetinaFace `tf-keras` runtime failures clearly
+
+### Purpose
+
+Stopped the admin face-liveness flow from misreporting a missing DeepFace RetinaFace runtime dependency as a normal face-detection failure, and documented the extra compatibility package required by the current TensorFlow stack.
+
+### Main files
+
+- `Backend/app/services/face_engine/deepface_adapter.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/requirements.txt`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- switched the DeepFace adapter runtime import to `deepface.DeepFace` so startup catches RetinaFace dependency failures earlier
+- mapped TensorFlow or Keras compatibility failures to a `503` with an explicit `tf-keras` install message instead of a generic `400` detection failure
+- added regression coverage that verifies a RetinaFace `tf-keras` dependency error surfaces as a service-unavailable runtime error
+- added `tf-keras` to backend Python dependencies for DeepFace RetinaFace compatibility with the current TensorFlow runtime
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior changed for:
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+  - any other single-face DeepFace route that uses RetinaFace detection
+- DeepFace runtime dependency failures now return `503` with a specific installation hint instead of a generic face-detection `400`
+
+### Migration impact
+
+- no database migration required
+- backend environments must install `tf-keras` alongside the existing DeepFace and TensorFlow stack
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_face_engines.py`.
+2. Reinstall backend dependencies or rebuild the backend image so `tf-keras` is present.
+3. Call `POST /api/auth/security/face-liveness` with a live single-face image.
+4. Confirm the route either succeeds or returns a clear runtime dependency message instead of `Unable to detect faces with the DeepFace RetinaFace pipeline.`
+
+## 2026-04-03 - Add `libgl1` to the backend image for DeepFace and InsightFace OpenCV imports
+
+### Purpose
+
+Fixed the backend container image so OpenCV can import after installing DeepFace and InsightFace, which prevents the live face stack from reporting false `opencv_unavailable` and `insightface_unavailable` readiness failures.
+
+### Main files
+
+- `Backend/Dockerfile`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `libgl1` to the backend image system packages
+- documented that the Docker image must provide `libgl1` for DeepFace and InsightFace OpenCV imports
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior improves for live face verification routes by allowing OpenCV-backed face and liveness runtimes to initialize inside the container
+
+### Migration impact
+
+- no database migration required
+- backend containers should be rebuilt after this Dockerfile change
+
+### How to test
+
+1. Rebuild the backend image.
+2. Restart the backend container.
+3. Call `GET /api/auth/security/face-status`.
+4. Confirm OpenCV-related readiness errors are gone.
+
+## 2026-04-03 - Separate face-engine readiness from anti-spoof readiness in face status
+
+### Purpose
+
+Stopped the admin face-status API from reporting a missing DeepFace runtime as if the anti-spoofing model itself were unavailable, so the frontend can show the correct blocker during live face verification setup.
+
+### Main files
+
+- `Backend/app/schemas/face_recognition.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/tests/test_routes_face.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `face_runtime_ready` and `face_runtime_reason` to the admin face-status response
+- kept `anti_spoof_ready` and `anti_spoof_reason` focused on MiniFASNet liveness readiness only
+- stopped collapsing face-runtime failures into the anti-spoof readiness flag
+- added regression coverage that verifies the status route can report `deepface_unavailable` while still marking anti-spoofing as ready
+
+### Route or schema impact
+
+- `GET /api/auth/security/face-status` now includes:
+  - `face_runtime_ready`
+  - `face_runtime_reason`
+- existing `anti_spoof_ready` and `anti_spoof_reason` fields remain, but they now describe only liveness-model readiness
+
+### Migration impact
+
+- no database migration required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_routes_face.py`.
+2. Call `GET /api/auth/security/face-status` for an admin account.
+3. Confirm the response distinguishes a missing DeepFace runtime from a missing anti-spoof model.
+
+## 2026-04-03 - Refresh local backend env keys for the new face engine
+
+### Purpose
+
+Updated the local backend environment file to use the current DeepFace, InsightFace, ArcFace, and MiniFASNet settings and removed deprecated face-config names that no longer affect runtime behavior.
+
+### Main files
+
+- `Backend/.env`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- replaced deprecated `FACE_MATCH_THRESHOLD` with the new per-mode thresholds:
+  - `FACE_THRESHOLD_SINGLE`
+  - `FACE_THRESHOLD_GROUP`
+  - `FACE_THRESHOLD_MFA`
+- replaced deprecated `LIVENESS_MIN_SCORE` with `LIVENESS_THRESHOLD`
+- added explicit provider and embedding env values for:
+  - `FACE_PROVIDER_SINGLE`
+  - `FACE_PROVIDER_GROUP`
+  - `FACE_EMBEDDING_DIM`
+  - `FACE_EMBEDDING_DTYPE`
+- removed the local `ANTI_SPOOF_MODEL_PATH` override so the backend falls back to the checked-in default MiniFASNetV2 ONNX path
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior now follows the new env key names in local development instead of silently falling back to defaults
+
+### Migration impact
+
+- no database migration required
+- local environments should remove deprecated face env names:
+  - `FACE_MATCH_THRESHOLD`
+  - `LIVENESS_MIN_SCORE`
+
+### How to test
+
+1. Restart the backend after the env update.
+2. Call `GET /api/auth/security/face-status` and confirm the backend boots with the face runtime enabled.
+3. Re-enroll one student through `POST /api/face/register` or the frontend student face enrollment page.
+4. Test `POST /api/face/face-scan-with-recognition` and `POST /public-attendance/events/{event_id}/multi-face-scan`.
+
+## 2026-04-03 - Align MiniFASNet anti-spoofing wording and preprocessing with Silent-Face-Anti-Spoofing
+
+### Purpose
+
+Clarified that backend liveness checks already implement the Silent-Face-Anti-Spoofing MiniFASNetV2 model family through direct ONNX inference, then tightened preprocessing so the configured anti-spoof scale now affects runtime behavior.
+
+### Main files
+
+- `Backend/app/services/face_engine/liveness.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/requirements.txt`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- kept MiniFASNetV2 anti-spoofing on the checked-in ONNX model path
+- updated liveness preprocessing to apply `ANTI_SPOOF_SCALE` as surrounding context padding before resize and inference
+- clarified dependency wording so the backend describes the implementation as direct Silent-Face-Anti-Spoofing MiniFASNet integration instead of focusing on a missing package name
+- added regression coverage that verifies the configured anti-spoof scale expands the crop context
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- runtime behavior changed only inside liveness preprocessing for routes that already enforce anti-spoofing:
+  - `POST /api/face/register`
+  - `POST /api/face/register-upload`
+  - `POST /api/face/verify`
+  - `POST /api/face/face-scan-with-recognition`
+  - `POST /public-attendance/events/{event_id}/multi-face-scan`
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+
+### Migration impact
+
+- no database migration required
+- no new Python package required
+- `ANTI_SPOOF_SCALE` is now an active runtime tuning setting instead of a dormant config value
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_face_engines.py`.
+2. Confirm `Backend/models/MiniFASNetV2.onnx` exists or set `ANTI_SPOOF_MODEL_PATH`.
+3. Call `POST /api/auth/security/face-liveness` with a live single-face image and confirm the route still returns a liveness score.
+4. If you tune `ANTI_SPOOF_SCALE`, repeat the liveness smoke test and verify the backend still accepts normal live captures.
+
+## 2026-04-03 - Migrate backend face flows to canonical ArcFace embeddings with DeepFace and InsightFace adapters
+
+### Purpose
+
+Reworked backend face recognition so new student enrollment, single-attendance scans, public kiosk scans, and admin face MFA all use one canonical normalized `float32` ArcFace embedding format while routing single-face requests through DeepFace and group scans through InsightFace.
+
+### Main files
+
+- `Backend/app/models/user.py`
+- `Backend/app/models/platform_features.py`
+- `Backend/alembic/versions/c6e1f4a8b9d0_add_student_face_embedding_metadata.py`
+- `Backend/app/core/config.py`
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/services/attendance_face_scan.py`
+- `Backend/app/services/face_engine/base.py`
+- `Backend/app/services/face_engine/deepface_adapter.py`
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/services/face_engine/liveness.py`
+- `Backend/app/services/face_engine/factory.py`
+- `Backend/app/services/face_engine/vector_store.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/public_attendance.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/tests/test_face_recognition_schemas.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/app/tests/test_public_attendance.py`
+- `Backend/app/tests/test_routes_face.py`
+- `Backend/requirements.txt`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added student face embedding metadata fields: `embedding_provider`, `embedding_dtype`, `embedding_dimension`, and `embedding_normalized`
+- added a new Alembic migration that marks legacy student face rows as `dlib` / `float64` / non-normalized so they are not silently mixed with new ArcFace embeddings
+- replaced the old dlib-style face service internals with an adapter-backed service that:
+  - stores canonical normalized `float32` embeddings
+  - deserializes embeddings with explicit dtype and dimension checks
+  - matches faces with batch cosine distance instead of raw Euclidean distance
+  - selects thresholds per mode: single attendance, public group scans, and admin MFA
+- added a new `face_engine` package with:
+  - `DeepFaceEngine` for single-face registration and attendance
+  - `InsightFaceEngine` for public kiosk multi-face scans
+  - `LivenessChecker` for MiniFASNetV2 anti-spoofing
+  - `FAISSVectorStore` as the optional future vector-search helper
+- updated student face registration to store canonical embedding metadata on save
+- updated student self-scan attendance to reject legacy face enrollments and require re-registration before ArcFace-based matching
+- updated public attendance matching to use the new canonical candidate metadata and group-mode cosine matching
+- updated admin face MFA enrollment and verification to use the canonical ArcFace format and reject legacy `face_recognition` references until the admin re-enrolls
+- updated dependency declarations to replace `dlib` / `face-recognition` packages with `deepface`, `insightface`, and `faiss-cpu`
+- kept MiniFASNet anti-spoofing on the existing checked-in ONNX model path because `silent-face-anti-spoofing` is not currently available as a matching PyPI package
+
+### Route or schema impact
+
+- existing route paths remain unchanged:
+  - `POST /api/face/register`
+  - `POST /api/face/register-upload`
+  - `POST /api/face/verify`
+  - `POST /api/face/face-scan-with-recognition`
+  - `POST /public-attendance/events/{event_id}/multi-face-scan`
+  - `GET /api/auth/security/face-status`
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+- request schemas keep the same field names, but threshold values are now interpreted as cosine-distance thresholds against normalized ArcFace embeddings
+- student face registration now persists canonical embedding metadata in `student_profiles`
+- admin MFA verification may now return a `409` and require face re-enrollment when the saved reference still uses the legacy provider
+
+### Migration impact
+
+- requires `Backend/alembic/versions/c6e1f4a8b9d0_add_student_face_embedding_metadata.py`
+- adds embedding metadata columns to `student_profiles`
+- marks existing enrolled student face rows as legacy `dlib` embeddings for rollout safety
+- adds new config surface:
+  - `FACE_THRESHOLD_SINGLE`
+  - `FACE_THRESHOLD_GROUP`
+  - `FACE_THRESHOLD_MFA`
+  - `FACE_PROVIDER_SINGLE`
+  - `FACE_PROVIDER_GROUP`
+  - `FACE_EMBEDDING_DIM`
+  - `FACE_EMBEDDING_DTYPE`
+  - `LIVENESS_THRESHOLD`
+- keeps `ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING` for compatibility with environments that still need the old bypass behavior during rollout
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_face_recognition_schemas.py Backend/app/tests/test_face_engines.py Backend/app/tests/test_public_attendance.py Backend/app/tests/test_routes_face.py`
+2. Run `python -m py_compile Backend/app/core/config.py Backend/app/models/user.py Backend/app/models/platform_features.py Backend/app/services/face_recognition.py Backend/app/services/attendance_face_scan.py Backend/app/services/face_engine/base.py Backend/app/services/face_engine/liveness.py Backend/app/services/face_engine/deepface_adapter.py Backend/app/services/face_engine/insightface_adapter.py Backend/app/services/face_engine/factory.py Backend/app/services/face_engine/vector_store.py Backend/app/routers/face_recognition.py Backend/app/routers/public_attendance.py Backend/app/routers/security_center.py`
+3. Apply the migration and re-enroll at least one student face through `POST /api/face/register` or `POST /api/face/register-upload`.
+4. Confirm new student rows store `embedding_provider = arcface`, `embedding_dtype = float32`, `embedding_dimension = 512`, and `embedding_normalized = true`.
+5. Call `POST /api/face/face-scan-with-recognition` for the re-enrolled student and confirm attendance still records successfully.
+6. Call `POST /public-attendance/events/{event_id}/multi-face-scan` and confirm kiosk outcomes still distinguish `time_in`, `out_of_scope`, `no_match`, `duplicate_face`, and `liveness_failed`.
+7. Enroll an admin face reference through `POST /api/auth/security/face-reference`, then verify with `POST /api/auth/security/face-verify`.
+8. If an older admin face reference exists, confirm `POST /api/auth/security/face-verify` returns `409` until the admin re-enrolls a current ArcFace reference.
+
+## 2026-03-28 - Clarify public attendance router flow with maintenance comments
+
+### Purpose
+
+Added targeted inline comments to the public attendance router so the kiosk flow is easier to understand during maintenance without changing any runtime behavior.
+
+### Main files
+
+- `Backend/app/routers/public_attendance.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- documented the lightweight in-memory request throttle used by public kiosk scans
+- clarified why public attendance reads resync event workflow state inline instead of waiting for scheduled sync
+- explained the two-stage geolocation checks used for nearby-event discovery versus attendance writes
+- documented the face-scan decision order for spoof rejection, scope checks, cooldown handling, duplicate detection, and persistence
+- added short purpose docstrings to every helper and route function in the public attendance router
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+- no runtime behavior changed
+
+### Migration impact
+
+- no database migration required
+
 ## 2026-03-28 - Make bulk import onboarding emails match the create-user credentials email
 
 ### Purpose

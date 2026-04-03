@@ -37,6 +37,7 @@ class GeoCheckResult:
 
 
 def _to_finite_float(value: object) -> float | None:
+    """Safely convert unknown input into a usable finite float value."""
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -54,6 +55,7 @@ def normalize_coordinates(
     *,
     actor: str,
 ) -> tuple[float | None, float | None, str | None]:
+    """Validate and normalize a latitude/longitude pair for a user or event."""
     normalized_latitude = _to_finite_float(latitude)
     normalized_longitude = _to_finite_float(longitude)
 
@@ -75,6 +77,7 @@ def normalize_radius_m(
     min_radius_m: float = MIN_GEOFENCE_RADIUS_M,
     max_radius_m: float = MAX_GEOFENCE_RADIUS_M,
 ) -> tuple[float | None, str | None]:
+    """Validate the configured event geofence radius and keep it in a safe range."""
     normalized_radius = _to_finite_float(radius_m)
     if normalized_radius is None:
         return None, REASON_INVALID_GEOFENCE_RADIUS
@@ -89,6 +92,7 @@ def normalize_radius_m(
 
 
 def normalize_accuracy_m(accuracy_m: object) -> tuple[float | None, str | None]:
+    """Normalize optional GPS accuracy values sent by the client device."""
     if accuracy_m is None:
         return None, None
 
@@ -100,6 +104,7 @@ def normalize_accuracy_m(accuracy_m: object) -> tuple[float | None, str | None]:
 
 
 def normalize_accuracy_limit_m(max_allowed_accuracy_m: object) -> float:
+    """Return the max GPS accuracy allowed for scans, or the backend default."""
     normalized_limit = _to_finite_float(max_allowed_accuracy_m)
     if normalized_limit is None or normalized_limit <= 0:
         return DEFAULT_MAX_ALLOWED_ACCURACY_M
@@ -107,6 +112,7 @@ def normalize_accuracy_limit_m(max_allowed_accuracy_m: object) -> float:
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compute straight-line distance in meters between two coordinates."""
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)

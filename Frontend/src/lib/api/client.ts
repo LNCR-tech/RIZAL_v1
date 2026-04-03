@@ -7,8 +7,10 @@ import {
 } from "../auth/sessionStore";
 
 export const INACTIVE_SCHOOL_DETAIL = "This account's school is inactive.";
+const PASSWORD_CHANGE_ROUTE = "/change-password";
 
 let inactiveSchoolRedirectInProgress = false;
+let passwordChangeRedirectInProgress = false;
 let restoreInterceptedFetch: (() => void) | null = null;
 
 const headersInitToObject = (headers?: HeadersInit): Record<string, string> => {
@@ -57,6 +59,16 @@ const parseResponseDetail = async (response: Response): Promise<unknown> => {
   }
 };
 
+const isPasswordChangeRequiredDetail = (
+  detail: unknown
+): detail is { code: string } => {
+  return (
+    Boolean(detail) &&
+    typeof detail === "object" &&
+    (detail as { code?: unknown }).code === "password_change_required"
+  );
+};
+
 const handleAuthSideEffects = async (response: Response): Promise<void> => {
   if (response.status === 401) {
     clearStoredAuthSession();
@@ -68,6 +80,24 @@ const handleAuthSideEffects = async (response: Response): Promise<void> => {
   }
 
   const detail = await parseResponseDetail(response);
+  if (isPasswordChangeRequiredDetail(detail)) {
+    if (passwordChangeRedirectInProgress) {
+      return;
+    }
+
+    passwordChangeRedirectInProgress = true;
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname !== PASSWORD_CHANGE_ROUTE
+    ) {
+      window.location.replace(PASSWORD_CHANGE_ROUTE);
+      return;
+    }
+
+    passwordChangeRedirectInProgress = false;
+    return;
+  }
+
   if (detail !== INACTIVE_SCHOOL_DETAIL || inactiveSchoolRedirectInProgress) {
     return;
   }
@@ -233,5 +263,6 @@ export const consumeAuthStatusMessage = (): string | null => {
   }
 
   inactiveSchoolRedirectInProgress = false;
+  passwordChangeRedirectInProgress = false;
   return message;
 };

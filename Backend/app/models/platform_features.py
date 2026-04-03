@@ -74,7 +74,7 @@ class UserFaceProfile(Base):
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     face_encoding = Column(LargeBinary, nullable=False)
-    provider = Column(String(50), nullable=False, default="face_recognition")
+    provider = Column(String(50), nullable=False, default="arcface")
     reference_image_sha256 = Column(String(64), nullable=True)
     last_verified_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

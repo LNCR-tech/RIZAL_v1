@@ -89,8 +89,12 @@ class Settings:
     access_token_expire_minutes: int
     auth_enable_mfa: bool
     face_scan_bypass_emails: list[str]
-    face_match_threshold: float
-    liveness_min_score: float
+    face_threshold_single: float
+    face_threshold_group: float
+    face_threshold_mfa: float
+    face_embedding_dim: int
+    face_embedding_dtype: str
+    liveness_threshold: float
     allow_liveness_bypass_when_model_missing: bool
     anti_spoof_scale: float
     anti_spoof_model_path: str
@@ -158,8 +162,12 @@ def get_settings() -> Settings:
             os.getenv("FACE_SCAN_BYPASS_EMAILS"),
             [],
         ),
-        face_match_threshold=float(os.getenv("FACE_MATCH_THRESHOLD", "0.5")),
-        liveness_min_score=float(os.getenv("LIVENESS_MIN_SCORE", "0.85")),
+        face_threshold_single=float(os.getenv("FACE_THRESHOLD_SINGLE", "0.40")),
+        face_threshold_group=float(os.getenv("FACE_THRESHOLD_GROUP", "0.40")),
+        face_threshold_mfa=float(os.getenv("FACE_THRESHOLD_MFA", "0.35")),
+        face_embedding_dim=max(1, int(os.getenv("FACE_EMBEDDING_DIM", "512"))),
+        face_embedding_dtype=(os.getenv("FACE_EMBEDDING_DTYPE", "float32").strip().lower() or "float32"),
+        liveness_threshold=float(os.getenv("LIVENESS_THRESHOLD", "0.85")),
         allow_liveness_bypass_when_model_missing=_as_bool(
             os.getenv("ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING"),
             False,

@@ -88,6 +88,10 @@ const App = () => {
           <Route path="/login" element={<Home />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route
+            path="/face-verification"
+            element={<Navigate to="/auth/face-verification" replace />}
+          />
+          <Route
             path="/auth/face-verification"
             element={<FaceLoginChallenge />}
           />

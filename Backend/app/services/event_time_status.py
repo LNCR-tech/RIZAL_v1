@@ -68,6 +68,7 @@ class AttendanceDecisionResult:
 
 
 def get_event_timezone(timezone_name: str = DEFAULT_EVENT_TIMEZONE) -> ZoneInfo:
+    """Return the ZoneInfo used to evaluate all event and attendance windows."""
     try:
         return ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError as exc:
@@ -78,6 +79,7 @@ def normalize_event_datetime(
     value: datetime,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Normalize an event timestamp into the shared event timezone."""
     zone = get_event_timezone(timezone_name)
     if value.tzinfo is None:
         return value.replace(tzinfo=zone)
@@ -88,12 +90,14 @@ def normalize_optional_event_datetime(
     value: datetime | None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime | None:
+    """Normalize an optional event timestamp while preserving None values."""
     if value is None:
         return None
     return normalize_event_datetime(value, timezone_name)
 
 
 def normalize_window_minutes(value: Any) -> int:
+    """Coerce any window-length input into a safe non-negative integer minute value."""
     if value in (None, ""):
         return 0
     try:
@@ -104,18 +108,22 @@ def normalize_window_minutes(value: Any) -> int:
 
 
 def normalize_late_threshold_minutes(value: Any) -> int:
+    """Normalize the configured late threshold window."""
     return normalize_window_minutes(value)
 
 
 def normalize_early_check_in_minutes(value: Any) -> int:
+    """Normalize the configured early check-in window."""
     return normalize_window_minutes(value)
 
 
 def normalize_sign_out_grace_minutes(value: Any) -> int:
+    """Normalize the configured sign-out grace window."""
     return normalize_window_minutes(value)
 
 
 def normalize_sign_out_open_delay_minutes(value: Any) -> int:
+    """Normalize the configured delay before sign-out opens."""
     return normalize_window_minutes(value)
 
 
@@ -124,6 +132,7 @@ def get_check_in_opens_at(
     early_check_in_minutes: Any = 0,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Calculate when sign-in opens before the scheduled event start."""
     return normalize_event_datetime(start_time, timezone_name) - timedelta(
         minutes=normalize_early_check_in_minutes(early_check_in_minutes)
     )
@@ -134,6 +143,7 @@ def get_late_threshold_time(
     late_threshold_minutes: Any = 0,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Calculate the last moment a sign-in can still be treated as late."""
     return normalize_event_datetime(start_time, timezone_name) + timedelta(
         minutes=normalize_late_threshold_minutes(late_threshold_minutes)
     )
@@ -144,6 +154,7 @@ def get_normal_sign_out_close_time(
     sign_out_grace_minutes: Any = 0,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Calculate the default sign-out close time after the event end plus grace period."""
     return normalize_event_datetime(end_time, timezone_name) + timedelta(
         minutes=normalize_sign_out_grace_minutes(sign_out_grace_minutes)
     )
@@ -154,6 +165,7 @@ def get_sign_out_open_time(
     sign_out_open_delay_minutes: Any = 0,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Calculate when sign-out first becomes available for the event."""
     return normalize_event_datetime(end_time, timezone_name) + timedelta(
         minutes=normalize_sign_out_open_delay_minutes(sign_out_open_delay_minutes)
     )
@@ -165,11 +177,15 @@ def get_effective_sign_out_close_time(
     sign_out_override_until: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> datetime:
+    """Return the real sign-out close time after applying the optional override cap."""
     normal_close_time = get_normal_sign_out_close_time(
         end_time,
         sign_out_grace_minutes,
         timezone_name=timezone_name,
     )
+    # The compatibility field still exists in the model, but the main
+    # open-sign-out-early route now reaches sign_out_open by moving end_time
+    # earlier instead of extending a separate override timestamp.
     localized_override = normalize_optional_event_datetime(
         sign_out_override_until,
         timezone_name,
@@ -187,6 +203,7 @@ def resolve_attendance_window_cutoffs(
     late_until_override_at: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> AttendanceWindowCutoffResult:
+    """Resolve the effective present/late cutoff times, including near-start override windows."""
     localized_start = normalize_event_datetime(start_time, timezone_name)
     scheduled_late_until = get_late_threshold_time(
         localized_start,
@@ -235,6 +252,7 @@ def get_event_status(
     current_time: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> EventTimeStatusResult:
+    """Classify the event into its live attendance window state for the current time."""
     zone = get_event_timezone(timezone_name)
     localized_start = normalize_event_datetime(start_time, timezone_name)
     localized_end = normalize_event_datetime(end_time, timezone_name)
@@ -322,6 +340,7 @@ def _build_attendance_decision(
     reason_code: str | None,
     message: str,
 ) -> AttendanceDecisionResult:
+    """Package a check-in or sign-out decision together with its timing context."""
     return AttendanceDecisionResult(
         action=action,
         event_status=event_status.event_status,
@@ -358,6 +377,7 @@ def get_attendance_decision(
     current_time: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> AttendanceDecisionResult:
+    """Decide whether a new check-in is allowed and whether it becomes present, late, or absent."""
     event_status = get_event_status(
         start_time=start_time,
         end_time=end_time,
@@ -460,6 +480,7 @@ def get_sign_out_decision(
     current_time: datetime | None = None,
     timezone_name: str = DEFAULT_EVENT_TIMEZONE,
 ) -> AttendanceDecisionResult:
+    """Decide whether sign-out is currently allowed for an open attendance."""
     event_status = get_event_status(
         start_time=start_time,
         end_time=end_time,
