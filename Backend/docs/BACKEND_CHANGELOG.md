@@ -14,6 +14,41 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-03 - Add sanitized backend env example for the InsightFace branch
+
+### Purpose
+
+Added a checked-in backend environment template so the pushed InsightFace migration branch can be set up without sharing a local `.env` file or leaking Gmail OAuth secrets.
+
+### Main files
+
+- `Backend/.env.example`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+
+### Backend changes
+
+- added `Backend/.env.example` with safe placeholder values for local backend development
+- included the current InsightFace face-recognition thresholds and embedding settings in the example file
+- set the example mail transport to `disabled` by default so the template stays safe until a developer adds their own Gmail API credentials
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schemas changed
+
+### Migration impact
+
+- no database migration required
+- developers can now copy `Backend/.env.example` to `Backend/.env` as a starting point for local setup
+
+### How to test
+
+1. Copy `Backend/.env.example` to `Backend/.env`.
+2. Replace the placeholder secrets and email settings with local values as needed.
+3. Start the backend and confirm `GET /health` returns `200`.
+4. If outbound mail is needed, change `EMAIL_TRANSPORT` to `gmail_api` and provide working Google OAuth credentials.
+
 ## 2026-04-03 - Bound admin face-status checks so warmup never stalls the page
 
 ### Purpose

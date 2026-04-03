@@ -29,6 +29,7 @@ logs/
 .env
 .env.*
 !.env.smtp.example
+!Backend/.env.example
 Frontend/.env.local
 Backend/.env
 

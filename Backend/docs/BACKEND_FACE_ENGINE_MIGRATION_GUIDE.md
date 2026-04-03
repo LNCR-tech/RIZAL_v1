@@ -205,6 +205,7 @@ Container note:
 Environment note:
 
 - remove any leftover `FACE_PROVIDER_SINGLE` and `FACE_PROVIDER_GROUP` values from local or deployed environments because the backend no longer reads them
+- `Backend/.env.example` contains the current InsightFace-era environment keys and safe placeholder values for new local setups
 
 ## Verification commands
 
