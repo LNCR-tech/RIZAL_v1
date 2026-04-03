@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
+from email.utils import formataddr
+from typing import Any
 
 from email_validator import EmailNotValidError, validate_email as validate_email_address
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 
 # ======================================================
@@ -16,7 +21,7 @@ from app.core.config import Settings
 DEFAULT_SENDER_EMAIL = "noreply-aura@gmail.com"
 DEFAULT_FROM_NAME = "Aura System"
 
-GOOGLE_GMAIL_API_HOST = "gmail.googleapis.com"
+GOOGLE_GMAIL_API_HOST = "https://gmail.googleapis.com"
 ALLOWED_EMAIL_TRANSPORTS = {"disabled", "gmail_api"}
 ALLOWED_GOOGLE_ACCOUNT_TYPES = {"auto", "personal", "workspace", "unknown"}
 TEMPORARY_GMAIL_API_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -47,18 +52,33 @@ class ResolvedEmailDeliverySettings:
     from_header: str
     reply_to: str | None
     google_account_type: str
-    warnings: tuple[str, ...]
+    access_token: str = ""
+    max_retries: int = 3
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "transport": self.transport,
+            "auth_mode": self.auth_mode,
+            "sender_email": self.sender_email,
+            "from_email": self.from_email,
+            "from_header": self.from_header,
+            "reply_to": self.reply_to,
+            "google_account_type": self.google_account_type,
+            "access_token": "***" if self.access_token else "",
+            "max_retries": self.max_retries,
+            "warnings": list(self.warnings),
+        }
 
 
 @dataclass(frozen=True)
 class EmailConnectionStatus:
-    host: str
-    port: int
-    transport: str
-    auth_mode: str
-    sender: str
-    reply_to: str | None
-    warnings: tuple[str, ...]
+    is_connected: bool
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.is_connected
 
 
 # ======================================================
@@ -83,19 +103,15 @@ def _normalize_email(
     *,
     allow_blank: bool = False,
 ) -> str:
-
     candidate = (value or "").strip()
 
     if not candidate:
-        if allow_blank:
-            return DEFAULT_SENDER_EMAIL
-
         return DEFAULT_SENDER_EMAIL
 
     try:
         return validate_email_address(
             candidate,
-            check_deliverability=False
+            check_deliverability=False,
         ).normalized
 
     except EmailNotValidError as exc:
@@ -104,11 +120,7 @@ def _normalize_email(
         ) from exc
 
 
-def _normalize_runtime_email(
-    value: str | None,
-    field_name: str,
-) -> str:
-
+def _normalize_runtime_email(value: str | None, field_name: str) -> str:
     try:
         return validate_email_address(
             (value or "").strip(),
@@ -126,7 +138,6 @@ def _normalize_runtime_email(
 # ======================================================
 
 def _resolve_google_account_type(settings: Settings) -> str:
-
     configured = _normalize_choice(
         settings.email_google_account_type or "auto",
         ALLOWED_GOOGLE_ACCOUNT_TYPES,
@@ -140,10 +151,7 @@ def _resolve_google_account_type(settings: Settings) -> str:
         settings.email_sender_email or DEFAULT_SENDER_EMAIL
     ).strip().lower()
 
-    if normalized_sender.endswith("@gmail.com"):
-        return "personal"
-
-    return "workspace"
+    return "personal" if normalized_sender.endswith("@gmail.com") else "workspace"
 
 
 # ======================================================
@@ -156,9 +164,6 @@ def _resolve_sender_settings(
     transport: str,
     google_account_type: str,
 ) -> ResolvedEmailDeliverySettings:
-
-    from email.utils import formataddr
-
     normalized_sender_email = _normalize_email(
         settings.email_sender_email or DEFAULT_SENDER_EMAIL,
         "EMAIL_SENDER_EMAIL",
@@ -176,14 +181,20 @@ def _resolve_sender_settings(
         allow_blank=True,
     )
 
-    from_name = (
-        settings.email_from_name
-        or DEFAULT_FROM_NAME
+    from_name = (settings.email_from_name or DEFAULT_FROM_NAME).strip()
+    from_header = formataddr((from_name, normalized_from_email))
+
+    access_token = (
+        getattr(settings, "email_google_access_token", None) or ""
     ).strip()
 
-    from_header = formataddr(
-        (from_name, normalized_from_email)
-    )
+    if not access_token:
+        logger.warning(
+            "EMAIL_GOOGLE_ACCESS_TOKEN is not set. "
+            "Gmail API calls will fail until a valid token is provided."
+        )
+
+    max_retries = int(getattr(settings, "email_max_retries", None) or 3)
 
     return ResolvedEmailDeliverySettings(
         transport=transport,
@@ -193,6 +204,8 @@ def _resolve_sender_settings(
         from_header=from_header,
         reply_to=reply_to,
         google_account_type=google_account_type,
+        access_token=access_token,
+        max_retries=max_retries,
         warnings=(),
     )
 
@@ -202,11 +215,8 @@ def _resolve_sender_settings(
 # ======================================================
 
 def validate_email_delivery_settings(
-    settings: Settings | None = None
+    settings: Settings | None = None,
 ) -> ResolvedEmailDeliverySettings:
-
-    from . import get_settings
-
     resolved_settings = settings or get_settings()
 
     transport = _normalize_choice(
@@ -217,12 +227,10 @@ def validate_email_delivery_settings(
 
     if transport == "disabled":
         raise EmailConfigurationError(
-            "EMAIL_TRANSPORT is disabled"
+            "EMAIL_TRANSPORT is disabled. Set it to 'gmail_api' to enable email delivery."
         )
 
-    google_account_type = _resolve_google_account_type(
-        resolved_settings
-    )
+    google_account_type = _resolve_google_account_type(resolved_settings)
 
     return _resolve_sender_settings(
         resolved_settings,
@@ -236,22 +244,29 @@ def validate_email_delivery_settings(
 # ======================================================
 
 def validate_email_delivery_on_startup() -> None:
+    from app.services.email_service.transport import check_email_delivery_connection
 
-    from . import (
-        check_email_delivery_connection,
-        get_settings,
-        logger,
-    )
+    app_settings = get_settings()
 
-    settings = get_settings()
-
-    resolved = validate_email_delivery_settings(settings)
+    try:
+        resolved = validate_email_delivery_settings(app_settings)
+    except EmailConfigurationError as exc:
+        logger.error("Email service misconfigured: %s", exc)
+        raise
 
     logger.info(
-        "Email configured successfully: sender=%s",
+        "Email service configured | transport=%s sender=%s",
+        resolved.transport,
         resolved.sender_email,
     )
 
-    check_email_delivery_connection(settings=settings)
+    connection = check_email_delivery_connection(settings=resolved)
 
-    logger.info("Email connection verified successfully")
+    if connection.ok:
+        logger.info("Email connection verified successfully.")
+    else:
+        logger.warning(
+            "Email connection check failed: %s — "
+            "check EMAIL_GOOGLE_ACCESS_TOKEN in your .env file.",
+            connection.error or "unknown error",
+        )
