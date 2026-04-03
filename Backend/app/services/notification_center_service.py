@@ -19,6 +19,17 @@ from app.services.attendance_status import ATTENDED_STATUS_VALUES
 from app.services.email_service import EmailDeliveryError, send_plain_email
 from app.services.event_attendance_service import get_event_participant_student_ids
 
+def is_notification_allowed(user, category):
+    role = getattr(user, "role", None) or getattr(user, "user_type", None)
+
+    if role == "student":
+        return category in ["event_reminder", "attendance", "missed_events", "low_attendance"]
+
+    if role == "admin":
+        return True  # pwede tanan
+
+    return False
+
 
 def get_or_create_notification_preference(db: Session, *, user_id: int) -> UserNotificationPreference:
     pref = (
@@ -184,6 +195,8 @@ def send_notification_to_user(
     deliver_in_app: bool = False,
     metadata_json: dict | None = None,
 ) -> str:
+    if not is_notification_allowed(user, category):
+        return "skipped"
     pref = get_or_create_notification_preference(db, user_id=user.id)
     status_values: list[str] = []
 
@@ -271,7 +284,10 @@ def send_account_security_notification(
             metadata_json=metadata_json,
         )
         return "skipped"
-
+    
+    if not metadata_json or not metadata_json.get("suspicious"):
+        return "skipped"
+    
     return send_notification_to_user(
         db,
         user=user,
