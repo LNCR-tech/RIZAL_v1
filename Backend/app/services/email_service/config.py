@@ -248,6 +248,11 @@ def validate_email_delivery_on_startup() -> None:
 
     app_settings = get_settings()
 
+    # ✅ GIUSAB: Skip validation kung disabled ang email transport
+    if (app_settings.email_transport or "").strip().lower() == "disabled":
+        logger.info("Email transport is disabled. Skipping startup validation.")
+        return
+
     try:
         resolved = validate_email_delivery_settings(app_settings)
     except EmailConfigurationError as exc:

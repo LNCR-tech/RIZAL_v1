@@ -11,7 +11,9 @@ def send_welcome_email(
     login_url: str | None = None,
     password_is_temporary: bool = True,
 ) -> None:
-    from . import get_settings, get_welcome_email_password_notice, _send_email
+    from app.core.config import get_settings
+    from app.services.password_change_policy import get_welcome_email_password_notice
+    from app.services.email_service.transport import send_transactional_email
     from .rendering import build_welcome_email_content
 
     settings = get_settings()
@@ -33,10 +35,10 @@ def send_welcome_email(
         credential_subject=credential_subject,
         password_notice=password_notice,
     )
-    _send_email(
-        subject=subject,
+    send_transactional_email(
         recipient_email=recipient_email,
-        body=body,
+        subject=subject,
+        text_body=body,
         html_body=html_body,
     )
 
@@ -49,7 +51,8 @@ def send_import_onboarding_email(
     system_name: str | None = None,
     login_url: str | None = None,
 ) -> None:
-    from . import get_settings, _send_email
+    from app.core.config import get_settings
+    from app.services.email_service.transport import send_transactional_email
     from .rendering import build_import_onboarding_email_content
 
     settings = get_settings()
@@ -62,10 +65,10 @@ def send_import_onboarding_email(
         system_name=resolved_system_name,
         login_url=resolved_login_url,
     )
-    _send_email(
-        subject=subject,
+    send_transactional_email(
         recipient_email=recipient_email,
-        body=body,
+        subject=subject,
+        text_body=body,
         html_body=html_body,
     )
 
@@ -77,7 +80,8 @@ def send_password_reset_email(
     system_name: str | None = None,
     login_url: str | None = None,
 ) -> None:
-    from . import get_settings, _send_email
+    from app.core.config import get_settings
+    from app.services.email_service.transport import send_transactional_email
     from .rendering import build_password_reset_email_content
 
     settings = get_settings()
@@ -93,10 +97,10 @@ def send_password_reset_email(
         system_name=resolved_system_name,
         login_url=resolved_login_url,
     )
-    _send_email(
-        subject=subject,
+    send_transactional_email(
         recipient_email=recipient_email,
-        body=body,
+        subject=subject,
+        text_body=body,
         html_body=html_body,
     )
 
@@ -108,7 +112,7 @@ def send_mfa_code_email(
     first_name: str | None = None,
     system_name: str | None = None,
 ) -> None:
-    from . import _send_email
+    from app.services.email_service.transport import send_transactional_email
     from .rendering import build_mfa_code_email_content
 
     resolved_first_name = (first_name or "").strip() or "User"
@@ -118,9 +122,9 @@ def send_mfa_code_email(
         first_name=resolved_first_name,
         system_name=resolved_system_name,
     )
-    _send_email(
-        subject=subject,
+    send_transactional_email(
         recipient_email=recipient_email,
-        body=body,
+        subject=subject,
+        text_body=body,
         html_body=html_body,
     )
