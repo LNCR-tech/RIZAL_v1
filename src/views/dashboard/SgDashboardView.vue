@@ -299,7 +299,8 @@ watch(
 
 function handleModuleClick(mod) {
   if (mod.route) {
-    router.push(mod.route)
+    const target = props.preview ? mod.route.replace(/^\/sg/, '/exposed/sg') : mod.route
+    router.push(target)
   }
 }
 

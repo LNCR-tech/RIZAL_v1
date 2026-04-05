@@ -148,7 +148,9 @@ import {
 } from 'lucide-vue-next'
 import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
 import { initFaceScanDetector, resetFaceScanDetector } from '@/composables/useFaceScanDetector.js'
+import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import {
   buildAttendanceLocationErrorMessage,
   formatCompactDuration,
@@ -166,7 +168,15 @@ import {
   resolveApiBaseUrl,
   verifyEventLocation,
 } from '@/services/backendApi.js'
+import { normalizeAttendanceRecord } from '@/services/backendNormalizers.js'
 import { hasNavigableHistory, resolveBackFallbackLocation } from '@/services/routeWorkspace.js'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -178,10 +188,29 @@ const {
   refreshAttendanceRecords,
   upsertAttendanceRecordSnapshot,
 } = useDashboardSession()
+const previewAttendanceRecords = ref(
+  studentDashboardPreviewData.attendanceRecords.map((record) => ({ ...record }))
+)
+const activeUser = computed(() => (
+  props.preview ? studentDashboardPreviewData.user : currentUser.value
+))
+const activeSchoolSettings = computed(() => (
+  props.preview ? studentDashboardPreviewData.schoolSettings : null
+))
+
+usePreviewTheme(() => props.preview, activeSchoolSettings)
 
 const eventId = computed(() => Number(route.params.id))
-const event = computed(() => getDashboardEventById(eventId.value))
-const latestAttendanceRecord = computed(() => getLatestAttendanceForEvent(eventId.value))
+const event = computed(() => (
+  props.preview
+    ? getPreviewEventById(eventId.value)
+    : getDashboardEventById(eventId.value)
+))
+const latestAttendanceRecord = computed(() => (
+  props.preview
+    ? getLatestPreviewAttendanceForEvent(eventId.value)
+    : getLatestAttendanceForEvent(eventId.value)
+))
 
 const flowStep = ref('face')
 const isRunning = ref(false)
@@ -260,6 +289,45 @@ const progressValue = computed(() => {
 })
 const trackBounce = ref(false)
 
+function getPreviewEventById(targetEventId) {
+  const normalizedEventId = Number(targetEventId)
+  if (!Number.isFinite(normalizedEventId)) return null
+
+  return studentDashboardPreviewData.events.find((item) => (
+    Number(item?.id) === normalizedEventId
+  )) ?? null
+}
+
+function getLatestPreviewAttendanceForEvent(targetEventId) {
+  const normalizedEventId = Number(targetEventId)
+  if (!Number.isFinite(normalizedEventId)) return null
+
+  return previewAttendanceRecords.value
+    .filter((attendance) => Number(attendance?.event_id) === normalizedEventId)
+    .sort((left, right) => {
+      const leftTime = new Date(left?.time_in || left?.created_at || 0).getTime()
+      const rightTime = new Date(right?.time_in || right?.created_at || 0).getTime()
+      return rightTime - leftTime
+    })[0] ?? null
+}
+
+function upsertPreviewAttendanceRecord(record) {
+  const normalizedRecord = normalizeAttendanceRecord(record)
+  const normalizedEventId = Number(normalizedRecord?.event_id)
+  if (!Number.isFinite(normalizedEventId)) {
+    return previewAttendanceRecords.value
+  }
+
+  const nextRecords = [
+    ...previewAttendanceRecords.value.filter((item) => Number(item?.event_id) !== normalizedEventId),
+    normalizedRecord,
+  ]
+
+  previewAttendanceRecords.value = nextRecords
+  studentDashboardPreviewData.attendanceRecords = nextRecords.map((item) => ({ ...item }))
+  return previewAttendanceRecords.value
+}
+
 function stepNodeClass(index) {
   if (flowStep.value === 'success' || stepIndex.value > index) return 'step-node--done'
   if (stepIndex.value === index) return 'step-node--active'
@@ -272,7 +340,7 @@ function stepNodeIcon(index) {
 }
 
 const faceImageUrl = computed(() =>
-  currentUser.value?.avatar_url || currentUser.value?.profile_photo_url || ''
+  activeUser.value?.avatar_url || activeUser.value?.profile_photo_url || ''
 )
 
 const isCameraReady = computed(() => cameraState.value === 'ready')
@@ -439,6 +507,11 @@ function isFaceScanSignInAction(action) {
 }
 
 async function loadEventTimeStatus() {
+  if (props.preview) {
+    eventTimeStatus.value = null
+    return null
+  }
+
   const normalizedEventId = eventId.value
   if (!Number.isFinite(normalizedEventId)) {
     eventTimeStatus.value = null
@@ -469,16 +542,23 @@ async function refreshAttendanceContext() {
     }
   }
 
+  if (props.preview) {
+    return {
+      attendanceRecord: getLatestPreviewAttendanceForEvent(normalizedEventId),
+      timeStatus: eventTimeStatus.value,
+    }
+  }
+
   await Promise.allSettled([
     refreshAttendanceRecords({ event_id: normalizedEventId }),
     loadEventTimeStatus(),
   ])
 
   return {
-    attendanceRecord: getLatestAttendanceForEvent(normalizedEventId),
-    timeStatus: eventTimeStatus.value,
+      attendanceRecord: getLatestAttendanceForEvent(normalizedEventId),
+      timeStatus: eventTimeStatus.value,
+    }
   }
-}
 
 function clearLocationVerificationState() {
   locationCheck.value = null
@@ -568,9 +648,9 @@ function buildOptimisticAttendanceRecord(result, existingAttendanceRecord = late
     event_id: normalizedEventId,
     student_id:
       existingAttendanceRecord?.student_id
-      ?? currentUser.value?.student_profile?.id
-      ?? currentUser.value?.student_profile?.student_id
-      ?? currentUser.value?.id
+      ?? activeUser.value?.student_profile?.id
+      ?? activeUser.value?.student_profile?.student_id
+      ?? activeUser.value?.id
       ?? null,
     method: existingAttendanceRecord?.method || 'face_scan',
     status: finalizedStatus,
@@ -705,9 +785,57 @@ async function recordFaceScanAttendance() {
     throw new Error('A live face capture is required before attendance can be recorded.')
   }
 
-  const studentIdValue = currentUser.value?.student_profile?.student_id
-    || currentUser.value?.id
+  const studentIdValue = activeUser.value?.student_profile?.student_id
+    || activeUser.value?.id
     || null
+
+  if (props.preview) {
+    const existingAttendanceRecord = getLatestPreviewAttendanceForEvent(eventIdValue)
+    const nowIso = new Date().toISOString()
+    const action = isOpenAttendanceRecord(existingAttendanceRecord) ? 'sign_out' : 'sign_in'
+    const nextRecord = normalizeAttendanceRecord({
+      ...(existingAttendanceRecord || {}),
+      id: Number(existingAttendanceRecord?.id) || Date.now(),
+      event_id: eventIdValue,
+      student_id: studentIdValue != null ? String(studentIdValue) : null,
+      method: existingAttendanceRecord?.method || 'face_scan',
+      status: existingAttendanceRecord?.status || existingAttendanceRecord?.check_in_status || 'present',
+      display_status: action === 'sign_out'
+        ? (existingAttendanceRecord?.status || existingAttendanceRecord?.check_in_status || 'present')
+        : 'incomplete',
+      completion_state: action === 'sign_out' ? 'completed' : 'incomplete',
+      check_in_status: existingAttendanceRecord?.check_in_status || existingAttendanceRecord?.status || 'present',
+      check_out_status: action === 'sign_out' ? 'present' : null,
+      time_in: existingAttendanceRecord?.time_in || nowIso,
+      time_out: action === 'sign_out' ? nowIso : null,
+      created_at: existingAttendanceRecord?.created_at || nowIso,
+      updated_at: nowIso,
+      is_valid_attendance: action === 'sign_out',
+      notes: action === 'sign_out' ? null : 'Pending sign-out.',
+    })
+
+    upsertPreviewAttendanceRecord(nextRecord)
+    setLocationVerificationResult({
+      ok: true,
+      accuracy_m: userCoords.value?.accuracy ?? null,
+    })
+
+    return {
+      result: {
+        ok: true,
+        action,
+        attendance_id: nextRecord.id,
+        time_in: nextRecord.time_in,
+        time_out: nextRecord.time_out,
+        geo: {
+          ok: true,
+          accuracy_m: userCoords.value?.accuracy ?? null,
+        },
+      },
+      attendanceRecord: nextRecord,
+      timeStatus: null,
+    }
+  }
 
   const token = localStorage.getItem('aura_token')
   const rawBase64 = imageDataUrl.includes(',') ? imageDataUrl.split(',')[1] : imageDataUrl
@@ -1365,7 +1493,9 @@ function updateTrackMetrics() {
 let trackResizeObserver = null
 
 async function initializeAttendanceFlow() {
-  await ensureDashboardEvent(eventId.value).catch(() => null)
+  if (!props.preview) {
+    await ensureDashboardEvent(eventId.value).catch(() => null)
+  }
   if (!event.value) return
 
   const { attendanceRecord, timeStatus } = await refreshAttendanceContext()

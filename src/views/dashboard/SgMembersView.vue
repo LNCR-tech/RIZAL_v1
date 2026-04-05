@@ -163,6 +163,13 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
 import { ArrowLeft, Search, Plus, SquarePen, X } from 'lucide-vue-next'
 import StudentCouncilMemberStage from '@/components/council/StudentCouncilMemberStage.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -264,6 +271,17 @@ watch(
 )
 
 async function loadUnit(url) {
+  if (props.preview) {
+    members.value = [
+      { id: 1, userId: 101, studentId: '2023-0101', fullName: 'Jane Doe', position: 'President' },
+      { id: 2, userId: 102, studentId: '2023-0102', fullName: 'John Smith', position: 'Vice President' },
+      { id: 3, userId: 103, studentId: '2023-0103', fullName: 'Alice Johnson', position: 'Secretary' },
+      { id: 4, userId: 104, studentId: '2023-0104', fullName: 'Bob Williams', position: 'Treasurer' },
+    ]
+    isLoading.value = false
+    return
+  }
+
   isLoading.value = true
   loadError.value = ''
   const token = localStorage.getItem('aura_token') || ''
@@ -287,7 +305,13 @@ async function reload() {
   if (apiBaseUrl.value) await loadUnit(apiBaseUrl.value)
 }
 
-function goBack() { router.push('/sg') }
+function goBack() { 
+  if (props.preview) {
+    router.push('/exposed/sg')
+    return
+  }
+  router.push('/sg') 
+}
 
 function resetDraft() {
   memberDraft.value = { ...createEmptyCouncilMemberDraft(), searchQuery: '', selectedStudent: null }
@@ -362,6 +386,11 @@ async function searchCandidates(query) {
 }
 
 async function handleSubmit() {
+  if (props.preview) {
+    alert('Edits are disabled in preview mode.')
+    closeSheet()
+    return
+  }
   if (submitDisabled.value) return
   if (!showPermissions.value) { showPermissions.value = true; return }
 
@@ -393,6 +422,11 @@ async function handleSubmit() {
 }
 
 async function handleDelete() {
+  if (props.preview) {
+    alert('Deletion is disabled in preview mode.')
+    closeSheet()
+    return
+  }
   if (!editingMemberId.value || isDeleting.value) return
   isDeleting.value = true
   try {
@@ -406,6 +440,11 @@ async function handleDelete() {
 }
 
 async function handleDeleteDetail() {
+  if (props.preview) {
+    alert('Deletion is disabled in preview mode.')
+    closeDetail()
+    return
+  }
   if (!detailMember.value?.id || isDeleting.value) return
   isDeleting.value = true
   try {

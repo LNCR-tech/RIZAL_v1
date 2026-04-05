@@ -8,13 +8,9 @@
       </template>
 
       <template #fallback>
-        <section class="app-layout-outlet__loading" aria-live="polite">
-          <div class="app-layout-outlet__card">
-            <div class="app-layout-outlet__spinner" aria-hidden="true"></div>
-            <p class="app-layout-outlet__title">Loading screen</p>
-            <p class="app-layout-outlet__copy">Preparing the next dashboard view.</p>
-          </div>
-        </section>
+        <div class="app-layout-outlet__boot-wrapper">
+          <AppBootLoader />
+        </div>
       </template>
     </Suspense>
   </RouterView>
@@ -22,6 +18,7 @@
 
 <script setup>
 import { RouterView } from 'vue-router'
+import AppBootLoader from '@/components/ui/AppBootLoader.vue'
 </script>
 
 <style scoped>
@@ -41,51 +38,12 @@ import { RouterView } from 'vue-router'
   transform: translateY(-6px) scale(0.995);
 }
 
-.app-layout-outlet__loading {
+.app-layout-outlet__boot-wrapper {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100dvh - 120px);
-  padding: 32px 20px;
-}
-
-.app-layout-outlet__card {
-  width: min(100%, 320px);
-  border-radius: 28px;
-  padding: 26px 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 248, 0.98));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
-  text-align: center;
-}
-
-.app-layout-outlet__spinner {
-  width: 42px;
-  height: 42px;
-  margin: 0 auto 14px;
-  border-radius: 999px;
-  border: 3px solid rgba(10, 10, 10, 0.08);
-  border-top-color: var(--color-primary);
-  animation: app-layout-spin 0.85s linear infinite;
-}
-
-.app-layout-outlet__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--color-text-primary);
-}
-
-.app-layout-outlet__copy {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--color-text-muted);
-}
-
-@keyframes app-layout-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--color-surface, #ffffff);
 }
 </style>
 

@@ -29,7 +29,7 @@
   display: grid;
   place-items: center;
   width: 100%;
-  min-height: 100dvh;
+  height: 100%;
   background: #ffffff;
 }
 

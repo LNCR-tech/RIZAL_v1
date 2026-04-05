@@ -105,6 +105,9 @@ function goToLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.app-fatal-screen {
   padding: 24px;
 }
 
