@@ -141,8 +141,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { Maximize2, Send } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
-import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
-import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
+import AuraChatWindow from '@/components/desktop/ui/AuraChatWindow.vue'
+import { getNavigationItemsForRoute } from '@/components/desktop/navigation/navigationItems.js'
 
 const {
   messages,

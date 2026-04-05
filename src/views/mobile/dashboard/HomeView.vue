@@ -3,5 +3,5 @@
 </template>
 
 <script setup>
-import MobileDashboardHome from '@/components/dashboard/MobileDashboardHome.vue'
+import MobileDashboardHome from '@/components/mobile/dashboard/MobileDashboardHome.vue'
 </script>

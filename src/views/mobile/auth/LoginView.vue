@@ -69,8 +69,8 @@
 </template>
 
 <script setup>
-import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseInput from '@/components/ui/BaseInput.vue'
+import BaseButton from '@/components/desktop/ui/BaseButton.vue'
+import BaseInput from '@/components/desktop/ui/BaseInput.vue'
 import { surfaceAuraLogo } from '@/config/theme.js'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 

@@ -68,7 +68,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
+import { getNavigationItemsForRoute } from '@/components/desktop/navigation/navigationItems.js'
 import { useStudentCouncilAccess } from '@/composables/useStudentCouncilAccess.js'
 import { isCouncilWorkspaceContext, resolveCouncilWorkspaceLocation } from '@/services/routeWorkspace.js'
 

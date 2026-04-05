@@ -66,6 +66,7 @@ function resolveNativeApiBaseUrl(baseUrl = '') {
     runtimeConfig.backendOrigin,
     import.meta.env.VITE_NATIVE_API_BASE_URL,
     import.meta.env.VITE_BACKEND_PROXY_TARGET,
+    import.meta.env.VITE_API_URL,
     import.meta.env.VITE_API_BASE_URL,
   ])
 
@@ -83,6 +84,7 @@ export function resolveApiBaseUrl(baseUrl = '') {
     runtimeConfig.apiBaseUrl,
     runtimeConfig.backendBaseUrl,
     runtimeConfig.backendOrigin,
+    import.meta.env.VITE_API_URL,
     import.meta.env.VITE_API_BASE_URL,
   ]))
 }

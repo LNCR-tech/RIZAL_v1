@@ -9,26 +9,30 @@ import {
     isSchoolItSession,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
+import { hasPendingFaceVerification, hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView } from '@/router/platformView.js'
 
 const AppLayout = () => import('@/layouts/AppLayout.vue')
 const authView = (viewName) => createPlatformView(`auth/${viewName}`)
 const dashboardView = (viewName) => createPlatformView(`dashboard/${viewName}`)
+const reusableView = (viewName) => createPlatformView(viewName, {
+  desktopPath: `desktop/desktopReusable/${viewName}`,
+  mobilePath: `mobile/dashboard/${viewName}`,
+})
 const toolsView = (viewName) => createPlatformView(`tools/${viewName}`)
 
-const HomeView = dashboardView('HomeView')
-const ProfileView = dashboardView('ProfileView')
-const ScheduleView = dashboardView('ScheduleView')
-const EventDetailView = dashboardView('EventDetailView')
-const AttendanceView = dashboardView('AttendanceView')
-const AnalyticsView = dashboardView('AnalyticsView')
+const HomeView = reusableView('HomeView')
+const ProfileView = reusableView('ProfileView')
+const ScheduleView = reusableView('ScheduleView')
+const EventDetailView = reusableView('EventDetailView')
+const AttendanceView = reusableView('AttendanceView')
+const AnalyticsView = reusableView('AnalyticsView')
 const AdminWorkspaceView = dashboardView('AdminWorkspaceView')
-const WorkspacePlaceholderView = dashboardView('WorkspacePlaceholderView')
-const PrivilegedComingSoonView = dashboardView('PrivilegedComingSoonView')
-const ProfileSecurityView = dashboardView('ProfileSecurityView')
-const ProfileFaceUpdateView = dashboardView('ProfileFaceUpdateView')
+const WorkspacePlaceholderView = reusableView('WorkspacePlaceholderView')
+const PrivilegedComingSoonView = reusableView('PrivilegedComingSoonView')
+const ProfileSecurityView = reusableView('ProfileSecurityView')
+const ProfileFaceUpdateView = reusableView('ProfileFaceUpdateView')
 const SchoolItHomeView = dashboardView('SchoolItHomeView')
 const SchoolItUsersView = dashboardView('SchoolItUsersView')
 const SchoolItImportStudentsView = dashboardView('SchoolItImportStudentsView')
@@ -552,7 +556,7 @@ router.beforeEach(async (to) => {
     setNavigationPending(true)
     const isAuthenticated = hasSessionToken()
     const mustChangePassword = needsStoredPasswordChange()
-    const privilegedPendingFace = hasPrivilegedPendingFace()
+    const pendingFaceVerification = hasPendingFaceVerification()
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: 'Login' }
@@ -563,7 +567,7 @@ router.beforeEach(async (to) => {
             return { name: 'Login' }
         }
 
-        if (privilegedPendingFace) {
+        if (pendingFaceVerification) {
             return true
         }
 
@@ -582,7 +586,7 @@ router.beforeEach(async (to) => {
         }
     }
 
-    if (isAuthenticated && privilegedPendingFace) {
+    if (isAuthenticated && pendingFaceVerification) {
         if (to.meta.allowPrivilegedPendingFace) {
             return true
         }

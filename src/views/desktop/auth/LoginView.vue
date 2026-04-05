@@ -84,9 +84,10 @@
 </template>
 
 <script setup>
-import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseInput from '@/components/ui/BaseInput.vue'
-import { surfaceAuraLogo } from '@/config/theme.js'
+import { onMounted, onUnmounted } from 'vue'
+import BaseButton from '@/components/desktop/ui/BaseButton.vue'
+import BaseInput from '@/components/desktop/ui/BaseInput.vue'
+import { applyLightOverride, removeLightOverride, surfaceAuraLogo } from '@/config/theme.js'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
 const {
@@ -98,6 +99,14 @@ const {
   handleLogin,
   openQuickAttendance,
 } = useLoginViewModel()
+
+onMounted(() => {
+  applyLightOverride()
+})
+
+onUnmounted(() => {
+  removeLightOverride()
+})
 </script>
 
 <style scoped>
