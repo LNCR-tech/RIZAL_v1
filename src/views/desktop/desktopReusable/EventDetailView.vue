@@ -1,17 +1,14 @@
 <template>
   <div class="event-detail">
-    <!-- Header -->
-    <header class="detail-header dashboard-enter dashboard-enter--1">
-      <button class="icon-btn icon-btn--ghost icon-btn--back" aria-label="Back" @click="goBack">
-        <ArrowLeft :size="18" />
-      </button>
-
-      <div class="header-spacer"></div>
-
-      <button class="icon-btn icon-btn--ghost icon-btn--bell" aria-label="Notifications">
-        <Bell :size="18" />
-      </button>
-    </header>
+    <StandardHeader
+      class="dashboard-enter dashboard-enter--1"
+      :avatar-url="activeUser?.avatar_url || activeUser?.student_profile?.photo_url"
+      :school-name="resolvedSchoolName"
+      :display-name="activeUser?.first_name + ' ' + activeUser?.last_name"
+      :initials="activeUser?.first_name?.[0] + activeUser?.last_name?.[0]"
+      @logout="handleLogout"
+      @toggle-notifications="showNotifications = !showNotifications"
+    />
 
     <section v-if="event" class="detail-body">
       <!-- Title -->
@@ -97,11 +94,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowUpRight, Bell } from 'lucide-vue-next'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { hasNavigableHistory, resolveBackFallbackLocation } from '@/services/routeWorkspace.js'
@@ -115,7 +114,19 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
+const showNotifications = ref(false)
+const { logout } = useAuth()
+const { ensureDashboardEvent, getDashboardEventById, currentUser, schoolSettings } = useDashboardSession()
+
+const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
+const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : schoolSettings.value)
+const resolvedSchoolName = computed(() => {
+  return activeSchoolSettings.value?.school_name || activeUser.value?.school_name || 'University Name'
+})
+
+async function handleLogout() {
+  await logout()
+}
 
 const eventId = computed(() => Number(route.params.id))
 const previewEvent = computed(() => {
@@ -236,6 +247,9 @@ function openInMaps() {
   min-height: 100vh;
   padding: 28px 24px 110px;
   background: var(--color-bg);
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .detail-header {

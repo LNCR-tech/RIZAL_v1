@@ -535,6 +535,9 @@ function formatSearchMeta(event) {
   gap: 20px;
   min-height: 100vh;
   padding: 28px 22px 100px;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .breadcrumbs-wrap {

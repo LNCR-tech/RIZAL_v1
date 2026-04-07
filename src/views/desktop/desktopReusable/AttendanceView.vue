@@ -1436,6 +1436,9 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
   --track-width: min(320px, 92%);
   --track-height: 46px;
   --node-size: 34px;

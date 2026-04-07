@@ -344,12 +344,45 @@ app.get('/users/:id', (req, res, next) => {
 
 app.get('/school/me', (req, res) => {
   console.log(`[GET] /school/me`);
-  res.json(db.data.schools?.[0] || {});
+  const user = getCurrentUser(req);
+  if (!user?.school_id) return res.json({ school_name: 'System Admin', school_id: null });
+  const school = getSchoolById(user.school_id) || db.data.schools?.[0] || {};
+  res.json(school);
 });
 
 app.get('/school-settings/me', (req, res) => {
   console.log(`[GET] /school-settings/me`);
-  res.json(db.data.schools?.[0] || {});
+  const user = getCurrentUser(req);
+  if (!user?.school_id) return res.json({ primary_color: '#000000', school_name: 'Super Admin' });
+  const school = getSchoolById(user.school_id) || db.data.schools?.[0] || {};
+  res.json(school);
+});
+
+app.put('/school/update', async (req, res) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ detail: 'Unauthorized' });
+
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    await parseMultipartBody(req);
+  } else {
+    await parseBody(req);
+  }
+
+  const payload = req.body;
+  const school = (db.data.schools || []).find(s => String(s.school_id) === String(user.school_id));
+
+  if (!school) return res.status(404).json({ detail: 'School not found (Searching school_id: ' + user.school_id + ')' });
+
+  if (payload.school_name !== undefined) school.school_name = payload.school_name;
+  if (payload.primary_color !== undefined) school.primary_color = payload.primary_color;
+  if (payload.secondary_color !== undefined) school.secondary_color = payload.secondary_color;
+  if (payload.school_code !== undefined) school.school_code = payload.school_code;
+
+  school.updated_at = new Date().toISOString();
+  await db.write();
+
+  res.json(school);
 });
 
 app.get('/attendance/me/records', (req, res) => {
@@ -445,6 +478,76 @@ app.get('/events/', (req, res, next) => {
   }
   res.json(events);
   next?.();
+});
+
+app.post('/public-attendance/events/nearby', async (req, res) => {
+  console.log(`[POST] /public-attendance/events/nearby`);
+  await parseBody(req);
+  const events = (db.data.events || []).map(e => ({
+    ...e,
+    school_name: getSchoolById(e.school_id)?.school_name || 'Campus',
+    distance_m: Math.random() * 50,
+    effective_distance_m: Math.random() * 50,
+    accuracy_m: req.body?.accuracy_m || 5,
+    attendance_phase: 'sign_in',
+    phase_message: `${e.name} is ready for Sign In.`,
+    scope_label: 'Campus-wide',
+    departments: [],
+    programs: []
+  }));
+
+  res.json({
+    events,
+    scan_cooldown_seconds: 8
+  });
+});
+
+app.post('/public-attendance/events/:eventId/multi-face-scan', async (req, res) => {
+  const { eventId } = req.params;
+  console.log(`[POST] /public-attendance/events/${eventId}/multi-face-scan`);
+  await parseBody(req);
+
+  const event = (db.data.events || []).find(e => String(e.id) === String(eventId));
+  if (!event) return res.status(404).json({ detail: 'Event not found' });
+
+  // Mock matching a student (student@example.com is ID 3)
+  const student = (db.data.users || []).find(u => u.roles.includes('student'));
+  const outcomes = [];
+
+  if (student) {
+    outcomes.push({
+      action: 'time_in',
+      reason_code: 'success',
+      message: `Welcome, ${student.first_name}! Your attendance for ${event.name} has been recorded.`,
+      student_id: student.student_profile?.student_id || 'STU-001',
+      student_name: `${student.first_name} ${student.last_name}`,
+      attendance_id: Math.floor(Math.random() * 1000),
+      distance: 2.5,
+      confidence: 0.95 + Math.random() * 0.04,
+      threshold: 0.85,
+      liveness: { label: 'live', score: 0.99 },
+      time_in: new Date().toISOString()
+    });
+  } else {
+    outcomes.push({
+      action: 'no_match',
+      message: 'No matching student found in the frame.',
+      confidence: 0.45
+    });
+  }
+
+  res.json({
+    event_id: Number(eventId),
+    event_phase: 'sign_in',
+    message: outcomes[0].message,
+    scan_cooldown_seconds: 8,
+    geo: {
+      latitude: req.body?.latitude,
+      longitude: req.body?.longitude,
+      accuracy_m: req.body?.accuracy_m
+    },
+    outcomes
+  });
 });
 
 app.post('/notifications/dispatch/:kind', async (req, res) => {

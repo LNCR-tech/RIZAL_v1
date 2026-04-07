@@ -40,13 +40,10 @@
 
       <div class="sg-sub-toolbar dashboard-enter dashboard-enter--3" :class="{'is-creating': isCreating}">
         <div class="sg-sub-search-shell" style="flex: 1;">
-          <input
+          <AuraSearch
             v-model="searchQuery"
-            type="text"
-            class="sg-sub-search-input"
             placeholder="Search events"
           />
-          <Search :size="18" style="color: var(--color-primary);" />
         </div>
         
         <div class="sg-create-wrapper" :class="{ 'is-expanded': isCreating, 'map-is-fullscreen': isMapFullscreen }">
@@ -221,10 +218,11 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2 } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Plus, Trash2, Edit2 } from 'lucide-vue-next'
 import EventEditorSheet from '@/components/desktop/events/EventEditorSheet.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
 import {
   BackendApiError,
   createGovernanceEvent,

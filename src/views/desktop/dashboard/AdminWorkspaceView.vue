@@ -31,20 +31,11 @@
       </header>
 
       <section class="admin-view__toolbar">
-        <label class="admin-view__search">
-          <input
-            v-model.trim="searchQuery"
-            class="admin-view__search-input"
-            :placeholder="sectionMeta.searchPlaceholder"
-            type="search"
-            inputmode="search"
-            autocapitalize="off"
-            autocorrect="off"
-            autocomplete="off"
-            spellcheck="false"
-          >
-          <Search :size="18" class="admin-view__search-icon" />
-        </label>
+        <AuraSearch
+          v-model="searchQuery"
+          :placeholder="sectionMeta.searchPlaceholder"
+          class="admin-view__search"
+        />
 
         <button class="admin-view__pill" type="button" @click="handlePrimaryAction">
           <span class="admin-view__pill-icon">
@@ -345,9 +336,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, BellRing, Building2, Check, History, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, UserRoundX, X } from 'lucide-vue-next'
+import { ArrowRight, BellRing, Building2, Check, History, KeyRound, LoaderCircle, Plus, RefreshCw, ShieldCheck, UserRoundX, X } from 'lucide-vue-next'
 import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
 import Breadcrumbs from '@/components/desktop/dashboard/Breadcrumbs.vue'
+import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useAdminWorkspaceData } from '@/composables/useAdminWorkspaceData.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -443,9 +435,9 @@ const oversightLogFeed = computed(() => [
 
 usePreviewTheme(() => props.preview, computed(() => ({
   school_name: 'VALID8 Platform',
-  primary_color: schools.value[0]?.primary_color || '#AAFF00',
-  secondary_color: schools.value[0]?.secondary_color || '#64748B',
-  logo_url: schools.value[0]?.logo_url || null,
+  primary_color: '#000000',
+  secondary_color: '#64748B',
+  logo_url: '/logos/aura_logo_white.png',
 })))
 
 watch(selectedGovernanceSettings, (value) => {
@@ -505,12 +497,10 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__title{margin:0;font-size:clamp(34px,4vw,52px);line-height:.96;letter-spacing:-.06em;color:var(--color-text-primary)}
 .admin-view__subtitle{margin:10px 0 0;max-width:620px;font-size:15px;line-height:1.6;color:var(--color-text-secondary)}
 .admin-view__scope{flex-direction:column;align-items:flex-start}
-.admin-view__select,.admin-view__search-input,.admin-view__field input{width:100%;border:none;outline:none;background:var(--color-field-surface);color:var(--color-text-primary);font:inherit}
+.admin-view__select,.admin-view__field input{width:100%;border:none;outline:none;background:var(--color-field-surface);color:var(--color-text-primary);font:inherit}
 .admin-view__select{min-width:220px;height:52px;padding:0 18px;border-radius:999px}
 .admin-view__toolbar{margin-top:18px;display:grid;grid-template-columns:minmax(0,1fr) auto}
-.admin-view__search{display:flex;align-items:center;gap:12px;min-height:62px;padding:0 18px;border-radius:999px;background:var(--color-surface);box-shadow:0 16px 36px rgba(15,23,42,.04)}
-.admin-view__search-input{background:transparent;font-size:15px}
-.admin-view__search-icon{color:var(--color-primary);flex-shrink:0}
+.admin-view__search{flex:1;min-width:0}
 .admin-view__pill,.admin-view__ghost,.admin-view__segment,.admin-view__soft-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:999px;font-weight:700}
 .admin-view__pill{min-height:62px;padding:0 18px;background:var(--color-secondary);color:var(--color-secondary-text)}
 .admin-view__pill-icon{width:36px;height:36px;border-radius:999px;display:grid;place-items:center;background:#0A0A0A;color:#fff}

@@ -19,13 +19,10 @@
     <template v-else>
       <div class="sg-sub-toolbar dashboard-enter dashboard-enter--2">
         <div class="sg-sub-search-shell">
-          <input
+          <AuraSearch
             v-model="searchQuery"
-            type="text"
-            class="sg-sub-search-input"
             placeholder="Search announcements"
           />
-          <Search :size="14" style="color: var(--color-text-muted);" />
         </div>
         <button class="sg-sub-action" type="button" @click="openCreate">
           <Plus :size="16" />
@@ -100,11 +97,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Search, Plus, SquarePen, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Plus, SquarePen, Trash2 } from 'lucide-vue-next'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
 import {
   getGovernanceAccess,
   getGovernanceAnnouncements,

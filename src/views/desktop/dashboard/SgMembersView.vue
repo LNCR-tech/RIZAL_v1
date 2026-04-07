@@ -19,13 +19,10 @@
     <template v-else>
       <div class="sg-sub-toolbar dashboard-enter dashboard-enter--2">
         <div class="sg-sub-search-shell">
-          <input
+          <AuraSearch
             v-model="searchQuery"
-            type="text"
-            class="sg-sub-search-input"
             placeholder="Search members"
           />
-          <Search :size="14" style="color: var(--color-text-muted);" />
         </div>
         <button class="sg-sub-action" type="button" @click="openAddSheet">
           <Plus :size="16" />
@@ -163,10 +160,11 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Search, Plus, SquarePen, X } from 'lucide-vue-next'
+import { ArrowLeft, Plus, SquarePen, X } from 'lucide-vue-next'
 import StudentCouncilMemberStage from '@/components/desktop/council/StudentCouncilMemberStage.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
 import {
   getGovernanceUnitDetail,
   assignGovernanceMember,

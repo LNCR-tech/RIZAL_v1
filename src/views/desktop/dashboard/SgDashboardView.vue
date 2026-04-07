@@ -1,10 +1,14 @@
 <template>
   <div class="sg-page">
-    <!-- TopBar (reused) -->
-    <TopBar
+    <!-- StandardHeader (reused) -->
+    <StandardHeader
       class="dashboard-enter dashboard-enter--1"
-      :user="currentUser"
-      :unread-count="0"
+      :avatar-url="currentUser?.avatar_url || currentUser?.student_profile?.photo_url"
+      :school-name="resolvedSchoolName"
+      :display-name="currentUser?.first_name + ' ' + currentUser?.last_name"
+      :initials="currentUser?.first_name?.[0] + currentUser?.last_name?.[0]"
+      @logout="handleLogout"
+      @toggle-notifications="showNotifications = !showNotifications"
     />
 
     <!-- Page Title -->
@@ -193,13 +197,14 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, ArrowRight, AlertCircle, Send } from 'lucide-vue-next'
-import TopBar from '@/components/desktop/dashboard/TopBar.vue'
+import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
 import { secondaryAuraLogo, applyTheme, loadTheme, defaultTheme } from '@/config/theme.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import { useChat } from '@/composables/useChat.js'
 import { getVisibleSections, filterSectionsBySearch } from '@/data/sgModules.js'
 import { resolveBackendMediaCandidates, withMediaCacheKey } from '@/services/backendMedia.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
+import { useAuth } from '@/composables/useAuth.js'
 
 const props = defineProps({
   preview: {
@@ -218,8 +223,14 @@ const toastMessage = ref('')
 const isMobileAiOpen = ref(false)
 const mobileInputEl = ref(null)
 let toastTimer = null
+const showNotifications = ref(false)
 
 const authMeta = useStoredAuthMeta()
+const { logout } = useAuth()
+
+async function handleLogout() {
+  await logout()
+}
 
 const {
   isLoading,
@@ -242,6 +253,10 @@ const resolvedSchoolLogoCandidates = computed(() =>
     defaultTheme.schoolLogo
   ])
 )
+
+const resolvedSchoolName = computed(() => {
+  return schoolSettings.value?.school_name || currentUser.value?.school_name || 'University Name'
+})
 
 const resolvedSchoolLogo = computed(() => {
   if (heroLogoUnavailable.value || !resolvedSchoolLogoCandidates.value.length) return null

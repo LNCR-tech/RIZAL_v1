@@ -19,13 +19,10 @@
     <template v-else>
       <div class="sg-sub-toolbar dashboard-enter dashboard-enter--2">
         <div class="sg-sub-search-shell">
-          <input
+          <AuraSearch
             v-model="searchQuery"
-            type="text"
-            class="sg-sub-search-input"
             placeholder="Search students"
           />
-          <Search :size="14" style="color: var(--color-text-muted);" />
         </div>
       </div>
 
@@ -53,9 +50,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Search } from 'lucide-vue-next'
+import { ArrowLeft } from 'lucide-vue-next'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
 import { getGovernanceStudents } from '@/services/backendApi.js'
 
 const router = useRouter()

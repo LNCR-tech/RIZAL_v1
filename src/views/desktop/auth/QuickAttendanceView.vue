@@ -665,8 +665,8 @@ function scheduleNextScan(delayMs = 0) {
 <style scoped>
 .quick-attendance {
   min-height: 100vh;
-  background: #ffffff;
-  color: #111111;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
   font-family: 'Manrope', sans-serif;
   padding: 28px 20px 40px;
 }
@@ -681,21 +681,24 @@ function scheduleNextScan(delayMs = 0) {
 }
 
 .quick-attendance__header,
-.quick-attendance__panel,
+.quick-attendance__panel {
+  border-radius: 28px;
+  padding: 18px;
+  background: var(--aura-glass-bg);
+  backdrop-filter: blur(var(--nav-glass-blur));
+  -webkit-backdrop-filter: blur(var(--nav-glass-blur));
+  border: 1px solid var(--aura-glass-border);
+  box-shadow: var(--aura-shadow-soft);
+}
+
 .quick-attendance__step,
 .quick-attendance__scanner-card,
 .quick-attendance__event-card,
 .quick-attendance__outcome,
 .quick-attendance__empty,
 .quick-attendance__cooldowns {
-  border: 1px solid #111111;
-  background: #ffffff;
-}
-
-.quick-attendance__header,
-.quick-attendance__panel {
-  border-radius: 28px;
-  padding: 18px;
+  border: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
 }
 
 .quick-attendance__header {
@@ -710,34 +713,50 @@ function scheduleNextScan(delayMs = 0) {
 .quick-attendance__scanner-button {
   min-height: 44px;
   border-radius: 999px;
-  border: 1px solid #111111;
-  background: #ffffff;
-  color: #111111;
+  border: 1px solid var(--color-surface-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 0 16px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.quick-attendance__back:hover,
+.quick-attendance__action:hover,
+.quick-attendance__scanner-button:hover {
+  background: var(--color-field-surface);
+  transform: translateY(-1px);
 }
 
 .quick-attendance__scanner-button--primary,
 .quick-attendance__action {
-  background: #111111;
-  color: #ffffff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.quick-attendance__scanner-button--primary:hover,
+.quick-attendance__action:hover {
+  background: var(--color-primary-dark);
 }
 
 .quick-attendance__scanner-button--armed {
-  background: #f1f1f1;
-  color: #111111;
+  background: var(--color-surface-border);
+  color: var(--color-text-primary);
+  border-color: var(--color-surface-border-strong);
 }
 
 .quick-attendance__back:disabled,
 .quick-attendance__action:disabled,
 .quick-attendance__scanner-button:disabled {
-  opacity: 0.58;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 .quick-attendance__headline {
@@ -752,15 +771,16 @@ function scheduleNextScan(delayMs = 0) {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #666666;
+  color: var(--color-text-muted);
 }
 
 .quick-attendance__title,
 .quick-attendance__panel-title {
   margin: 0;
   font-size: clamp(24px, 4vw, 34px);
-  line-height: 1.02;
+  line-height: 1.05;
   letter-spacing: -0.04em;
+  color: var(--color-text-primary);
 }
 
 .quick-attendance__subtitle {
@@ -768,7 +788,7 @@ function scheduleNextScan(delayMs = 0) {
   max-width: 620px;
   font-size: 14px;
   line-height: 1.5;
-  color: #444444;
+  color: var(--color-text-secondary);
 }
 
 .quick-attendance__steps {
@@ -778,22 +798,24 @@ function scheduleNextScan(delayMs = 0) {
 }
 
 .quick-attendance__step {
-  border-radius: 22px;
-  padding: 16px;
+  border-radius: 24px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .quick-attendance__step strong {
-  font-size: 13px;
+  font-size: 14px;
+  color: var(--color-text-primary);
 }
 
 .quick-attendance__step span,
 .quick-attendance__panel-meta {
   font-size: 13px;
   line-height: 1.45;
-  color: #4b4b4b;
+  color: var(--color-text-secondary);
 }
 
 .quick-attendance__layout {
@@ -805,7 +827,7 @@ function scheduleNextScan(delayMs = 0) {
 .quick-attendance__panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .quick-attendance__panel-header {
@@ -827,8 +849,9 @@ function scheduleNextScan(delayMs = 0) {
 .quick-attendance__empty,
 .quick-attendance__cooldowns,
 .quick-attendance__scanner-card {
-  border-radius: 22px;
-  padding: 16px;
+  border-radius: 24px;
+  padding: 18px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .quick-attendance__event-card {
@@ -836,18 +859,26 @@ function scheduleNextScan(delayMs = 0) {
   flex-direction: column;
   gap: 10px;
   text-align: left;
+  cursor: pointer;
+}
+
+.quick-attendance__event-card:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .quick-attendance__event-card--selected {
-  background: #111111;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary-dark);
 }
 
 .quick-attendance__event-card--selected .quick-attendance__event-school,
 .quick-attendance__event-card--selected .quick-attendance__event-location,
 .quick-attendance__event-card--selected .quick-attendance__event-meta,
 .quick-attendance__event-card--selected .quick-attendance__event-scope {
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--color-primary-text);
+  opacity: 0.85;
 }
 
 .quick-attendance__event-top,
@@ -864,7 +895,7 @@ function scheduleNextScan(delayMs = 0) {
   align-items: center;
   justify-content: center;
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid currentColor;
   font-size: 11px;
@@ -882,8 +913,8 @@ function scheduleNextScan(delayMs = 0) {
 .quick-attendance__scanner-meta span {
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
-  color: #4b4b4b;
+  line-height: 1.5;
+  color: var(--color-surface-text-secondary);
 }
 
 .quick-attendance__event-meta,
@@ -909,10 +940,34 @@ function scheduleNextScan(delayMs = 0) {
 .quick-attendance__camera-shell {
   position: relative;
   overflow: hidden;
-  border-radius: 22px;
-  border: 1px solid #111111;
-  background: #0f0f0f;
+  border-radius: 24px;
+  border: 2px solid transparent;
+  background: var(--aura-mesh-primary);
+  background-size: 200% 200%;
+  animation: bg-shift 12s ease infinite;
   min-height: 280px;
+  box-shadow: inset 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.quick-attendance__camera-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  border: 1px solid var(--aura-iridescent-border);
+  mask-image: linear-gradient(#fff 0 0), linear-gradient(#fff 0 0);
+  -webkit-mask-image: linear-gradient(#fff 0 0), linear-gradient(#fff 0 0);
+  -webkit-mask-clip: padding-box, border-box;
+  mask-clip: padding-box, border-box;
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@keyframes bg-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .quick-attendance__camera {
@@ -920,6 +975,7 @@ function scheduleNextScan(delayMs = 0) {
   min-height: 280px;
   object-fit: cover;
   display: block;
+  border-radius: 22px;
 }
 
 .quick-attendance__camera-placeholder {
@@ -929,17 +985,20 @@ function scheduleNextScan(delayMs = 0) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   padding: 24px;
   text-align: center;
-  color: #f6f6f6;
+  color: var(--color-surface-text);
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .quick-attendance__camera-placeholder p {
   margin: 0;
   max-width: 280px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
+  font-weight: 600;
 }
 
 .quick-attendance__canvas {
@@ -950,26 +1009,26 @@ function scheduleNextScan(delayMs = 0) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: 48px;
   border-radius: 16px;
-  padding: 0 14px;
-  font-size: 13px;
+  padding: 0 16px;
+  font-size: 13.5px;
   font-weight: 700;
 }
 
 .quick-attendance__status--info {
-  background: #f3f3f3;
-  color: #111111;
+  background: var(--color-field-surface);
+  color: var(--color-text-primary);
 }
 
 .quick-attendance__status--success {
-  background: #111111;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .quick-attendance__status--error {
-  background: #fff0f0;
-  color: #8a2020;
+  background: rgba(230, 0, 0, 0.08);
+  color: #cc0000;
 }
 
 .quick-attendance__metrics {
@@ -980,43 +1039,48 @@ function scheduleNextScan(delayMs = 0) {
 
 .quick-attendance__metric {
   border-radius: 18px;
-  border: 1px solid #111111;
-  padding: 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-surface-border);
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .quick-attendance__metric span {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #707070;
+  color: var(--color-text-muted);
 }
 
 .quick-attendance__metric strong {
-  font-size: 14px;
+  font-size: 15px;
+  color: var(--color-text-primary);
 }
 
 .quick-attendance__outcome--success {
-  background: #111111;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary-dark);
 }
 
 .quick-attendance__outcome--success p,
 .quick-attendance__outcome--success small,
 .quick-attendance__outcome--success .quick-attendance__outcome-meta,
 .quick-attendance__outcome--success .quick-attendance__outcome-top span {
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--color-primary-text);
+  opacity: 0.85;
 }
 
 .quick-attendance__outcome--error {
-  background: #fff2f2;
+  background: rgba(230, 0, 0, 0.08);
+  border-color: rgba(230, 0, 0, 0.15);
 }
 
 .quick-attendance__outcome--info {
-  background: #f8f8f8;
+  background: var(--color-field-surface);
 }
 
 .quick-attendance__cooldowns {
@@ -1035,7 +1099,9 @@ function scheduleNextScan(delayMs = 0) {
   min-height: 34px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid #111111;
+  background: var(--color-field-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-surface-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1082,8 +1148,8 @@ function scheduleNextScan(delayMs = 0) {
 
   .quick-attendance__header,
   .quick-attendance__panel {
-    border-radius: 22px;
-    padding: 14px;
+    border-radius: 24px;
+    padding: 16px;
   }
 
   .quick-attendance__camera-shell,

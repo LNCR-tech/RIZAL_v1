@@ -2,10 +2,13 @@
   <div class="events-page">
     
     <!-- ── Header ─────────────────────────────────────────────────────── -->
-    <TopBar
+    <StandardHeader
       class="dashboard-enter dashboard-enter--1"
-      :user="activeUser"
-      :unread-count="activeUnreadAnnouncements"
+      :avatar-url="activeUser?.avatar_url || activeUser?.student_profile?.photo_url"
+      :school-name="resolvedSchoolName"
+      :display-name="activeUser?.first_name + ' ' + activeUser?.last_name"
+      :initials="activeUser?.first_name?.[0] + activeUser?.last_name?.[0]"
+      @logout="handleLogout"
       @toggle-notifications="showNotifications = !showNotifications"
     />
 
@@ -56,10 +59,12 @@
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EventCard from '@/components/desktop/dashboard/EventCard.vue'
-import TopBar from '@/components/desktop/dashboard/TopBar.vue'
+import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
 
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { useAuth } from '@/composables/useAuth.js'
+
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { getEventTimeStatus, resolveApiBaseUrl } from '@/services/backendApi.js'
 import { resolveAttendanceActionState, resolveEventLifecycleStatus } from '@/services/attendanceFlow.js'
@@ -90,7 +95,15 @@ const route = useRoute()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
 const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
-const activeUnreadAnnouncements = computed(() => props.preview ? 0 : unreadAnnouncements.value)
+const activeUnreadAnnouncements = computed(() => props.preview ? 3 : unreadAnnouncements.value)
+
+const resolvedSchoolName = computed(() => {
+  return activeSchoolSettings.value?.school_name || activeUser.value?.school_name || 'University Name'
+})
+
+async function handleLogout() {
+  await logout()
+}
 const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : null)
 const apiBaseUrl = resolveApiBaseUrl()
 const eventTimeStatuses = ref({})
@@ -104,15 +117,13 @@ const schoolEvents = computed(() => {
   const schoolId = Number(activeUser.value?.school_id)
   return activeEvents.value.filter((event) => !Number.isFinite(schoolId) || Number(event?.school_id) === schoolId)
 })
-const filters = [
-  { id: 'all', label: 'All' },
-  { id: 'ongoing', label: 'On Going' },
-  { id: 'upcoming', label: 'Upcoming' },
-  { id: 'completed', label: 'Done' },
-  { id: 'maps', label: 'Calendar & Maps', variant: 'outline' }, // Placeholder for future feature
-]
-
 const activeFilter = ref('all')
+const filters = ref([
+  { id: 'all', label: 'All Activities' },
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'past', label: 'Past Events' },
+  { id: 'calendar', label: 'Month View', variant: 'outline' },
+])
 
 const statusRank = {
   ongoing: 0,
@@ -321,6 +332,9 @@ onMounted(() => {
   min-height: 100vh;
   padding: 28px 22px 100px; /* Bottom padding for mobile nav */
   background: var(--color-bg);
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Page Title & Content ────────────────────────────────────────── */

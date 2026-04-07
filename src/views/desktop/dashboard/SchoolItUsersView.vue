@@ -16,278 +16,257 @@
       <div class="school-it-users__body">
         <h1 class="school-it-users__title dashboard-enter dashboard-enter--2">Students</h1>
 
-        <section class="school-it-users__search dashboard-enter dashboard-enter--3">
-            <div class="school-it-users__search-row">
-              <div class="school-it-users__search-wrap">
-                <div class="school-it-users__search-shell" :class="{ 'school-it-users__search-shell--open': searchActive }">
-                <div class="school-it-users__search-input-row">
-                  <input
+        <div class="school-it-users__layout">
+          <div class="school-it-users__main">
+            <section class="school-it-users__search dashboard-enter dashboard-enter--3">
+              <div class="school-it-users__search-row">
+                <div class="school-it-users__search-wrap">
+                  <AuraSearch
                     v-model="searchQuery"
-                    v-bind="schoolSearchInputAttrs"
-                    type="text"
                     placeholder="Search school data"
-                    class="school-it-users__search-input"
-                  >
-                  <button class="school-it-users__search-icon" type="button" aria-label="Search">
-                    <Search :size="18" />
-                  </button>
+                    :results="searchResults"
+                    @select="openSearchResult"
+                  />
                 </div>
 
-                <div class="school-it-users__search-results">
-                  <div class="school-it-users__search-results-inner">
-                    <template v-if="searchActive">
+              <button
+                v-show="!searchActive && !isAddCollegeOpen"
+                class="school-it-users__add-college-pill"
+                type="button"
+                aria-label="Add College"
+                :aria-expanded="isAddCollegeOpen ? 'true' : 'false'"
+                aria-controls="school-it-users-college-panel"
+                @click="openAddCollegePanel"
+              >
+                <Plus :size="18" :stroke-width="2.4" />
+                <span class="school-it-users__add-college-copy">Add<br>College</span>
+              </button>
+            </div>
+
+            <Transition
+              name="school-it-users-college-panel"
+              @before-enter="onCollegePanelBeforeEnter"
+              @enter="onCollegePanelEnter"
+              @after-enter="onCollegePanelAfterEnter"
+              @before-leave="onCollegePanelBeforeLeave"
+              @leave="onCollegePanelLeave"
+              @after-leave="onCollegePanelAfterLeave"
+            >
+              <div
+                v-if="isAddCollegeOpen && !searchActive"
+                id="school-it-users-college-panel"
+                class="school-it-users__college-panel"
+                role="region"
+                :aria-label="collegePanelAriaLabel"
+              >
+                <div class="school-it-users__college-panel-inner">
+                  <div class="school-it-users__college-shell">
+                    <div class="school-it-users__college-header">
                       <button
-                        v-for="result in searchResults"
-                        :key="result.key"
-                        class="school-it-users__search-result"
+                        class="school-it-users__college-close"
                         type="button"
-                        @click="openSearchResult(result)"
+                        aria-label="Close college panel"
+                        @click="closeAddCollegePanel"
                       >
-                        <div class="school-it-users__search-result-top">
-                          <span class="school-it-users__search-result-name">{{ result.name }}</span>
-                          <span class="school-it-users__search-result-type">{{ result.type }}</span>
-                        </div>
-                        <span class="school-it-users__search-result-meta">{{ result.meta }}</span>
+                        <X :size="18" :stroke-width="2.4" />
                       </button>
-                      <p v-if="!searchResults.length" class="school-it-users__empty">No matching colleges found.</p>
-                    </template>
-                  </div>
-                </div>
-                </div>
-              </div>
-
-            <button
-              v-show="!searchActive && !isAddCollegeOpen"
-              class="school-it-users__add-college-pill"
-              type="button"
-              aria-label="Add College"
-              :aria-expanded="isAddCollegeOpen ? 'true' : 'false'"
-              aria-controls="school-it-users-college-panel"
-              @click="openAddCollegePanel"
-            >
-              <Plus :size="18" :stroke-width="2.4" />
-              <span class="school-it-users__add-college-copy">Add<br>College</span>
-            </button>
-          </div>
-
-          <Transition
-            name="school-it-users-college-panel"
-            @before-enter="onCollegePanelBeforeEnter"
-            @enter="onCollegePanelEnter"
-            @after-enter="onCollegePanelAfterEnter"
-            @before-leave="onCollegePanelBeforeLeave"
-            @leave="onCollegePanelLeave"
-            @after-leave="onCollegePanelAfterLeave"
-          >
-            <div
-              v-if="isAddCollegeOpen && !searchActive"
-              id="school-it-users-college-panel"
-              class="school-it-users__college-panel"
-              role="region"
-              :aria-label="collegePanelAriaLabel"
-            >
-              <div class="school-it-users__college-panel-inner">
-                <div class="school-it-users__college-shell">
-                  <div class="school-it-users__college-header">
-                    <button
-                      class="school-it-users__college-close"
-                      type="button"
-                      aria-label="Close college panel"
-                      @click="closeAddCollegePanel"
-                    >
-                      <X :size="18" :stroke-width="2.4" />
-                    </button>
-                    <span class="school-it-users__college-title">{{ collegePanelTitle }}</span>
-                  </div>
-
-                  <div class="school-it-users__college-form">
-                    <div class="school-it-users__college-input-shell">
-                      <input
-                        ref="collegeInputEl"
-                        v-model="collegeDraftName"
-                        class="school-it-users__college-input"
-                        type="text"
-                        placeholder="e.g., College of Engineering"
-                        :disabled="isSavingCollege"
-                        @keyup.enter="submitCollege"
-                      >
+                      <span class="school-it-users__college-title">{{ collegePanelTitle }}</span>
                     </div>
 
-                    <button
-                      class="school-it-users__college-submit"
-                      type="button"
-                      :disabled="collegeSubmitDisabled"
-                      @click="submitCollege"
-                    >
-                      {{ collegeSubmitLabel }}
-                    </button>
-                  </div>
+                    <div class="school-it-users__college-form">
+                      <div class="school-it-users__college-input-shell">
+                        <input
+                          ref="collegeInputEl"
+                          v-model="collegeDraftName"
+                          class="school-it-users__college-input"
+                          type="text"
+                          placeholder="e.g., College of Engineering"
+                          :disabled="isSavingCollege"
+                          @keyup.enter="submitCollege"
+                        >
+                      </div>
 
-                  <p
-                    v-if="collegePanelMessage"
-                    class="school-it-users__college-message"
-                    :class="{ 'school-it-users__college-message--error': collegePanelError }"
-                  >
-                    {{ collegePanelMessage }}
-                  </p>
+                      <button
+                        class="school-it-users__college-submit"
+                        type="button"
+                        :disabled="collegeSubmitDisabled"
+                        @click="submitCollege"
+                      >
+                        {{ collegeSubmitLabel }}
+                      </button>
+                    </div>
+
+                    <p
+                      v-if="collegePanelMessage"
+                      class="school-it-users__college-message"
+                      :class="{ 'school-it-users__college-message--error': collegePanelError }"
+                    >
+                      {{ collegePanelMessage }}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Transition>
-        </section>
+            </Transition>
+          </section>
 
-        <section class="school-it-users__overview dashboard-enter dashboard-enter--4">
-          <article
-            v-for="card in overviewCards"
-            :key="card.id"
-            class="school-it-users__hero-card"
-            :class="[
-              card.variant === 'primary'
-                ? 'school-it-users__hero-card--primary'
-                : 'school-it-users__hero-card--surface',
-            ]"
-          >
-            <div class="school-it-users__hero-card-copy">
-              <h2 class="school-it-users__overview-title" v-html="card.titleHtml" />
-              <span v-if="card.meta" class="school-it-users__overview-meta">{{ card.meta }}</span>
-            </div>
-
-            <button
-              class="school-it-users__hero-card-pill"
-              :class="{
-                'school-it-users__hero-card-pill--surface': card.variant === 'primary',
-              }"
-              type="button"
-              @click="handleOverviewAction(card)"
+          <section v-if="departmentCards.length" class="school-it-users__department-list">
+            <div
+              v-for="(department, index) in departmentCards"
+              :key="department.id"
+              class="school-it-users__department-swipe dashboard-enter"
+              :class="[
+                `dashboard-enter--${Math.min(index + 6, 9)}`,
+                { 'school-it-users__department-swipe--open': isDepartmentSwipeOpen(department.id) },
+              ]"
             >
-              <span class="school-it-users__hero-card-pill-icon">
-                <ArrowRight :size="18" />
-              </span>
-              {{ card.actionLabel }}
-            </button>
-          </article>
-        </section>
-
-        <section
-          class="school-it-users__alert dashboard-enter dashboard-enter--5"
-        >
-          <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
-            <h2
-              class="school-it-users__alert-org-name"
-              :class="{ 'school-it-users__alert-org-name--placeholder': !hasStudentCouncilAssigned }"
-            >
-              {{ studentCouncilEntryText }}
-            </h2>
-          </div>
-
-          <button
-            class="school-it-users__action-pill"
-            type="button"
-            @click="openCouncilManagement"
-          >
-            <span class="school-it-users__action-pill-icon">
-              <ArrowRight :size="18" />
-            </span>
-            Manage
-          </button>
-        </section>
-
-        <section class="school-it-users__alert dashboard-enter dashboard-enter--5">
-          <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
-            <h2 class="school-it-users__alert-org-name school-it-users__alert-org-name--placeholder">
-              Unassigned<br>Students
-            </h2>
-          </div>
-
-          <button
-            class="school-it-users__action-pill"
-            type="button"
-            @click="openUnassignedStudents"
-          >
-            <span class="school-it-users__action-pill-icon">
-              <ArrowRight :size="18" />
-            </span>
-            Manage
-          </button>
-        </section>
-
-        <section v-if="departmentCards.length" class="school-it-users__department-list">
-          <div
-            v-for="(department, index) in departmentCards"
-            :key="department.id"
-            class="school-it-users__department-swipe dashboard-enter"
-            :class="[
-              `dashboard-enter--${Math.min(index + 6, 9)}`,
-              { 'school-it-users__department-swipe--open': isDepartmentSwipeOpen(department.id) },
-            ]"
-          >
-            <div class="school-it-users__department-actions" aria-hidden="true">
-              <button
-                class="school-it-users__department-action school-it-users__department-action--delete"
-                type="button"
-                :disabled="isSavingCollege"
-                aria-label="Delete college"
-                @click.stop="deleteCollege(department)"
-              >
-                <Trash2 :size="18" />
-              </button>
-
-              <button
-                class="school-it-users__department-action school-it-users__department-action--edit"
-                type="button"
-                :disabled="isSavingCollege"
-                aria-label="Edit college"
-                @click.stop="openEditCollegePanel(department)"
-              >
-                <Pencil :size="18" />
-              </button>
-            </div>
-
-            <article
-              class="school-it-users__department-card"
-              :style="getDepartmentSwipeStyle(department.id)"
-              @click.capture="handleDepartmentCardClick(department.id, $event)"
-              @pointerdown="onDepartmentPointerDown(department.id, $event)"
-              @pointermove="onDepartmentPointerMove(department.id, $event)"
-              @pointerup="onDepartmentPointerEnd(department.id, $event)"
-              @pointercancel="onDepartmentPointerCancel(department.id, $event)"
-              @lostpointercapture="onDepartmentPointerCancel(department.id, $event)"
-            >
-              <div class="school-it-users__department-main">
-                <h2 class="school-it-users__department-title">{{ department.name }}</h2>
+              <div class="school-it-users__department-actions" aria-hidden="true">
                 <button
-                  class="school-it-users__action-pill school-it-users__action-pill--inline"
+                  class="school-it-users__department-action school-it-users__department-action--delete"
                   type="button"
-                  @pointerdown.stop
-                  @click.stop="openDepartment(department)"
+                  :disabled="isSavingCollege"
+                  aria-label="Delete college"
+                  @click.stop="deleteCollege(department)"
                 >
-                  <span class="school-it-users__action-pill-icon">
-                    <ArrowRight :size="18" />
-                  </span>
-                  View
+                  <Trash2 :size="18" />
+                </button>
+
+                <button
+                  class="school-it-users__department-action school-it-users__department-action--edit"
+                  type="button"
+                  :disabled="isSavingCollege"
+                  aria-label="Edit college"
+                  @click.stop="openEditCollegePanel(department)"
+                >
+                  <Pencil :size="18" />
                 </button>
               </div>
 
-              <div class="school-it-users__department-panel">
-                <p class="school-it-users__department-label">Programs:</p>
-                <ul v-if="department.programs.length" class="school-it-users__program-list">
-                  <li
-                    v-for="program in department.programs"
-                    :key="program.id"
-                    class="school-it-users__program-item"
+              <article
+                class="school-it-users__department-card"
+                :style="getDepartmentSwipeStyle(department.id)"
+                @click.capture="handleDepartmentCardClick(department.id, $event)"
+                @pointerdown="onDepartmentPointerDown(department.id, $event)"
+                @pointermove="onDepartmentPointerMove(department.id, $event)"
+                @pointerup="onDepartmentPointerEnd(department.id, $event)"
+                @pointercancel="onDepartmentPointerCancel(department.id, $event)"
+                @lostpointercapture="onDepartmentPointerCancel(department.id, $event)"
+              >
+                <div class="school-it-users__department-main">
+                  <h2 class="school-it-users__department-title">{{ department.name }}</h2>
+                  <button
+                    class="school-it-users__action-pill school-it-users__action-pill--inline"
+                    type="button"
+                    @pointerdown.stop
+                    @click.stop="openDepartment(department)"
                   >
-                    {{ program.name }}
-                  </li>
-                </ul>
-                <p v-else class="school-it-users__program-empty">No programs yet.</p>
-              </div>
-            </article>
-          </div>
-        </section>
+                    <span class="school-it-users__action-pill-icon">
+                      <ArrowRight :size="18" />
+                    </span>
+                    View
+                  </button>
+                </div>
 
-        <p v-else class="school-it-users__department-empty dashboard-enter dashboard-enter--6">
-          {{ departmentEmptyMessage }}
-        </p>
+                <div class="school-it-users__department-panel">
+                  <p class="school-it-users__department-label">Programs:</p>
+                  <ul v-if="department.programs.length" class="school-it-users__program-list">
+                    <li
+                      v-for="program in department.programs"
+                      :key="program.id"
+                      class="school-it-users__program-item"
+                    >
+                      {{ program.name }}
+                    </li>
+                  </ul>
+                  <p v-else class="school-it-users__program-empty">No programs yet.</p>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <p v-else class="school-it-users__department-empty dashboard-enter dashboard-enter--6">
+            {{ departmentEmptyMessage }}
+          </p>
+        </div>
+
+        <aside class="school-it-users__side">
+          <section class="school-it-users__overview dashboard-enter dashboard-enter--4">
+            <article
+              v-for="card in overviewCards"
+              :key="card.id"
+              class="school-it-users__hero-card"
+              :class="[
+                card.variant === 'primary'
+                  ? 'school-it-users__hero-card--primary'
+                  : 'school-it-users__hero-card--surface',
+              ]"
+            >
+              <div class="school-it-users__hero-card-copy">
+                <h2 class="school-it-users__overview-title" v-html="card.titleHtml" />
+                <span v-if="card.meta" class="school-it-users__overview-meta">{{ card.meta }}</span>
+              </div>
+
+              <button
+                class="school-it-users__hero-card-pill"
+                :class="{
+                  'school-it-users__hero-card-pill--surface': card.variant === 'primary',
+                }"
+                type="button"
+                @click="handleOverviewAction(card)"
+              >
+                <span class="school-it-users__hero-card-pill-icon">
+                  <ArrowRight :size="18" />
+                </span>
+                {{ card.actionLabel }}
+              </button>
+            </article>
+          </section>
+
+          <div class="school-it-users__alerts">
+            <section
+              class="school-it-users__alert dashboard-enter dashboard-enter--5"
+            >
+              <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
+                <h2
+                  class="school-it-users__alert-org-name"
+                  :class="{ 'school-it-users__alert-org-name--placeholder': !hasStudentCouncilAssigned }"
+                >
+                  {{ studentCouncilEntryText }}
+                </h2>
+              </div>
+
+              <button
+                class="school-it-users__action-pill"
+                type="button"
+                @click="openCouncilManagement"
+              >
+                <span class="school-it-users__action-pill-icon">
+                  <ArrowRight :size="18" />
+                </span>
+                Manage
+              </button>
+            </section>
+
+            <section class="school-it-users__alert dashboard-enter dashboard-enter--5">
+              <div class="school-it-users__alert-copy school-it-users__alert-copy--management">
+                <h2 class="school-it-users__alert-org-name school-it-users__alert-org-name--placeholder">
+                  Unassigned<br>Students
+                </h2>
+              </div>
+
+              <button
+                class="school-it-users__action-pill"
+                type="button"
+                @click="openUnassignedStudents"
+              >
+                <span class="school-it-users__action-pill-icon">
+                  <ArrowRight :size="18" />
+                </span>
+                Manage
+              </button>
+            </section>
+          </div>
+        </aside>
+      </div>
       </div>
     </div>
   </section>
@@ -296,16 +275,16 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next'
+import { ArrowRight, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
 import Breadcrumbs from '@/components/desktop/dashboard/Breadcrumbs.vue'
+import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useSchoolItWorkspaceData } from '@/composables/useSchoolItWorkspaceData.js'
 import { BackendApiError, createDepartment, deleteDepartment, updateDepartment } from '@/services/backendApi.js'
-import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import {
   createStudentCouncilStorageKey,
   loadStudentCouncilState,
@@ -322,7 +301,6 @@ const props = defineProps({
 
 const router = useRouter()
 const searchQuery = ref('')
-const schoolSearchInputAttrs = createSearchFieldAttrs('school-it-college-search')
 const isAddCollegeOpen = ref(false)
 const collegeInputEl = ref(null)
 const collegeDraftName = ref('')
@@ -1020,115 +998,462 @@ function isDepartmentInteractiveTarget(target) {
 </script>
 
 <style scoped>
-.school-it-users{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
-.school-it-users__shell{width:100%;max-width:1120px;margin:0 auto}
-.school-it-users__body{display:flex;flex-direction:column;gap:18px;margin-top:24px}
-.school-it-users__title{margin:0;font-size:22px;font-weight:800;line-height:1;letter-spacing:-.05em;color:var(--color-text-primary)}
-.school-it-users__search{display:flex;flex-direction:column;gap:10px}
-.school-it-users__search-row{display:flex;align-items:stretch;gap:clamp(8px,3vw,12px)}
-.school-it-users__search-wrap{flex:1;min-width:0}
-.school-it-users__search-shell{display:grid;grid-template-rows:auto 0fr;padding:11px clamp(12px,4vw,16px);border-radius:30px;background:var(--color-surface);transition:grid-template-rows .32s cubic-bezier(.22,1,.36,1),border-radius .32s cubic-bezier(.22,1,.36,1)}
-.school-it-users__search-shell--open{grid-template-rows:auto 1fr;border-radius:28px}
-.school-it-users__search-input-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:clamp(8px,2.5vw,10px);min-height:clamp(38px,10vw,40px)}
-.school-it-users__search-input{flex:1;min-width:0;border:none;background:transparent;outline:none;color:var(--color-text-always-dark);font-size:clamp(13px,3.8vw,14px);font-weight:500}
-.school-it-users__search-input::placeholder{color:var(--color-text-muted)}
-.school-it-users__search-icon{width:clamp(30px,8vw,32px);height:clamp(30px,8vw,32px);padding:0;border:1px solid var(--color-surface-border);border-radius:999px;background:transparent;color:var(--color-primary);display:inline-flex;align-items:center;justify-content:center;line-height:0;appearance:none;flex-shrink:0;place-self:center}
-.school-it-users__search-icon :deep(svg){display:block;width:clamp(15px,4.5vw,18px);height:clamp(15px,4.5vw,18px)}
-.school-it-users__search-results{overflow:hidden;min-height:0}
-.school-it-users__search-results-inner{display:flex;flex-direction:column;gap:10px;padding:14px 0 6px}
-.school-it-users__search-result{width:100%;padding:14px 16px;border:none;border-radius:22px;background:color-mix(in srgb,var(--color-surface) 90%,var(--color-bg));display:flex;flex-direction:column;gap:8px;text-align:left}
-.school-it-users__search-result-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.school-it-users__search-result-name{font-size:14px;font-weight:700;color:var(--color-text-always-dark)}
-.school-it-users__search-result-type{min-height:28px;padding:0 12px;border-radius:999px;background:color-mix(in srgb,var(--color-primary) 18%,white);color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.02em;flex-shrink:0}
-.school-it-users__search-result-meta,.school-it-users__empty{font-size:12px;color:var(--color-text-muted)}
-.school-it-users__add-college-pill{width:clamp(118px,31vw,134px);min-height:clamp(56px,15vw,60px);padding:0 clamp(14px,4vw,16px);border:none;border-radius:999px;background:var(--color-search-pill-bg);color:var(--color-search-pill-text);display:inline-flex;align-items:center;justify-content:center;gap:clamp(8px,2.8vw,10px);flex-shrink:0;transition:opacity .2s ease,transform .22s ease,box-shadow .28s ease,filter .22s ease}
-.school-it-users__add-college-pill:hover{filter:brightness(1.06);transform:translateY(-1px)}
-.school-it-users__add-college-pill:active{transform:scale(.96)}
-.school-it-users__add-college-copy{font-size:clamp(12px,3.4vw,13px);font-weight:700;line-height:.98;text-align:left}
-.school-it-users__college-panel{overflow:hidden;transform-origin:top center}
-.school-it-users__college-panel-inner{overflow:hidden}
-.school-it-users__college-shell{display:flex;flex-direction:column;gap:20px;padding:18px clamp(18px,5vw,24px) 22px;border-radius:34px;background:var(--color-primary);color:var(--color-banner-text);box-shadow:0 18px 36px rgba(0,0,0,.12)}
-.school-it-users__college-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.school-it-users__college-close{width:34px;height:34px;border:none;border-radius:999px;background:transparent;color:var(--color-banner-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-users__college-title{font-size:clamp(17px,4.6vw,20px);font-weight:700;line-height:1;color:var(--color-banner-text)}
-.school-it-users__college-form{display:flex;flex-direction:column;gap:18px}
-.school-it-users__college-input-shell{min-height:64px;padding:0 22px;border-radius:999px;background:var(--color-surface);display:flex;align-items:center}
-.school-it-users__college-input{width:100%;border:none;background:transparent;outline:none;font-size:14px;font-weight:500;color:var(--color-text-always-dark)}
-.school-it-users__college-input::placeholder{color:var(--color-text-muted)}
-.school-it-users__college-submit{width:min(100%,144px);min-height:54px;margin:0 auto;border:1.4px solid color-mix(in srgb,var(--color-text-always-dark) 24%, transparent);border-radius:999px;background:transparent;color:var(--color-text-always-dark);font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;transition:transform .18s ease,background .2s ease}
-.school-it-users__college-submit:disabled{opacity:.5;cursor:not-allowed}
-.school-it-users__college-submit:not(:disabled):active{transform:scale(.97)}
-.school-it-users__college-message{margin:0;font-size:13px;font-weight:600;line-height:1.35;color:var(--color-banner-text)}
-.school-it-users__college-message--error{color:#7A130E}
-.school-it-users__overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.school-it-users__hero-card{position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:188px;padding:26px 22px 20px;border-radius:32px;overflow:hidden}
-.school-it-users__hero-card--primary{background:var(--color-primary);color:var(--color-banner-text)}
-.school-it-users__hero-card--surface{background:var(--color-surface);color:var(--color-text-always-dark)}
-.school-it-users__hero-card-copy{display:flex;flex-direction:column;gap:10px;min-width:0}
-.school-it-users__overview-title{margin:0;font-size:clamp(24px,8vw,44px);line-height:.92;letter-spacing:-.06em;font-weight:700}
-.school-it-users__overview-meta{font-size:12px;font-weight:700;line-height:1;color:var(--color-primary)}
-.school-it-users__hero-card-pill{width:fit-content;min-height:52px;padding:0 18px 0 6px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;gap:12px;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
-.school-it-users__hero-card-pill--surface{background:var(--color-surface);color:var(--color-text-always-dark)}
-.school-it-users__hero-card-pill-icon{width:40px;height:40px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-users__alert{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:24px 22px;min-height:124px;border-radius:28px;background:var(--color-surface)}
-.school-it-users__alert-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
-.school-it-users__alert-copy--management{gap:0;max-width:none;align-items:flex-start;justify-self:stretch;text-align:left}
-.school-it-users__alert-org-name{margin:0;max-width:11ch;font-size:clamp(24px,7.2vw,40px);line-height:.94;letter-spacing:-.06em;font-weight:700;color:var(--color-text-always-dark);text-align:left}
-.school-it-users__alert-org-name--placeholder{color:var(--color-primary)}
-.school-it-users__alert-kicker{margin:0;font-size:clamp(18px,5vw,28px);line-height:1;font-weight:800;letter-spacing:-.05em;color:#FF2D20}
-.school-it-users__alert-message{margin:0;max-width:16ch;font-size:15px;line-height:1.05;color:var(--color-text-always-dark)}
-.school-it-users__action-pill{width:fit-content;min-height:52px;padding:0 18px 0 6px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;gap:12px;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;flex-shrink:0;cursor:pointer;transition:transform 0.2s ease, filter 0.2s ease}
-.school-it-users__action-pill:hover{filter:brightness(1.08)}
-.school-it-users__action-pill:active{transform:scale(0.96)}
-.school-it-users__action-pill--inline{min-height:54px;padding-right:18px;font-size:13px}
-.school-it-users__action-pill-icon{width:40px;height:40px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-users__department-list{display:flex;flex-direction:column;gap:18px}
-.school-it-users__department-empty{margin:0;padding:10px 6px;font-size:15px;font-weight:600;line-height:1.35;color:var(--color-text-muted);text-align:center}
-.school-it-users__department-swipe{position:relative;border-radius:32px;overflow:hidden;touch-action:pan-y}
-.school-it-users__department-swipe--open .school-it-users__department-actions{pointer-events:auto}
-.school-it-users__department-swipe--open .school-it-users__department-action{opacity:1;transform:translateX(0)}
-.school-it-users__department-actions{position:absolute;inset:0 0 0 auto;width:70px;padding:10px 4px 10px 0;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:10px;pointer-events:none}
-.school-it-users__department-action{width:54px;min-height:74px;border:1px solid color-mix(in srgb,var(--color-text-muted) 22%, transparent);border-radius:999px;background:color-mix(in srgb,var(--color-surface) 92%,var(--color-bg));color:var(--color-text-always-dark);display:inline-flex;align-items:center;justify-content:center;opacity:.72;transform:translateX(8px);transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .24s ease,background-color .24s ease,border-color .24s ease}
-.school-it-users__department-action:disabled{opacity:.5;cursor:not-allowed}
-.school-it-users__department-action:active{transform:scale(.96)}
-.school-it-users__department-action--delete{min-height:88px;color:#FF3B30;border-color:color-mix(in srgb,#FF3B30 48%, transparent)}
-.school-it-users__department-action--edit{min-height:72px}
-.school-it-users__department-card{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(122px,.8fr);gap:8px;padding:8px;border-radius:32px;background:var(--color-surface);transform:translate3d(calc(var(--department-swipe-offset, 0px) * -1),0,0);transition:transform .42s cubic-bezier(.22,1,.36,1)}
-.school-it-users__department-main{display:flex;flex-direction:column;justify-content:space-between;min-height:194px;padding:20px 14px 14px}
-.school-it-users__department-title{margin:0;max-width:8.6ch;font-size:clamp(26px,7.4vw,52px);line-height:.92;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
-.school-it-users__department-panel{display:flex;flex-direction:column;gap:10px;padding:22px 16px;border-radius:24px;background:color-mix(in srgb,var(--color-surface) 88%,var(--color-bg))}
-.school-it-users__department-label{margin:0;font-size:12px;font-weight:700;line-height:1.1;color:var(--color-primary)}
-.school-it-users__program-list{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
-.school-it-users__program-item{font-size:14px;line-height:1.15;color:var(--color-text-always-dark)}
-.school-it-users__program-empty{margin:0;font-size:13px;line-height:1.3;color:var(--color-text-muted)}
-@media (min-width:768px){
-  .school-it-users{padding:40px 36px 56px}
-  .school-it-users__body{margin-top:30px;gap:22px}
-  .school-it-users__title{font-size:28px}
-  .school-it-users__search-row,.school-it-users__college-panel{max-width:780px}
-  .school-it-users__overview{max-width:780px}
-  .school-it-users__alert{max-width:780px;padding:28px 26px}
-  .school-it-users__department-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.school-it-users {
+  min-height: 100vh;
+  padding: 80px 28px 120px;
+  font-family: 'Manrope', sans-serif;
+  background: var(--color-bg);
 }
 
-@media (max-width:767px){
-  .school-it-users__department-actions{width:66px;padding-right:2px}
-  .school-it-users__department-action{width:50px}
-  .school-it-users__department-action--delete{min-height:84px}
-  .school-it-users__department-action--edit{min-height:68px}
-  .school-it-users__department-card{grid-template-columns:minmax(0,1.12fr) minmax(110px,.72fr);gap:6px;padding:6px}
-  .school-it-users__department-main{min-height:180px;padding:18px 12px 12px}
-  .school-it-users__department-title{max-width:8.2ch;font-size:clamp(22px,8.2vw,34px)}
-  .school-it-users__department-panel{gap:8px;padding:18px 14px;border-radius:22px}
-  .school-it-users__program-item{font-size:12px;line-height:1.12}
-}
-
-@media (prefers-reduced-motion:reduce){
-  .school-it-users__add-college-pill,.school-it-users__college-submit,.school-it-users__department-action,.school-it-users__department-card{transition:none;animation:none}
+.school-it-users__shell {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
 }
 
 .school-it-users__breadcrumbs {
-  margin: 12px 0;
+  margin: 12px 0 24px;
   padding: 0 4px;
+}
+
+.school-it-users__layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.school-it-users__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.school-it-users__title {
+  margin: 0 0 4px;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: var(--color-text-primary);
+}
+
+/* ── Search & Add ── */
+.school-it-users__search {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.school-it-users__search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.school-it-users__search-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.school-it-users__search-results {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.school-it-users__search-results-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0 8px;
+}
+
+.school-it-users__search-result {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-bg));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.school-it-users__search-result:hover {
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+  transform: translateX(4px);
+}
+
+.school-it-users__search-result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.school-it-users__search-result-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-always-dark);
+}
+
+.school-it-users__search-result-type {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 15%, white);
+  color: var(--color-text-always-dark);
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.school-it-users__add-college-pill {
+  width: 128px;
+  min-height: 60px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-search-pill-bg);
+  color: var(--color-search-pill-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+  box-shadow: var(--aura-shadow-soft);
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.school-it-users__add-college-pill:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+
+.school-it-users__add-college-copy {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 0.95;
+  text-align: left;
+}
+
+/* ── Panels ── */
+.school-it-users__college-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 32px;
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+  box-shadow: var(--aura-shadow-premium);
+}
+
+.school-it-users__college-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.school-it-users__college-title {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.school-it-users__college-input-shell {
+  min-height: 58px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+}
+
+.school-it-users__college-submit {
+  min-height: 52px;
+  padding: 0 32px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-always-dark);
+  font-weight: 700;
+  border: none;
+  transition: transform 0.2s ease;
+}
+
+/* ── Hero Cards ── */
+.school-it-users__overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.school-it-users__hero-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px 24px;
+  border-radius: 32px;
+  min-height: 180px;
+  background: var(--color-surface);
+  box-shadow: var(--aura-shadow-soft);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.school-it-users__hero-card:hover {
+  transform: scale(1.02);
+}
+
+.school-it-users__hero-card--primary {
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+}
+
+.school-it-users__overview-title {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+}
+
+.school-it-users__hero-card-pill {
+  width: fit-content;
+  min-height: 48px;
+  padding: 0 16px 0 6px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  border: none;
+}
+
+.school-it-users__hero-card-pill--surface {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.school-it-users__hero-card-pill-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--color-nav);
+  color: var(--color-nav-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Alerts ── */
+.school-it-users__alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.school-it-users__alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  border-radius: 28px;
+  background: var(--aura-glass-bg);
+  border: 1px solid var(--aura-glass-border);
+  backdrop-filter: blur(var(--nav-glass-blur));
+  -webkit-backdrop-filter: blur(var(--nav-glass-blur));
+  box-shadow: var(--aura-shadow-soft);
+}
+
+.school-it-users__alert-org-name {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  color: var(--color-text-always-dark);
+}
+
+.school-it-users__alert-org-name--placeholder {
+  color: var(--color-primary);
+}
+
+.school-it-users__action-pill {
+  min-height: 52px;
+  padding: 0 20px 0 6px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  border: none;
+  transition: transform 0.2s ease;
+}
+
+.school-it-users__action-pill:active {
+  transform: scale(0.96);
+}
+
+.school-it-users__action-pill-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--color-nav);
+  color: var(--color-nav-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Department List ── */
+.school-it-users__department-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.school-it-users__department-swipe {
+  position: relative;
+  border-radius: 32px;
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: var(--aura-shadow-soft);
+  transition: transform 0.3s ease;
+}
+
+.school-it-users__department-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 12px;
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate3d(calc(var(--department-swipe-offset, 0px) * -1), 0, 0);
+}
+
+.school-it-users__department-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 180px;
+  padding: 16px 8px;
+}
+
+.school-it-users__department-title {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  color: var(--color-text-always-dark);
+}
+
+.school-it-users__department-panel {
+  width: 160px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.school-it-users__department-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.school-it-users__program-item {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.school-it-users__department-actions {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 70px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+}
+
+.school-it-users__department-action {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--aura-shadow-soft);
+}
+
+.school-it-users__department-action--delete {
+  color: #ef4444;
+}
+
+/* ── Responsive Customization ── */
+
+@media (min-width: 1024px) {
+  .school-it-users__layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .school-it-users__department-list {
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  }
+
+  .school-it-users__side {
+    position: sticky;
+    top: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .school-it-users__department-swipe:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--aura-shadow-premium);
+  }
+}
+
+@media (max-width: 767px) {
+  .school-it-users {
+    padding: 30px 20px 100px;
+  }
+  
+  .school-it-users__department-title {
+    font-size: 32px;
+  }
+  
+  .school-it-users__department-panel {
+    width: 130px;
+    padding: 16px;
+  }
+
+  .school-it-users__add-college-pill {
+    width: 110px;
+  }
 }
 </style>

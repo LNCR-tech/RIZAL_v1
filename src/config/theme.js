@@ -70,12 +70,12 @@ export const defaultTheme = {
 
 export const unbrandedTheme = {
     ...defaultTheme,
-    primaryColor: '#0A0A0A',
+    primaryColor: '#000000',
     primaryDark: '#000000',
     primaryText: '#FFFFFF',
-    secondaryColor: '#0A0A0A',
+    secondaryColor: '#000000',
     secondaryText: '#FFFFFF',
-    navActiveColor: '#0A0A0A',
+    navActiveColor: '#000000',
 }
 
 function normalizeHexColor(hex, fallback = '#0A0A0A') {

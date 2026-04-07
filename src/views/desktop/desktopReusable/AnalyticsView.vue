@@ -5,10 +5,13 @@
     </div>
 
     <div class="analytics-desktop hidden md:block">
-      <TopBar
+      <StandardHeader
         class="dashboard-enter dashboard-enter--1"
-        :user="activeUser"
-        :unread-count="activeUnreadAnnouncements"
+        :avatar-url="activeUser?.avatar_url || activeUser?.student_profile?.photo_url"
+        :school-name="resolvedSchoolName"
+        :display-name="activeUser?.first_name + ' ' + activeUser?.last_name"
+        :initials="activeUser?.first_name?.[0] + activeUser?.last_name?.[0]"
+        @logout="handleLogout"
         @toggle-notifications="showNotifications = !showNotifications"
       />
 
@@ -152,10 +155,11 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import TopBar from '@/components/desktop/dashboard/TopBar.vue'
+import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
 import MobileDashboardHome from '@/components/mobile/dashboard/MobileDashboardHome.vue'
 import { surfaceAuraLogo } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useAuth } from '@/composables/useAuth.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import {
@@ -174,15 +178,20 @@ const props = defineProps({
 })
 
 const showNotifications = ref(false)
-const {
-  currentUser,
-  attendanceRecords,
-  unreadAnnouncements,
-} = useDashboardSession()
+const { currentUser, attendanceRecords, unreadAnnouncements, schoolSettings } = useDashboardSession()
+const { logout } = useAuth()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
-const activeUnreadAnnouncements = computed(() => props.preview ? 0 : unreadAnnouncements.value)
-const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : null)
+const activeUnreadAnnouncements = computed(() => props.preview ? 3 : unreadAnnouncements.value)
+
+const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : schoolSettings.value)
+const resolvedSchoolName = computed(() => {
+  return activeSchoolSettings.value?.school_name || activeUser.value?.school_name || 'University Name'
+})
+
+async function handleLogout() {
+  await logout()
+}
 
 usePreviewTheme(() => props.preview, activeSchoolSettings)
 
@@ -386,6 +395,9 @@ function formatShortWeek(start) {
 .analytics-page {
   min-height: 100vh;
   padding: 0;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .analytics-desktop {

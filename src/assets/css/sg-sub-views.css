@@ -42,28 +42,8 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--color-surface);
-  border-radius: 30px;
-  padding: 10px 16px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
 }
 
-.sg-sub-search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  min-width: 0;
-}
-
-.sg-sub-search-input::placeholder {
-  color: var(--color-text-muted);
-  opacity: 0.7;
-}
 
 .sg-sub-action {
   display: flex;

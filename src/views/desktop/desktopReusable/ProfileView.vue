@@ -1,16 +1,7 @@
 <template>
   <div class="profile-page">
 
-    <!-- ── Header ─────────────────────────────────────────────────────── -->
-    <header class="profile-header dashboard-enter dashboard-enter--1">
-      <button class="icon-btn" aria-label="Go back" @click="router.back()">
-        <ArrowLeft :size="18" />
-      </button>
-      <h1 class="profile-header__title">Profile</h1>
-      <button class="icon-btn" aria-label="Settings">
-        <Settings :size="18" />
-      </button>
-    </header>
+
 
     <!-- ── Edit Profile Overlay ──────────────────────────────────────── -->
     <Transition name="edit-slide">
@@ -290,6 +281,8 @@ import {
   Shield, ChevronRight, Bell, Moon
 } from 'lucide-vue-next'
 
+import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
+
 import { defaultTheme, isDarkMode, toggleDarkMode } from '@/config/theme.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useAuth } from '@/composables/useAuth.js'
@@ -305,6 +298,7 @@ const props = defineProps({
 
 // ── Router ───────────────────────────────────────────────────────────
 const router = useRouter()
+const showNotifications = ref(false)
 
 // ── Auth ─────────────────────────────────────────────────────────────
 const { logout } = useAuth()
@@ -627,9 +621,12 @@ async function handleSignOut() {
 /* ── Page shell ──────────────────────────────────────────────────── */
 .profile-page {
   min-height: 100vh;
-  padding: 0 22px 100px;
+  padding: 80px 22px 100px;
   font-family: 'Manrope', sans-serif;
   background: var(--color-bg);
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Header ──────────────────────────────────────────────────────── */
@@ -1149,7 +1146,7 @@ async function handleSignOut() {
 /* ── Desktop layout (md+) ────────────────────────────────────────── */
 @media (min-width: 768px) {
   .profile-page {
-    padding: 0 36px 40px;
+    padding: 100px 36px 40px;
   }
 
   .profile-layout {
@@ -1159,15 +1156,25 @@ async function handleSignOut() {
   }
 
   .profile-left {
-    min-width: 240px;
-    width: 240px;
+    background: var(--color-surface);
+    padding: 36px 24px 32px;
+    border-radius: 24px;
+    box-shadow: var(--aura-shadow-soft);
+    min-width: 280px;
+    width: clamp(280px, 30vw, 320px);
     flex-shrink: 0;
     align-items: center;
   }
 
   .profile-right {
     flex: 1;
-    max-width: 420px;
+    max-width: none;
+  }
+  
+  .action-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
   }
 
   .avatar-wrap {
