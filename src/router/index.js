@@ -417,6 +417,15 @@ const routes = [
                 props: { preview: true },
             },
             {
+                path: 'schedule/:id/attendance',
+                name: 'PreviewAttendance',
+                component: AttendanceView,
+                props: { preview: true },
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
+            {
                 path: 'analytics',
                 name: 'PreviewDashboardAnalytics',
                 component: AnalyticsView,
@@ -437,7 +446,7 @@ const routes = [
         meta: {
             requiresAuth: true,
             allowWithoutFaceEnrollment: true,
-            primaryNavContext: 'dashboard',
+            primaryNavContext: 'sg',
             workspaceContext: 'sg',
         },
         children: [
@@ -487,7 +496,7 @@ const routes = [
         path: '/exposed/sg',
         component: AppLayout,
         meta: {
-            primaryNavContext: 'dashboard_preview',
+            primaryNavContext: 'sg_preview',
             workspaceContext: 'sg_preview',
         },
         children: [
@@ -495,6 +504,48 @@ const routes = [
                 path: '',
                 name: 'PreviewSgDashboard',
                 component: SgDashboardView,
+                props: { preview: true },
+            },
+            {
+                path: 'members',
+                name: 'PreviewSgMembers',
+                component: SgMembersView,
+                props: { preview: true },
+            },
+            {
+                path: 'students',
+                name: 'PreviewSgStudents',
+                component: SgStudentsView,
+                props: { preview: true },
+            },
+            {
+                path: 'announcements',
+                name: 'PreviewSgAnnouncements',
+                component: SgAnnouncementsView,
+                props: { preview: true },
+            },
+            {
+                path: 'create-unit',
+                name: 'PreviewSgCreateUnit',
+                component: SgCreateUnitView,
+                props: { preview: true },
+            },
+            {
+                path: 'events',
+                name: 'PreviewSgEvents',
+                component: SgEventsView,
+                props: { preview: true },
+            },
+            {
+                path: 'events/:id',
+                name: 'PreviewSgEventDetail',
+                component: EventDetailView,
+                props: { preview: true },
+            },
+            {
+                path: 'attendance',
+                name: 'PreviewSgAttendance',
+                component: SgAttendanceView,
                 props: { preview: true },
             },
         ],
@@ -533,6 +584,9 @@ const routes = [
                 path: 'schedule/:id/attendance',
                 name: 'Attendance',
                 component: AttendanceView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
             {
                 path: 'analytics',

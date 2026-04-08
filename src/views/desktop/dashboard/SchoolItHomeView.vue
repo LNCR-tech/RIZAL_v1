@@ -151,11 +151,11 @@
 
             <div class="school-it-home__hero-logo">
               <img
-                v-if="heroLogoSrc && !heroLogoUnavailable"
+                v-if="heroLogoSrc"
+                :key="heroLogoSrc"
                 :src="heroLogoSrc"
                 :alt="`${schoolName} logo`"
                 class="school-it-home__hero-logo-image"
-                @error="handleHeroLogoError"
               >
               <div v-else class="school-it-home__hero-logo-fallback">{{ schoolInitials }}</div>
             </div>
@@ -221,7 +221,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Search, Send } from 'lucide-vue-next'
 import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
@@ -238,7 +238,7 @@ import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
 import { getAttendanceSummary } from '@/services/backendApi.js'
 import { useSchoolItPreviewStore } from '@/composables/useSchoolItPreviewStore.js'
 import { hasPrivilegedPendingFace } from '@/services/localAuth.js'
-import { resolveBackendMediaCandidates, withMediaCacheKey } from '@/services/backendMedia.js'
+import { resolveBackendMediaCandidates, resolveLoadableMediaUrl } from '@/services/backendMedia.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 
@@ -255,12 +255,17 @@ const schoolSearchInputAttrs = createSearchFieldAttrs('school-it-home-search')
 const isAiOpen = ref(false)
 const aiInputEl = ref(null)
 const remoteAttendanceSummary = ref(null)
-const heroLogoUnavailable = ref(false)
-const heroLogoCandidateIndex = ref(0)
-const heroLogoRetryKey = ref(0)
+const heroLogoSrc = ref('')
 
-const { currentUser, schoolSettings, apiBaseUrl, events } = useDashboardSession()
-const { state: previewState } = useSchoolItPreviewStore()
+const {
+  currentUser,
+  schoolSettings,
+  apiBaseUrl,
+  events,
+  token,
+  initializeDashboardSession,
+  refreshSchoolSettings,
+} = useDashboardSession()
 const {
   departments: workspaceDepartments,
   programs: workspacePrograms,
@@ -307,14 +312,6 @@ const rawSchoolLogoCandidates = computed(() => (
 const avatarUrl = computed(() => activeUser.value?.avatar_url || '')
 const heroLogoCandidates = computed(() => (
   resolveBackendMediaCandidates(rawSchoolLogoCandidates.value, apiBaseUrl.value)
-))
-const heroLogoSrc = computed(() => (
-  heroLogoUnavailable.value
-    ? null
-    : withMediaCacheKey(
-      heroLogoCandidates.value[heroLogoCandidateIndex.value] || null,
-      heroLogoRetryKey.value || ''
-    )
 ))
 
 const displayName = computed(() => {
@@ -439,10 +436,24 @@ watch(searchActive, (active) => {
   if (active) isAiOpen.value = false
 })
 
-watch(() => heroLogoCandidates.value.join('|'), () => {
-  heroLogoUnavailable.value = false
-  heroLogoCandidateIndex.value = 0
-  heroLogoRetryKey.value = 0
+watch(
+  () => heroLogoCandidates.value.join('|'),
+  async () => {
+    heroLogoSrc.value = await resolveLoadableMediaUrl(heroLogoCandidates.value)
+  },
+  { immediate: true }
+)
+
+onMounted(async () => {
+  if (props.preview) return
+
+  if (!schoolSettings.value) {
+    await initializeDashboardSession().catch(() => null)
+  }
+
+  if (token.value) {
+    await refreshSchoolSettings().catch(() => null)
+  }
 })
 
 async function loadSchoolItHomeData(resolvedApiBaseUrl) {
@@ -567,20 +578,6 @@ function formatInteger(value) {
 function formatStatusLabel(status) {
   const normalized = String(status || '').trim().toLowerCase()
   return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown'
-}
-
-function handleHeroLogoError() {
-  if (heroLogoCandidateIndex.value < heroLogoCandidates.value.length - 1) {
-    heroLogoCandidateIndex.value += 1
-    return
-  }
-
-  if (!heroLogoRetryKey.value) {
-    heroLogoRetryKey.value = Date.now()
-    return
-  }
-
-  heroLogoUnavailable.value = true
 }
 
 function openSearchResult(result) {

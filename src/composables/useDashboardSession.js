@@ -243,6 +243,10 @@ function hasRole(user, roleName) {
     )
 }
 
+function isStudentUser(user) {
+    return Boolean(user?.student_profile) || hasRole(user, 'student')
+}
+
 function isPrivilegedFaceUser(user) {
     return hasRole(user, 'admin') || hasRole(user, 'school_IT')
 }
@@ -380,13 +384,22 @@ async function fetchDashboardData() {
         }
 
         const shouldLoadPrivilegedFaceStatus = isPrivilegedFaceUser(user)
+        const shouldLoadAttendance = isStudentUser(user)
+        // Some deployments answer optional, role-scoped dashboard endpoints with 401
+        // even though the authenticated session is still valid. Suppress the global
+        // expiry handler for these auxiliary requests so students stay signed in.
+        const auxiliaryRequestOptions = {
+            suppressSessionExpiryHandling: true,
+        }
 
         const [settingsResult, eventsResult, attendanceResult, faceStatusResult] = await Promise.allSettled([
-            getSchoolSettings(state.apiBaseUrl, state.token),
-            getEvents(state.apiBaseUrl, state.token, { limit: 200 }),
-            getMyAttendance(state.apiBaseUrl, state.token, { limit: 200 }),
+            getSchoolSettings(state.apiBaseUrl, state.token, auxiliaryRequestOptions),
+            getEvents(state.apiBaseUrl, state.token, { limit: 200 }, auxiliaryRequestOptions),
+            shouldLoadAttendance
+                ? getMyAttendance(state.apiBaseUrl, state.token, { limit: 200 }, auxiliaryRequestOptions)
+                : Promise.resolve([]),
             shouldLoadPrivilegedFaceStatus
-                ? getFaceStatus(state.apiBaseUrl, state.token)
+                ? getFaceStatus(state.apiBaseUrl, state.token, auxiliaryRequestOptions)
                 : Promise.resolve(null),
         ])
 
@@ -507,6 +520,12 @@ export async function initializeDashboardSession(force = false) {
 
 export async function refreshAttendanceRecords(params = {}) {
     if (!state.token) return []
+    if (!isStudentUser(state.user)) {
+        state.attendanceRecords = []
+        syncUserAttendanceRecords()
+        persistDashboardSnapshot()
+        return state.attendanceRecords
+    }
 
     const records = await getMyAttendance(state.apiBaseUrl, state.token, {
         limit: 200,

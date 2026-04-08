@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 
 const DEFAULT_WEB_API_BASE_URL = '/__backend__'
 const DEFAULT_API_TIMEOUT_MS = 15000
-const DEFAULT_NATIVE_API_BASE_URL = 'https://backend-api-production-32e5.up.railway.app'
+const DEFAULT_IMPORT_API_TIMEOUT_MS = 60000
 
 function getRuntimeConfig() {
   if (typeof window === 'undefined') return {}
@@ -70,7 +70,17 @@ function resolveNativeApiBaseUrl(baseUrl = '') {
     import.meta.env.VITE_API_BASE_URL,
   ])
 
-  return normalizeApiBaseUrl(nativeUrl || DEFAULT_NATIVE_API_BASE_URL)
+  if (nativeUrl) {
+    return normalizeApiBaseUrl(nativeUrl)
+  }
+
+  if (typeof console !== 'undefined') {
+    console.warn(
+      'Aura native API base URL is not configured. Set VITE_NATIVE_API_BASE_URL or VITE_BACKEND_PROXY_TARGET before building Android.'
+    )
+  }
+
+  return normalizeApiBaseUrl(DEFAULT_WEB_API_BASE_URL)
 }
 
 export function resolveApiBaseUrl(baseUrl = '') {
@@ -132,4 +142,24 @@ export function resolveApiTimeoutMs(value = null) {
   }
 
   return DEFAULT_API_TIMEOUT_MS
+}
+
+export function resolveImportApiTimeoutMs(value = null) {
+  const runtimeConfig = getRuntimeConfig()
+  const candidates = [
+    value,
+    runtimeConfig.importApiTimeoutMs,
+    import.meta.env.VITE_IMPORT_API_TIMEOUT_MS,
+    runtimeConfig.apiTimeoutMs,
+    import.meta.env.VITE_API_TIMEOUT_MS,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = Number(candidate)
+    if (Number.isFinite(normalized) && normalized > 0) {
+      return Math.max(DEFAULT_IMPORT_API_TIMEOUT_MS, normalized)
+    }
+  }
+
+  return DEFAULT_IMPORT_API_TIMEOUT_MS
 }

@@ -2,6 +2,7 @@ import {
     isNgrokApiBaseUrl,
     resolveAbsoluteApiBaseUrl,
     resolveApiBaseUrl,
+    resolveImportApiTimeoutMs,
     resolveApiTimeoutMs,
 } from '@/services/backendBaseUrl.js'
 import {
@@ -148,12 +149,13 @@ async function performRequest(baseUrl, path, options = {}) {
     const {
         token,
         params,
+        timeoutMs: timeoutOverride = null,
         headers = {},
         body,
         ...rest
     } = options
 
-    const timeoutMs = resolveApiTimeoutMs()
+    const timeoutMs = resolveApiTimeoutMs(timeoutOverride)
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -370,10 +372,11 @@ export async function deleteProgram(baseUrl, token, programId) {
     return true
 }
 
-export async function getSchoolSettings(baseUrl, token) {
+export async function getSchoolSettings(baseUrl, token, requestOptions = {}) {
     return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me', '/api/school-settings/me', '/school-settings/me'], {
         method: 'GET',
         token,
+        ...requestOptions,
     }, [404, 405]))
 }
 
@@ -423,11 +426,12 @@ export async function updateSchoolBranding(baseUrl, token, payload = {}, logoFil
     }))
 }
 
-export async function getEvents(baseUrl, token, params = {}) {
+export async function getEvents(baseUrl, token, params = {}, requestOptions = {}) {
     const payload = await requestWithFallback(baseUrl, ['/api/events/', '/events/'], {
         method: 'GET',
         token,
         params,
+        ...requestOptions,
     }, [404, 405])
     return Array.isArray(payload) ? payload.map(normalizeEvent) : []
 }
@@ -482,10 +486,11 @@ export async function getGovernanceUnitDetail(baseUrl, token, governanceUnitId) 
     }))
 }
 
-async function getGovernanceUnits(baseUrl, token) {
+export async function getGovernanceUnits(baseUrl, token, params = {}) {
     const payload = await request(baseUrl, '/api/governance/units', {
         method: 'GET',
         token,
+        params,
     })
 
     return Array.isArray(payload) ? payload.map(normalizeGovernanceUnitDetail) : []
@@ -918,6 +923,7 @@ export async function startStudentImport(baseUrl, token, previewToken) {
     return normalizeImportJobCreateResponse(await request(baseUrl, '/api/admin/import-students', {
         method: 'POST',
         token,
+        timeoutMs: resolveImportApiTimeoutMs(),
         body: formData,
     }))
 }
@@ -1130,7 +1136,7 @@ function normalizeAttendanceCollectionPayload(payload = null) {
     return payload.map(normalizeAttendanceRecord)
 }
 
-export async function getMyAttendance(baseUrl, token, params = {}) {
+export async function getMyAttendance(baseUrl, token, params = {}, requestOptions = {}) {
     const payload = await requestWithFallback(baseUrl, [
         '/api/attendance/me/records',
         '/attendance/me/records',
@@ -1140,7 +1146,8 @@ export async function getMyAttendance(baseUrl, token, params = {}) {
         method: 'GET',
         token,
         params,
-    }, [403, 404, 405])
+        ...requestOptions,
+    }, [404, 405])
     return normalizeAttendanceCollectionPayload(payload)
 }
 
@@ -1210,10 +1217,11 @@ export async function getEventAttendanceReport(baseUrl, token, eventId, params =
     }, [404, 405]))
 }
 
-export async function getFaceStatus(baseUrl, token) {
+export async function getFaceStatus(baseUrl, token, requestOptions = {}) {
     return normalizeFaceStatus(await requestWithFallback(baseUrl, ['/api/auth/security/face-status', '/auth/security/face-status'], {
         method: 'GET',
         token,
+        ...requestOptions,
     }, [404, 405]))
 }
 

@@ -97,7 +97,7 @@ function resolveNavigationContextFromPath(path = '') {
         return 'workspace_preview'
     }
     if (normalizedPath.startsWith('/exposed/sg')) {
-        return 'dashboard_preview'
+        return 'sg_preview'
     }
     if (normalizedPath.startsWith('/exposed/dashboard')) {
         return 'dashboard_preview'
@@ -109,7 +109,7 @@ function resolveNavigationContextFromPath(path = '') {
         return 'workspace'
     }
     if (normalizedPath.startsWith('/sg')) {
-        return 'dashboard'
+        return 'sg'
     }
 
     return 'dashboard'

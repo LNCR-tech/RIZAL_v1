@@ -383,6 +383,15 @@ export function applyTheme(theme) {
     // Smart contrast text for the dark/light University Banner
     root.style.setProperty('--color-banner-text', primaryTextColor)
 
+    // Semantic status colors — fixed, not derived from school branding
+    root.style.setProperty('--color-status-compliant', '#22C55E')
+    root.style.setProperty('--color-status-at-risk', '#F59E0B')
+    root.style.setProperty('--color-status-non-compliant', '#EF4444')
+    root.style.setProperty('--color-status-excused', '#F97316')
+    root.style.setProperty('--color-status-late', '#FB923C')
+    root.style.setProperty('--color-ssg-accent', '#6366F1')
+    root.style.setProperty('--color-sg-accent', '#8B5CF6')
+
     // Automatically serve the correct Aura logo color based on banner contrast
     activeAuraLogo.value = resolveAuraLogoForBackground(theme.primaryColor)
     surfaceAuraLogo.value = resolveAuraLogoForBackground(surfaceColor)

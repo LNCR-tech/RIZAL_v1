@@ -2,11 +2,7 @@
   <div class="app-safe-area">
     <Transition name="app-boot-fade">
       <div v-if="showInitialBootScreen" class="app-boot-screen" aria-live="polite">
-        <div class="app-boot-card">
-          <div class="app-boot-spinner" aria-hidden="true"></div>
-          <p class="app-boot-title">Loading Aura</p>
-          <p class="app-boot-subtitle">Preparing the login and dashboard experience.</p>
-        </div>
+        <AppBootLoader />
       </div>
     </Transition>
 
@@ -59,6 +55,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { RouterView } from 'vue-router'
+import AppBootLoader from '@/components/ui/AppBootLoader.vue'
 import { mobileFullscreenHintVisible, requestMobileFullscreen } from '@/services/mobileFullscreen.js'
 import { isOnline } from '@/composables/useNetworkStatus.js'
 import { appFatalErrorMessage, clearAppFatalError } from '@/services/appBootstrap.js'
@@ -108,13 +105,16 @@ function goToLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background:
-    radial-gradient(circle at top, rgba(255,255,255,0.92), rgba(235,235,235,0.98)),
-    #ebebeb;
 }
 
-.app-boot-card,
+.app-fatal-screen {
+  padding: 24px;
+}
+
+.app-boot-screen {
+  background: var(--color-surface, #ffffff);
+}
+
 .app-fatal-card {
   width: min(100%, 360px);
   border-radius: 24px;
@@ -125,17 +125,6 @@ function goToLogin() {
   font-family: 'Manrope', sans-serif;
 }
 
-.app-boot-spinner {
-  width: 42px;
-  height: 42px;
-  margin: 0 auto 16px;
-  border-radius: 999px;
-  border: 3px solid rgba(10, 10, 10, 0.08);
-  border-top-color: var(--color-primary, #0A0A0A);
-  animation: app-boot-spin 0.8s linear infinite;
-}
-
-.app-boot-title,
 .app-fatal-title {
   margin: 0;
   color: #0A0A0A;
@@ -143,7 +132,6 @@ function goToLogin() {
   font-weight: 800;
 }
 
-.app-boot-subtitle,
 .app-fatal-message {
   margin: 10px 0 0;
   color: #555555;
@@ -185,12 +173,6 @@ function goToLogin() {
 .app-boot-fade-enter-from,
 .app-boot-fade-leave-to {
   opacity: 0;
-}
-
-@keyframes app-boot-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* Offline Banner */

@@ -218,8 +218,15 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Plus, Trash2, Edit2 } from 'lucide-vue-next'
-import EventEditorSheet from '@/components/desktop/events/EventEditorSheet.vue'
+
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
+import { ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2 } from 'lucide-vue-next'
+import EventEditorSheet from '@/components/events/EventEditorSheet.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
@@ -324,9 +331,19 @@ function formatDate(d) {
   catch { return d }
 }
 
-function goBack() { router.push('/sg') }
+function goBack() { 
+  if (props.preview) {
+    router.push('/exposed/sg')
+    return
+  }
+  router.push('/sg') 
+}
 
 function goToEvent(event) {
+  if (props.preview) {
+    router.push({ name: 'PreviewSgEventDetail', params: { id: event.id } })
+    return
+  }
   router.push({ name: 'SgEventDetail', params: { id: event.id } })
 }
 
@@ -1018,6 +1035,16 @@ watch(
 )
 
 async function loadEvents(url) {
+  if (props.preview) {
+    events.value = [
+      { id: 1, title: 'Freshmen Assembly', name: 'Freshmen Assembly', status: 'upcoming', start_datetime: new Date(Date.now() + 86400000).toISOString() },
+      { id: 2, title: 'Student Council Townhall', name: 'Student Council Townhall', status: 'ongoing', start_datetime: new Date().toISOString() },
+      { id: 3, title: 'Intramurals 2026', name: 'Intramurals 2026', status: 'completed', start_datetime: new Date(Date.now() - 86400000).toISOString() }
+    ]
+    isLoading.value = false
+    return
+  }
+
   isLoading.value = true
   loadError.value = ''
   try {

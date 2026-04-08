@@ -5,14 +5,14 @@
   "server": {
     "androidScheme": "https",
     "allowNavigation": [
-      "backend-api-production-32e5.up.railway.app",
+      "backend-api-production-eeb9.up.railway.app",
       "*.railway.app",
       "*.ngrok-free.app",
       "*.ngrok.app"
     ]
   },
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": false
   },
   "plugins": {
     "CapacitorHttp": {
