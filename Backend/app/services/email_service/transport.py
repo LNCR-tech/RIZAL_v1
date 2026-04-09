@@ -1,80 +1,52 @@
-"""Transport helpers for the Gmail API email service package."""
+"""
+transport.py
+------------
+Low-level Gmail API transport layer.
+Handles header construction, raw sending, connection checks, and delivery summaries.
+"""
 
 from __future__ import annotations
 
 import base64
-from urllib.parse import quote
+import json
+import logging
+import time
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any
 
-from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+import httpx
 
-from app.core.config import Settings
-
-from .config import (
+from app.core.config import get_settings
+from app.services.email_service.config import (
+    GOOGLE_GMAIL_API_HOST,
     TEMPORARY_GMAIL_API_STATUS_CODES,
     EmailConnectionStatus,
     EmailDeliveryError,
+    ResolvedEmailDeliverySettings,
+    validate_email_delivery_settings,
 )
 
+logger = logging.getLogger(__name__)
 
-def _request_google_oauth_access_token(settings: Settings) -> str:
-    from . import httpx
 
-    try:
-        response = httpx.post(
-            settings.google_oauth_token_url,
-            data={
-                "client_id": settings.google_oauth_client_id,
-                "client_secret": settings.google_oauth_client_secret,
-                "refresh_token": settings.google_oauth_refresh_token,
-                "grant_type": "refresh_token",
-            },
-            timeout=_gmail_api_timeout(settings),
-        )
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        body = exc.response.text.strip()
-        detail = body[:300] if body else exc.response.reason_phrase
-        if exc.response.status_code == 400 and "invalid_grant" in body.lower():
-            raise EmailDeliveryError(
-                "Google OAuth refresh token is invalid, expired, or revoked. "
-                "Generate a new refresh token and update GOOGLE_OAUTH_REFRESH_TOKEN."
-            ) from exc
-        raise EmailDeliveryError(
-            f"Failed to refresh the Google OAuth access token: {detail}"
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise EmailDeliveryError(
-            "Could not reach the Google OAuth token endpoint. Check outbound network access and GOOGLE_OAUTH_TOKEN_URL."
-        ) from exc
+# ======================================================
+# HEADER BUILDER
+# ======================================================
 
-    access_token = response.json().get("access_token")
+def build_gmail_api_headers(access_token: str) -> dict[str, str]:
+    """
+    Build the HTTP headers required for authenticated Gmail API requests.
+
+    Args:
+        access_token: A valid OAuth2 bearer token for the Gmail API.
+
+    Returns:
+        A dict of headers ready to pass to an httpx/requests call.
+    """
     if not access_token:
-        raise EmailDeliveryError(
-            "Google OAuth token response did not include an access_token."
-        )
-    return access_token
+        raise ValueError("access_token must not be empty when building Gmail API headers.")
 
-
-def _extract_google_api_error_detail(response) -> str:
-    try:
-        payload = response.json()
-    except ValueError:
-        return (response.text or response.reason_phrase or "").strip()
-
-    error_payload = payload.get("error")
-    if isinstance(error_payload, dict):
-        message = (error_payload.get("message") or "").strip()
-        status = (error_payload.get("status") or "").strip()
-        if message and status:
-            return f"{status}: {message}"
-        return message or status or (response.reason_phrase or "").strip()
-    if isinstance(error_payload, str):
-        return error_payload.strip()
-    return (response.text or response.reason_phrase or "").strip()
-
-
-def _build_gmail_api_headers(access_token: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -82,169 +54,40 @@ def _build_gmail_api_headers(access_token: str) -> dict[str, str]:
     }
 
 
-def _gmail_api_timeout(settings: Settings) -> float:
-    return float(settings.email_timeout_seconds)
+# ======================================================
+# MIME BUILDER
+# ======================================================
 
-
-def _verify_gmail_api_sender(
+def _build_mime_message(
     *,
-    settings: Settings,
-    resolved_delivery,
-    access_token: str,
-) -> None:
-    from . import httpx
-
-    if resolved_delivery.from_email == resolved_delivery.sender_email:
-        return
-
-    send_as_url = (
-        settings.google_gmail_api_base_url.rstrip("/")
-        + "/users/me/settings/sendAs/"
-        + quote(resolved_delivery.from_email, safe="@")
-    )
-    try:
-        response = httpx.get(
-            send_as_url,
-            headers=_build_gmail_api_headers(access_token),
-            timeout=_gmail_api_timeout(settings),
-        )
-    except httpx.HTTPError as exc:
-        raise EmailDeliveryError(
-            "Could not reach the Gmail API send-as settings endpoint. Check outbound HTTPS access."
-        ) from exc
-
-    detail = _extract_google_api_error_detail(response)
-    if response.status_code == 200:
-        send_as = response.json()
-        is_primary = bool(send_as.get("isPrimary"))
-        verification_status = (send_as.get("verificationStatus") or "").strip().lower()
-        if is_primary or verification_status in {"accepted", "verified"}:
-            return
-        raise EmailDeliveryError(
-            "Gmail API found the configured sender address, but it is not verified yet. "
-            "Verify the send-as alias in Gmail settings before using it."
-        )
-
-    if response.status_code == 403 and "scope" in detail.lower():
-        raise EmailDeliveryError(
-            "The Google OAuth token cannot verify the configured custom sender because it lacks "
-            "the Gmail settings scope. Reauthorize with "
-            "https://www.googleapis.com/auth/gmail.settings.basic or use the authenticated mailbox as the sender."
-        )
-
-    if response.status_code == 404:
-        raise EmailDeliveryError(
-            "Gmail API does not recognize the configured sender address. "
-            "Set EMAIL_FROM_EMAIL to the authenticated mailbox or configure this address as a verified Gmail send-as alias first."
-        )
-
-    if response.status_code in TEMPORARY_GMAIL_API_STATUS_CODES:
-        raise EmailDeliveryError(f"Temporary Gmail API sender-verification failure: {detail}")
-
-    raise EmailDeliveryError(f"Gmail API sender verification failed: {detail}")
-
-
-def _encode_message_for_gmail_api(msg: EmailMessage) -> str:
-    return base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
-
-
-def _send_via_gmail_api(
-    *,
-    settings: Settings,
-    resolved_delivery,
-    msg: EmailMessage,
-) -> None:
-    from . import httpx
-
-    access_token = _request_google_oauth_access_token(settings)
-    send_url = settings.google_gmail_api_base_url.rstrip("/") + "/users/me/messages/send"
-    payload = {"raw": _encode_message_for_gmail_api(msg)}
-
-    try:
-        response = httpx.post(
-            send_url,
-            headers=_build_gmail_api_headers(access_token),
-            json=payload,
-            timeout=_gmail_api_timeout(settings),
-        )
-    except httpx.TimeoutException as exc:
-        raise EmailDeliveryError(
-            "Timed out while calling the Gmail API. Check outbound HTTPS access from the deployment host."
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise EmailDeliveryError(
-            "Could not reach the Gmail API send endpoint. Check outbound HTTPS access from the deployment host."
-        ) from exc
-
-    if response.status_code == 200:
-        return
-
-    detail = _extract_google_api_error_detail(response)
-    detail_lower = detail.lower()
-    if response.status_code == 400 and (
-        "from header" in detail_lower
-        or "invalid argument" in detail_lower
-        or "bad request" in detail_lower
-    ):
-        raise EmailDeliveryError(
-            "Gmail API rejected the configured sender address. "
-            "Use the authenticated mailbox as EMAIL_FROM_EMAIL or configure the custom sender as a verified Gmail send-as alias."
-        )
-    if response.status_code == 401:
-        raise EmailDeliveryError(
-            "Google OAuth access token was rejected by the Gmail API. Reauthorize and update the refresh token."
-        )
-    if response.status_code == 403:
-        if "insufficient permission" in detail_lower or "scope" in detail_lower:
-            raise EmailDeliveryError(
-                "The Google OAuth token does not include the required Gmail API permissions. "
-                "Reauthorize with https://www.googleapis.com/auth/gmail.send."
-            )
-        raise EmailDeliveryError(f"Gmail API request was forbidden: {detail}")
-    if response.status_code in TEMPORARY_GMAIL_API_STATUS_CODES:
-        raise EmailDeliveryError(
-            f"Temporary Gmail API failure ({response.status_code}). Retry later: {detail}"
-        )
-    raise EmailDeliveryError(
-        f"Gmail API send failed with status {response.status_code}: {detail or response.reason_phrase}"
-    )
-
-
-def _build_message(
-    *,
-    resolved_delivery,
+    sender: str,
     recipient_email: str,
     subject: str,
     text_body: str,
     html_body: str | None = None,
-    reply_to: str | None = None,
-) -> EmailMessage:
-    from .config import _normalize_runtime_email
+) -> str:
+    """
+    Construct and base64url-encode a MIME message for the Gmail API.
 
-    recipient = _normalize_runtime_email(recipient_email, "recipient_email")
-    effective_reply_to = (
-        _normalize_runtime_email(reply_to, "reply_to")
-        if reply_to is not None
-        else resolved_delivery.reply_to
-    )
-    if not subject.strip():
-        raise EmailDeliveryError("Email subject cannot be blank.")
-    if not text_body.strip():
-        raise EmailDeliveryError("Email body cannot be blank.")
+    Returns:
+        A base64url-encoded raw message string.
+    """
+    message = MIMEMultipart("alternative")
+    message["From"] = sender
+    message["To"] = recipient_email
+    message["Subject"] = subject
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = resolved_delivery.from_header
-    msg["To"] = recipient
-    msg["Date"] = formatdate(localtime=True)
-    msg["Message-ID"] = make_msgid(domain=resolved_delivery.from_email.split("@", 1)[-1])
-    if effective_reply_to:
-        msg["Reply-To"] = effective_reply_to
-    msg.set_content(text_body)
+    message.attach(MIMEText(text_body, "plain", "utf-8"))
     if html_body:
-        msg.add_alternative(html_body, subtype="html")
-    return msg
+        message.attach(MIMEText(html_body, "html", "utf-8"))
 
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+    return raw
+
+
+# ======================================================
+# CORE SEND
+# ======================================================
 
 def send_transactional_email(
     *,
@@ -252,122 +95,272 @@ def send_transactional_email(
     subject: str,
     text_body: str,
     html_body: str | None = None,
-    reply_to: str | None = None,
+    settings: ResolvedEmailDeliverySettings | None = None,
 ) -> None:
-    from . import (
-        get_settings,
-        logger,
-        validate_email_delivery_settings,
-    )
+    """
+    Send a transactional email via the Gmail API.
 
-    settings = get_settings()
-    resolved_delivery = validate_email_delivery_settings(settings)
+    Args:
+        recipient_email: Destination email address.
+        subject:         Email subject line.
+        text_body:       Plain-text fallback body.
+        html_body:       Optional HTML body (preferred by modern clients).
+        settings:        Optional pre-resolved delivery settings; resolved
+                         from app config when not supplied.
 
-    for warning in resolved_delivery.warnings:
-        logger.warning(warning)
+    Raises:
+        EmailDeliveryError: On any permanent or unrecoverable send failure.
+    """
+    if settings is None:
+        settings = validate_email_delivery_settings(get_settings())
 
-    msg = _build_message(
-        resolved_delivery=resolved_delivery,
+    raw_message = _build_mime_message(
+        sender=settings.sender_email,
         recipient_email=recipient_email,
         subject=subject,
         text_body=text_body,
         html_body=html_body,
-        reply_to=reply_to,
     )
 
-    _send_via_gmail_api(
-        settings=settings,
-        resolved_delivery=resolved_delivery,
-        msg=msg,
+    payload = {"raw": raw_message}
+    headers = build_gmail_api_headers(settings.access_token)
+    url = f"{GOOGLE_GMAIL_API_HOST}/gmail/v1/users/me/messages/send"
+
+    last_exc: Exception | None = None
+    for attempt in range(1, settings.max_retries + 1):
+        try:
+            response = httpx.post(url, headers=headers, json=payload, timeout=15.0)
+
+            if response.status_code == 200:
+                logger.info(
+                    "Email sent successfully | to=%s subject=%r attempt=%d",
+                    recipient_email,
+                    subject,
+                    attempt,
+                )
+                return
+
+            if response.status_code in TEMPORARY_GMAIL_API_STATUS_CODES and attempt < settings.max_retries:
+                wait = 2 ** attempt
+                logger.warning(
+                    "Transient Gmail API error %d — retrying in %ds (attempt %d/%d)",
+                    response.status_code,
+                    wait,
+                    attempt,
+                    settings.max_retries,
+                )
+                time.sleep(wait)
+                last_exc = EmailDeliveryError(
+                    f"Gmail API returned {response.status_code}: {response.text}"
+                )
+                continue
+
+            # Permanent failure
+            raise EmailDeliveryError(
+                f"Gmail API permanent error {response.status_code}: {response.text}"
+            )
+
+        except httpx.TimeoutException as exc:
+            last_exc = exc
+            logger.warning("Gmail API timeout on attempt %d/%d", attempt, settings.max_retries)
+            if attempt < settings.max_retries:
+                time.sleep(2 ** attempt)
+        except httpx.RequestError as exc:
+            raise EmailDeliveryError(f"Network error while sending email: {exc}") from exc
+
+    raise EmailDeliveryError(
+        f"Failed to send email after {settings.max_retries} attempts."
+    ) from last_exc
+
+
+# ======================================================
+# CONNECTION CHECK
+# ======================================================
+
+def check_email_delivery_connection(
+    settings: ResolvedEmailDeliverySettings | None = None,
+) -> EmailConnectionStatus:
+    """
+    Probe the Gmail API to verify the current credentials and connectivity.
+
+    Returns:
+        EmailConnectionStatus with is_connected and an optional error message.
+    """
+    try:
+        if settings is None:
+            settings = validate_email_delivery_settings(get_settings())
+
+        headers = build_gmail_api_headers(settings.access_token)
+        url = f"{GOOGLE_GMAIL_API_HOST}/gmail/v1/users/me/profile"
+
+        response = httpx.get(url, headers=headers, timeout=10.0)
+
+        if response.status_code == 200:
+            profile = response.json()
+            logger.info(
+                "Gmail API connection OK | account=%s",
+                profile.get("emailAddress", "unknown"),
+            )
+            return EmailConnectionStatus(is_connected=True)
+
+        return EmailConnectionStatus(
+            is_connected=False,
+            error=f"Gmail API responded with {response.status_code}: {response.text}",
+        )
+
+    except Exception as exc:
+        logger.exception("Email connection check failed")
+        return EmailConnectionStatus(is_connected=False, error=str(exc))
+
+
+# ======================================================
+# DELIVERY SUMMARY
+# ======================================================
+
+def get_email_delivery_summary(
+    settings: ResolvedEmailDeliverySettings | None = None,
+) -> dict[str, Any]:
+    """
+    Return a human-readable summary of the current email delivery configuration.
+
+    Useful for health-check endpoints and admin dashboards.
+    """
+    try:
+        if settings is None:
+            settings = validate_email_delivery_settings(get_settings())
+
+        connection = check_email_delivery_connection(settings)
+
+        return {
+            "transport": settings.transport,
+            "sender_email": settings.sender_email,
+            "account_type": settings.account_type,
+            "is_connected": connection.is_connected,
+            "error": connection.error,
+            "max_retries": settings.max_retries,
+        }
+
+    except Exception as exc:
+        logger.exception("Failed to build email delivery summary")
+        return {
+            "transport": "unknown",
+            "sender_email": "unknown",
+            "account_type": "unknown",
+            "is_connected": False,
+            "error": str(exc),
+            "max_retries": 0,
+        }
+
+
+# ======================================================
+# TEST EMAIL
+# ======================================================
+
+def send_test_email(
+    *,
+    recipient_email: str,
+) -> None:
+    """
+    Send a diagnostic test email to verify the mailing system is operational.
+
+    Args:
+        recipient_email: Address to deliver the test message to.
+    """
+    send_transactional_email(
+        recipient_email=recipient_email,
+        subject="Aura System — Test Email",
+        text_body=(
+            "Hello,\n\n"
+            "This is a test email from the Aura System.\n\n"
+            "If you received this message, the mailing system is working correctly.\n\n"
+            "Sender: noreply-aura@gmail.com\n\n"
+            "Best regards,\n"
+            "Aura System"
+        ),
+        html_body="""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aura System Test Email</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f7;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="580" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden;
+                      box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <tr>
+            <td style="background:#4f46e5;padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;
+                         letter-spacing:0.5px;">Aura System</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px;">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:18px;">
+                ✅ Test Email
+              </h2>
+              <p style="margin:0 0 12px;color:#444;font-size:15px;line-height:1.6;">
+                Hello,
+              </p>
+              <p style="margin:0 0 12px;color:#444;font-size:15px;line-height:1.6;">
+                This is a test email from the <strong>Aura System</strong>.
+              </p>
+              <p style="margin:0 0 24px;color:#444;font-size:15px;line-height:1.6;">
+                If you received this message, the mailing system is
+                <strong>working correctly</strong>.
+              </p>
+              <hr style="border:none;border-top:1px solid #e8e8e8;margin:24px 0;" />
+              <p style="margin:0;color:#888;font-size:13px;">
+                Sender: <a href="mailto:noreply-aura@gmail.com"
+                           style="color:#4f46e5;text-decoration:none;">
+                  noreply-aura@gmail.com
+                </a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f9f9f9;padding:20px 40px;text-align:center;">
+              <p style="margin:0;color:#aaa;font-size:12px;">
+                © 2024 Aura System · This is an automated message, please do not reply.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+        """,
     )
 
+
+# ======================================================
+# BACKWARD COMPATIBILITY
+# ======================================================
 
 def send_plain_email(
     *,
     recipient_email: str,
     subject: str,
-    body: str,
+    text_body: str,
+    html_body: str | None = None,
 ) -> None:
+    """
+    Thin wrapper around send_transactional_email kept for backward compatibility.
+
+    Prefer calling send_transactional_email directly in new code.
+    """
     send_transactional_email(
         recipient_email=recipient_email,
         subject=subject,
-        text_body=body,
-    )
-
-
-def check_email_delivery_connection(
-    *,
-    settings: Settings | None = None,
-    verify_sender: bool = True,
-) -> EmailConnectionStatus:
-    from . import (
-        get_settings,
-        logger,
-        validate_email_delivery_settings,
-    )
-    from .config import _gmail_api_host
-
-    resolved_settings = settings or get_settings()
-    resolved_delivery = validate_email_delivery_settings(resolved_settings)
-
-    for warning in resolved_delivery.warnings:
-        logger.warning(warning)
-
-    access_token = _request_google_oauth_access_token(resolved_settings)
-    if verify_sender:
-        _verify_gmail_api_sender(
-            settings=resolved_settings,
-            resolved_delivery=resolved_delivery,
-            access_token=access_token,
-        )
-    return EmailConnectionStatus(
-        host=_gmail_api_host(resolved_settings),
-        port=443,
-        transport=resolved_delivery.transport,
-        auth_mode=resolved_delivery.auth_mode,
-        sender=resolved_delivery.from_email,
-        reply_to=resolved_delivery.reply_to,
-        warnings=resolved_delivery.warnings,
-    )
-
-
-def get_email_delivery_summary(settings: Settings | None = None) -> dict[str, object]:
-    from . import get_settings, validate_email_delivery_settings
-    from .config import _gmail_api_host
-
-    resolved_settings = settings or get_settings()
-    resolved_delivery = validate_email_delivery_settings(resolved_settings)
-    return {
-        "transport": resolved_delivery.transport,
-        "host": _gmail_api_host(resolved_settings),
-        "port": 443,
-        "auth_mode": resolved_delivery.auth_mode,
-        "sender": resolved_delivery.from_email,
-        "reply_to": resolved_delivery.reply_to,
-        "google_account_type": resolved_delivery.google_account_type,
-        "warnings": list(resolved_delivery.warnings),
-    }
-
-
-def send_test_email(
-    *,
-    recipient_email: str,
-    subject: str | None = None,
-    body: str | None = None,
-) -> None:
-    resolved_subject = subject or "VALID8 Gmail API connectivity test"
-    resolved_body = body or (
-        "This is a production-style Gmail API smoke test from VALID8.\n\n"
-        "If you received this email, the backend refreshed a Google OAuth token "
-        "and completed a real Gmail API delivery attempt."
-    )
-    send_transactional_email(
-        recipient_email=recipient_email,
-        subject=resolved_subject,
-        text_body=resolved_body,
-        html_body=(
-            "<p>This is a production-style Gmail API smoke test from <strong>VALID8</strong>.</p>"
-            "<p>If you received this email, the backend refreshed a Google OAuth token "
-            "and completed a real Gmail API delivery attempt.</p>"
-        ),
+        text_body=text_body,
+        html_body=html_body,
     )

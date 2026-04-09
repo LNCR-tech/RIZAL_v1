@@ -1,0 +1,8 @@
+# Generated tester output
+logs_*.psv
+logs_core_api.psv
+logs_security.psv
+logs_bulk_ops.psv
+logs_biometrics.psv
+__pycache__/
+

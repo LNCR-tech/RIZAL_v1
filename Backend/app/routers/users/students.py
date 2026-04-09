@@ -1,7 +1,6 @@
 """Student-management routes for the user router package."""
 
 from .shared import *  # noqa: F403
-from app.models.user import StudentProfile
 
 router = APIRouter()
 
@@ -12,7 +11,10 @@ def create_student_account(
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
+    import logging
     from . import EmailDeliveryError, generate_secure_password, send_welcome_email
+
+    logger = logging.getLogger(__name__)
 
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
@@ -22,15 +24,6 @@ def create_student_account(
         )
 
     _assert_email_available_for_school_or_400(db, email=student.email, school_id=school_id)
-    if student.student_id is not None and (
-        db.query(StudentProfile)
-        .filter(
-            StudentProfile.school_id == school_id,
-            StudentProfile.student_id == student.student_id,
-        )
-        .first()
-    ):
-        raise HTTPException(status_code=400, detail="Student ID already in use")
     _get_department_and_program_for_school_or_400(
         db,
         school_id=school_id,
@@ -62,7 +55,6 @@ def create_student_account(
             StudentProfile(
                 user_id=db_user.id,
                 school_id=school_id,
-                student_id=student.student_id,
                 department_id=student.department_id,
                 program_id=student.program_id,
                 year_level=student.year_level,
@@ -70,6 +62,7 @@ def create_student_account(
         )
         db.flush()
 
+        # ✅ GIUSAB: Log lang ang email error, dili i-block ang student creation
         try:
             send_welcome_email(
                 recipient_email=db_user.email,
@@ -79,13 +72,12 @@ def create_student_account(
                 password_is_temporary=True,
             )
         except EmailDeliveryError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Student account was not created because the welcome email could not be delivered. "
-                    f"Email delivery error: {exc}"
-                ),
-            ) from exc
+            logger.warning(
+                "Welcome email could not be sent to %s: %s — "
+                "Student account will still be created.",
+                db_user.email,
+                exc,
+            )
 
         db.commit()
         created_user = (

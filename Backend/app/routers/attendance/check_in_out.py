@@ -13,7 +13,6 @@ def get_my_attendance(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List the signed-in student's own attendance records, optionally for one event."""
     if not has_any_role(current_user, ["student"]) or not current_user.student_profile:
         raise HTTPException(403, "User is not a student")
     school_id = get_school_id_or_403(current_user)
@@ -38,7 +37,6 @@ def record_face_scan_attendance(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Handle operator-driven face-scan attendance, switching between sign-in and sign-out."""
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     event = _get_event_in_school_or_404(db, event_id, school_id)
@@ -127,7 +125,6 @@ def record_manual_attendance(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Handle manual attendance entry with the same sign-in and sign-out timing rules."""
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     governance_units = _get_attendance_governance_units(
@@ -222,7 +219,6 @@ def record_bulk_attendance(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create many manual sign-ins at once for students inside the actor's allowed scope."""
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     governance_units = _get_attendance_governance_units(
@@ -323,7 +319,6 @@ def record_time_out(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Record sign-out for one existing attendance row when the sign-out window is open."""
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
 
@@ -375,7 +370,6 @@ def record_face_scan_timeout(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Record sign-out for a student selected by face-scan operator flow."""
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     governance_units = _get_attendance_governance_units(

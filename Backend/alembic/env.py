@@ -22,7 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 if load_dotenv is not None:
     env_path = Path(__file__).resolve().parents[1] / ".env"
-    load_dotenv(env_path, override=True)
+    # Never override container-provided env vars (e.g., DATABASE_URL in docker-compose).
+    # Using override=True breaks Docker because Backend/.env commonly points at localhost/host ports.
+    load_dotenv(env_path, override=False)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

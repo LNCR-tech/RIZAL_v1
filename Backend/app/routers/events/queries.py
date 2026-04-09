@@ -16,7 +16,6 @@ def read_events(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """List events visible to the actor after syncing their computed workflow statuses."""
     school_id = _actor_school_scope_id(current_user)
     _persist_scope_status_sync(db, school_id)
 
@@ -49,7 +48,6 @@ def get_ongoing_events(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """List only currently ongoing events that the actor is allowed to see."""
     school_id = _actor_school_scope_id(current_user)
     _persist_scope_status_sync(db, school_id)
     events = (
@@ -78,7 +76,6 @@ def read_event(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """Load one event, enforce visibility, and return the synced current record."""
     school_id = _actor_school_scope_id(current_user)
     event = (
         _school_scoped_event_query(db, school_id)
@@ -110,7 +107,6 @@ def read_event_time_status(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """Return the computed attendance time window state for one event."""
     event = (
         _school_scoped_event_query(db, _actor_school_scope_id(current_user))
         .filter(EventModel.id == event_id)
@@ -136,7 +132,6 @@ def verify_event_location(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """Check whether a provided location is inside the event geofence."""
     event = (
         _school_scoped_event_query(db, _actor_school_scope_id(current_user))
         .filter(EventModel.id == event_id)

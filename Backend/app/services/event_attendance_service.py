@@ -21,7 +21,6 @@ from app.services.event_time_status import normalize_event_datetime
 
 
 def get_event_participant_student_ids(db: Session, event: EventModel) -> list[int]:
-    """Return the student IDs that fall inside the event's academic scope."""
     query = (
         db.query(StudentProfile.id)
         .join(UserModel, StudentProfile.user_id == UserModel.id)
@@ -40,7 +39,6 @@ def get_event_participant_student_ids(db: Session, event: EventModel) -> list[in
 
 
 def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[str, int]:
-    """Auto-close unfinished attendance and create absent rows once sign-out is fully closed."""
     participant_ids = get_event_participant_student_ids(db, event)
     if not participant_ids:
         return {"created_absent": 0, "marked_absent_no_timeout": 0}

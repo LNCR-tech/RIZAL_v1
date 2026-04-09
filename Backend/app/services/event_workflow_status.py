@@ -43,7 +43,6 @@ class EventWorkflowStatusSyncSummary:
 
 
 def map_time_status_to_workflow_status(time_status: str) -> ModelEventStatus:
-    """Translate attendance-window timing states into the stored event workflow status."""
     if time_status in {"before_check_in", "early_check_in"}:
         return ModelEventStatus.UPCOMING
     if time_status in {"late_check_in", "absent_check_in", "sign_out_pending", "sign_out_open"}:
@@ -56,7 +55,6 @@ def get_expected_workflow_status(
     *,
     current_time: datetime | None = None,
 ) -> tuple[ModelEventStatus, str]:
-    """Compute the workflow status the event should have right now."""
     time_status = get_event_status(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
@@ -79,7 +77,6 @@ def sync_event_workflow_status(
     current_time: datetime | None = None,
     completion_finalizer: EventCompletionFinalizer = finalize_completed_event_attendance,
 ) -> EventWorkflowStatusSyncResult:
-    """Sync one event's stored status with its computed time window and finalize attendance if needed."""
     previous_status = event.status
     expected_status, computed_time_status = get_expected_workflow_status(
         event,
@@ -139,7 +136,6 @@ def sync_scope_event_workflow_statuses(
     school_id: int | None = None,
     current_time: datetime | None = None,
 ) -> list[EventWorkflowStatusSyncResult]:
-    """Sync all non-terminal events in the requested scope."""
     query = db.query(EventModel).filter(
         EventModel.status.in_(
             [
@@ -166,7 +162,6 @@ def sync_scope_event_workflow_statuses(
 def summarize_event_workflow_status_sync(
     results: list[EventWorkflowStatusSyncResult],
 ) -> EventWorkflowStatusSyncSummary:
-    """Collapse per-event sync results into a worker-friendly summary payload."""
     moved_to_upcoming = 0
     moved_to_ongoing = 0
     moved_to_completed = 0

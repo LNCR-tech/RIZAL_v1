@@ -535,8 +535,8 @@ class StudentImportService:
             error_message = str(exc)
             if publish_error_message:
                 error_message = (
-                    f"Task publish failed: {publish_error_message}; "
-                    f"inline send failed: {error_message}"
+                    f"Celery publish failed: {publish_error_message}. "
+                    f"Inline delivery failed: {error_message}"
                 )
             logger.warning(
                 "Inline onboarding email delivery failed for import job %s and user %s.",

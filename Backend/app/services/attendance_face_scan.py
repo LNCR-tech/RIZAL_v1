@@ -39,7 +39,6 @@ class PublicAttendancePersistenceResult:
 
 
 def student_display_name(student: StudentProfile) -> str:
-    """Build a friendly student name for face-match results and logs."""
     user = student.user
     if user is None:
         return student.student_id or f"Student {student.id}"
@@ -52,7 +51,6 @@ def student_display_name(student: StudentProfile) -> str:
 
 
 def _build_scoped_candidates(students: list[StudentProfile]) -> list[ScopedStudentFaceCandidate]:
-    """Convert student rows into matchable face candidates for recognition."""
     candidates: list[ScopedStudentFaceCandidate] = []
     for student in students:
         if not student.face_encoding:
@@ -64,10 +62,6 @@ def _build_scoped_candidates(students: list[StudentProfile]) -> list[ScopedStude
                     identifier=student.id,
                     label=student_display_name(student),
                     encoding_bytes=bytes(student.face_encoding),
-                    embedding_provider=student.embedding_provider,
-                    embedding_dtype=student.embedding_dtype,
-                    embedding_dimension=student.embedding_dimension,
-                    embedding_normalized=student.embedding_normalized,
                 ),
             )
         )
@@ -78,7 +72,6 @@ def get_registered_face_candidates_for_school(
     db: Session,
     school_id: int,
 ) -> list[ScopedStudentFaceCandidate]:
-    """Load every registered face candidate that belongs to one school."""
     students = (
         db.query(StudentProfile)
         .options(joinedload(StudentProfile.user))
@@ -97,7 +90,6 @@ def get_registered_face_candidates_for_event(
     db: Session,
     event: EventModel,
 ) -> list[ScopedStudentFaceCandidate]:
-    """Load only the registered face candidates that are valid for one event."""
     participant_ids = get_event_participant_student_ids(db, event)
     if not participant_ids:
         return []
@@ -122,14 +114,10 @@ def resolve_face_match_scope(
     event_candidates: list[ScopedStudentFaceCandidate],
     school_candidates: list[ScopedStudentFaceCandidate],
     threshold: float | None = None,
-    mode: str = "group",
 ) -> tuple[str, StudentProfile | None, FaceMatchResult]:
-    """Tell whether a matched face is inside event scope, outside it, or unmatched."""
     empty_match = FaceMatchResult(
         matched=False,
-        threshold=float(
-            threshold if threshold is not None else face_service.default_threshold_for_mode(mode)
-        ),
+        threshold=float(threshold or face_service.settings.face_match_threshold),
         distance=float("inf"),
         confidence=0.0,
         candidate=None,
@@ -140,7 +128,6 @@ def resolve_face_match_scope(
             encoding,
             [candidate.candidate for candidate in event_candidates],
             threshold=threshold,
-            mode=mode,
         )
         if event_match.matched and event_match.candidate is not None:
             event_lookup = {
@@ -156,7 +143,6 @@ def resolve_face_match_scope(
             encoding,
             [candidate.candidate for candidate in school_candidates],
             threshold=threshold,
-            mode=mode,
         )
         if school_match.matched and school_match.candidate is not None:
             school_lookup = {
@@ -170,7 +156,6 @@ def resolve_face_match_scope(
 
 
 def resolve_public_attendance_phase(event: EventModel) -> str | None:
-    """Map the current event time window into the public face-scan phase."""
     time_status = get_event_status(
         start_time=event.start_datetime,
         end_time=event.end_datetime,
@@ -202,7 +187,6 @@ def persist_public_attendance_scan(
     accuracy_m: float | None,
     liveness: LivenessResult | None = None,
 ) -> PublicAttendancePersistenceResult:
-    """Create or complete attendance after a successful public face scan."""
     active_attendance = (
         db.query(AttendanceModel)
         .filter(
@@ -405,7 +389,6 @@ def persist_public_attendance_scan(
 
 
 def build_outcome_liveness_payload(result: LivenessResult | None) -> dict[str, object] | None:
-    """Convert optional liveness output into a response-safe dictionary."""
     if result is None:
         return None
     return result.to_dict()

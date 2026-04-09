@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
     libglib2.0-0 \
-    libgl1 \
     libsm6 \
     libxext6 \
     libxrender-dev \
@@ -19,13 +18,13 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install the Python dependencies
-RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
-
+RUN pip install --upgrade pip \
+ && pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 # Copy all backend source code into the container
 COPY . .
 
 # Expose the port FastAPI will run on
 EXPOSE 8000
 
-# Command to run the FastAPI app without hot reload so requests are not dropped mid-flight
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the FastAPI app with hot reload
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

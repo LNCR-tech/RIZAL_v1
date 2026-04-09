@@ -151,7 +151,7 @@ def test_queue_account_ready_email_logs_failed_when_publish_and_inline_send_fail
             "user_id": 10,
             "email": "failed@example.com",
             "status": "failed",
-            "error_message": "Task publish failed: broker unavailable; inline send failed: gmail api down",
+            "error_message": "Celery publish failed: broker unavailable. Inline delivery failed: gmail api down",
             "retry_count": 0,
         }
     ]

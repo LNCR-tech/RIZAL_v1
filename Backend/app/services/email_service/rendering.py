@@ -5,24 +5,72 @@ from __future__ import annotations
 import html
 
 
+# ======================================================
+# SYSTEM CONFIG
+# ======================================================
+
+SYSTEM_EMAIL = "noreply-aura@gmail.com"
+SYSTEM_NAME = "Aura System"
+
+
+# ======================================================
+# EMAIL FOOTERS
+# ======================================================
+
+EMAIL_FOOTER_TEXT = f"""
+--------------------------------------------------
+
+This is an automated email from {SYSTEM_NAME}.
+Please do not reply.
+
+Sender:
+{SYSTEM_NAME}
+{SYSTEM_EMAIL}
+
+--------------------------------------------------
+"""
+
+
+EMAIL_FOOTER_HTML = f"""
+<hr>
+
+<p>
+This is an automated email from <b>{SYSTEM_NAME}</b>.<br>
+Please do not reply.
+</p>
+
+<p>
+<b>{SYSTEM_NAME}</b><br>
+{SYSTEM_EMAIL}
+</p>
+"""
+
+
+# ======================================================
+# SEND HELPER
+# ======================================================
+
 def _send_email(
     *,
-    subject: str,
     recipient_email: str,
-    body: str,
+    subject: str,
+    text_body: str,
     html_body: str | None = None,
-    reply_to: str | None = None,
-) -> None:
-    from . import send_transactional_email
+):
+
+    from .transport import send_transactional_email
 
     send_transactional_email(
         recipient_email=recipient_email,
         subject=subject,
-        text_body=body,
+        text_body=text_body,
         html_body=html_body,
-        reply_to=reply_to,
     )
 
+
+# ======================================================
+# WELCOME EMAIL
+# ======================================================
 
 def build_welcome_email_content(
     *,
@@ -35,69 +83,106 @@ def build_welcome_email_content(
     credential_subject: str,
     password_notice: str,
 ) -> tuple[str, str, str]:
-    return (
-        f"Welcome to {system_name} - {credential_subject}",
-        (
-            f"Dear {first_name},\n\n"
-            f"Welcome to {system_name}!\n\n"
-            "Your account has been successfully created.\n\n"
-            "Login Credentials:\n"
-            "-----------------------------------\n"
-            f"Email: {recipient_email}\n"
-            f"{password_label}: {temporary_password}\n"
-            f"Login URL: {login_url}\n"
-            "-----------------------------------\n\n"
-            f"{password_notice}"
-            "Do not share your login credentials with anyone.\n\n"
-            "If you experience issues, contact your Campus Admin.\n\n"
-            "Best regards,\n"
-            f"{system_name} Team\n"
-        ),
-        (
-            f"<p>Dear {html.escape(first_name)},</p>"
-            f"<p>Welcome to <strong>{html.escape(system_name)}</strong>.</p>"
-            "<p>Your account has been successfully created.</p>"
-            "<p><strong>Login Credentials</strong><br>"
-            f"Email: {html.escape(recipient_email)}<br>"
-            f"{html.escape(password_label)}: {html.escape(temporary_password)}<br>"
-            f'Login URL: <a href="{html.escape(login_url)}">{html.escape(login_url)}</a></p>'
-            f"<p>{html.escape(password_notice).replace(chr(10), '<br>')}</p>"
-            "<p>Do not share your login credentials with anyone.</p>"
-            "<p>If you experience issues, contact your Campus Admin.</p>"
-            f"<p>Best regards,<br>{html.escape(system_name)} Team</p>"
-        ),
-    )
 
+    subject = f"Welcome to {system_name}"
+
+    text_body = f"""
+Hello {first_name},
+
+Welcome to {system_name}!
+
+Your account has been created.
+
+Email: {recipient_email}
+{password_label}: {temporary_password}
+
+Login URL:
+{login_url}
+
+IMPORTANT:
+Change password after login.
+
+{EMAIL_FOOTER_TEXT}
+"""
+
+    html_body = f"""
+<h2>Welcome to {html.escape(system_name)}</h2>
+
+<p>Hello {html.escape(first_name)},</p>
+
+<p>Your account has been created.</p>
+
+<p>
+Email: {html.escape(recipient_email)}<br>
+Password: {html.escape(temporary_password)}
+</p>
+
+<p>
+<a href="{html.escape(login_url)}">Login</a>
+</p>
+
+<p><b>Change password after login</b></p>
+
+{EMAIL_FOOTER_HTML}
+"""
+
+    return subject, text_body, html_body
+
+
+# ======================================================
+# IMPORT ONBOARDING
+# ======================================================
 
 def build_import_onboarding_email_content(
     *,
+    recipient_email: str,
+    temporary_password: str,
     first_name: str,
     system_name: str,
     login_url: str,
 ) -> tuple[str, str, str]:
-    return (
-        f"Welcome to {system_name} - Account Ready",
-        (
-            f"Dear {first_name},\n\n"
-            f"Your account has been created in {system_name}.\n\n"
-            "To set your first password, open the login page and use the Forgot Password option.\n"
-            "A Campus Admin must approve the request before you can sign in.\n\n"
-            f"Login URL: {login_url}\n\n"
-            "If you experience issues, contact your Campus Admin.\n\n"
-            "Best regards,\n"
-            f"{system_name} Team\n"
-        ),
-        (
-            f"<p>Dear {html.escape(first_name)},</p>"
-            f"<p>Your account has been created in <strong>{html.escape(system_name)}</strong>.</p>"
-            "<p>To set your first password, open the login page and use the Forgot Password option. "
-            "A Campus Admin must approve the request before you can sign in.</p>"
-            f'<p>Login URL: <a href="{html.escape(login_url)}">{html.escape(login_url)}</a></p>'
-            "<p>If you experience issues, contact your Campus Admin.</p>"
-            f"<p>Best regards,<br>{html.escape(system_name)} Team</p>"
-        ),
-    )
 
+    subject = f"{system_name} Account Created"
+
+    text_body = f"""
+Hello {first_name},
+
+Your account has been created.
+
+Email: {recipient_email}
+Temporary Password: {temporary_password}
+
+Login URL:
+{login_url}
+
+Change password immediately.
+
+{EMAIL_FOOTER_TEXT}
+"""
+
+    html_body = f"""
+<h3>Account Created</h3>
+
+<p>Hello {html.escape(first_name)}</p>
+
+<p>
+Email: {html.escape(recipient_email)}<br>
+Password: {html.escape(temporary_password)}
+</p>
+
+<p>
+<a href="{html.escape(login_url)}">Login</a>
+</p>
+
+{EMAIL_FOOTER_HTML}
+"""
+
+    return subject, text_body, html_body
+
+
+# ======================================================
+# PASSWORD RESET
+# ======================================================
 
 def build_password_reset_email_content(
     *,
@@ -107,35 +192,48 @@ def build_password_reset_email_content(
     system_name: str,
     login_url: str,
 ) -> tuple[str, str, str]:
-    return (
-        f"{system_name} - Password Reset Approved",
-        (
-            f"Dear {first_name},\n\n"
-            "Your password reset request has been approved.\n\n"
-            "Temporary Login Credentials:\n"
-            "-----------------------------------\n"
-            f"Email: {recipient_email}\n"
-            f"Temporary Password: {temporary_password}\n"
-            f"Login URL: {login_url}\n"
-            "-----------------------------------\n\n"
-            "IMPORTANT:\n"
-            "You are required to change this temporary password immediately after login.\n\n"
-            "Best regards,\n"
-            f"{system_name} Team\n"
-        ),
-        (
-            f"<p>Dear {html.escape(first_name)},</p>"
-            "<p>Your password reset request has been approved.</p>"
-            "<p><strong>Temporary Login Credentials</strong><br>"
-            f"Email: {html.escape(recipient_email)}<br>"
-            f"Temporary Password: {html.escape(temporary_password)}<br>"
-            f'Login URL: <a href="{html.escape(login_url)}">{html.escape(login_url)}</a></p>'
-            "<p><strong>IMPORTANT:</strong><br>"
-            "You are required to change this temporary password immediately after login.</p>"
-            f"<p>Best regards,<br>{html.escape(system_name)} Team</p>"
-        ),
-    )
 
+    subject = f"{system_name} Password Reset"
+
+    text_body = f"""
+Hello {first_name},
+
+Your password has been reset.
+
+Temporary Password:
+{temporary_password}
+
+Login:
+{login_url}
+
+Change password immediately.
+
+{EMAIL_FOOTER_TEXT}
+"""
+
+    html_body = f"""
+<h3>Password Reset</h3>
+
+<p>Hello {html.escape(first_name)}</p>
+
+<p>
+Temporary Password:
+<b>{html.escape(temporary_password)}</b>
+</p>
+
+<p>
+<a href="{html.escape(login_url)}">Login</a>
+</p>
+
+{EMAIL_FOOTER_HTML}
+"""
+
+    return subject, text_body, html_body
+
+
+# ======================================================
+# MFA EMAIL
+# ======================================================
 
 def build_mfa_code_email_content(
     *,
@@ -143,21 +241,31 @@ def build_mfa_code_email_content(
     first_name: str,
     system_name: str,
 ) -> tuple[str, str, str]:
-    return (
-        f"{system_name} - MFA Verification Code",
-        (
-            f"Dear {first_name},\n\n"
-            "Use the code below to complete your login:\n\n"
-            f"MFA Code: {code}\n\n"
-            "This code expires in 10 minutes.\n"
-            "If you did not attempt to log in, please reset your password immediately.\n\n"
-            f"{system_name} Team\n"
-        ),
-        (
-            f"<p>Dear {html.escape(first_name)},</p>"
-            "<p>Use the code below to complete your login:</p>"
-            f"<p><strong>MFA Code: {html.escape(code)}</strong></p>"
-            "<p>This code expires in 10 minutes. If you did not attempt to log in, please reset your password immediately.</p>"
-            f"<p>{html.escape(system_name)} Team</p>"
-        ),
-    )
+
+    subject = f"{system_name} Verification Code"
+
+    text_body = f"""
+Hello {first_name},
+
+Your verification code:
+
+{code}
+
+Expires in 10 minutes.
+
+{EMAIL_FOOTER_TEXT}
+"""
+
+    html_body = f"""
+<h3>Verification Code</h3>
+
+<p>Hello {html.escape(first_name)}</p>
+
+<h2>{html.escape(code)}</h2>
+
+<p>Expires in 10 minutes</p>
+
+{EMAIL_FOOTER_HTML}
+"""
+
+    return subject, text_body, html_body
