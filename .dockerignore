@@ -1,0 +1,12 @@
+node_modules
+dist
+test-results
+coverage
+.git
+.vscode
+.idea
+vite-dev.log
+*.log
+.env
+.env.*
+!.env.docker.example
