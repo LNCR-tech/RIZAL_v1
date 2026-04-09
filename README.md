@@ -11,7 +11,8 @@ Valid8 Attendance Recognition System (Dockerized full stack).
 
 ## Project Structure
 - `Backend/` - FastAPI backend and workers
-- `Frontend/` - Vue frontend (the legacy React UI was moved to `archive/Frontend_legacy_react/`)
+- `Frontend/` - Vue frontend for the monorepo stack
+- root frontend files from `mr.frontend` - standalone/frontend-only Docker assets and alternate UI structure
 - `Databse/` - project database-related assets
 - `docker-compose.yml` - local multi-service orchestration
 
@@ -107,6 +108,17 @@ Windows one-liner wrapper (brings stack up without rebuild, then runs suites):
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run-auto-tests.ps1
 ```
+
+## Frontend-Only Docker Notes
+
+The root-level files added from `mr.frontend` include a standalone frontend Docker path:
+- `Dockerfile`
+- `nginx.conf.template`
+- `runtime-config.js.template`
+- `.env.docker.example`
+- `docker-entrypoint.d/40-runtime-config.sh`
+
+These can be used for frontend-only/demo container workflows, but the primary project orchestration for this repository remains the root `docker-compose.yml` full-stack setup above.
 
 ## Environment Notes
 - Backend mail example values are in `Backend/.env.example`.

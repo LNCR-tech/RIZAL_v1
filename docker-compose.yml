@@ -22,7 +22,6 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fastapi_db
     ports:
-      # Expose Postgres on 5433 to avoid conflicts with any local Windows PostgreSQL service.
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -43,8 +42,6 @@ services:
       timeout: 5s
       retries: 20
 
-  # NOTE: Backend email delivery is Gmail API only in this branch; Mailpit stays here for convenience
-  # but is not used unless you later re-introduce an SMTP transport.
   mailpit:
     image: axllent/mailpit:latest
     restart: unless-stopped
@@ -70,19 +67,14 @@ services:
     command: python seed.py
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      # Deterministic dev bootstrap credentials (override as needed).
       - DEFAULT_SCHOOL_NAME=${DEFAULT_SCHOOL_NAME:-Aurora University}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@yourdomain.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminPass123!}
-      # Used only for printing dev bootstrap info (pgAdmin reads these too).
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin123}
-      # Keep local/dev login deterministic even if the user already exists (e.g., legacy migrations).
       - SEED_ADMIN_RESET_PASSWORD=${SEED_ADMIN_RESET_PASSWORD:-true}
-      # Demo user templates for local dev.
       - SEED_DEMO_USERS=${SEED_DEMO_USERS:-true}
       - SEED_DEMO_RESET_PASSWORD=${SEED_DEMO_RESET_PASSWORD:-true}
-      # Print URLs + seeded credentials into the seed container logs.
       - SEED_PRINT_DEV_INFO=${SEED_PRINT_DEV_INFO:-true}
     volumes:
       - ./Backend:/app
@@ -93,7 +85,6 @@ services:
 
   backend:
     <<: *backend_image
-    # Build the backend image once. Other backend-adjacent services reference the same image tag.
     build: ./Backend
     ports:
       - "8000:8000"
@@ -101,20 +92,17 @@ services:
     environment:
       - SERVICE_MODE=web
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      # Keep backend JWT settings explicit so other services (Assistant) can validate tokens consistently.
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AUTH_ENABLE_MFA=false
-      # Dev-only: bypass face verification gate so testers can automate privileged flows.
       - FACE_VERIFICATION_BYPASS=${FACE_VERIFICATION_BYPASS:-true}
       - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
       - LOGIN_URL=http://localhost:5173
       - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
       - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
       - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
-      # Email (Gmail API only). Leave disabled in dev unless you configure OAuth values.
       - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
       - EMAIL_REQUIRED_ON_STARTUP=${EMAIL_REQUIRED_ON_STARTUP:-false}
       - EMAIL_VERIFY_CONNECTION_ON_STARTUP=${EMAIL_VERIFY_CONNECTION_ON_STARTUP:-false}
@@ -155,7 +143,6 @@ services:
       - JWT_SECRET=${SECRET_KEY:-change-this-secret-in-production}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - ASSISTANT_AUTO_MIGRATE=true
-      # LLM configuration (OpenAI-compatible). Required for real assistant replies.
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_API_BASE=${LLM_API_BASE:-}
       - LLM_MODEL=${LLM_MODEL:-}
@@ -222,7 +209,6 @@ services:
     <<: *backend_image
     command: pytest -q
     environment:
-      # Tests use in-memory SQLite via fixtures; keep DATABASE_URL safe to import even if read.
       - DATABASE_URL=sqlite://
       - EMAIL_TRANSPORT=disabled
       - EMAIL_REQUIRED_ON_STARTUP=false
@@ -306,10 +292,8 @@ services:
     ports:
       - "5173:80"
     environment:
-      # Used by nginx template to proxy /__backend__/ to the backend service.
       - BACKEND_ORIGIN=http://backend:8000
       - ASSISTANT_ORIGIN=http://assistant:8500
-      # Used by /docker-entrypoint.d/40-runtime-config.sh to generate runtime-config.js.
       - AURA_API_BASE_URL=/__backend__
       - AURA_API_TIMEOUT_MS=15000
       - AURA_ASSISTANT_BASE_URL=/__assistant__

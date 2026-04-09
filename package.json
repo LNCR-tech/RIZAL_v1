@@ -1,0 +1,50 @@
+{
+  "name": "aura-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "mock-api": "node mock-api.js",
+    "dev:all": "concurrently \"npm run mock-api\" \"npm run dev\"",
+    "cap:config": "node ./scripts/write-capacitor-config.mjs",
+    "cap:sync": "npm run cap:config && npx cap sync",
+    "android:sync": "npm run build && npm run cap:config && npx cap sync android",
+    "android:open": "npm run cap:config && npx cap open android",
+    "android:build:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
+    "android:build:release": "npm run android:sync && cd android && gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/camera": "^8.0.2",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/haptics": "^8.0.1",
+    "@capacitor/keyboard": "^8.0.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "@mediapipe/tasks-vision": "^0.10.32",
+    "busboy": "^1.6.0",
+    "leaflet": "^1.9.4",
+    "lucide-vue-next": "^0.577.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.25",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@tinyhttp/app": "^3.0.6",
+    "@tinyhttp/cors": "^2.0.1",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "concurrently": "^9.2.1",
+    "json-server": "^1.0.0-beta.15",
+    "lowdb": "^7.0.1",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.3.1"
+  }
+}
