@@ -18,7 +18,7 @@
 
 <script setup>
 import { RouterView } from 'vue-router'
-import AppBootLoader from '@/components/ui/AppBootLoader.vue'
+import AppBootLoader from '@/components/shared/ui/AppBootLoader.vue'
 </script>
 
 <style scoped>

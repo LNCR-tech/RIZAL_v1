@@ -112,8 +112,8 @@
 <script setup>
 import { computed, ref, onBeforeMount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import BaseInput from '@/components/ui/BaseInput.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseInput from '@/components/shared/ui/BaseInput.vue'
+import BaseButton from '@/components/shared/ui/BaseButton.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
 import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'

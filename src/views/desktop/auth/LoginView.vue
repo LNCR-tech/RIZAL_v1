@@ -98,9 +98,10 @@
 </template>
 
 <script setup>
-import BaseInput from '@/components/ui/BaseInput.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
-import { surfaceAuraLogo } from '@/config/theme.js'
+import { onMounted, onUnmounted } from 'vue'
+import BaseInput from '@/components/shared/ui/BaseInput.vue'
+import BaseButton from '@/components/shared/ui/BaseButton.vue'
+import { applyLightOverride, removeLightOverride, surfaceAuraLogo } from '@/config/theme.js'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
 const {

@@ -55,7 +55,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { RouterView } from 'vue-router'
-import AppBootLoader from '@/components/ui/AppBootLoader.vue'
+import AppBootLoader from '@/components/shared/ui/AppBootLoader.vue'
 import { mobileFullscreenHintVisible, requestMobileFullscreen } from '@/services/mobileFullscreen.js'
 import { isOnline } from '@/composables/useNetworkStatus.js'
 import { appFatalErrorMessage, clearAppFatalError } from '@/services/appBootstrap.js'
