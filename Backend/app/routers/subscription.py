@@ -206,7 +206,9 @@ def run_subscription_reminders(
     is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
 
     if is_platform_admin and school_id is None:
-        settings_rows = db.query(SchoolSubscriptionSetting).all()
+        settings_rows = []
+        for school_row in db.query(School).all():
+            settings_rows.append(_get_or_create_subscription_setting(db, school_row.id))
     else:
         scoped_school_id = _resolve_school_id(current_user, school_id)
         settings_rows = (

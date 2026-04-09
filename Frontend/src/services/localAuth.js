@@ -130,16 +130,19 @@ export function needsStoredPasswordChange() {
     return Boolean(getStoredAuthMeta()?.mustChangePassword)
 }
 
+export function hasPendingFaceVerification(meta = getStoredAuthMeta()) {
+    if (!meta) return false
+    
+    return Boolean(
+        meta.tokenType === 'face_pending' ||
+        meta.faceVerificationPending ||
+        meta.faceVerificationRequired
+    )
+}
+
 export function hasPrivilegedPendingFace(meta = getStoredAuthMeta()) {
     const roles = normalizeRoles(meta?.roles).map(normalizeRoleName)
     const hasPrivilegedRole = roles.includes('admin') || roles.includes('school-it')
 
-    return Boolean(
-        hasPrivilegedRole &&
-        (
-            meta?.tokenType === 'face_pending' ||
-            meta?.faceVerificationPending ||
-            meta?.faceVerificationRequired
-        )
-    )
+    return Boolean(hasPrivilegedRole && hasPendingFaceVerification(meta))
 }

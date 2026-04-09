@@ -30,7 +30,7 @@ function isChunkLoadError(error) {
     ''
   )
 
-  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk [\d]+ failed|error loading dynamically imported module/i.test(message)
+  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk [\d]+ failed|error loading dynamically imported module|Unable to preload CSS|Unable to preload.*\.css|error loading.*\.css/i.test(message)
 }
 
 function clearChunkReloadTarget() {
@@ -50,7 +50,9 @@ async function attemptChunkRecovery(targetPath = '') {
   }
 
   window.sessionStorage?.setItem(CHUNK_RELOAD_TARGET_KEY, normalizedTarget)
-  window.location.assign(normalizedTarget)
+  const nextUrl = new URL(normalizedTarget, window.location.origin)
+  nextUrl.searchParams.set('aura_reload', String(Date.now()))
+  window.location.replace(nextUrl.toString())
   return true
 }
 

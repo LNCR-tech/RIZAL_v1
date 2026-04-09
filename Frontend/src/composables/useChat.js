@@ -10,46 +10,15 @@
  */
 
 import { ref, nextTick } from 'vue'
-import { getStoredAuthMeta } from '@/services/localAuth.js'
-import { resolveAssistantBaseUrl } from '@/services/assistantBaseUrl.js'
-import { streamAssistantReply } from '@/services/assistantApi.js'
 
 // ─── Shared singleton state ───────────────────────────────────────────────────
-const messages   = ref([])
-
-
+const messages   = ref([
+  { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }
+])
 const inputText  = ref('')
 const isTyping   = ref(false)
 const isMiniOpen = ref(false)
 const isFullOpen = ref(false)
-const conversationId = ref(null)
-
-function loadStoredConversationId() {
-  try {
-    const raw = localStorage.getItem('aura_assistant_conversation_id')
-    const trimmed = String(raw || '').trim()
-    return trimmed || null
-  } catch {
-    return null
-  }
-}
-
-function storeConversationId(value) {
-  const normalized = String(value || '').trim()
-  conversationId.value = normalized || null
-
-  try {
-    if (!conversationId.value) {
-      localStorage.removeItem('aura_assistant_conversation_id')
-    } else {
-      localStorage.setItem('aura_assistant_conversation_id', conversationId.value)
-    }
-  } catch {
-    // ignore storage errors
-  }
-}
-
-conversationId.value = loadStoredConversationId()
 
 // Holds a ref to the messages scroll container (set by the active chat view)
 const scrollEl   = ref(null)
@@ -64,24 +33,14 @@ function scrollToBottom() {
 }
 
 // ─── Backend stub — replace this function with your real API call ─────────────
-async function streamAiResponse(userMessage, { token, userMeta } = {}) {
-  const aiMsg = { id: Date.now() + 1, sender: 'ai', text: '' }
-  messages.value.push(aiMsg)
-
-  await streamAssistantReply({
-    baseUrl: resolveAssistantBaseUrl(),
-    token,
-    message: userMessage,
-    conversationId: conversationId.value,
-    userMeta,
-    onMessageChunk: (chunk, meta) => {
-      aiMsg.text += chunk
-      if (meta?.conversationId) {
-        storeConversationId(meta.conversationId)
-      }
-      scrollToBottom()
-    },
-  })
+async function simulateAiResponse(userMessage) {
+  /**
+   * TODO: Replace with:
+   * const { data } = await api.post('/chat/message', { message: userMessage })
+   * return data.reply
+   */
+  await new Promise(resolve => setTimeout(resolve, 1400))
+  return "I'm ready and waiting for my backend brain! Once we connect the API, I'll answer your questions about grades, schedule, and more."
 }
 
 // ─── Public actions ───────────────────────────────────────────────────────────
@@ -95,24 +54,13 @@ async function sendMessage() {
   scrollToBottom()
 
   try {
-    const token = String(localStorage.getItem('aura_token') || '').trim()
-    const userMeta = getStoredAuthMeta()
-
-    if (!token) {
-      messages.value.push({
-        id: Date.now() + 1,
-        sender: 'ai',
-        text: 'Please log in first so I can access your campus account scope.',
-      })
-      return
-    }
-
-    await streamAiResponse(text, { token, userMeta })
+    const reply = await simulateAiResponse(text)
+    messages.value.push({ id: Date.now() + 1, sender: 'ai', text: reply })
   } catch {
     messages.value.push({
       id: Date.now() + 1,
       sender: 'ai',
-      text: 'Something went wrong while contacting Aura Assistant. Please try again.'
+      text: 'Something went wrong. Please try again.'
     })
   } finally {
     isTyping.value = false
@@ -160,7 +108,6 @@ export function useChat() {
     isTyping,
     isMiniOpen,
     isFullOpen,
-    conversationId,
     scrollEl,
     sendMessage,
     openMini,

@@ -15,6 +15,8 @@ This guide documents the Gmail API-only mail delivery setup for VALID8 transacti
   - `EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true`
 - personal Gmail accounts cannot keep an arbitrary custom `EMAIL_FROM_EMAIL`; the backend falls back to the authenticated Gmail address and logs a warning
 - Google Workspace mailboxes can send from a verified alias when the alias exists in Gmail settings and custom-from is enabled
+- package-level callers still use `app.services.email_service` as the public entrypoint, including tests and older code paths that monkeypatch `get_settings`, `_send_email`, or `httpx`
+- local or Docker dev stacks that intentionally run with `EMAIL_TRANSPORT=disabled` can still create students through `POST /api/users/students/`, but that path skips welcome-email delivery and should not be treated as production email validation
 
 ## Runtime Files
 
@@ -118,6 +120,18 @@ GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/gmail.send,https://www.googl
 ## What The Backend Verifies
 
 - the mail transport is `gmail_api`
+- Google OAuth refresh-token settings are present before Gmail API sends
+- if `EMAIL_FROM_EMAIL != EMAIL_SENDER_EMAIL`, the backend checks the Gmail `sendAs` alias endpoint instead of only checking the mailbox profile endpoint
+- Gmail API permission failures now surface an explicit `gmail.send` scope hint in raised delivery errors
+- welcome, password-reset, and import-onboarding use cases all resolve login URLs from the shared settings entrypoint and send through the package-level email facade
+
+## Runtime Testing
+
+1. Run `pytest -q Backend/app/tests/test_email_service.py`.
+2. Call `python Backend/scripts/send_test_email.py --to your-test-address@example.com` with a valid Gmail API setup.
+3. If you use a Workspace alias, confirm `EMAIL_FROM_EMAIL` is configured as a verified Gmail send-as alias and that the connection check succeeds against the alias endpoint.
+4. If a send fails with a scope message, confirm the OAuth grant includes `https://www.googleapis.com/auth/gmail.send`.
+- For local Docker/offline testing with `EMAIL_TRANSPORT=disabled`, create a student through `POST /api/users/students/` and confirm the account is created without a welcome email.
 - OAuth client ID, client secret, refresh token, and token URL exist
 - `EMAIL_SENDER_EMAIL` is a valid address
 - `EMAIL_FROM_EMAIL` is valid when supplied

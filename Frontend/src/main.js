@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { Capacitor } from '@capacitor/core'
+import { createPinia } from 'pinia'
 import router from '@/router/index.js'
 import App from './App.vue'
 import './assets/css/main.css'
@@ -12,6 +13,7 @@ import { getStoredAuthMeta, hasPrivilegedPendingFace } from '@/services/localAut
 import { registerAuraServiceWorker, startMobileFullscreenSync } from '@/services/mobileFullscreen.js'
 import { startPwaInstallSync } from '@/services/pwaInstall.js'
 import { SESSION_EXPIRED_EVENT } from '@/services/sessionExpiry.js'
+import { initializeDeviceStore } from '@/stores/device.js'
 
 function resolveBootstrapThemeSettings() {
   const authMeta = getStoredAuthMeta()
@@ -42,6 +44,10 @@ function resolveBootstrapThemeSettings() {
 applyTheme(loadTheme(resolveBootstrapThemeSettings()))
 
 const app = createApp(App)
+const pinia = createPinia()
+
+app.use(pinia)
+initializeDeviceStore(pinia)
 app.use(router)
 installAppErrorHandling(app, router)
 app.mount('#app')

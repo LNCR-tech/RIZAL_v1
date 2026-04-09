@@ -14,6 +14,95 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-09 - Allow local student creation when email delivery is intentionally disabled
+
+### Purpose
+
+Keep local and Docker-based school IT workflows usable when the backend is running with `EMAIL_TRANSPORT=disabled`. Manual student creation now skips the welcome-email attempt in that specific dev/offline mode instead of failing the request, while real Gmail-enabled environments still require successful delivery and still roll back on welcome-email failures.
+
+### Main files
+
+- `Backend/app/routers/users/students.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed `POST /api/users/students/` so it checks the resolved `EMAIL_TRANSPORT` before attempting the welcome email
+- when `EMAIL_TRANSPORT=disabled`, the route now creates the student account and profile, logs that welcome delivery was skipped, and returns `201`
+- when `EMAIL_TRANSPORT` is enabled for real delivery, failed welcome-email sends still raise `502` and still roll back the student account creation
+- added regression coverage for the disabled-transport path so local development stays usable without weakening the real email-delivery guard
+
+### Route and schema impact
+
+- no request or response schema changes
+- runtime behavior changed only for `POST /api/users/students/` when `EMAIL_TRANSPORT=disabled`
+
+### Configuration impact
+
+- local Docker or offline dev stacks may keep `EMAIL_TRANSPORT=disabled` and still create students manually
+- Gmail-backed environments should continue using `EMAIL_TRANSPORT=gmail_api` so onboarding emails are actually delivered
+
+### How to test
+
+1. Run `pytest -q Backend/app/tests/test_api.py -k student_account_api`.
+2. With `EMAIL_TRANSPORT=disabled`, create a student through `POST /api/users/students/` and confirm the user is created even though no welcome email is sent.
+3. With `EMAIL_TRANSPORT=gmail_api` and a forced delivery failure, confirm the same route still returns `502` and leaves no partial student account behind.
+
+## 2026-04-09 - Restore email-service compatibility and re-enable governance/subscription regression guards
+
+### Purpose
+
+Fix the 13 failing backend regressions without reverting active feature code. This restores the Gmail API compatibility surface expected by the tests, re-enforces school-scope checks in governance routes, and makes subscription reminder runs initialize missing school settings for platform admins.
+
+### Main files
+
+- `Backend/app/services/email_service/__init__.py`
+- `Backend/app/services/email_service/config.py`
+- `Backend/app/services/email_service/rendering.py`
+- `Backend/app/services/email_service/transport.py`
+- `Backend/app/services/email_service/use_cases.py`
+- `Backend/app/routers/users/students.py`
+- `Backend/app/routers/governance.py`
+- `Backend/app/routers/subscription.py`
+- `Backend/docs/BACKEND_GOOGLE_EMAIL_DELIVERY_GUIDE.md`
+- `Backend/docs/BACKEND_GOVERNANCE_HIERARCHY_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- restored email-service backward compatibility exports used by tests and older callers, including package-level `get_settings`, package-level `httpx`, and `_send_email`-based use-case dispatch
+- restored Gmail API OAuth refresh-token access-token fetching in the transport layer
+- added Gmail send-as alias verification support in the email connection check when `EMAIL_FROM_EMAIL` differs from `EMAIL_SENDER_EMAIL`
+- enforced the expected Gmail sender rules:
+  - personal Gmail falls back to the authenticated Gmail address for the visible `From`
+  - Workspace custom `From` addresses now require `EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true`
+- updated onboarding and reset email copy to match the active password-change policy and current frontend login guidance
+- `POST /api/users/students/` now rolls back the student creation transaction and returns `502` when the welcome email delivery fails
+- `POST /api/governance/requests` now blocks regular users from creating data requests for users outside their own school/account scope
+- governance settings and retention endpoints now return `404` for unknown `school_id` values instead of silently creating settings rows
+- `POST /api/subscription/run-reminders` now initializes missing subscription-setting rows for schools during platform-admin runs before evaluating reminder eligibility
+
+### Route or schema impact
+
+- no route paths changed
+- no request or response schema shapes changed
+- runtime status behavior changed for `POST /api/users/students/`, `GET /api/governance/settings/me`, and `POST /api/governance/requests`
+
+### Migration impact
+
+- no database migration required
+- Gmail API deployments still require valid Google OAuth env vars and, for Workspace aliases, a verified Gmail send-as alias plus `EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true`
+
+### How to test
+
+1. Run `pytest -q Backend/app/tests/test_email_service.py Backend/app/tests/test_backend_cleanup_regressions.py Backend/app/tests/test_api.py -k "create_student_account_api_rolls_back_when_welcome_email_fails"`.
+2. Run `pytest -q` from `Backend/` and confirm the suite stays green.
+3. Create a student through `POST /api/users/students/` while forcing welcome-email delivery to fail and confirm the API returns `502` and does not persist the user.
+4. Call `GET /api/governance/settings/me?school_id=<missing-id>` as a platform admin and confirm the backend returns `404`.
+5. Call `POST /api/subscription/run-reminders` as a platform admin in an environment with at least one school missing a `school_subscription_settings` row and confirm reminders still evaluate that school.
+
 ## 2026-03-28 - Make bulk import onboarding emails match the create-user credentials email
 
 ### Purpose

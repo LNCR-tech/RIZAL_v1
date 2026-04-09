@@ -8,7 +8,7 @@ import {
     sessionUsesLimitedMode,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
+import { hasPendingFaceVerification, hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
 import { clearSessionExpiredNotice } from '@/services/sessionExpiry.js'
 
 export function useAuth() {
@@ -42,7 +42,7 @@ export function useAuth() {
             localStorage.setItem('aura_user_roles', JSON.stringify(tokenPayload?.roles ?? []))
             const authMeta = storeAuthMeta(tokenPayload)
 
-            if (hasPrivilegedPendingFace(authMeta)) {
+            if (hasPendingFaceVerification(authMeta)) {
                 router.push({ name: 'PrivilegedFaceVerification' })
                 return
             }

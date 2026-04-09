@@ -1,5 +1,5 @@
 import { computed, reactive, readonly } from 'vue'
-import { applyTheme, loadTheme } from '@/config/theme.js'
+import { applyTheme, loadTheme, configureThemeForUser } from '@/config/theme.js'
 import {
     getFaceStatus,
     getCurrentUserProfile,
@@ -256,6 +256,11 @@ function isAdminUser(user) {
 }
 
 function applyActiveTheme() {
+    if (state.user?.id) {
+        configureThemeForUser(state.user.id)
+    } else {
+        configureThemeForUser(null)
+    }
     applyTheme(loadTheme(
         state.schoolSettings
         || buildFallbackSchoolSettings(getStoredAuthMeta())

@@ -59,6 +59,19 @@ Academic scope records are now enforced per campus at the backend level.
 
 This removes the old leak where two campuses could accidentally share the same global department or program record.
 
+## Governance Request Safety
+
+The `/api/governance/*` runtime flow now also enforces these account-scope guards:
+
+- regular users can only create governance data requests for their own account
+- cross-school `target_user_id` values are rejected with `403`
+- platform-admin governance settings and retention requests now return `404` when `school_id` points to a non-existent school instead of creating orphaned settings rows
+
+### Quick tests
+
+1. As a student user, call `POST /api/governance/requests` with another school's `target_user_id` and confirm the backend returns `403`.
+2. As a platform admin, call `GET /api/governance/settings/me?school_id=<missing-id>` and confirm the backend returns `404`.
+
 ## Data Model
 
 ### `governance_units`

@@ -965,6 +965,7 @@ def test_create_student_account_api_creates_student_and_sends_welcome_email(
     test_db,
     monkeypatch,
 ):
+    monkeypatch.setenv("EMAIL_TRANSPORT", "gmail_api")
     school = _create_school(test_db, code="STUDENT-CREATE")
     campus_admin = _create_user_with_role(
         test_db,
@@ -1045,6 +1046,7 @@ def test_create_student_account_api_rolls_back_when_welcome_email_fails(
     test_db,
     monkeypatch,
 ):
+    monkeypatch.setenv("EMAIL_TRANSPORT", "gmail_api")
     school = _create_school(test_db, code="STUDENT-EMAIL-FAIL")
     campus_admin = _create_user_with_role(
         test_db,
@@ -1089,6 +1091,59 @@ def test_create_student_account_api_rolls_back_when_welcome_email_fails(
     assert response.status_code == 502
     assert "welcome email could not be delivered" in response.json()["detail"]
     assert test_db.query(User).filter(User.email == "rollback.student@example.com").first() is None
+
+
+def test_create_student_account_api_skips_welcome_email_when_transport_disabled(
+    client,
+    test_db,
+    monkeypatch,
+):
+    school = _create_school(test_db, code="STUDENT-EMAIL-DISABLED")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="campus.email.disabled@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+        first_name="Campus",
+        last_name="Admin",
+    )
+
+    department = Department(school_id=school.id, name="School of Design")
+    program = Program(school_id=school.id, name="BS Information Systems")
+    department.programs.append(program)
+    test_db.add_all([department, program])
+    test_db.commit()
+
+    monkeypatch.setenv("EMAIL_TRANSPORT", "disabled")
+    monkeypatch.setattr(
+        users_router,
+        "generate_secure_password",
+        lambda min_length=10, max_length=14: "TempPass123A",
+    )
+
+    def failing_send_welcome_email(**kwargs):
+        raise AssertionError("send_welcome_email should not be called when email transport is disabled")
+
+    monkeypatch.setattr(users_router, "send_welcome_email", failing_send_welcome_email)
+
+    response = client.post(
+        "/api/users/students/",
+        headers=_auth_headers(campus_admin),
+        json={
+            "email": "offline.student@example.com",
+            "first_name": "Offline",
+            "middle_name": "",
+            "last_name": "Student",
+            "department_id": department.id,
+            "program_id": program.id,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["email"] == "offline.student@example.com"
+    assert test_db.query(User).filter(User.email == "offline.student@example.com").first() is not None
 
 
 def test_get_all_users_returns_paged_student_profiles(client, test_db):

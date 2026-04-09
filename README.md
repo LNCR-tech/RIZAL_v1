@@ -66,10 +66,10 @@ LLM_API_KEY=your_key_here
 ```
 
 3. Open:
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
-- pgAdmin: `http://localhost:5050`
-- Assistant health (via frontend proxy): `http://localhost:5173/__assistant__/health`
+- Frontend: `http://localhost:5174`
+- Backend API: `http://localhost:8001`
+- pgAdmin: `http://localhost:5051`
+- Assistant health (via frontend proxy): `http://localhost:5174/__assistant__/health`
 
 To print the seeded demo credentials (the `seed` one-shot container logs):
 
@@ -119,6 +119,18 @@ The root-level files added from `mr.frontend` include a standalone frontend Dock
 - `docker-entrypoint.d/40-runtime-config.sh`
 
 These can be used for frontend-only/demo container workflows, but the primary project orchestration for this repository remains the root `docker-compose.yml` full-stack setup above.
+
+## Docker Isolation
+
+This repo's Docker Compose stack uses its own project name and shifted host ports so it can run beside older VALID8 containers without conflicts.
+
+- frontend: `5174`
+- backend: `8001`
+- pgAdmin: `5051`
+- Postgres: `5434`
+- Redis: `6380`
+- Mailpit SMTP: `1026`
+- Mailpit UI: `8026`
 
 ## Environment Notes
 - Backend mail example values are in `Backend/.env.example`.

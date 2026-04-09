@@ -75,6 +75,8 @@ class ResolvedEmailDeliverySettings:
 class EmailConnectionStatus:
     is_connected: bool
     error: str | None = None
+    transport: str = ""
+    host: str = ""
 
     @property
     def ok(self) -> bool:
@@ -181,6 +183,20 @@ def _resolve_sender_settings(
         allow_blank=True,
     )
 
+    warnings: list[str] = []
+    allow_custom_from = bool(getattr(settings, "email_google_allow_custom_from", False))
+
+    if google_account_type == "personal" and normalized_from_email != normalized_sender_email:
+        warnings.append(
+            "Personal Gmail accounts cannot use a different From address. "
+            "Falling back to the authenticated sender."
+        )
+        normalized_from_email = normalized_sender_email
+    elif google_account_type == "workspace" and normalized_from_email != normalized_sender_email and not allow_custom_from:
+        raise EmailConfigurationError(
+            "Custom Workspace From addresses require EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true"
+        )
+
     from_name = (settings.email_from_name or DEFAULT_FROM_NAME).strip()
     from_header = formataddr((from_name, normalized_from_email))
 
@@ -206,7 +222,7 @@ def _resolve_sender_settings(
         google_account_type=google_account_type,
         access_token=access_token,
         max_retries=max_retries,
-        warnings=(),
+        warnings=tuple(warnings),
     )
 
 

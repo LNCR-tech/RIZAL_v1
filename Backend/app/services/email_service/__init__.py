@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import logging
 
+from app.core.config import get_settings
+
 # ======================================================
 # CONFIG
 # ======================================================
@@ -60,6 +62,7 @@ from .transport import (
     build_gmail_api_headers,
     check_email_delivery_connection,
     get_email_delivery_summary,
+    httpx,
     send_plain_email,
     send_test_email,
     send_transactional_email,
@@ -92,6 +95,7 @@ __all__ = [
     "EmailConnectionStatus",
     "EmailDeliveryError",
     "ResolvedEmailDeliverySettings",
+    "get_settings",
     "validate_email_delivery_on_startup",
     "validate_email_delivery_settings",
     # --- rendering ---
@@ -103,6 +107,7 @@ __all__ = [
     "build_gmail_api_headers",
     "check_email_delivery_connection",
     "get_email_delivery_summary",
+    "httpx",
     "send_plain_email",
     "send_test_email",
     "send_transactional_email",

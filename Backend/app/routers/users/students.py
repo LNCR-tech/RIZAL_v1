@@ -1,5 +1,7 @@
 """Student-management routes for the user router package."""
 
+from app.core.config import get_settings
+
 from .shared import *  # noqa: F403
 
 router = APIRouter()
@@ -35,6 +37,7 @@ def create_student_account(
 
     issued_password = generate_secure_password(min_length=10, max_length=14)
     system_name = _get_school_system_name(db, school_id)
+    email_transport = (get_settings().email_transport or "").strip().lower()
 
     try:
         db_user = UserModel(
@@ -62,22 +65,30 @@ def create_student_account(
         )
         db.flush()
 
-        # ✅ GIUSAB: Log lang ang email error, dili i-block ang student creation
-        try:
-            send_welcome_email(
-                recipient_email=db_user.email,
-                temporary_password=issued_password,
-                first_name=db_user.first_name,
-                system_name=system_name,
-                password_is_temporary=True,
-            )
-        except EmailDeliveryError as exc:
-            logger.warning(
-                "Welcome email could not be sent to %s: %s — "
-                "Student account will still be created.",
+        if email_transport == "disabled":
+            logger.info(
+                "Skipping welcome email for student %s because EMAIL_TRANSPORT is disabled.",
                 db_user.email,
-                exc,
             )
+        else:
+            try:
+                send_welcome_email(
+                    recipient_email=db_user.email,
+                    temporary_password=issued_password,
+                    first_name=db_user.first_name,
+                    system_name=system_name,
+                    password_is_temporary=True,
+                )
+            except EmailDeliveryError as exc:
+                logger.warning(
+                    "Welcome email could not be sent to %s: %s",
+                    db_user.email,
+                    exc,
+                )
+                raise HTTPException(
+                    status_code=502,
+                    detail="Student account could not be created because the welcome email could not be delivered.",
+                )
 
         db.commit()
         created_user = (

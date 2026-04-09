@@ -54,7 +54,8 @@ def _send_email(
     *,
     recipient_email: str,
     subject: str,
-    text_body: str,
+    text_body: str | None = None,
+    body: str | None = None,
     html_body: str | None = None,
 ):
 
@@ -63,7 +64,7 @@ def _send_email(
     send_transactional_email(
         recipient_email=recipient_email,
         subject=subject,
-        text_body=text_body,
+        text_body=text_body if text_body is not None else (body or ""),
         html_body=html_body,
     )
 
@@ -96,11 +97,9 @@ Your account has been created.
 Email: {recipient_email}
 {password_label}: {temporary_password}
 
-Login URL:
-{login_url}
+Login URL: {login_url}
 
-IMPORTANT:
-Change password after login.
+{password_notice}
 
 {EMAIL_FOOTER_TEXT}
 """
@@ -112,16 +111,18 @@ Change password after login.
 
 <p>Your account has been created.</p>
 
+<p><b>{html.escape(credential_subject)}</b></p>
+
 <p>
 Email: {html.escape(recipient_email)}<br>
-Password: {html.escape(temporary_password)}
+{html.escape(password_label)}: {html.escape(temporary_password)}
 </p>
 
 <p>
 <a href="{html.escape(login_url)}">Login</a>
 </p>
 
-<p><b>Change password after login</b></p>
+<p>{html.escape(password_notice).replace(chr(10), '<br>')}</p>
 
 {EMAIL_FOOTER_HTML}
 """
@@ -142,37 +143,32 @@ def build_import_onboarding_email_content(
     login_url: str,
 ) -> tuple[str, str, str]:
 
-    subject = f"{system_name} Account Created"
+    subject = f"{system_name} Account Ready"
 
     text_body = f"""
 Hello {first_name},
 
 Your account has been created.
+You can sign in using the login page below.
+If you do not know your password, use the Forgot Password option on the login page.
 
-Email: {recipient_email}
-Temporary Password: {temporary_password}
-
-Login URL:
-{login_url}
-
-Change password immediately.
+Login URL: {login_url}
 
 {EMAIL_FOOTER_TEXT}
 """
 
     html_body = f"""
-<h3>Account Created</h3>
+<h3>Account Ready</h3>
 
 <p>Hello {html.escape(first_name)}</p>
 
-<p>
-Email: {html.escape(recipient_email)}<br>
-Password: {html.escape(temporary_password)}
-</p>
+<p>Your account has been created and is ready to use.</p>
 
 <p>
-<a href="{html.escape(login_url)}">Login</a>
+  <a href="{html.escape(login_url)}">Login</a>
 </p>
+
+<p>If you do not know your password, use the Forgot Password option on the login page.</p>
 
 {EMAIL_FOOTER_HTML}
 """
@@ -203,10 +199,9 @@ Your password has been reset.
 Temporary Password:
 {temporary_password}
 
-Login:
-{login_url}
+Login URL: {login_url}
 
-Change password immediately.
+You are required to change this temporary password immediately after login.
 
 {EMAIL_FOOTER_TEXT}
 """
@@ -222,8 +217,10 @@ Temporary Password:
 </p>
 
 <p>
-<a href="{html.escape(login_url)}">Login</a>
+  <a href="{html.escape(login_url)}">Login</a>
 </p>
+
+<p><b>Temporary Login Credentials</b></p>
 
 {EMAIL_FOOTER_HTML}
 """

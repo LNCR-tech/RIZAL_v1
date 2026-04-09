@@ -28,7 +28,7 @@ from app.models.platform_features import (
     NotificationLog,
     UserPrivacyConsent,
 )
-from app.models.school import SchoolAuditLog
+from app.models.school import School, SchoolAuditLog
 from app.models.user import User
 from app.schemas.governance import (
     DataGovernanceSettingResponse,
@@ -57,6 +57,12 @@ def _resolve_school_id(current_user: User, requested_school_id: int | None = Non
     return actor_school_id
 
 
+def _assert_school_exists(db: Session, school_id: int) -> None:
+    school = db.query(School.id).filter(School.id == school_id).first()
+    if school is None:
+        raise HTTPException(status_code=404, detail="School not found")
+
+
 def _get_or_create_setting(db: Session, school_id: int) -> DataGovernanceSetting:
     setting = (
         db.query(DataGovernanceSetting)
@@ -78,6 +84,7 @@ def get_governance_settings(
     db: Session = Depends(get_db),
 ):
     scoped_school_id = _resolve_school_id(current_user, school_id)
+    _assert_school_exists(db, scoped_school_id)
     setting = _get_or_create_setting(db, scoped_school_id)
     db.commit()
     db.refresh(setting)
@@ -92,6 +99,7 @@ def update_governance_settings(
     db: Session = Depends(get_db),
 ):
     scoped_school_id = _resolve_school_id(current_user, school_id)
+    _assert_school_exists(db, scoped_school_id)
     setting = _get_or_create_setting(db, scoped_school_id)
 
     for field in [
@@ -158,6 +166,13 @@ def create_data_request(
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
 
     target_user_id = payload.target_user_id or current_user.id
+    if target_user_id != current_user.id:
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if target_user is None or target_user.school_id != school_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Users can only create data requests for their own account.",
+            )
     row = DataRequest(
         school_id=school_id,
         requested_by_user_id=current_user.id,
@@ -301,6 +316,7 @@ def run_retention_cleanup(
     db: Session = Depends(get_db),
 ):
     scoped_school_id = _resolve_school_id(current_user, school_id)
+    _assert_school_exists(db, scoped_school_id)
     setting = _get_or_create_setting(db, scoped_school_id)
 
     if not payload.dry_run and not setting.auto_delete_enabled:
