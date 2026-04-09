@@ -1,12 +1,30 @@
 <template>
   <section class="mobile-dashboard">
-    <StandardHeader
-      :avatar-url="avatarUrl"
-      :school-name="schoolSettings?.school_name"
-      :display-name="displayName"
-      :initials="initials"
-      @logout="handleLogout"
-    />
+    <header class="mobile-dashboard__header">
+      <button
+        class="mobile-dashboard__profile"
+        type="button"
+        aria-label="Open profile"
+        @click="router.push({ name: preview ? 'PreviewDashboardProfile' : 'Profile' })"
+      >
+        <img
+          v-if="avatarUrl"
+          :src="avatarUrl"
+          :alt="displayName"
+          class="mobile-dashboard__avatar"
+        >
+        <span v-else class="mobile-dashboard__avatar mobile-dashboard__avatar--fallback">{{ initials }}</span>
+
+        <span class="mobile-dashboard__profile-copy">
+          <span class="mobile-dashboard__eyebrow">Welcome Back</span>
+          <span class="mobile-dashboard__name">{{ displayName }}</span>
+        </span>
+      </button>
+
+      <button class="mobile-dashboard__notify" type="button" aria-label="Notifications">
+        <Bell :size="18" :stroke-width="2" />
+      </button>
+    </header>
 
     <div class="mobile-dashboard__body">
       <h1 class="mobile-dashboard__title">Dashboard</h1>
@@ -14,7 +32,7 @@
       <section class="mobile-dashboard__search-block">
         <div class="mobile-dashboard__search-row">
           <div class="mobile-dashboard__search-wrap" :class="{ 'mobile-dashboard__search-wrap--active': searchActive }">
-            <div class="mobile-dashboard__search-shell aura-glass" :class="{ 'mobile-dashboard__search-shell--open': searchActive }">
+            <div class="mobile-dashboard__search-shell" :class="{ 'mobile-dashboard__search-shell--open': searchActive }">
               <div class="mobile-dashboard__search-input-row">
                 <input
                   v-model="searchQuery"
@@ -57,6 +75,18 @@
               </div>
             </div>
           </div>
+
+          <button
+            v-show="!searchActive"
+            class="mobile-dashboard__ai-pill"
+            type="button"
+            aria-label="Talk to Aura AI"
+            :aria-expanded="isAiOpen ? 'true' : 'false'"
+            @click="toggleAi"
+          >
+            <img :src="secondaryAuraLogo" alt="Aura" class="mobile-dashboard__ai-logo">
+            <span class="mobile-dashboard__ai-copy">Talk to<br>Aura Ai</span>
+          </button>
         </div>
 
         <Transition name="mobile-search">
@@ -111,7 +141,7 @@
       <Transition name="mobile-dashboard__panel-switch" mode="out-in">
         <div :key="activeTab" class="mobile-dashboard__panel-stack">
           <section class="mobile-dashboard__stats mobile-dashboard__panel-card mobile-dashboard__panel-card--stats">
-            <article v-for="card in statCards" :key="card.label" class="mobile-dashboard__stat-card aura-mesh">
+            <article v-for="card in statCards" :key="card.label" class="mobile-dashboard__stat-card">
               <span class="mobile-dashboard__stat-value">{{ card.value }}</span>
               <span class="mobile-dashboard__stat-label">{{ card.label }}</span>
             </article>
@@ -137,28 +167,14 @@
         </div>
       </Transition>
     </div>
-
-    <!-- Floating Aura AI FAB -->
-    <button
-      class="mobile-dashboard__fab"
-      :class="{ 'mobile-dashboard__fab--active': isAiOpen }"
-      type="button"
-      aria-label="Talk to Aura AI"
-      @click="toggleAi"
-    >
-      <div class="mobile-dashboard__fab-glow"></div>
-      <img :src="surfaceAuraLogo" alt="Aura" class="mobile-dashboard__fab-logo">
-    </button>
   </section>
 </template>
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, Search, Send, LogOut } from 'lucide-vue-next'
-import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
+import { Bell, Search, Send } from 'lucide-vue-next'
 import { secondaryAuraLogo, surfaceAuraLogo } from '@/config/theme.js'
-import { useAuth } from '@/composables/useAuth.js'
 import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
@@ -192,15 +208,7 @@ const tabs = [
   { key: 'attended', label: 'Attended' },
 ]
 
-const { logout } = useAuth()
-const { 
-  currentUser, 
-  events, 
-  attendanceRecords, 
-  hasAttendanceForEvent, 
-  hasOpenAttendanceForEvent,
-  schoolSettings 
-} = useDashboardSession()
+const { currentUser, events, attendanceRecords, hasAttendanceForEvent, hasOpenAttendanceForEvent } = useDashboardSession()
 const { messages, inputText, isTyping, scrollEl, sendMessage, closeAll } = useChat()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
@@ -426,15 +434,6 @@ function buildChartBars(records, mode) {
   }))
 }
 
-async function handleLogout() {
-  if (props.preview) {
-    router.replace('/exposed/dashboard')
-    return
-  }
-  await logout()
-  router.replace('/')
-}
-
 function startOfWeek(date) {
   const next = new Date(date)
   const day = next.getDay()
@@ -447,7 +446,14 @@ function startOfWeek(date) {
 
 <style scoped>
 .mobile-dashboard { padding: 34px 28px 120px; font-family: 'Manrope', sans-serif; }
-
+.mobile-dashboard__header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mobile-dashboard__profile { display: inline-flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px 6px 6px; border: none; border-radius: 999px; background: var(--color-surface); color: var(--color-text-always-dark); }
+.mobile-dashboard__avatar { width: 40px; height: 40px; border-radius: 999px; flex-shrink: 0; object-fit: cover; }
+.mobile-dashboard__avatar--fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--color-nav); color: #fff; font-size: 14px; font-weight: 700; }
+.mobile-dashboard__profile-copy { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.mobile-dashboard__eyebrow { font-size: 10px; font-weight: 500; color: var(--color-text-muted); }
+.mobile-dashboard__name { margin-top: 2px; font-size: 14px; font-weight: 600; }
+.mobile-dashboard__notify { width: 52px; height: 52px; border: none; border-radius: 999px; background: var(--color-surface); color: var(--color-text-always-dark); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .mobile-dashboard__body { display: flex; flex-direction: column; gap: 18px; margin-top: 30px; }
 .mobile-dashboard__title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.04em; color: var(--color-text-primary); }
 .mobile-dashboard__search-block { display: flex; flex-direction: column; gap: 10px; }

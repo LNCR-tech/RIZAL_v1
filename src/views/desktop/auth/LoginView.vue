@@ -1,25 +1,40 @@
 <template>
-  <div class="login-page min-h-dvh flex flex-col overflow-auto" style="background: var(--color-bg);">
-    <div class="flex-1 flex flex-col items-center justify-center px-8 relative z-10">
-      <div class="w-full max-w-[340px] flex flex-col gap-6 login-form-area">
-        <h1
-          class="text-[22px] font-semibold leading-[1.4] tracking-[-0.3px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
-          style="color: var(--color-text-primary);"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
-        >
-          Welcome to the portal. Log in to access your dashboard.
-        </h1>
+  <section class="desktop-login">
+    <div class="desktop-login__backdrop" aria-hidden="true"></div>
 
-        <form
-          class="flex flex-col gap-3 transition-all duration-700 delay-100 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
-          @submit.prevent="handleLogin"
-        >
+    <div class="desktop-login__shell">
+      <aside class="desktop-login__hero" :class="isMounted ? 'desktop-login__hero--ready' : ''">
+        <div class="desktop-login__brand">
+          <img :src="surfaceAuraLogo" alt="Aura" class="desktop-login__brand-logo">
+          <span class="desktop-login__brand-copy">Powered by Aura Ai</span>
+        </div>
+
+        <p class="desktop-login__eyebrow">Desktop Workspace</p>
+        <h1 class="desktop-login__title">Operate the full campus portal from one focused control room.</h1>
+        <p class="desktop-login__copy">
+          Desktop and mobile now live in separate folders, while auth, stores, and API services stay shared underneath.
+        </p>
+
+        <div class="desktop-login__chips">
+          <span class="desktop-login__chip">Shared Pinia stores</span>
+          <span class="desktop-login__chip">Shared API services</span>
+          <span class="desktop-login__chip">Desktop-only UI files</span>
+        </div>
+      </aside>
+
+      <div class="desktop-login__card" :class="isMounted ? 'desktop-login__card--ready' : ''">
+        <div class="desktop-login__card-head">
+          <p class="desktop-login__card-kicker">Sign in</p>
+          <h2 class="desktop-login__card-title">Welcome back</h2>
+          <p class="desktop-login__card-copy">Use your school account to open the web workspace.</p>
+        </div>
+
+        <form class="desktop-login__form" @submit.prevent="handleLogin">
           <BaseInput
             id="email"
             v-model="email"
             type="email"
-            placeholder="Gmail"
+            placeholder="School email"
             autocomplete="email"
             tone="neutral"
             :disabled="isLoading"
@@ -36,71 +51,42 @@
             @enter="handleLogin"
           />
 
-          <Transition name="fade">
-            <p v-if="visibleMessage" class="text-red-500 text-xs text-center mt-1">
+          <Transition name="desktop-login__message">
+            <p v-if="visibleMessage" class="desktop-login__message">
               {{ visibleMessage }}
             </p>
           </Transition>
 
-          <BaseButton
-            type="submit"
-            variant="primary"
-            size="md"
-            class="mt-1 group"
-            :loading="isLoading"
-          >
-            Log In
-          </BaseButton>
-
-          <BaseButton
-            type="button"
-            variant="secondary"
-            size="md"
-            class="group"
-            :disabled="isLoading"
-            @click="openQuickAttendance"
-          >
-            Quick Attendance
-          </BaseButton>
-        </form>
-
-        <div
-          class="flex flex-col items-center justify-center gap-2 mt-1 transition-all duration-700 delay-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
-        >
-          <div class="flex items-center justify-center gap-2">
-            <img
-              :src="surfaceAuraLogo"
-              alt="Aura"
-              class="h-8 w-auto object-contain"
+          <div class="desktop-login__actions">
+            <BaseButton
+              type="submit"
+              variant="primary"
+              size="md"
+              :loading="isLoading"
             >
-            <span class="text-[13px] font-medium tracking-tight" style="color: var(--color-text-primary);">
-              Powered by Aura Ai
-            </span>
+              Log In
+            </BaseButton>
+
+            <BaseButton
+              type="button"
+              variant="secondary"
+              size="md"
+              :disabled="isLoading"
+              @click="openQuickAttendance"
+            >
+              Quick Attendance
+            </BaseButton>
           </div>
-        </div>
+        </form>
       </div>
     </div>
-
-    <footer
-      class="pb-8 flex justify-center transition-all duration-1000 delay-300 ease-out relative z-10"
-      :class="isMounted ? 'opacity-100' : 'opacity-0'"
-    >
-      <a
-        href="#"
-        class="text-[12px] font-medium transition-colors"
-        style="color: var(--color-text-secondary);"
-      >
-        Learn more about Aura Project
-      </a>
-    </footer>
-  </div>
+  </section>
 </template>
 
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
-import BaseInput from '@/components/shared/ui/BaseInput.vue'
-import BaseButton from '@/components/shared/ui/BaseButton.vue'
+import BaseButton from '@/components/desktop/ui/BaseButton.vue'
+import BaseInput from '@/components/desktop/ui/BaseInput.vue'
 import { applyLightOverride, removeLightOverride, surfaceAuraLogo } from '@/config/theme.js'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
@@ -124,22 +110,202 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.desktop-login {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: 40px;
+  background:
+    radial-gradient(circle at top left, rgba(206, 255, 132, 0.34), transparent 36%),
+    radial-gradient(circle at bottom right, rgba(18, 28, 35, 0.16), transparent 34%),
+    linear-gradient(135deg, #eef2e5 0%, #dce4d5 46%, #f7f8f3 100%);
+  font-family: 'Manrope', sans-serif;
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.desktop-login__backdrop {
+  position: absolute;
+  inset: 24px;
+  border-radius: 36px;
+  border: 1px solid rgba(10, 10, 10, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.16));
+  backdrop-filter: blur(8px);
+}
+
+.desktop-login__shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(320px, 1.15fr) minmax(360px, 480px);
+  align-items: center;
+  gap: 36px;
+  min-height: calc(100dvh - 80px);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.desktop-login__hero,
+.desktop-login__card {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.desktop-login__hero--ready,
+.desktop-login__card--ready {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.desktop-login__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 34px;
+}
+
+.desktop-login__brand-logo {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+}
+
+.desktop-login__brand-copy {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #203025;
+}
+
+.desktop-login__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #425740;
+}
+
+.desktop-login__title {
+  max-width: 11ch;
+  margin: 16px 0 0;
+  font-size: clamp(38px, 4.4vw, 62px);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+  color: #111a12;
+}
+
+.desktop-login__copy {
+  max-width: 48ch;
+  margin: 18px 0 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #405046;
+}
+
+.desktop-login__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.desktop-login__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(17, 26, 18, 0.08);
+  color: #203025;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.desktop-login__card {
+  border-radius: 32px;
+  padding: 34px 30px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(17, 26, 18, 0.08);
+  box-shadow: 0 30px 60px rgba(17, 26, 18, 0.12);
+}
+
+.desktop-login__card-head {
+  margin-bottom: 24px;
+}
+
+.desktop-login__card-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #56714f;
+}
+
+.desktop-login__card-title {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: #111a12;
+}
+
+.desktop-login__card-copy {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #536355;
+}
+
+.desktop-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.desktop-login__message {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+  text-align: center;
+}
+
+.desktop-login__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.desktop-login__message-enter-active,
+.desktop-login__message-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.desktop-login__message-enter-from,
+.desktop-login__message-leave-to {
   opacity: 0;
 }
 
-.login-page {
-  font-family: 'Manrope', sans-serif;
-  -webkit-overflow-scrolling: touch;
-}
+@media (max-width: 960px) {
+  .desktop-login {
+    padding: 22px;
+  }
 
-.login-form-area {
-  padding-bottom: env(safe-area-inset-bottom, 16px);
+  .desktop-login__shell {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    min-height: calc(100dvh - 44px);
+  }
+
+  .desktop-login__backdrop {
+    inset: 12px;
+  }
+
+  .desktop-login__title {
+    max-width: 14ch;
+  }
 }
 </style>
+

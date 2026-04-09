@@ -1,13 +1,12 @@
 import { watch } from 'vue'
-import { resolveLoadableMediaUrl } from '@/services/backendMedia.js'
+import { resolveBackendMediaUrl } from '@/services/backendMedia.js'
 import { AUTH_META_CHANGED_EVENT, getStoredAuthMeta } from '@/services/localAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 
 const DEFAULT_TITLE = 'Aura'
 const DEFAULT_ICON_PATH = '/logos/aura.png'
-const DEFAULT_ICON_URL = DEFAULT_ICON_PATH
-let brandingRequestId = 0
+const DEFAULT_ICON_URL = resolveBackendMediaUrl(DEFAULT_ICON_PATH) || DEFAULT_ICON_PATH
 
 function upsertLink(rel, href) {
     if (typeof document === 'undefined') return
@@ -61,7 +60,7 @@ function resolveBranding(routeName, user, schoolSettings) {
     if (routeName === 'Login') {
         return {
             title: DEFAULT_TITLE,
-            schoolLogo: null,
+            iconUrl: DEFAULT_ICON_URL,
         }
     }
 
@@ -78,54 +77,35 @@ function resolveBranding(routeName, user, schoolSettings) {
     const schoolLogo = schoolSettings?.logo_url
         || previewSchoolSettings?.logo_url
         || authMeta?.logoUrl
-        || null
+        || DEFAULT_ICON_URL
 
     const title = abbreviateSchoolName(schoolName)
+    const resolvedIconUrl = resolveBackendMediaUrl(schoolLogo) || DEFAULT_ICON_URL
+
     return {
         title,
-        schoolLogo,
+        iconUrl: withCacheKey(resolvedIconUrl, `${title}:${resolvedIconUrl}`),
     }
 }
 
-export async function applyDocumentBranding({ routeName, user, schoolSettings, apiBaseUrl = '' }) {
+export function applyDocumentBranding({ routeName, user, schoolSettings }) {
     if (typeof document === 'undefined') return
 
-    const requestId = ++brandingRequestId
     const branding = resolveBranding(routeName, user, schoolSettings)
     document.title = branding.title
     updateMobileTitle(branding.title)
-
-    const fallbackIconUrl = withCacheKey(DEFAULT_ICON_URL, `${branding.title}:${DEFAULT_ICON_URL}`)
-    upsertLink('icon', fallbackIconUrl)
-    upsertLink('shortcut icon', fallbackIconUrl)
-    upsertLink('apple-touch-icon', fallbackIconUrl)
-
-    if (!branding.schoolLogo) {
-        return
-    }
-
-    const resolvedIconUrl = await resolveLoadableMediaUrl(branding.schoolLogo, apiBaseUrl)
-    if (requestId !== brandingRequestId || typeof document === 'undefined') {
-        return
-    }
-
-    const finalIconUrl = withCacheKey(
-        resolvedIconUrl || DEFAULT_ICON_URL,
-        `${branding.title}:${resolvedIconUrl || DEFAULT_ICON_URL}`
-    )
-    upsertLink('icon', finalIconUrl)
-    upsertLink('shortcut icon', finalIconUrl)
-    upsertLink('apple-touch-icon', finalIconUrl)
+    upsertLink('icon', branding.iconUrl)
+    upsertLink('shortcut icon', branding.iconUrl)
+    upsertLink('apple-touch-icon', branding.iconUrl)
 }
 
 export function startDocumentBrandingSync(router) {
-    const { currentUser, schoolSettings, apiBaseUrl } = useDashboardSession()
+    const { currentUser, schoolSettings } = useDashboardSession()
     const applyCurrentBranding = () => {
-        void applyDocumentBranding({
+        applyDocumentBranding({
             routeName: router.currentRoute.value.name,
             user: currentUser.value,
             schoolSettings: schoolSettings.value,
-            apiBaseUrl: apiBaseUrl.value,
         })
     }
 
@@ -134,7 +114,6 @@ export function startDocumentBrandingSync(router) {
             () => router.currentRoute.value.name,
             currentUser,
             schoolSettings,
-            apiBaseUrl,
         ],
         applyCurrentBranding,
         {

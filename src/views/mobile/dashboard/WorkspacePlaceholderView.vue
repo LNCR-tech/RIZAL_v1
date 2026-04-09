@@ -1,9 +1,5 @@
 <template>
   <section class="workspace-placeholder">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <header class="workspace-placeholder__header dashboard-enter dashboard-enter--1">
       <button
         class="workspace-placeholder__back"

@@ -1,9 +1,5 @@
 <template>
   <div class="face-gate-page">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <div v-if="step === 'intro'" class="face-gate-shell face-gate-shell--intro">
       <section class="intro-card">
         <span class="intro-chip">{{ schoolName }}</span>
@@ -64,11 +60,11 @@ import { useRouter } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
-import { applyTheme, loadTheme, configureThemeForUser } from '@/config/theme.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
 import { registerStudentFace } from '@/services/backendApi.js'
 import { initFaceScanDetector, resetFaceScanDetector } from '@/composables/useFaceScanDetector.js'
 import { getStoredAuthMeta, patchStoredAuthMeta } from '@/services/localAuth.js'
-import FaceScanPanel from '@/components/desktop/attendance/FaceScanPanel.vue'
+import FaceScanPanel from '@/components/mobile/attendance/FaceScanPanel.vue'
 
 const router = useRouter()
 const { logout } = useAuth()
@@ -186,11 +182,6 @@ const setVideoEl = (el) => {
 
 function applyRegistrationTheme() {
   const authMeta = getStoredAuthMeta()
-  const userId = currentUser.value?.id || authMeta?.userId
-  if (userId) {
-    configureThemeForUser(userId)
-  }
-
   const fallbackSettings = {
     school_name: currentUser.value?.school_name || authMeta?.schoolName || null,
     school_code: currentUser.value?.school_code || authMeta?.schoolCode || null,
@@ -605,7 +596,7 @@ function setRegistrationError(message) {
   line-height: 0.96;
   letter-spacing: -0.05em;
   font-weight: 700;
-  color: var(--color-text-primary, #0a0a0a);
+  color: #0a0a0a;
 }
 
 .intro-copy,
@@ -613,7 +604,7 @@ function setRegistrationError(message) {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--color-text-secondary, #5b5b54);
+  color: #5b5b54;
 }
 
 .capture-title {
@@ -622,7 +613,7 @@ function setRegistrationError(message) {
   line-height: 1;
   letter-spacing: -0.04em;
   font-weight: 700;
-  color: var(--color-text-primary, #111111);
+  color: #111111;
 }
 
 .title-fade-enter-active,
@@ -683,7 +674,7 @@ function setRegistrationError(message) {
   font-size: 12.5px;
   line-height: 1.4;
   font-weight: 600;
-  color: var(--color-text-secondary, #5f5f5f);
+  color: #5f5f5f;
   text-align: center;
 }
 
@@ -699,7 +690,7 @@ function setRegistrationError(message) {
   margin-top: 24px;
   border: none;
   background: transparent;
-  color: var(--color-text-secondary, color-mix(in srgb, var(--color-primary, #0057b8) 34%, #4d4d47 66%));
+  color: color-mix(in srgb, var(--color-primary, #0057b8) 34%, #4d4d47 66%);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -713,7 +704,7 @@ function setRegistrationError(message) {
   font-size: 14px;
   line-height: 1.35;
   font-weight: 600;
-  color: var(--color-text-primary, #1d1d18);
+  color: #1d1d18;
   max-width: 250px;
 }
 

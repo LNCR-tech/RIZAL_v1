@@ -97,16 +97,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
-
-const props = defineProps({
-  preview: {
-    type: Boolean,
-    default: false,
-  },
-})
-import { ArrowLeft, Search, Plus, SquarePen, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Plus, SquarePen, Trash2 } from 'lucide-vue-next'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import AuraSearch from '@/components/desktop/dashboard/AuraSearch.vue'
@@ -148,13 +139,7 @@ function formatDate(d) {
   catch { return d }
 }
 
-function goBack() { 
-  if (props.preview) {
-    router.push('/exposed/sg')
-    return
-  }
-  router.push('/sg') 
-}
+function goBack() { router.push('/sg') }
 
 watch(
   [apiBaseUrl, () => sgLoading.value],
@@ -166,15 +151,6 @@ watch(
 )
 
 async function loadData(url) {
-  if (props.preview) {
-    announcements.value = [
-      { id: 1, title: 'Welcome to the New School Year', body: 'The student council welcomes all freshmen and returnees to Aura. Reach out if you need help!', status: 'published', created_at: new Date().toISOString() },
-      { id: 2, title: 'Council Elections Validation', body: 'Please ensure your biometric data is properly enrolled before the upcoming council elections.', status: 'published', created_at: new Date(Date.now() - 86400000).toISOString() },
-    ]
-    isLoading.value = false
-    return
-  }
-
   isLoading.value = true
   loadError.value = ''
   try {
@@ -210,11 +186,6 @@ function startEdit(ann) {
 function closeForm() { isFormOpen.value = false; editingId.value = null }
 
 async function handleSave() {
-  if (props.preview) {
-    alert('Edits are disabled in preview mode.')
-    closeForm()
-    return
-  }
   if (isSaving.value || !draft.value.title.trim() || !draft.value.body.trim()) return
   isSaving.value = true
   formError.value = ''

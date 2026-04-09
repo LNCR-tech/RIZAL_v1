@@ -1,11 +1,7 @@
 <template>
   <section class="school-it-import">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <div class="school-it-import__shell">
-      <StandardHeader
+      <SchoolItTopHeader
         class="dashboard-enter dashboard-enter--1"
         :avatar-url="avatarUrl"
         :school-name="activeSchoolSettings?.school_name || activeUser?.school_name || ''"
@@ -80,14 +76,20 @@
               class="school-it-import__stage school-it-import__stage--processing"
             >
               <p class="school-it-import__processing-label">{{ processingLabel }}</p>
+              <p v-if="processingStatusHint" class="school-it-import__processing-hint">{{ processingStatusHint }}</p>
 
               <div class="school-it-import__progress-shell" aria-hidden="true">
-                <div class="school-it-import__progress-track">
+                <div
+                  class="school-it-import__progress-track"
+                  :class="{ 'school-it-import__progress-track--indeterminate': !hasDeterminateProgress }"
+                >
                   <span
                     class="school-it-import__progress-fill"
-                    :style="{ width: `${displayProgress}%` }"
+                    :class="{ 'school-it-import__progress-fill--indeterminate': !hasDeterminateProgress }"
+                    :style="hasDeterminateProgress ? { width: `${displayProgress}%` } : undefined"
                   />
                   <span
+                    v-if="hasDeterminateProgress"
                     class="school-it-import__progress-knob"
                     :style="{ left: `clamp(18px, calc(${displayProgress}% - 10px), calc(100% - 18px))` }"
                   />
@@ -259,7 +261,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ArrowRight, ChevronRight, CloudUpload, Info, Download } from 'lucide-vue-next'
-import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
+import SchoolItTopHeader from '@/components/mobile/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
@@ -267,6 +269,7 @@ import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import {
   BackendApiError,
   downloadImportErrors,
+  getAuditLogs,
   downloadPreviewImportErrors,
   downloadPreviewRetryFile,
   downloadStudentImportTemplate,
@@ -288,6 +291,8 @@ const props = defineProps({
 })
 
 const POLL_INTERVAL_MS = 1200
+const IMPORT_JOB_LOOKUP_ATTEMPTS = 10
+const IMPORT_JOB_LOOKUP_INTERVAL_MS = 1200
 const fileInputEl = ref(null)
 const swipePillRef = ref(null)
 const swipeThumbRef = ref(null)
@@ -296,7 +301,7 @@ const isDragActive = ref(false)
 const selectedFile = ref(null)
 const stage = ref('idle')
 const processingLabel = ref('Uploading Please Wait')
-const displayProgress = ref(0)
+const displayProgress = ref(null)
 const feedbackMessage = ref('')
 const feedbackError = ref(false)
 const previewSummary = ref(null)
@@ -358,6 +363,42 @@ const importSuccessMessage = computed(() => {
 
   return `${successCount} student accounts were added to the database.`
 })
+const processingStatusHint = computed(() => {
+  if (stage.value !== 'processing') return ''
+  if (props.preview) return ''
+
+  const summary = importSummary.value
+  const approvedRows = Number(previewSummary.value?.valid_rows || previewSummary.value?.total_rows || 0)
+  const totalRows = Number(summary?.total_rows || 0)
+  const processedRows = Number(summary?.processed_rows || 0)
+  const etaSeconds = Number(summary?.estimated_time_remaining_seconds)
+  const hasEta = Number.isFinite(etaSeconds) && etaSeconds > 0
+
+  if (!summary?.job_id) {
+    return approvedRows > 0
+      ? `${approvedRows} approved rows are being handed to the backend import worker.`
+      : 'The backend is preparing the import job.'
+  }
+
+  if (summary.state === 'pending' || summary.state === 'queued') {
+    return approvedRows > 0
+      ? `${approvedRows} approved rows are queued. Waiting for the backend worker to start.`
+      : 'Waiting for the backend worker to start.'
+  }
+
+  if (summary.state === 'processing' && totalRows <= 0) {
+    return approvedRows > 0
+      ? `The backend is processing ${approvedRows} approved rows but has not reported row progress yet.`
+      : 'The backend is processing the import but has not reported row progress yet.'
+  }
+
+  if (summary.state === 'processing' && totalRows > 0) {
+    const etaLabel = hasEta ? ` Estimated time left: ${formatEtaSeconds(etaSeconds)}.` : ''
+    return `${processedRows}/${totalRows} rows processed.${etaLabel}`
+  }
+
+  return ''
+})
 const primaryActionLabel = computed(() => {
   if (stage.value === 'processing') return 'Processing...'
   if (stage.value === 'result' && importSummary.value?.state === 'completed') return 'Import Another'
@@ -389,8 +430,9 @@ const resultSummary = computed(() => {
   return 'Review the rows detected from the selected file.'
 })
 
-let progressAnimationFrameId = 0
 let pollTimeoutId = 0
+
+const hasDeterminateProgress = computed(() => Number.isFinite(Number(displayProgress.value)))
 
 const thumbStyle = computed(() => {
   if (isSwiping.value) {
@@ -427,6 +469,16 @@ function buildInitials(value) {
   const parts = String(value || '').split(' ').filter(Boolean)
   if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
   return String(value || '').slice(0, 2).toUpperCase()
+}
+
+function formatEtaSeconds(totalSeconds) {
+  const normalized = Math.max(0, Math.round(Number(totalSeconds) || 0))
+  if (normalized < 60) return `${normalized}s`
+
+  const minutes = Math.floor(normalized / 60)
+  const seconds = normalized % 60
+  if (!seconds) return `${minutes}m`
+  return `${minutes}m ${seconds}s`
 }
 
 function openFilePicker() {
@@ -549,12 +601,10 @@ async function runPreviewFlow() {
   previewSummary.value = null
   importSummary.value = null
   displayRows.value = []
-  displayProgress.value = 0
+  displayProgress.value = null
   processingLabel.value = 'Analyzing file structure...'
   
   try {
-    smoothProgressTo(45, 400)
-    
     const preview = props.preview
       ? await runMockPreview(selectedFile.value)
       : await previewImportStudents(apiBaseUrl.value, token.value, selectedFile.value)
@@ -562,8 +612,8 @@ async function runPreviewFlow() {
     previewSummary.value = preview
     displayRows.value = extractStudentImportDisplayRows(preview)
     
-    smoothProgressTo(100, 300)
-    await wait(320)
+    displayProgress.value = 100
+    await wait(180)
     stage.value = 'result'
     
     if (!preview.can_commit) {
@@ -575,7 +625,7 @@ async function runPreviewFlow() {
     }
   } catch (error) {
     stage.value = 'idle'
-    displayProgress.value = 0
+    displayProgress.value = null
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
     selectedFile.value = null
@@ -594,21 +644,20 @@ async function runImportFlow() {
   stage.value = 'processing'
   feedbackMessage.value = ''
   feedbackError.value = false
-  displayProgress.value = 0
-  processingLabel.value = 'Importing students...'
+  displayProgress.value = null
+  processingLabel.value = 'Queuing import job...'
 
   try {
-    smoothProgressTo(42, 480)
-
     if (props.preview) {
       await runMockImport(previewSummary.value)
     } else {
-      const job = await startStudentImport(apiBaseUrl.value, token.value, previewSummary.value.preview_token)
-      await pollImportJob(job.job_id)
+      const jobId = await resolveImportJobId(previewSummary.value.preview_token)
+      processingLabel.value = 'Importing students...'
+      await pollImportJob(jobId)
     }
 
-    smoothProgressTo(100, 320)
-    await wait(340)
+    displayProgress.value = 100
+    await wait(220)
     stage.value = 'result'
 
     if (importSummary.value?.state === 'failed') {
@@ -620,9 +669,9 @@ async function runImportFlow() {
     }
   } catch (error) {
     stage.value = 'result'
-    displayProgress.value = importSummary.value?.percentage_completed
+    displayProgress.value = Number.isFinite(Number(importSummary.value?.percentage_completed))
       ? Number(importSummary.value.percentage_completed)
-      : (previewSummary.value?.can_commit ? 100 : 0)
+      : null
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
   }
@@ -688,14 +737,14 @@ async function handleKeepValidRows() {
   feedbackMessage.value = ''
   feedbackError.value = false
   processingLabel.value = 'Keeping valid rows from preview...'
-  smoothProgressTo(56, 360)
+  displayProgress.value = null
 
   try {
     const cleanedPreview = await removeInvalidPreviewRows(apiBaseUrl.value, token.value, previewSummary.value.preview_token)
     previewSummary.value = cleanedPreview
     displayRows.value = extractStudentImportDisplayRows(cleanedPreview)
-    smoothProgressTo(100, 220)
-    await wait(260)
+    displayProgress.value = 100
+    await wait(180)
     stage.value = 'result'
     feedbackError.value = false
     feedbackMessage.value = 'Invalid rows were removed. The remaining rows are ready to import.'
@@ -720,7 +769,6 @@ async function handleDownloadImportErrors() {
 
 async function runMockPreview(file) {
   processingLabel.value = 'Reading the uploaded file'
-  smoothProgressTo(36, 560)
   await wait(640)
 
   return createMockImportPreviewSummary({
@@ -732,7 +780,7 @@ async function runMockPreview(file) {
 }
 
 async function runMockImport(preview) {
-  smoothProgressTo(78, 880)
+  displayProgress.value = 82
   await wait(920)
   importSummary.value = {
     job_id: `preview-${Date.now()}`,
@@ -746,6 +794,86 @@ async function runMockImport(preview) {
   }
 }
 
+function createAsyncTracker(promise) {
+  const tracker = {
+    status: 'pending',
+    value: null,
+    error: null,
+  }
+
+  tracker.promise = Promise.resolve(promise)
+    .then((value) => {
+      tracker.status = 'fulfilled'
+      tracker.value = value
+      return value
+    })
+    .catch((error) => {
+      tracker.status = 'rejected'
+      tracker.error = error
+      return null
+    })
+
+  return tracker
+}
+
+async function findQueuedImportJobByPreviewToken(previewToken, startedAtIso) {
+  const actorUserId = Number(activeUser.value?.id || currentUser.value?.id)
+  if (!previewToken || !Number.isFinite(actorUserId)) return null
+
+  const response = await getAuditLogs(apiBaseUrl.value, token.value, {
+    action: 'student_bulk_import_attempt',
+    actor_user_id: actorUserId,
+    q: previewToken,
+    start_date: startedAtIso,
+    limit: 20,
+  }).catch(() => null)
+
+  const items = Array.isArray(response?.items) ? response.items : []
+  const match = items.find((item) => {
+    const details = item?.details_json
+    return details?.preview_token === previewToken && details?.job_id
+  })
+
+  return match?.details_json?.job_id ? String(match.details_json.job_id) : null
+}
+
+async function resolveImportJobId(previewToken) {
+  const startedAtIso = new Date(Date.now() - 5000).toISOString()
+  const requestTracker = createAsyncTracker(
+    startStudentImport(apiBaseUrl.value, token.value, previewToken)
+  )
+
+  for (let attempt = 0; attempt < IMPORT_JOB_LOOKUP_ATTEMPTS; attempt += 1) {
+    if (requestTracker.status === 'fulfilled' && requestTracker.value?.job_id) {
+      return String(requestTracker.value.job_id)
+    }
+
+    const recoveredJobId = await findQueuedImportJobByPreviewToken(previewToken, startedAtIso)
+    if (recoveredJobId) {
+      return recoveredJobId
+    }
+
+    if (requestTracker.status === 'rejected') {
+      break
+    }
+
+    await wait(IMPORT_JOB_LOOKUP_INTERVAL_MS)
+  }
+
+  await requestTracker.promise
+
+  if (requestTracker.status === 'fulfilled' && requestTracker.value?.job_id) {
+    return String(requestTracker.value.job_id)
+  }
+
+  const recoveredJobId = await findQueuedImportJobByPreviewToken(previewToken, startedAtIso)
+  if (recoveredJobId) {
+    return recoveredJobId
+  }
+
+  throw requestTracker.error || new BackendApiError('Import job could not be queued.')
+}
+
 async function pollImportJob(jobId) {
   clearPollTimer()
 
@@ -753,11 +881,21 @@ async function pollImportJob(jobId) {
     const summary = await getStudentImportStatus(apiBaseUrl.value, token.value, jobId)
     importSummary.value = summary
 
-    const targetProgress = summary.state === 'completed'
-      ? 100
-      : Math.min(96, Math.max(48, Number(summary.percentage_completed || 0)))
+    if (summary.state === 'pending' || summary.state === 'queued') {
+      processingLabel.value = 'Queued import job. Waiting for worker...'
+    } else if (Number(summary.total_rows) > 0) {
+      processingLabel.value = `Importing students... ${summary.processed_rows}/${summary.total_rows}`
+    } else {
+      processingLabel.value = 'Importing students...'
+    }
 
-    smoothProgressTo(targetProgress, 420)
+    if (summary.state === 'completed') {
+      displayProgress.value = 100
+    } else if (Number.isFinite(Number(summary.percentage_completed))) {
+      displayProgress.value = Math.max(0, Math.min(99, Number(summary.percentage_completed)))
+    } else {
+      displayProgress.value = null
+    }
 
     if (summary.state === 'completed' || summary.state === 'failed') {
       return
@@ -768,39 +906,6 @@ async function pollImportJob(jobId) {
 
   throw new BackendApiError('Import is taking longer than expected. Please try again in a moment.')
 }
-
-function smoothProgressTo(target, duration = 460) {
-  const nextTarget = Math.max(0, Math.min(100, Number(target || 0)))
-  const startValue = displayProgress.value
-  const startedAt = performance.now()
-
-  stopProgressAnimation()
-
-  const tick = (timestamp) => {
-    const elapsed = timestamp - startedAt
-    const progress = Math.min(1, elapsed / duration)
-    const eased = 1 - Math.pow(1 - progress, 3)
-    displayProgress.value = startValue + ((nextTarget - startValue) * eased)
-
-    if (progress < 1) {
-      progressAnimationFrameId = window.requestAnimationFrame(tick)
-      return
-    }
-
-    displayProgress.value = nextTarget
-    progressAnimationFrameId = 0
-  }
-
-  progressAnimationFrameId = window.requestAnimationFrame(tick)
-}
-
-function stopProgressAnimation() {
-  if (progressAnimationFrameId) {
-    window.cancelAnimationFrame(progressAnimationFrameId)
-    progressAnimationFrameId = 0
-  }
-}
-
 function clearPollTimer() {
   if (pollTimeoutId) {
     window.clearTimeout(pollTimeoutId)
@@ -819,13 +924,12 @@ function wait(ms) {
 }
 
 function resetFlow() {
-  stopProgressAnimation()
   clearPollTimer()
   selectedFile.value = null
   if (fileInputEl.value) fileInputEl.value.value = ''
   stage.value = 'idle'
   processingLabel.value = 'Uploading Please Wait'
-  displayProgress.value = 0
+  displayProgress.value = null
   previewSummary.value = null
   importSummary.value = null
   displayRows.value = []
@@ -890,10 +994,13 @@ async function handleLogout() {
 .school-it-import__dropzone-file{font-size:12px;font-weight:700;color:var(--color-primary)}
 .school-it-import__stage--processing{align-items:center;justify-content:center;gap:30px}
 .school-it-import__processing-label{margin:0;font-size:14px;font-weight:600;line-height:1.2;color:var(--color-text-primary);text-align:center}
+.school-it-import__processing-hint{max-width:300px;margin:-18px 0 0;font-size:12px;line-height:1.45;color:var(--color-text-secondary);text-align:center}
 .school-it-import__progress-shell{width:min(100%,286px);padding:0 6px}
-.school-it-import__progress-track{position:relative;width:100%;height:12px;border-radius:999px;background:color-mix(in srgb,var(--color-surface) 70%, var(--color-bg));overflow:visible}
+.school-it-import__progress-track{position:relative;width:100%;height:12px;border-radius:999px;background:color-mix(in srgb,var(--color-surface) 70%, var(--color-bg));overflow:hidden}
+.school-it-import__progress-track--indeterminate::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,rgba(255,255,255,0) 0%,color-mix(in srgb,var(--color-primary) 32%, white) 48%,rgba(255,255,255,0) 100%);animation:school-it-import-indeterminate 1.2s ease-in-out infinite}
 .school-it-import__progress-fill{position:absolute;inset:0 auto 0 0;min-width:18px;border-radius:999px;background:linear-gradient(90deg,var(--color-primary) 0%,color-mix(in srgb,var(--color-primary) 84%, white) 55%,var(--color-primary) 100%);box-shadow:0 8px 20px color-mix(in srgb,var(--color-primary) 24%, transparent);overflow:hidden;transition:width .34s cubic-bezier(.22,1,.36,1)}
 .school-it-import__progress-fill::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(105deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.5) 42%,rgba(255,255,255,0) 72%);animation:school-it-import-liquid 1.15s linear infinite}
+.school-it-import__progress-fill--indeterminate{width:38%;min-width:72px;transition:none;animation:school-it-import-indeterminate-bar 1.2s cubic-bezier(.22,1,.36,1) infinite}
 .school-it-import__progress-knob{position:absolute;top:50%;width:6px;height:38px;border-radius:999px;background:#111111;transform:translate(-50%,-50%);box-shadow:0 10px 16px rgba(15,23,42,.16);transition:left .34s cubic-bezier(.22,1,.36,1)}
 .school-it-import__stage--result{gap:16px}
 .school-it-import__result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
@@ -944,6 +1051,16 @@ async function handleLogout() {
 @keyframes school-it-import-liquid{
   from{transform:translateX(-120%)}
   to{transform:translateX(140%)}
+}
+
+@keyframes school-it-import-indeterminate{
+  from{transform:translateX(-100%)}
+  to{transform:translateX(100%)}
+}
+
+@keyframes school-it-import-indeterminate-bar{
+  0%{transform:translateX(-105%)}
+  100%{transform:translateX(235%)}
 }
 
 @keyframes school-it-import-chevrons{

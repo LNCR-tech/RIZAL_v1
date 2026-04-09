@@ -1,9 +1,5 @@
 <template>
   <div class="min-h-screen px-6 py-8 md:px-10 md:py-10" style="background: var(--color-bg);">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <div class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center justify-center">
       <section
         class="dashboard-enter dashboard-enter--1 w-full overflow-hidden rounded-[36px] border border-black/5 bg-white shadow-[0_30px_80px_rgba(10,10,10,0.08)]"

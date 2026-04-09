@@ -114,23 +114,16 @@ export function resolveEventDetailLocation(routeOrPath = null, eventId = null) {
 }
 
 export function resolveAttendanceLocation(routeOrPath = null, eventId = null) {
-  const normalizedEventId = Number(eventId)
-  const params = Number.isFinite(normalizedEventId)
-    ? { id: String(normalizedEventId) }
-    : {}
+  if (isPreviewWorkspaceContext(routeOrPath)) {
+    return resolveEventDetailLocation(routeOrPath, eventId)
+  }
 
-  switch (resolveWorkspaceContext(routeOrPath)) {
-    case 'dashboard_preview':
-      return { name: 'PreviewAttendance', params }
-    case 'workspace_preview':
-    case 'sg_preview':
-    case 'admin_preview':
-      return resolveEventDetailLocation(routeOrPath, eventId)
-    default:
-      return {
-        name: 'Attendance',
-        params,
-      }
+  const normalizedEventId = Number(eventId)
+  return {
+    name: 'Attendance',
+    params: Number.isFinite(normalizedEventId)
+      ? { id: String(normalizedEventId) }
+      : {},
   }
 }
 

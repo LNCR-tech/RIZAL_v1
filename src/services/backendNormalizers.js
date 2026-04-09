@@ -151,7 +151,6 @@ export function normalizeEvent(event = {}) {
         school_id: toOptionalNumber(event.school_id, null),
         name: toOptionalString(event.name, 'Untitled Event'),
         location: toOptionalString(event.location, 'TBA'),
-        scope_label: toOptionalString(event.scope_label, null),
         start_datetime: toOptionalString(event.start_datetime, null),
         end_datetime: toOptionalString(event.end_datetime, null),
         status: toOptionalString(event.status, 'upcoming'),

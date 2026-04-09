@@ -1,11 +1,7 @@
 <template>
   <section class="student-council-view">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <div class="student-council-view__shell">
-      <StandardHeader
+      <SchoolItTopHeader
         class="dashboard-enter dashboard-enter--1"
         :avatar-url="avatarUrl"
         :school-name="activeSchoolSettings?.school_name || activeUser?.school_name || ''"
@@ -327,9 +323,9 @@ import {
 } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, SquarePen, SquarePlus, X } from 'lucide-vue-next'
-import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
-import StudentCouncilMemberStage from '@/components/desktop/council/StudentCouncilMemberStage.vue'
-import StudentCouncilSetupStage from '@/components/desktop/council/StudentCouncilSetupStage.vue'
+import SchoolItTopHeader from '@/components/mobile/dashboard/SchoolItTopHeader.vue'
+import StudentCouncilMemberStage from '@/components/mobile/council/StudentCouncilMemberStage.vue'
+import StudentCouncilSetupStage from '@/components/mobile/council/StudentCouncilSetupStage.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'

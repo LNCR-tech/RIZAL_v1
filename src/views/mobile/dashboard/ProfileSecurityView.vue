@@ -1,9 +1,5 @@
 <template>
   <div class="security-page">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <main class="security-shell">
       <SecurityHeaderBar
         class="dashboard-enter dashboard-enter--1"
@@ -37,8 +33,8 @@
 import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, Shield } from 'lucide-vue-next'
-import SecurityActionPill from '@/components/desktop/security/SecurityActionPill.vue'
-import SecurityHeaderBar from '@/components/desktop/security/SecurityHeaderBar.vue'
+import SecurityActionPill from '@/components/mobile/security/SecurityActionPill.vue'
+import SecurityHeaderBar from '@/components/mobile/security/SecurityHeaderBar.vue'
 import { applyTheme, loadTheme } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'

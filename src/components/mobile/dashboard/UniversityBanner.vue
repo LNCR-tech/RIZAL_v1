@@ -6,12 +6,9 @@
     Backend-ready: schoolName + schoolLogo come from /school-settings/me response.
   -->
   <div
-    class="relative rounded-3xl overflow-hidden w-full aura-mesh"
+    class="relative rounded-3xl overflow-hidden w-full"
     style="background: var(--color-primary); min-height: 200px;"
   >
-    <!-- Aura mesh gradient overlay -->
-    <div class="aura-mesh-overlay"></div>
-    
     <!-- Text content -->
     <div class="relative z-10 p-5 flex flex-col justify-between" style="min-height: 200px;">
       <div>
@@ -191,20 +188,5 @@ function buildInitials(value) {
     width: 165px;
     height: 165px;
   }
-}
-
-/* Aura Mesh gradient effect */
-.aura-mesh {
-  position: relative;
-  overflow: hidden;
-}
-
-.aura-mesh-overlay {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(120% 120% at 15% 0%, rgba(255, 255, 255, 0.25), transparent 50%),
-              radial-gradient(80% 80% at 85% 85%, rgba(255, 255, 255, 0.15), transparent 40%);
-  pointer-events: none;
-  z-index: 0;
 }
 </style>

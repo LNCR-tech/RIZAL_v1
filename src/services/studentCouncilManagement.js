@@ -79,7 +79,6 @@ export function createEmptyCouncilDraft() {
     acronym: '',
     name: '',
     description: '',
-    scopeId: '',
   }
 }
 

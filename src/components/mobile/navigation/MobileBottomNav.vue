@@ -1,23 +1,25 @@
 <template>
+  <!-- Mobile Bottom Navigation -->
   <nav
-    class="bottom-nav"
+    class="bottom-nav fixed bottom-5 left-1/2 -translate-x-1/2 z-50 md:hidden flex items-center justify-center gap-2"
     aria-label="Mobile navigation"
   >
     <div class="bottom-nav__shell" :style="bottomNavStyle">
       <button
         v-for="item in navItems"
         :key="item.name"
+        @click="navigate(item.route)"
+        :aria-label="item.name"
         class="bottom-nav__button"
         :class="isActive(item) ? 'bottom-nav__button--active' : 'bottom-nav__button--idle'"
-        :aria-label="item.name"
-        @click="navigate(item.route)"
       >
+        <!-- Active glowing background -->
         <span
           v-if="isActive(item)"
           class="bottom-nav__glow"
           style="background: radial-gradient(circle, var(--color-primary) 0%, transparent 60%); opacity: 0.15;"
         />
-
+        
         <component
           :is="item.icon"
           :size="20"
@@ -27,6 +29,7 @@
           :class="{ 'bottom-nav__icon--active': isActive(item) }"
         />
 
+        <!-- Active Dot Indicator -->
         <span
           v-if="isActive(item)"
           class="bottom-nav__dot"
@@ -35,6 +38,7 @@
       </button>
     </div>
 
+    <!-- Student Council Button -->
     <button
       v-if="isCouncilMember"
       class="bottom-nav__council-btn"
@@ -47,9 +51,9 @@
         class="bottom-nav__glow"
         style="background: radial-gradient(circle, var(--color-primary) 0%, transparent 60%); opacity: 0.15;"
       />
-
-      <span
-        class="bottom-nav__council-text"
+      
+      <span 
+        class="bottom-nav__council-text" 
         :style="{ color: isCouncilActive ? 'var(--color-primary)' : '#ffffff' }"
         :class="{ 'bottom-nav__council-text--active': isCouncilActive }"
       >
@@ -67,8 +71,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { getNavigationItemsForRoute } from '@/components/desktop/navigation/navigationItems.js'
+import { useRouter, useRoute } from 'vue-router'
+import { getNavigationItemsForRoute } from '@/components/mobile/navigation/navigationItems.js'
 import { useStudentCouncilAccess } from '@/composables/useStudentCouncilAccess.js'
 import { isCouncilWorkspaceContext, resolveCouncilWorkspaceLocation } from '@/services/routeWorkspace.js'
 
@@ -79,11 +83,14 @@ const navItems = computed(() => getNavigationItemsForRoute(route))
 const bottomNavStyle = computed(() => ({
   '--nav-count': String(navItems.value.length),
 }))
-const isCouncilActive = computed(() => isCouncilWorkspaceContext(route))
+
+const isCouncilActive = computed(() => {
+  return isCouncilWorkspaceContext(route)
+})
 
 function isActive(item) {
   const path = item?.route
-
+  
   if (
     path === '/dashboard' ||
     path === '/exposed/dashboard' ||
@@ -109,18 +116,6 @@ function navigate(path) {
 </script>
 
 <style scoped>
-.bottom-nav {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
 .bottom-nav__shell {
   position: relative;
   isolation: isolate;
@@ -221,6 +216,14 @@ function navigate(path) {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav__button,
+  .bottom-nav__icon,
+  .bottom-nav__council-btn {
+    transition: none;
+  }
+}
+
 .bottom-nav__council-btn {
   position: relative;
   isolation: isolate;
@@ -243,6 +246,7 @@ function navigate(path) {
   user-select: none;
 }
 
+/* Frosted glass layers — identical to .bottom-nav__shell */
 .bottom-nav__council-btn::before,
 .bottom-nav__council-btn::after {
   content: '';
@@ -288,13 +292,5 @@ function navigate(path) {
 .bottom-nav__council-text--active {
   margin-bottom: 8px;
   transform: scale(1.04);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bottom-nav__button,
-  .bottom-nav__icon,
-  .bottom-nav__council-btn {
-    transition: none;
-  }
 }
 </style>

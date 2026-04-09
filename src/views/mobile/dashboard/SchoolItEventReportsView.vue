@@ -1,11 +1,7 @@
 <template>
   <section class="school-it-reports">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <div class="school-it-reports__shell">
-      <StandardHeader
+      <SchoolItTopHeader
         class="dashboard-enter dashboard-enter--1"
         :avatar-url="avatarUrl"
         :school-name="activeSchoolSettings?.school_name || activeUser?.school_name || ''"
@@ -322,7 +318,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, FileSpreadsheet, Search, X } from 'lucide-vue-next'
-import StandardHeader from '@/components/desktop/dashboard/StandardHeader.vue'
+import SchoolItTopHeader from '@/components/mobile/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'

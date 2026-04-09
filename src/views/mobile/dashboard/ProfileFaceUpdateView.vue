@@ -1,9 +1,5 @@
 <template>
   <div class="face-update-page">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <main class="face-update-shell">
       <section v-if="step === 'password'" class="face-update-auth dashboard-enter dashboard-enter--1">
         <h1 class="face-update-auth__title">Update Face ID</h1>
@@ -121,7 +117,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Eye, EyeOff, UserRound } from 'lucide-vue-next'
-import SecurityActionPill from '@/components/desktop/security/SecurityActionPill.vue'
+import SecurityActionPill from '@/components/mobile/security/SecurityActionPill.vue'
 import { activeAuraLogo, applyTheme, loadTheme } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { initFaceScanDetector, resetFaceScanDetector } from '@/composables/useFaceScanDetector.js'

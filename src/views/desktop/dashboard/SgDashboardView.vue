@@ -314,8 +314,7 @@ watch(
 
 function handleModuleClick(mod) {
   if (mod.route) {
-    const target = props.preview ? mod.route.replace(/^\/sg/, '/exposed/sg') : mod.route
-    router.push(target)
+    router.push(mod.route)
   }
 }
 

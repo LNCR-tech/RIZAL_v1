@@ -1,9 +1,5 @@
 <template>
   <div class="face-gate-page">
-  <!-- TEMPORARY MOBILE VIEW BANNER -->
-  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#1c1917;text-align:center;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;pointer-events:none;">
-    ⚠ Temporary Mobile View
-  </div>
     <div v-if="step === 'intro'" class="face-gate-shell face-gate-shell--intro">
       <section class="intro-card">
         <span class="intro-chip">{{ schoolName }}</span>
@@ -78,7 +74,7 @@ import {
   getDefaultAuthenticatedRoute,
   initializeDashboardSession,
 } from '@/composables/useDashboardSession.js'
-import { applyTheme, loadTheme, configureThemeForUser } from '@/config/theme.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
 import {
   getFaceStatus,
   resolveApiBaseUrl,
@@ -92,7 +88,7 @@ import {
   needsStoredPasswordChange,
   patchStoredAuthMeta,
 } from '@/services/localAuth.js'
-import FaceScanPanel from '@/components/desktop/attendance/FaceScanPanel.vue'
+import FaceScanPanel from '@/components/mobile/attendance/FaceScanPanel.vue'
 
 const router = useRouter()
 const { logout } = useAuth()
@@ -240,10 +236,6 @@ function refreshAuthMeta() {
 
 function applyPrivilegedTheme() {
   const meta = getStoredAuthMeta()
-  if (meta?.userId) {
-    configureThemeForUser(meta.userId)
-  }
-  
   applyTheme(loadTheme({
     school_name: meta?.schoolName || null,
     school_code: meta?.schoolCode || null,
@@ -738,7 +730,7 @@ function setPendingFaceError(message, keepCaptureStep = true) {
   font-size: clamp(48px, 11vw, 68px);
   line-height: 0.95;
   font-weight: 800;
-  color: var(--color-text-primary, #0e0e0e);
+  color: #0e0e0e;
 }
 
 .title-fade-enter-active,
@@ -757,7 +749,7 @@ function setPendingFaceError(message, keepCaptureStep = true) {
   max-width: 320px;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--color-text-secondary, #5e5e5e);
+  color: #5e5e5e;
 }
 
 .intro-feedback,
@@ -766,7 +758,6 @@ function setPendingFaceError(message, keepCaptureStep = true) {
   font-size: 14px;
   line-height: 1.4;
   text-align: center;
-  color: var(--color-text-secondary, #5e5e5e);
 }
 
 .intro-feedback {
@@ -847,7 +838,7 @@ function setPendingFaceError(message, keepCaptureStep = true) {
   margin-top: 22px;
   border: none;
   background: transparent;
-  color: var(--color-text-secondary, #2a2a2a);
+  color: #2a2a2a;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
