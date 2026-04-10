@@ -155,7 +155,7 @@ class UserFilter(BaseModel):
 
 
 class UserRoleResponse(BaseModel):
-    role: Role
+    role: Role | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

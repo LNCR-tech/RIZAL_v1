@@ -383,8 +383,8 @@ async function fetchDashboardData() {
 
         const [settingsResult, eventsResult, attendanceResult, faceStatusResult] = await Promise.allSettled([
             getSchoolSettings(state.apiBaseUrl, state.token),
-            getEvents(state.apiBaseUrl, state.token, { limit: 200 }),
-            getMyAttendance(state.apiBaseUrl, state.token, { limit: 200 }),
+            getEvents(state.apiBaseUrl, state.token, { limit: 50 }),
+            getMyAttendance(state.apiBaseUrl, state.token, { limit: 50 }),
             shouldLoadPrivilegedFaceStatus
                 ? getFaceStatus(state.apiBaseUrl, state.token)
                 : Promise.resolve(null),
