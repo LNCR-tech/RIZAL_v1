@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Busboy from 'busboy';
@@ -90,6 +90,30 @@ app.use(cors({
   credentials: true,
 }));
 
+// Static file server middleware for /public
+app.use((req, res, next) => {
+  const urlPath = req.url.split('?')[0];
+  const publicPath = path.join(__dirname, 'public', urlPath);
+
+  if (existsSync(publicPath) && !statSync(publicPath).isDirectory()) {
+    const ext = path.extname(publicPath).toLowerCase();
+    const mimeTypes = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+    };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    return res.send(readFileSync(publicPath));
+  }
+  next();
+});
+
 app.options('*', (req, res) => {
   res.writeHead(204, {
     'Access-Control-Allow-Origin': '*',
@@ -102,14 +126,28 @@ app.options('*', (req, res) => {
 
 app.use((req, res, next) => {
   const oldUrl = req.url;
+  // Handle double /api/api/ prefix
   if (req.url.startsWith('/api/api/')) {
     req.url = req.url.replace('/api/api/', '/');
   } else if (req.url.startsWith('/api/')) {
     req.url = req.url.replace('/api/', '/');
   }
+
+  // Handle slashes at the end
   if (req.url !== '/' && req.url.endsWith('/')) {
     req.url = req.url.slice(0, -1);
   }
+
+  // Generic hyphenated to underscore rewrite for database resources
+  const pathParts = req.url.split('?')[0].split('/');
+  const nameCandidate = pathParts[1];
+  if (nameCandidate && nameCandidate.includes('-')) {
+    const underscored = nameCandidate.replace(/-/g, '_');
+    if (db.data[underscored]) {
+      req.url = req.url.replace(`/${nameCandidate}`, `/${underscored}`);
+    }
+  }
+
   if (oldUrl !== req.url) {
     console.log(`[REWRITE] ${oldUrl} -> ${req.url}`);
   }
@@ -674,23 +712,14 @@ app.patch('/governance/requests/:id', async (req, res) => {
   }
 });
 
-app.get('/audit-logs', (req, res, next) => {
-  req.url = req.url.replace('/audit-logs', '/audit_logs');
-  next();
-});
-
-app.get('/notifications/logs', (req, res, next) => {
-  req.url = req.url.replace('/notifications/logs', '/notification_logs');
-  next();
-});
-
 app.get('/governance/requests', (req, res, next) => {
   req.url = req.url.replace('/governance/requests', '/governance_requests');
   next();
 });
-app.get('/:name', (req, res, next) => {
-  console.log(`[GET] /${req.params.name}`);
+
+app.get('/:name', async (req, res, next) => {
   const { name = '' } = req.params;
+  console.log(`[GET] /${name}`);
   const queryString = req.url.split('?')[1] ?? '';
   const params = new URLSearchParams(queryString);
   const where = {};
@@ -699,14 +728,14 @@ app.get('/:name', (req, res, next) => {
       where[key] = value;
     }
   }
-  res.locals['data'] = service.find(name, { where });
+  res.locals['data'] = await service.find(name, { where });
   next?.();
 });
 
-app.get('/:name/:id', (req, res, next) => {
-  console.log(`[GET] /${req.params.name}/${req.params.id}`);
+app.get('/:name/:id', async (req, res, next) => {
   const { name = '', id = '' } = req.params;
-  res.locals['data'] = service.findById(name, id, req.query);
+  console.log(`[GET] /${name}/${id}`);
+  res.locals['data'] = await service.findById(name, id, req.query);
   next?.();
 });
 
