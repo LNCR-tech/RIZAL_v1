@@ -1,12 +1,8 @@
 import { ref, watch, computed } from 'vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { getGovernanceAccess } from '@/services/backendApi.js'
 import { resolvePreferredGovernanceUnit } from '@/services/governanceScope.js'
-import {
-  sgPreviewUser,
-  sgPreviewSchoolSettings,
-  sgPreviewPermissionCodes,
-} from '@/data/sgPreviewData.js'
 
 // Global state cache for instant navigation without loading skeletons
 const cachedIsLoading = ref(true)
@@ -28,16 +24,24 @@ let hasFetched = false
  */
 export function useSgDashboard(preview = false) {
   const { dashboardState, apiBaseUrl, token } = useDashboardSession()
+  const { previewBundle } = useSgPreviewBundle(() => preview)
 
-  const isLoading = preview ? ref(false) : cachedIsLoading
-  const error = preview ? ref('') : cachedError
-  const permissionCodes = preview ? ref([...sgPreviewPermissionCodes]) : cachedPermissions
-  const officerPosition = preview ? ref('President') : cachedOfficerPosition
-  const acronym = preview ? ref('SSG') : cachedAcronym
-  const unitName = preview ? ref('Supreme Student Government') : cachedUnitName
+  const isLoading = preview ? computed(() => false) : cachedIsLoading
+  const error = preview ? computed(() => '') : cachedError
+  const permissionCodes = preview ? computed(() => [...(previewBundle.value?.permissionCodes || [])]) : cachedPermissions
+  const officerPosition = preview ? computed(() => {
+    const unitMember = previewBundle.value?.activeUnit?.members?.[0]
+    return unitMember?.position_title || 'President'
+  }) : cachedOfficerPosition
+  const acronym = preview ? computed(() => (
+    previewBundle.value?.activeUnit?.unit_code || 'SSG'
+  )) : cachedAcronym
+  const unitName = preview ? computed(() => (
+    previewBundle.value?.activeUnit?.unit_name || 'Supreme Student Government'
+  )) : cachedUnitName
 
-  const currentUser = computed(() => preview ? sgPreviewUser : dashboardState.user)
-  const schoolSettings = computed(() => preview ? sgPreviewSchoolSettings : dashboardState.schoolSettings)
+  const currentUser = computed(() => preview ? previewBundle.value?.user || null : dashboardState.user)
+  const schoolSettings = computed(() => preview ? previewBundle.value?.schoolSettings || null : dashboardState.schoolSettings)
 
   const officerName = computed(() => {
     const user = currentUser.value

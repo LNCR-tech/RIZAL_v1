@@ -8,6 +8,7 @@ import {
     UserRound,
     UsersRound,
 } from 'lucide-vue-next'
+import { getGovernanceNavigationItems } from '@/data/governanceNavigation.js'
 
 export const dashboardNavigationItems = [
     { name: 'Home', route: '/dashboard', icon: House },
@@ -55,19 +56,12 @@ export const exposedAdminNavigationItems = [
     { name: 'Profile', route: '/exposed/admin/profile', icon: UserRound },
 ]
 
-export const sgNavigationItems = [
-    { name: 'Home', route: '/sg', icon: House },
-    { name: 'Events', route: '/sg/events', icon: CalendarDays },
-    { name: 'Members', route: '/sg/members', icon: UsersRound },
-    { name: 'Profile', route: '/dashboard/profile', icon: UserRound },
-]
+export const governanceNavigationItems = getGovernanceNavigationItems()
 
-export const exposedSgNavigationItems = [
-    { name: 'Home', route: '/exposed/sg', icon: House },
-    { name: 'Events', route: '/exposed/sg/events', icon: CalendarDays },
-    { name: 'Members', route: '/exposed/sg/members', icon: UsersRound },
-    { name: 'Profile', route: '/exposed/dashboard/profile', icon: UserRound },
-]
+export const exposedGovernanceNavigationItems = getGovernanceNavigationItems(true)
+
+export const sgNavigationItems = governanceNavigationItems
+export const exposedSgNavigationItems = exposedGovernanceNavigationItems
 
 const NAVIGATION_CONTEXT_ITEMS = {
     dashboard: dashboardNavigationItems,
@@ -76,8 +70,10 @@ const NAVIGATION_CONTEXT_ITEMS = {
     workspace_preview: exposedSchoolItNavigationItems,
     admin: adminNavigationItems,
     admin_preview: exposedAdminNavigationItems,
-    sg: sgNavigationItems,
-    sg_preview: exposedSgNavigationItems,
+    governance: governanceNavigationItems,
+    governance_preview: exposedGovernanceNavigationItems,
+    sg: governanceNavigationItems,
+    sg_preview: exposedGovernanceNavigationItems,
 }
 
 function normalizeNavigationContext(value = '') {
@@ -96,8 +92,8 @@ function resolveNavigationContextFromPath(path = '') {
     if (normalizedPath.startsWith('/exposed/workspace')) {
         return 'workspace_preview'
     }
-    if (normalizedPath.startsWith('/exposed/sg')) {
-        return 'sg_preview'
+    if (normalizedPath.startsWith('/exposed/governance') || normalizedPath.startsWith('/exposed/sg')) {
+        return 'governance_preview'
     }
     if (normalizedPath.startsWith('/exposed/dashboard')) {
         return 'dashboard_preview'
@@ -108,8 +104,8 @@ function resolveNavigationContextFromPath(path = '') {
     if (normalizedPath.startsWith('/workspace')) {
         return 'workspace'
     }
-    if (normalizedPath.startsWith('/sg')) {
-        return 'sg'
+    if (normalizedPath.startsWith('/governance') || normalizedPath.startsWith('/sg')) {
+        return 'governance'
     }
 
     return 'dashboard'

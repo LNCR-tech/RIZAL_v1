@@ -38,13 +38,13 @@
       </button>
     </div>
 
-    <!-- Student Council Button -->
+    <!-- Governance Button -->
     <button
-      v-if="isCouncilMember"
+      v-if="hasGovernanceAccess"
       class="bottom-nav__council-btn"
       :class="isCouncilActive ? 'bottom-nav__council-btn--active' : 'bottom-nav__council-btn--idle'"
-      aria-label="Student Council Workspace"
-      @click="navigate(resolveCouncilWorkspaceLocation(route))"
+      aria-label="Governance Workspace"
+      @click="navigate(resolveGovernanceWorkspaceLocation(route))"
     >
       <span
         v-if="isCouncilActive"
@@ -57,7 +57,7 @@
         :style="{ color: isCouncilActive ? 'var(--color-primary)' : '#ffffff' }"
         :class="{ 'bottom-nav__council-text--active': isCouncilActive }"
       >
-        {{ councilAcronym }}
+        {{ governanceAcronym }}
       </span>
 
       <span
@@ -73,19 +73,23 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
-import { useStudentCouncilAccess } from '@/composables/useStudentCouncilAccess.js'
-import { isCouncilWorkspaceContext, resolveCouncilWorkspaceLocation } from '@/services/routeWorkspace.js'
+import { useGovernanceAccess } from '@/composables/useGovernanceAccess.js'
+import {
+  isGovernanceWorkspaceContext,
+  resolveGovernanceWorkspaceLocation,
+  withPreservedGovernancePreviewQuery,
+} from '@/services/routeWorkspace.js'
 
 const router = useRouter()
 const route = useRoute()
-const { isCouncilMember, acronym: councilAcronym } = useStudentCouncilAccess()
+const { hasGovernanceAccess, governanceAcronym } = useGovernanceAccess()
 const navItems = computed(() => getNavigationItemsForRoute(route))
 const bottomNavStyle = computed(() => ({
   '--nav-count': String(navItems.value.length),
 }))
 
 const isCouncilActive = computed(() => {
-  return isCouncilWorkspaceContext(route)
+  return isGovernanceWorkspaceContext(route)
 })
 
 function isActive(item) {
@@ -98,6 +102,8 @@ function isActive(item) {
     path === '/exposed/workspace' ||
     path === '/admin' ||
     path === '/exposed/admin' ||
+    path === '/governance' ||
+    path === '/exposed/governance' ||
     path === '/sg' ||
     path === '/exposed/sg'
   ) {
@@ -109,9 +115,10 @@ function isActive(item) {
 }
 
 function navigate(path) {
-  const target = typeof path === 'string' ? path : router.resolve(path).path
-  if (target && route.path === target) return
-  router.push(path)
+  const nextLocation = withPreservedGovernancePreviewQuery(route, path)
+  const resolvedTarget = router.resolve(nextLocation)
+  if (route.fullPath === resolvedTarget.fullPath) return
+  router.push(nextLocation)
 }
 </script>
 

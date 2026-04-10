@@ -155,6 +155,7 @@ import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 // ── Chat state from singleton composable ──────────────────
 const {
@@ -200,6 +201,8 @@ function isActive(item) {
     path === '/exposed/workspace' ||
     path === '/admin' ||
     path === '/exposed/admin' ||
+    path === '/governance' ||
+    path === '/exposed/governance' ||
     path === '/sg' ||
     path === '/exposed/sg'
   ) {
@@ -211,8 +214,10 @@ function isActive(item) {
 }
 
 function navigate(path) {
-  if (route.path === path) return
-  router.push(path)
+  const target = withPreservedGovernancePreviewQuery(route, path)
+  const resolvedTarget = router.resolve(target)
+  if (route.fullPath === resolvedTarget.fullPath) return
+  router.push(target)
 }
 </script>
 

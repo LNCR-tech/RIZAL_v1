@@ -40,13 +40,10 @@ const SchoolItScheduleView = dashboardView('SchoolItScheduleView')
 const SchoolItAttendanceMonitorView = dashboardView('SchoolItAttendanceMonitorView')
 const SchoolItEventReportsView = dashboardView('SchoolItEventReportsView')
 const SchoolItSettingsView = dashboardView('SchoolItSettingsView')
-const SgDashboardView = dashboardView('SgDashboardView')
-const SgMembersView = dashboardView('SgMembersView')
-const SgStudentsView = dashboardView('SgStudentsView')
-const SgAnnouncementsView = dashboardView('SgAnnouncementsView')
+const GovernanceWorkspaceView = dashboardView('GovernanceWorkspaceView')
 const SgCreateUnitView = dashboardView('SgCreateUnitView')
-const SgEventsView = dashboardView('SgEventsView')
-const SgAttendanceView = dashboardView('SgAttendanceView')
+const GatherWelcomeView = dashboardView('GatherWelcomeView')
+const GatherAttendanceView = dashboardView('GatherAttendanceView')
 
 const routes = [
     // Auth routes (no layout)
@@ -433,38 +430,72 @@ const routes = [
                 component: ProfileView,
                 props: { preview: true },
             },
+            {
+                path: 'gather',
+                name: 'PreviewGatherWelcome',
+                component: GatherWelcomeView,
+                props: { preview: true },
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
+            {
+                path: 'gather/attendance',
+                name: 'PreviewGatherAttendance',
+                component: GatherAttendanceView,
+                props: { preview: true },
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
         ],
     },
-    // SG Dashboard routes
+    // Governance Dashboard routes
     {
-        path: '/sg',
+        path: '/governance',
         component: AppLayout,
         meta: {
             requiresAuth: true,
             allowWithoutFaceEnrollment: true,
-            primaryNavContext: 'sg',
-            workspaceContext: 'sg',
+            primaryNavContext: 'governance',
+            workspaceContext: 'governance',
         },
         children: [
             {
                 path: '',
                 name: 'SgDashboard',
-                component: SgDashboardView,
-            },
-            {
-                path: 'members',
-                name: 'SgMembers',
-                component: SgMembersView,
+                component: GovernanceWorkspaceView,
+                props: { section: 'overview' },
             },
             {
                 path: 'students',
                 name: 'SgStudents',
-                component: SgStudentsView,
+                component: GovernanceWorkspaceView,
+                props: { section: 'students' },
+            },
+            {
+                path: 'admin',
+                name: 'SgAdmin',
+                component: GovernanceWorkspaceView,
+                props: { section: 'governance' },
+            },
+            {
+                path: 'members',
+                redirect: { name: 'SgAdmin' },
+            },
+            {
+                path: 'events',
+                name: 'SgEvents',
+                component: GovernanceWorkspaceView,
+                props: { section: 'events' },
             },
             {
                 path: 'announcements',
-                name: 'SgAnnouncements',
-                component: SgAnnouncementsView,
+                redirect: { name: 'SgEvents' },
+            },
+            {
+                path: 'attendance',
+                redirect: { name: 'SgEvents' },
             },
             {
                 path: 'create-unit',
@@ -472,64 +503,76 @@ const routes = [
                 component: SgCreateUnitView,
             },
             {
-                path: 'events',
-                name: 'SgEvents',
-                component: SgEventsView,
-            },
-            {
                 path: 'events/:id',
                 name: 'SgEventDetail',
                 component: EventDetailView,
             },
             {
-                path: 'attendance',
-                name: 'SgAttendance',
-                component: SgAttendanceView,
+                path: 'gather',
+                name: 'SgGatherWelcome',
+                component: GatherWelcomeView,
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
+            {
+                path: 'gather/attendance',
+                name: 'SgGatherAttendance',
+                component: GatherAttendanceView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
         ],
     },
     {
-        path: '/exposed/sg',
+        path: '/exposed/governance',
         component: AppLayout,
         meta: {
-            primaryNavContext: 'sg_preview',
-            workspaceContext: 'sg_preview',
+            primaryNavContext: 'governance_preview',
+            workspaceContext: 'governance_preview',
         },
         children: [
             {
                 path: '',
                 name: 'PreviewSgDashboard',
-                component: SgDashboardView,
-                props: { preview: true },
-            },
-            {
-                path: 'members',
-                name: 'PreviewSgMembers',
-                component: SgMembersView,
-                props: { preview: true },
+                component: GovernanceWorkspaceView,
+                props: { preview: true, section: 'overview' },
             },
             {
                 path: 'students',
                 name: 'PreviewSgStudents',
-                component: SgStudentsView,
-                props: { preview: true },
+                component: GovernanceWorkspaceView,
+                props: { preview: true, section: 'students' },
+            },
+            {
+                path: 'admin',
+                name: 'PreviewSgAdmin',
+                component: GovernanceWorkspaceView,
+                props: { preview: true, section: 'governance' },
+            },
+            {
+                path: 'members',
+                redirect: { name: 'PreviewSgAdmin' },
+            },
+            {
+                path: 'events',
+                name: 'PreviewSgEvents',
+                component: GovernanceWorkspaceView,
+                props: { preview: true, section: 'events' },
             },
             {
                 path: 'announcements',
-                name: 'PreviewSgAnnouncements',
-                component: SgAnnouncementsView,
-                props: { preview: true },
+                redirect: { name: 'PreviewSgEvents' },
+            },
+            {
+                path: 'attendance',
+                redirect: { name: 'PreviewSgEvents' },
             },
             {
                 path: 'create-unit',
                 name: 'PreviewSgCreateUnit',
                 component: SgCreateUnitView,
-                props: { preview: true },
-            },
-            {
-                path: 'events',
-                name: 'PreviewSgEvents',
-                component: SgEventsView,
                 props: { preview: true },
             },
             {
@@ -539,12 +582,82 @@ const routes = [
                 props: { preview: true },
             },
             {
-                path: 'attendance',
-                name: 'PreviewSgAttendance',
-                component: SgAttendanceView,
+                path: 'gather',
+                name: 'PreviewSgGatherWelcome',
+                component: GatherWelcomeView,
                 props: { preview: true },
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
+            {
+                path: 'gather/attendance',
+                name: 'PreviewSgGatherAttendance',
+                component: GatherAttendanceView,
+                props: { preview: true },
+                meta: {
+                    hideMobileNav: true,
+                },
             },
         ],
+    },
+    {
+        path: '/sg',
+        redirect: '/governance'
+    },
+    {
+        path: '/sg/:pathMatch(.*)*',
+        redirect: (to) => {
+            const rawPathMatch = to.params.pathMatch
+            const pathSegments = Array.isArray(rawPathMatch)
+                ? rawPathMatch
+                : rawPathMatch
+                    ? [rawPathMatch]
+                    : []
+
+            return pathSegments.length > 0
+                ? `/governance/${pathSegments.join('/')}`
+                : '/governance'
+        }
+    },
+    {
+        path: '/exposed/sg',
+        redirect: '/exposed/governance'
+    },
+    {
+        path: '/exposed/sg/:pathMatch(.*)*',
+        redirect: (to) => {
+            const rawPathMatch = to.params.pathMatch
+            const pathSegments = Array.isArray(rawPathMatch)
+                ? rawPathMatch
+                : rawPathMatch
+                    ? [rawPathMatch]
+                    : []
+
+            return pathSegments.length > 0
+                ? `/exposed/governance/${pathSegments.join('/')}`
+                : '/exposed/governance'
+        }
+    },
+    // Redirect /exposed/dashboard/sg to /exposed/governance
+    {
+        path: '/exposed/dashboard/sg',
+        redirect: '/exposed/governance'
+    },
+    {
+        path: '/exposed/dashboard/sg/:pathMatch(.*)*',
+        redirect: (to) => {
+            const rawPathMatch = to.params.pathMatch
+            const pathSegments = Array.isArray(rawPathMatch)
+                ? rawPathMatch
+                : rawPathMatch
+                    ? [rawPathMatch]
+                    : []
+
+            return pathSegments.length > 0
+                ? `/exposed/governance/${pathSegments.join('/')}`
+                : '/exposed/governance'
+        }
     },
     // Student dashboard routes (wrapped in AppLayout)
     {
@@ -588,6 +701,22 @@ const routes = [
                 path: 'analytics',
                 name: 'Analytics',
                 component: AnalyticsView,
+            },
+            {
+                path: 'gather',
+                name: 'GatherWelcome',
+                component: GatherWelcomeView,
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
+            {
+                path: 'gather/attendance',
+                name: 'GatherAttendance',
+                component: GatherAttendanceView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
         ],
     },

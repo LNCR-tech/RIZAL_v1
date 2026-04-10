@@ -101,7 +101,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
   preview: {
@@ -111,6 +111,7 @@ const props = defineProps({
 })
 import { ArrowLeft, Search, Plus, SquarePen, Trash2 } from 'lucide-vue-next'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import {
   getGovernanceAccess,
@@ -120,10 +121,13 @@ import {
   deleteGovernanceAnnouncement,
 } from '@/services/backendApi.js'
 import { resolvePreferredGovernanceUnit } from '@/services/governanceScope.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
+const route = useRoute()
 const router = useRouter()
 const { apiBaseUrl } = useDashboardSession()
-const { isLoading: sgLoading } = useSgDashboard()
+const { previewBundle } = useSgPreviewBundle(() => props.preview)
+const { isLoading: sgLoading } = useSgDashboard(props.preview)
 
 const isLoading = ref(true)
 const loadError = ref('')
@@ -152,14 +156,14 @@ function formatDate(d) {
 
 function goBack() { 
   if (props.preview) {
-    router.push('/exposed/sg')
+    router.push(withPreservedGovernancePreviewQuery(route, '/exposed/governance'))
     return
   }
-  router.push('/sg') 
+  router.push('/governance') 
 }
 
 watch(
-  [apiBaseUrl, () => sgLoading.value],
+  [apiBaseUrl, () => sgLoading.value, () => route.query?.variant],
   async ([url]) => {
     if (!url || sgLoading.value) return
     await loadData(url)
@@ -169,10 +173,10 @@ watch(
 
 async function loadData(url) {
   if (props.preview) {
-    announcements.value = [
-      { id: 1, title: 'Welcome to the New School Year', body: 'The student council welcomes all freshmen and returnees to Aura. Reach out if you need help!', status: 'published', created_at: new Date().toISOString() },
-      { id: 2, title: 'Council Elections Validation', body: 'Please ensure your biometric data is properly enrolled before the upcoming council elections.', status: 'published', created_at: new Date(Date.now() - 86400000).toISOString() },
-    ]
+    governanceUnitId.value = Number(previewBundle.value?.activeUnit?.id || null)
+    announcements.value = Array.isArray(previewBundle.value?.announcements)
+      ? previewBundle.value.announcements.map((announcement) => ({ ...announcement }))
+      : []
     isLoading.value = false
     return
   }
@@ -213,7 +217,21 @@ function closeForm() { isFormOpen.value = false; editingId.value = null }
 
 async function handleSave() {
   if (props.preview) {
-    alert('Edits are disabled in preview mode.')
+    const nextAnnouncement = {
+      id: editingId.value || resolveNextPreviewAnnouncementId(),
+      title: draft.value.title.trim(),
+      body: draft.value.body.trim(),
+      status: draft.value.status,
+      created_at: editingId.value
+        ? announcements.value.find((item) => Number(item.id) === Number(editingId.value))?.created_at || new Date().toISOString()
+        : new Date().toISOString(),
+    }
+
+    announcements.value = editingId.value
+      ? announcements.value.map((announcement) => (
+        Number(announcement.id) === Number(editingId.value) ? nextAnnouncement : announcement
+      ))
+      : [nextAnnouncement, ...announcements.value]
     closeForm()
     return
   }
@@ -236,11 +254,21 @@ async function handleSave() {
 
 async function handleDelete(ann) {
   if (!confirm('Delete this announcement?')) return
+
+  if (props.preview) {
+    announcements.value = announcements.value.filter((item) => Number(item.id) !== Number(ann?.id))
+    return
+  }
+
   try {
     const token = localStorage.getItem('aura_token') || ''
     await deleteGovernanceAnnouncement(apiBaseUrl.value, token, ann.id)
     await reload()
   } catch (e) { loadError.value = e?.message || 'Unable to delete.' }
+}
+
+function resolveNextPreviewAnnouncementId() {
+  return Math.max(0, ...announcements.value.map((announcement) => Number(announcement.id) || 0)) + 1
 }
 </script>
 

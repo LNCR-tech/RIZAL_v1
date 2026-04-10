@@ -49,6 +49,12 @@
         Tap anywhere to enter fullscreen
       </button>
     </Transition>
+
+    <NotificationsPanel 
+      :is-open="showNotifications" 
+      :notifications="mockNotifications" 
+      @close="showNotifications = false" 
+    />
   </div>
 </template>
 
@@ -62,9 +68,12 @@ import { appFatalErrorMessage, clearAppFatalError } from '@/services/appBootstra
 import { isNavigationPending } from '@/services/navigationState.js'
 import { clearDashboardSession } from '@/composables/useDashboardSession.js'
 import { useRouter } from 'vue-router'
+import NotificationsPanel from '@/components/dashboard/NotificationsPanel.vue'
+import { useNotifications } from '@/composables/useNotifications.js'
 
 const router = useRouter()
 const networkOnline = computed(() => isOnline.value)
+const { showNotifications, mockNotifications } = useNotifications()
 const fatalErrorMessage = computed(() => appFatalErrorMessage.value)
 const hasResolvedInitialRoute = ref(false)
 const showInitialBootScreen = computed(() => !hasResolvedInitialRoute.value && isNavigationPending.value)

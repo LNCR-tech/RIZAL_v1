@@ -185,14 +185,31 @@
           <div class="settings-row">
             <span class="settings-icon"><Bell :size="16" /></span>
             <span class="settings-row__label">Notifications</span>
-            <!-- Toggle (future: wire to real preference) -->
             <button
-              class="notif-toggle"
-              :class="{ 'notif-toggle--on': notificationsEnabled }"
+              class="settings-toggle"
+              :class="{ 'settings-toggle--on': notificationsEnabled }"
               @click="notificationsEnabled = !notificationsEnabled"
+              :aria-pressed="notificationsEnabled"
               aria-label="Toggle notifications"
             >
-              <span class="notif-toggle__knob" />
+              <span class="settings-toggle__knob" />
+            </button>
+          </div>
+
+          <div class="settings-divider" />
+
+          <div class="settings-row">
+            <span class="settings-icon"><Moon :size="16" /></span>
+            <span class="settings-row__label">Dark Mode</span>
+            <button
+              class="settings-toggle"
+              :class="{ 'settings-toggle--on': isDarkMode }"
+              type="button"
+              :aria-pressed="isDarkMode"
+              aria-label="Toggle dark mode"
+              @click="toggleDarkMode"
+            >
+              <span class="settings-toggle__knob" />
             </button>
           </div>
 
@@ -262,18 +279,27 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeft, ArrowRight, Settings, Pencil, Upload,
-  Shield, ChevronRight, Bell
+  Shield, ChevronRight, Bell, Moon
 } from 'lucide-vue-next'
 
-import { defaultTheme } from '@/config/theme.js'
+import { defaultTheme, isDarkMode, toggleDarkMode } from '@/config/theme.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+import {
+  DEFAULT_FONT_SIZE,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  FONT_SIZE_STEP,
+  getStoredFontSize,
+  snapFontSize,
+  storeFontSizePreference,
+} from '@/services/userPreferences.js'
 
 const props = defineProps({
   preview: {
@@ -347,20 +373,10 @@ const sliderTrack = ref(null)
 const isBouncing  = ref(false)
 const isSliderDragging = ref(false)
 
-const FONT_SIZE_MIN = 80
-const FONT_SIZE_MAX = 130
-const FONT_SIZE_STEP = 5
-const DEFAULT_FONT_SIZE = 100
-
 // Thumb position as % of the track width
 const thumbPercent = computed(() =>
   ((fontSize.value - FONT_SIZE_MIN) / (FONT_SIZE_MAX - FONT_SIZE_MIN)) * 100
 )
-
-function snapFontSize(value) {
-  const normalized = Math.round(Number(value) / FONT_SIZE_STEP) * FONT_SIZE_STEP
-  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, normalized))
-}
 
 function setValueFromX(clientX) {
   const trackElement = sliderTrack.value
@@ -430,36 +446,14 @@ function onSliderKeyDown(event) {
   }
 }
 
-// Applied to the root font size instead of browser zoom so mobile layouts stay stable.
-function applyFontSize(val) {
-  const root = document.documentElement
-  const baseSize = 16 * (snapFontSize(val) / 100)
-  root.style.zoom = ''
-  root.style.setProperty('--aura-font-base', `${baseSize}px`)
-  root.style.setProperty('--aura-text-size-adjust', `${snapFontSize(val)}%`)
-}
-
-// Default 100 = normal size.
-// Guard: old system stored 1/2/3 — if value is out of range, reset to 100.
-const storedSize = Number(localStorage.getItem('aura_font_size') ?? DEFAULT_FONT_SIZE)
-const fontSize = ref(
-  storedSize >= FONT_SIZE_MIN && storedSize <= FONT_SIZE_MAX
-    ? snapFontSize(storedSize)
-    : DEFAULT_FONT_SIZE
-)
-
-// Apply on mount (restore persisted setting, clear bad legacy values)
-onMounted(() => {
-  if (storedSize < FONT_SIZE_MIN || storedSize > FONT_SIZE_MAX) {
-    localStorage.setItem('aura_font_size', DEFAULT_FONT_SIZE)
-  }
-  applyFontSize(fontSize.value)
-})
+const fontSize = ref(getStoredFontSize() || DEFAULT_FONT_SIZE)
 
 // Apply + persist whenever slider changes
 watch(fontSize, val => {
-  applyFontSize(val)
-  localStorage.setItem('aura_font_size', val)
+  const normalizedValue = storeFontSizePreference(val)
+  if (normalizedValue !== val) {
+    fontSize.value = normalizedValue
+  }
 })
 
 // ── Notifications ──────────────────────────────────────────────────────
@@ -866,8 +860,8 @@ async function handleSignOut() {
   flex: 1;
 }
 
-/* ── Notifications toggle ────────────────────────────────────────── */
-.notif-toggle {
+/* ── Settings toggles ────────────────────────────────────────────── */
+.settings-toggle {
   width: 42px;
   height: 24px;
   border-radius: 999px;
@@ -879,11 +873,11 @@ async function handleSignOut() {
   flex-shrink: 0;
 }
 
-.notif-toggle--on {
+.settings-toggle--on {
   background: var(--color-primary);
 }
 
-.notif-toggle__knob {
+.settings-toggle__knob {
   position: absolute;
   top: 3px;
   left: 3px;
@@ -894,7 +888,7 @@ async function handleSignOut() {
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.notif-toggle--on .notif-toggle__knob {
+.settings-toggle--on .settings-toggle__knob {
   transform: translateX(18px);
 }
 

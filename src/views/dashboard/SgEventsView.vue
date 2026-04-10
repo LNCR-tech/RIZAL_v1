@@ -220,7 +220,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
   preview: {
@@ -231,6 +231,7 @@ const props = defineProps({
 import { ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2 } from 'lucide-vue-next'
 import EventEditorSheet from '@/components/events/EventEditorSheet.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import {
   BackendApiError,
@@ -247,10 +248,13 @@ import {
   getGovernanceUnitsForAction,
   normalizeGovernanceContext,
 } from '@/services/governanceScope.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
+const route = useRoute()
 const router = useRouter()
 const { apiBaseUrl, token, dashboardState, isSchoolItSession, isAdminSession } = useDashboardSession()
-const { isLoading: sgLoading } = useSgDashboard()
+const { previewBundle } = useSgPreviewBundle(() => props.preview)
+const { isLoading: sgLoading } = useSgDashboard(props.preview)
 const governanceUnitId = ref(null)
 const governanceContext = ref('')
 const governanceUnitDetailCache = new Map()
@@ -335,15 +339,15 @@ function formatDate(d) {
 
 function goBack() { 
   if (props.preview) {
-    router.push('/exposed/sg')
+    router.push(withPreservedGovernancePreviewQuery(route, '/exposed/governance'))
     return
   }
-  router.push('/sg') 
+  router.push('/governance') 
 }
 
 function goToEvent(event) {
   if (props.preview) {
-    router.push({ name: 'PreviewSgEventDetail', params: { id: event.id } })
+    router.push(withPreservedGovernancePreviewQuery(route, { name: 'PreviewSgEventDetail', params: { id: event.id } }))
     return
   }
   router.push({ name: 'SgEventDetail', params: { id: event.id } })
@@ -394,6 +398,15 @@ async function ensureGovernanceEventMutationParams(url) {
 async function saveEventEdits(payload) {
   if (!editingEvent.value?.id || isMutatingEvent.value) return
 
+  if (props.preview) {
+    replaceEventInList({
+      ...editingEvent.value,
+      ...payload,
+    })
+    closeEventEditor(true)
+    return
+  }
+
   isMutatingEvent.value = true
   eventEditorError.value = ''
 
@@ -421,6 +434,15 @@ async function deleteManagedEvent(event) {
 
   const confirmed = window.confirm(`Delete ${getEventDisplayName(event)}?`)
   if (!confirmed) return
+
+  if (props.preview) {
+    closeAllEventSwipes()
+    events.value = events.value.filter((entry) => Number(entry?.id) !== Number(event.id))
+    if (Number(editingEvent.value?.id) === Number(event.id)) {
+      closeEventEditor(true)
+    }
+    return
+  }
 
   isMutatingEvent.value = true
   closeAllEventSwipes()
@@ -1008,15 +1030,26 @@ async function submitEvent() {
   isSubmitting.value = true
   try {
     validateEventForm()
+
+    if (props.preview) {
+      const payload = buildCreateEventPayload()
+      events.value = [
+        {
+          ...payload,
+          id: resolveNextPreviewEventId(),
+          title: payload.name,
+        },
+        ...events.value,
+      ]
+      closeCreateForm()
+      resetEventForm()
+      return
+    }
+
     await createEventWithResolvedScope(apiBaseUrl.value, buildCreateEventPayload())
     closeCreateForm()
-    
-    // Reset form
-    form.value = {
-      name: '', location_name: '', start_time: '', end_time: '',
-      require_geofence: false, latitude: null, longitude: null, radius_meters: 100, gps_accuracy: 50
-    }
-    
+    resetEventForm()
+
     // Refresh events
     await loadEvents(apiBaseUrl.value)
     
@@ -1028,7 +1061,7 @@ async function submitEvent() {
 }
 
 watch(
-  [apiBaseUrl, () => sgLoading.value],
+  [apiBaseUrl, () => sgLoading.value, () => route.query?.variant],
   async ([url]) => {
     if (!url || sgLoading.value) return
     await loadEvents(url)
@@ -1038,11 +1071,9 @@ watch(
 
 async function loadEvents(url) {
   if (props.preview) {
-    events.value = [
-      { id: 1, title: 'Freshmen Assembly', name: 'Freshmen Assembly', status: 'upcoming', start_datetime: new Date(Date.now() + 86400000).toISOString() },
-      { id: 2, title: 'Student Council Townhall', name: 'Student Council Townhall', status: 'ongoing', start_datetime: new Date().toISOString() },
-      { id: 3, title: 'Intramurals 2026', name: 'Intramurals 2026', status: 'completed', start_datetime: new Date(Date.now() - 86400000).toISOString() }
-    ]
+    events.value = Array.isArray(previewBundle.value?.events)
+      ? previewBundle.value.events.map((event) => ({ ...event, title: event.title || event.name }))
+      : []
     isLoading.value = false
     return
   }
@@ -1100,6 +1131,24 @@ async function loadEvents(url) {
 }
 
 async function reload() { if (apiBaseUrl.value) await loadEvents(apiBaseUrl.value) }
+
+function resetEventForm() {
+  form.value = {
+    name: '',
+    location_name: '',
+    start_time: '',
+    end_time: '',
+    require_geofence: false,
+    latitude: null,
+    longitude: null,
+    radius_meters: 100,
+    gps_accuracy: 50,
+  }
+}
+
+function resolveNextPreviewEventId() {
+  return Math.max(0, ...events.value.map((event) => Number(event.id) || 0)) + 1
+}
 </script>
 
 <style scoped>

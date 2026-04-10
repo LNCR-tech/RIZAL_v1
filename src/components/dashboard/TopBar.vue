@@ -56,7 +56,7 @@
       >
         <!-- Bell notification -->
         <button
-          @click="$emit('toggle-notifications')"
+          @click="toggleNotifications"
           class="relative flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 active:scale-95"
           style="color: var(--color-nav-pill-text);"
           aria-label="Notifications"
@@ -64,19 +64,41 @@
           <Bell :size="18" color="var(--color-nav-pill-text)" :stroke-width="2" />
           <!-- unread badge -->
           <span
-            v-if="unreadCount > 0"
+            v-if="localUnreadCount > 0"
             class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-            style="background: var(--color-primary);"
+            style="background: #FF5A36;"
           />
         </button>
 
+        <!-- Mobile Governance CTA -->
+        <button
+          v-if="hasGovernanceAccess && governanceAcronym"
+          type="button"
+          class="topbar-governance-btn"
+          :class="{
+            'topbar-governance-btn--active': isGovernanceWorkspaceActive,
+            'topbar-governance-btn--desktop': true,
+          }"
+          :aria-label="governanceAriaLabel"
+          :title="governanceAriaLabel"
+          @click="openGovernanceWorkspace"
+        >
+          <ArrowLeft
+            v-if="isGovernanceWorkspaceActive"
+            :size="14"
+            :stroke-width="2.25"
+            class="topbar-governance-btn__icon"
+          />
+          <span class="topbar-governance-btn__text">{{ governanceButtonLabel }}</span>
+        </button>
+
         <!-- Spacer/Divider -->
-        <div class="w-[1px] h-5 mx-0.5" style="background: var(--color-surface-border);"></div>
+        <div class="hidden md:block w-[1px] h-5 mx-0.5" style="background: var(--color-surface-border);"></div>
 
         <!-- Dark Mode Toggle -->
         <button
           @click="toggleDarkMode"
-          class="relative flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 active:scale-95"
+          class="relative hidden md:flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 active:scale-95"
           style="color: var(--color-nav-pill-text);"
           aria-label="Toggle Dark Mode"
         >
@@ -93,9 +115,16 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { Bell, Moon, LogOut } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Bell, Moon, LogOut } from 'lucide-vue-next'
 import { isDarkMode, toggleDarkMode } from '@/config/theme.js'
 import { useAuth } from '@/composables/useAuth.js'
+import { useGovernanceAccess } from '@/composables/useGovernanceAccess.js'
+import { useNotifications } from '@/composables/useNotifications.js'
+import {
+  resolveStudentHomeLocation,
+  withPreservedGovernancePreviewQuery,
+} from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   user: {
@@ -111,10 +140,34 @@ const props = defineProps({
 defineEmits(['toggle-notifications'])
 
 const isProfileExpanded = ref(false)
+const route = useRoute()
+const router = useRouter()
 const { logout } = useAuth()
+const {
+  hasGovernanceAccess,
+  governanceAcronym,
+  governanceUnitName,
+  governanceWorkspaceLocation,
+  isGovernanceWorkspaceActive,
+} = useGovernanceAccess()
+
+const { toggleNotifications, unreadNotifCount } = useNotifications()
+
+const localUnreadCount = computed(() => {
+  return Math.max(props.unreadCount || 0, unreadNotifCount.value)
+})
 
 async function handleLogout() {
   await logout()
+}
+
+function openGovernanceWorkspace() {
+  const target = isGovernanceWorkspaceActive.value
+    ? withPreservedGovernancePreviewQuery(route, resolveStudentHomeLocation(route))
+    : governanceWorkspaceLocation.value
+  const resolvedTarget = router.resolve(target)
+  if (route.fullPath === resolvedTarget.fullPath) return
+  router.push(target)
 }
 
 const displayName = computed(() => {
@@ -140,6 +193,18 @@ const avatarUrl = computed(() => {
     null
   )
 })
+
+const governanceAriaLabel = computed(() => {
+  const label = governanceUnitName.value || governanceAcronym.value || 'Governance'
+  return isGovernanceWorkspaceActive.value
+    ? 'Back to student dashboard'
+    : `Open ${label} dashboard`
+})
+
+const governanceButtonLabel = computed(() => {
+  const acronym = String(governanceAcronym.value || 'Governance').trim()
+  return isGovernanceWorkspaceActive.value ? 'Back' : `Open ${acronym}`
+})
 </script>
 
 <style scoped>
@@ -149,5 +214,74 @@ const avatarUrl = computed(() => {
   opacity: 1;
   margin-left: 24px;
   margin-right: 4px;
+}
+
+.topbar-governance-btn {
+  min-width: 0;
+  max-width: 112px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 0.15s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.topbar-governance-btn--desktop {
+  display: inline-flex;
+}
+
+.topbar-governance-btn:active {
+  transform: scale(0.97);
+}
+
+.topbar-governance-btn--active {
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+}
+
+.topbar-governance-btn__text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topbar-governance-btn__icon {
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .topbar-governance-btn {
+    max-width: 148px;
+    height: 36px;
+    padding: 0 12px;
+    background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+    color: var(--color-primary);
+  }
+
+  .topbar-governance-btn:not(.topbar-governance-btn--active) {
+    opacity: 1;
+  }
+
+  .topbar-governance-btn__text {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+}
+
+@media (max-width: 767px) {
+  .topbar-governance-btn--desktop {
+    display: inline-flex;
+  }
 }
 </style>

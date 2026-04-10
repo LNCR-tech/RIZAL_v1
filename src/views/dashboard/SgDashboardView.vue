@@ -22,7 +22,7 @@
               <input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search Cards Here..."
+                placeholder="Search modules..."
                 class="search-input"
               />
               <span class="search-icon-wrap" aria-hidden="true">
@@ -133,9 +133,9 @@
       <p class="sg-state-message">{{ error }}</p>
     </div>
 
-    <!-- Dashboard content (Always renders instantly, waits gracefully for cards to pop in) -->
+    <!-- Dashboard content -->
     <template v-else>
-      <!-- Hero banner — lime green like reference -->
+      <!-- Hero banner -->
       <div class="sg-hero dashboard-enter dashboard-enter--4">
         <div class="sg-hero-content">
           <p class="sg-hero-subtitle">Welcome to</p>
@@ -158,48 +158,87 @@
         </div>
       </div>
 
-      <!-- Module sections — only permitted cards render -->
+      <!-- Anti-Gravity Module Sections -->
       <div
         v-for="(section, sIndex) in filteredSections"
         :key="section.id"
-        class="sg-section dashboard-enter"
+        class="ag-section dashboard-enter"
         :class="`dashboard-enter--${5 + sIndex}`"
       >
-        <h2 class="sg-section-title">{{ section.title }}</h2>
+        <h2 class="ag-section-title">{{ section.title }}</h2>
 
-        <div class="sg-cards-grid">
+        <div class="ag-modules-list">
           <button
             v-for="mod in section.modules"
             :key="mod.id"
-            class="sg-card"
+            class="ag-module-row"
+            :class="{
+              'ag-module-row--restricted': !hasPermission(mod.permissionCode) && mod.id !== 'view-students',
+              'ag-module-row--high': mod.id === 'create-sg' || mod.id === 'create-org',
+            }"
             type="button"
             @click="handleModuleClick(mod)"
           >
-            <div class="sg-card-content">
-              <p class="sg-card-label">{{ mod.label }}</p>
+            <!-- Icon container -->
+            <div
+              class="ag-module-icon"
+              :class="{
+                'ag-module-icon--restricted': !hasPermission(mod.permissionCode) && mod.id !== 'view-students',
+              }"
+            >
+              <component :is="mod.icon" :size="20" :stroke-width="1.8" />
             </div>
-            <div class="sg-card-arrow">
-              <ArrowRight :size="18" :stroke-width="1.5" />
+
+            <!-- Text content -->
+            <div class="ag-module-text">
+              <span class="ag-module-label">{{ mod.label }}</span>
+              <span class="ag-module-desc">{{ mod.description }}</span>
+            </div>
+
+            <!-- Arrow or Lock -->
+            <div class="ag-module-action">
+              <template v-if="hasPermission(mod.permissionCode) || mod.id === 'view-students'">
+                <div class="ag-module-arrow">
+                  <ArrowRight :size="18" :stroke-width="2" />
+                </div>
+              </template>
+              <template v-else>
+                <div class="ag-module-lock">
+                  <Lock :size="16" :stroke-width="2" />
+                </div>
+              </template>
             </div>
           </button>
         </div>
       </div>
     </template>
 
+    <!-- Floating toast notification -->
+    <Transition name="sg-toast">
+      <div
+        v-if="toastVisible"
+        class="sg-toast"
+        @click="toastVisible = false"
+      >
+        <Lock :size="16" :stroke-width="2.2" />
+        <span>{{ toastMessage }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search, ArrowRight, AlertCircle, Send } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { Search, ArrowRight, AlertCircle, Send, Lock } from 'lucide-vue-next'
 import TopBar from '@/components/dashboard/TopBar.vue'
 import { secondaryAuraLogo, applyTheme, loadTheme, defaultTheme } from '@/config/theme.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import { useChat } from '@/composables/useChat.js'
-import { getVisibleSections, filterSectionsBySearch } from '@/data/sgModules.js'
+import { getAllSections, filterSectionsBySearch } from '@/data/sgModules.js'
 import { resolveBackendMediaCandidates, withMediaCacheKey } from '@/services/backendMedia.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
@@ -208,6 +247,7 @@ const props = defineProps({
   },
 })
 
+const route = useRoute()
 const router = useRouter()
 const searchQuery = ref('')
 const heroLogoUnavailable = ref(false)
@@ -282,10 +322,19 @@ const schoolInitials = computed(() => {
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
 
-// Only show sections/cards the user has permission for
-const visibleSections = computed(() => getVisibleSections(permissionCodes.value))
+/**
+ * Anti-Gravity approach: Show ALL modules always.
+ * Restricted ones are visually dimmed with a lock icon.
+ */
+const permissionSet = computed(() => new Set(permissionCodes.value))
+
+function hasPermission(code) {
+  return permissionSet.value.has(code)
+}
+
+const allSections = computed(() => getAllSections())
 const filteredSections = computed(() =>
-  filterSectionsBySearch(visibleSections.value, searchQuery.value)
+  filterSectionsBySearch(allSections.value, searchQuery.value)
 )
 
 watch(
@@ -298,10 +347,28 @@ watch(
 )
 
 function handleModuleClick(mod) {
+  const isPermitted = hasPermission(mod.permissionCode) || mod.id === 'view-students'
+
+  if (!isPermitted) {
+    showToast("You currently don't have permission to do this.")
+    return
+  }
+
   if (mod.route) {
-    const target = props.preview ? mod.route.replace(/^\/sg/, '/exposed/sg') : mod.route
+    const target = props.preview
+      ? withPreservedGovernancePreviewQuery(route, mod.route.replace(/^\/governance/, '/exposed/governance'))
+      : mod.route
     router.push(target)
   }
+}
+
+function showToast(message) {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastMessage.value = message
+  toastVisible.value = true
+  toastTimer = setTimeout(() => {
+    toastVisible.value = false
+  }, 3200)
 }
 
 // --- Chat & Panel Logic ---
@@ -682,14 +749,14 @@ watch(searchActive, (active) => {
   place-self: center;
 }
 
-/* ── Hero Banner (lime-green like reference) ──────── */
+/* ── Hero Banner ──────── */
 .sg-hero {
   position: relative;
-  border-radius: 24px;
+  border-radius: 28px;
   overflow: hidden;
   background: var(--color-primary);
-  min-height: 160px; /* Reduced to match ref image proportion */
-  padding: 24px;
+  min-height: 160px;
+  padding: 28px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -762,88 +829,175 @@ watch(searchActive, (active) => {
   z-index: 1;
 }
 
-/* ── Sections ─────────────────────── */
-.sg-section {
+/* ═══════════════════════════════════════════════════════
+   ANTI-GRAVITY MODULE SECTIONS
+   ═══════════════════════════════════════════════════════ */
+
+.ag-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ag-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--color-text-primary);
+  padding: 0 4px;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Anti-Gravity Module Row ──────────────────────────── */
+.ag-modules-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.sg-section-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--color-text-primary);
-  padding: 0 2px;
-}
-
-.sg-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
-  gap: 14px;
-}
-
-/* ── Module Card ──────────────────── */
-.sg-card {
+.ag-module-row {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 20px 20px 20px 18px;
   background: var(--color-surface);
-  border-radius: 20px;
-  padding: 20px 18px 18px;
-  min-height: 144px;
   border: none;
+  border-radius: 24px;
   cursor: pointer;
   text-align: left;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.03);
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
-.sg-card:hover {
-  transform: scale(1.02);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+.ag-module-row:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    0 16px 48px rgba(0, 0, 0, 0.08);
 }
 
-.sg-card:active {
-  transform: scale(0.98);
+.ag-module-row:active {
+  transform: translateY(-1px) scale(0.995);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.05);
 }
 
-/* Disabled card — unpermitted */
-.sg-card--disabled {
-  opacity: 0.45;
+/* High prominence modules */
+.ag-module-row--high {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 15px;
+}
+
+/* Restricted / locked module */
+.ag-module-row--restricted {
+  background: var(--color-bg);
+  opacity: 0.55;
   cursor: not-allowed;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.02),
+    0 4px 16px rgba(0, 0, 0, 0.015);
 }
 
-.sg-card--disabled:hover {
+.ag-module-row--restricted:hover {
   transform: none;
-  box-shadow: none;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.02),
+    0 4px 16px rgba(0, 0, 0, 0.015);
 }
 
-.sg-card--disabled:active {
-  transform: scale(0.98);
+.ag-module-row--restricted:active {
+  transform: scale(0.995);
 }
 
-.sg-card-content {
-  flex: 1;
-}
-
-.sg-card-label {
-  font-size: 16.5px;
-  font-weight: 700;
-  color: var(--color-text-always-dark);
-  line-height: 1.2;
-  width: min-content;
-}
-
-.sg-card-arrow {
+/* ── Module Icon ──────────────────────────────────── */
+.ag-module-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+  flex-shrink: 0;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.ag-module-icon--restricted {
+  background: var(--color-surface-border);
+  color: var(--color-surface-text-muted);
+}
+
+/* ── Module Text ──────────────────────────────────── */
+.ag-module-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ag-module-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-always-dark);
+  line-height: 1.25;
+}
+
+.ag-module-desc {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-surface-text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Module Action (arrow / lock) ─────────────────── */
+.ag-module-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ag-module-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--color-nav);
   color: var(--color-nav-text);
-  align-self: flex-end;
-  margin-top: 12px;
+  transition: transform 0.2s ease;
+}
+
+.ag-module-row:not(.ag-module-row--restricted):hover .ag-module-arrow {
+  transform: translateX(3px);
+}
+
+.ag-module-lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-surface-text-muted);
+  border: 1.5px dashed var(--color-surface-border);
 }
 
 /* ── State cards ──────────────────── */
@@ -882,19 +1036,22 @@ watch(searchActive, (active) => {
   align-items: center;
   gap: 10px;
   padding: 14px 22px;
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--color-nav);
   color: var(--color-nav-text);
   font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    0 20px 60px rgba(0, 0, 0, 0.12);
   z-index: 9999;
   max-width: calc(100vw - 48px);
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
 
 .sg-toast-enter-active {
-  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .sg-toast-leave-active {
@@ -903,12 +1060,12 @@ watch(searchActive, (active) => {
 
 .sg-toast-enter-from {
   opacity: 0;
-  transform: translateX(-50%) translateY(20px) scale(0.92);
+  transform: translateX(-50%) translateY(24px) scale(0.9);
 }
 
 .sg-toast-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(10px);
+  transform: translateX(-50%) translateY(10px) scale(0.95);
 }
 
 /* ── Dashboard enter animation ────── */
@@ -926,6 +1083,8 @@ watch(searchActive, (active) => {
 .dashboard-enter--6 { animation-delay: 300ms; }
 .dashboard-enter--7 { animation-delay: 360ms; }
 .dashboard-enter--8 { animation-delay: 420ms; }
+.dashboard-enter--9 { animation-delay: 480ms; }
+.dashboard-enter--10 { animation-delay: 540ms; }
 
 @keyframes sg-fade-up {
   to {
@@ -947,5 +1106,19 @@ watch(searchActive, (active) => {
   .sg-hero-logo-wrap { right: -24px; }
   .sg-hero-logo { width: 165px; height: 165px; }
   .sg-hero-logo-fallback { right: -24px; width: 165px; height: 165px; }
+
+  .ag-module-row {
+    padding: 22px 24px 22px 20px;
+    gap: 20px;
+    border-radius: 28px;
+  }
+
+  .ag-module-label {
+    font-size: 16px;
+  }
+
+  .ag-module-desc {
+    font-size: 13px;
+  }
 }
 </style>

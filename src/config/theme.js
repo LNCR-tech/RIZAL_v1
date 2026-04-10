@@ -1,14 +1,41 @@
 import { ref } from 'vue'
+import { Capacitor } from '@capacitor/core'
 const defaultSchoolLogo = '/logos/aura.png'
+const DARK_MODE_STORAGE_KEY = 'aura_dark_mode'
+
+function readStoredDarkModePreference() {
+    if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+        return false
+    }
+
+    try {
+        return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === '1'
+    } catch {
+        return false
+    }
+}
+
+function persistDarkModePreference(value) {
+    if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+        return
+    }
+
+    try {
+        window.localStorage.setItem(DARK_MODE_STORAGE_KEY, value ? '1' : '0')
+    } catch {
+        // Ignore storage failures and keep theme switching usable.
+    }
+}
 
 /**
  * Global Dark Mode State
  */
-export const isDarkMode = ref(false)
+export const isDarkMode = ref(readStoredDarkModePreference())
 export const activeAuraLogo = ref('/logos/aura_logo_black.png')
 export const surfaceAuraLogo = ref('/logos/aura_logo_black.png')
 export const secondaryAuraLogo = ref('/logos/aura_logo_black.png')
 let currentActiveTheme = null
+let nativeStatusBarSyncPromise = null
 
 function updateDocumentThemeColor(color) {
     if (typeof document === 'undefined') return
@@ -16,6 +43,27 @@ function updateDocumentThemeColor(color) {
     if (themeMeta) {
         themeMeta.setAttribute('content', color)
     }
+}
+
+function syncNativeStatusBar(color) {
+    if (!Capacitor.isNativePlatform()) return
+    if (!/^#[0-9A-F]{6}$/i.test(String(color || ''))) return
+
+    nativeStatusBarSyncPromise = (
+        nativeStatusBarSyncPromise
+        || import('@capacitor/status-bar').catch(() => null)
+    )
+
+    nativeStatusBarSyncPromise.then((module) => {
+        if (!module?.StatusBar || !module?.Style) return
+
+        const preferredStyle = getContrastYIQ(color) === '#FFFFFF'
+            ? module.Style.Light
+            : module.Style.Dark
+
+        module.StatusBar.setStyle({ style: preferredStyle }).catch(() => null)
+        module.StatusBar.setBackgroundColor({ color }).catch(() => null)
+    }).catch(() => null)
 }
 
 /**
@@ -195,7 +243,13 @@ export function resolveAuraLogoForBackground(backgroundColor) {
 }
 
 export function toggleDarkMode() {
-    isDarkMode.value = !isDarkMode.value
+    setDarkMode(!isDarkMode.value)
+}
+
+export function setDarkMode(value) {
+    isDarkMode.value = Boolean(value)
+    persistDarkModePreference(isDarkMode.value)
+
     if (currentActiveTheme) {
         applyTheme(currentActiveTheme)
     }
@@ -314,6 +368,8 @@ export function applyTheme(theme) {
     root.style.setProperty('--color-pill-row-active-bg', secondaryColor)
     root.style.setProperty('--color-pill-row-active-text', secondaryTextColor)
     root.style.setProperty('--color-pill-row-outline', secondaryColor)
+    root.style.setProperty('color-scheme', isDarkMode.value ? 'dark' : 'light')
+    root.dataset.themeMode = isDarkMode.value ? 'dark' : 'light'
 
     // Backwards-compatible alias for existing white-card text references.
     root.style.setProperty('--color-text-always-dark', surfaceTextColor)
@@ -335,4 +391,5 @@ export function applyTheme(theme) {
     surfaceAuraLogo.value = resolveAuraLogoForBackground(surfaceColor)
     secondaryAuraLogo.value = resolveAuraLogoForBackground(secondaryColor)
     updateDocumentThemeColor(bgColor)
+    syncNativeStatusBar(bgColor)
 }

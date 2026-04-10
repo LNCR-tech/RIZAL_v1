@@ -162,7 +162,7 @@
 
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
   preview: {
@@ -174,6 +174,7 @@ import { ArrowLeft, Search, Plus, SquarePen, X } from 'lucide-vue-next'
 import StudentCouncilMemberStage from '@/components/council/StudentCouncilMemberStage.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import {
   getGovernanceUnitDetail,
   assignGovernanceMember,
@@ -191,10 +192,13 @@ import {
   mapUiPermissionIdsToBackend,
 } from '@/services/studentCouncilManagement.js'
 import { resolvePreferredGovernanceUnit } from '@/services/governanceScope.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
+const route = useRoute()
 const router = useRouter()
 const { apiBaseUrl } = useDashboardSession()
-const { isLoading: sgLoading, error: sgError, permissionCodes } = useSgDashboard()
+const { previewBundle } = useSgPreviewBundle(() => props.preview)
+const { isLoading: sgLoading, error: sgError, permissionCodes } = useSgDashboard(props.preview)
 
 const isLoading = ref(true)
 const loadError = ref('')
@@ -247,8 +251,6 @@ const detailMemberPermLabels = computed(() => {
     .filter(Boolean)
 })
 
-// Resolve governance unit from access
-const { isLoading: dashLoading } = useSgDashboard()
 watch(
   [() => sgLoading.value, () => sgError.value],
   () => {
@@ -262,7 +264,7 @@ watch(
 )
 
 watch(
-  [apiBaseUrl, () => sgLoading.value],
+  [apiBaseUrl, () => sgLoading.value, () => route.query?.variant],
   async ([url]) => {
     if (!url || sgLoading.value) return
     await loadUnit(url)
@@ -272,12 +274,10 @@ watch(
 
 async function loadUnit(url) {
   if (props.preview) {
-    members.value = [
-      { id: 1, userId: 101, studentId: '2023-0101', fullName: 'Jane Doe', position: 'President' },
-      { id: 2, userId: 102, studentId: '2023-0102', fullName: 'John Smith', position: 'Vice President' },
-      { id: 3, userId: 103, studentId: '2023-0103', fullName: 'Alice Johnson', position: 'Secretary' },
-      { id: 4, userId: 104, studentId: '2023-0104', fullName: 'Bob Williams', position: 'Treasurer' },
-    ]
+    governanceUnitId.value = Number(previewBundle.value?.activeUnit?.id || null)
+    members.value = Array.isArray(previewBundle.value?.members)
+      ? previewBundle.value.members.map((member) => ({ ...member }))
+      : []
     isLoading.value = false
     return
   }
@@ -307,10 +307,10 @@ async function reload() {
 
 function goBack() { 
   if (props.preview) {
-    router.push('/exposed/sg')
+    router.push(withPreservedGovernancePreviewQuery(route, '/exposed/governance'))
     return
   }
-  router.push('/sg') 
+  router.push('/governance') 
 }
 
 function resetDraft() {
@@ -370,6 +370,14 @@ watch(
 onBeforeUnmount(() => clearTimeout(candidateTimer))
 
 async function searchCandidates(query) {
+  if (props.preview) {
+    const needle = String(query || '').trim().toLowerCase()
+    candidateResults.value = buildPreviewCandidateResults(needle).filter((candidate) => (
+      !members.value.some((member) => member.userId === candidate.userId)
+    ))
+    return
+  }
+
   if (!apiBaseUrl.value || !governanceUnitId.value) return
   try {
     const token = localStorage.getItem('aura_token') || ''
@@ -387,7 +395,27 @@ async function searchCandidates(query) {
 
 async function handleSubmit() {
   if (props.preview) {
-    alert('Edits are disabled in preview mode.')
+    if (submitDisabled.value) return
+    if (!showPermissions.value) {
+      showPermissions.value = true
+      return
+    }
+
+    const nextMember = {
+      id: editingMemberId.value || resolveNextPreviewMemberId(),
+      userId: Number(selectedStudent.value?.userId),
+      studentId: String(selectedStudent.value?.studentId || ''),
+      fullName: selectedStudent.value?.fullName || 'Student',
+      position: memberDraft.value.position.trim(),
+      permissionIds: [...memberDraft.value.permissionIds],
+      isActive: true,
+    }
+
+    members.value = editingMemberId.value
+      ? members.value.map((member) => (
+        Number(member.id) === Number(editingMemberId.value) ? nextMember : member
+      ))
+      : [nextMember, ...members.value]
     closeSheet()
     return
   }
@@ -423,7 +451,7 @@ async function handleSubmit() {
 
 async function handleDelete() {
   if (props.preview) {
-    alert('Deletion is disabled in preview mode.')
+    members.value = members.value.filter((member) => Number(member.id) !== Number(editingMemberId.value))
     closeSheet()
     return
   }
@@ -441,7 +469,7 @@ async function handleDelete() {
 
 async function handleDeleteDetail() {
   if (props.preview) {
-    alert('Deletion is disabled in preview mode.')
+    members.value = members.value.filter((member) => Number(member.id) !== Number(detailMember.value?.id))
     closeDetail()
     return
   }
@@ -455,6 +483,33 @@ async function handleDeleteDetail() {
   } catch (e) {
     loadError.value = e?.message || 'Unable to delete member.'
   } finally { isDeleting.value = false }
+}
+
+function buildPreviewCandidateResults(query = '') {
+  const previewStudents = Array.isArray(previewBundle.value?.students) ? previewBundle.value.students : []
+  return previewStudents
+    .map((student) => ({
+      id: Number(student.id),
+      userId: Number(student.id),
+      studentId: String(student.student_profile?.student_id || student.id || ''),
+      fullName: [student.first_name, student.last_name].filter(Boolean).join(' ').trim() || student.email || 'Student',
+      programName: student.student_profile?.program_name || '',
+      departmentName: student.student_profile?.department_name || '',
+      email: student.email || '',
+      searchText: [
+        student.student_profile?.student_id,
+        student.first_name,
+        student.last_name,
+        student.email,
+        student.student_profile?.program_name,
+        student.student_profile?.department_name,
+      ].filter(Boolean).join(' ').toLowerCase(),
+    }))
+    .filter((candidate) => !query || candidate.searchText.includes(query))
+}
+
+function resolveNextPreviewMemberId() {
+  return Math.max(0, ...members.value.map((member) => Number(member.id) || 0)) + 1
 }
 </script>
 

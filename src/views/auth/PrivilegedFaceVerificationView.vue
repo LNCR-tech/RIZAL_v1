@@ -88,6 +88,7 @@ import {
   needsStoredPasswordChange,
   patchStoredAuthMeta,
 } from '@/services/localAuth.js'
+import { markCurrentRuntimeSession } from '@/services/sessionPersistence.js'
 import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
 
 const router = useRouter()
@@ -613,6 +614,7 @@ async function captureAndSubmit() {
     }
 
     localStorage.setItem('aura_token', verification.access_token)
+    markCurrentRuntimeSession()
 
     patchStoredAuthMeta({
       tokenType: verification.token_type || 'bearer',

@@ -23,8 +23,13 @@
           </span>
         </button>
 
-        <button class="analytics-mobile__notify" type="button" aria-label="Notifications">
+        <button class="analytics-mobile__notify relative" type="button" aria-label="Notifications" @click="toggleNotifications">
           <Bell :size="18" :stroke-width="2" />
+          <span
+            v-if="unreadNotifCount > 0"
+            class="absolute top-[14px] right-[14px] w-2 h-2 rounded-full"
+            style="background: #FF5A36;"
+          />
         </button>
       </header>
 
@@ -167,7 +172,9 @@ const props = defineProps({
 })
 
 const router = useRouter()
-const showNotifications = ref(false)
+
+import { useNotifications } from '@/composables/useNotifications.js'
+const { toggleNotifications, unreadNotifCount } = useNotifications()
 
 const {
   currentUser,
@@ -181,7 +188,7 @@ const {
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
 const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
-const activeUnreadAnnouncements = computed(() => props.preview ? 0 : unreadAnnouncements.value)
+const activeUnreadAnnouncements = computed(() => props.preview ? unreadNotifCount.value : Math.max(unreadAnnouncements.value, unreadNotifCount.value))
 const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : null)
 
 usePreviewTheme(() => props.preview, activeSchoolSettings)

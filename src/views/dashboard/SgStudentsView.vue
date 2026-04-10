@@ -52,15 +52,26 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Search } from 'lucide-vue-next'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
 import { getGovernanceStudents } from '@/services/backendApi.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
+const props = defineProps({
+  preview: {
+    type: Boolean,
+    default: false,
+  },
+})
+
+const route = useRoute()
 const router = useRouter()
 const { apiBaseUrl } = useDashboardSession()
-const { permissionCodes, isLoading: sgLoading } = useSgDashboard()
+const { previewBundle } = useSgPreviewBundle(() => props.preview)
+const { permissionCodes, isLoading: sgLoading } = useSgDashboard(props.preview)
 
 const isLoading = ref(true)
 const loadError = ref('')
@@ -84,10 +95,16 @@ function studentName(s) {
   return [s.first_name, s.last_name].filter(Boolean).join(' ').trim() || s.email || 'Student'
 }
 
-function goBack() { router.push('/sg') }
+function goBack() {
+  router.push(
+    props.preview
+      ? withPreservedGovernancePreviewQuery(route, '/exposed/governance')
+      : '/governance'
+  )
+}
 
 watch(
-  [apiBaseUrl, () => sgLoading.value],
+  [apiBaseUrl, () => sgLoading.value, () => route.query?.variant],
   async ([url]) => {
     if (!url || sgLoading.value) return
     await loadStudents(url)
@@ -99,6 +116,13 @@ async function loadStudents(url) {
   isLoading.value = true
   loadError.value = ''
   try {
+    if (props.preview) {
+      students.value = Array.isArray(previewBundle.value?.students)
+        ? previewBundle.value.students.map((student) => ({ ...student }))
+        : []
+      return
+    }
+
     const token = localStorage.getItem('aura_token') || ''
     students.value = await getGovernanceStudents(url, token)
   } catch (e) {

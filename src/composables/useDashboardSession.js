@@ -15,7 +15,8 @@ import {
     isResolvedAttendanceRecord,
 } from '@/services/attendanceFlow.js'
 import { resolveBackendMediaUrl } from '@/services/backendMedia.js'
-import { clearStoredAuthMeta, getStoredAuthMeta, patchStoredAuthMeta } from '@/services/localAuth.js'
+import { getStoredAuthMeta, patchStoredAuthMeta } from '@/services/localAuth.js'
+import { clearStoredSessionArtifacts, hasStoredSessionToken, readStoredSessionToken } from '@/services/sessionPersistence.js'
 
 const DASHBOARD_CACHE_KEY = 'aura_dashboard_cache_v1'
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000
@@ -26,7 +27,7 @@ const DASHBOARD_CACHE_TTL_MS = Number.isFinite(configuredCacheTtl) && configured
 
 const state = reactive({
     apiBaseUrl: resolveApiBaseUrl(),
-    token: localStorage.getItem('aura_token') || '',
+    token: readStoredSessionToken(),
     initializedToken: '',
     user: null,
     schoolSettings: null,
@@ -461,12 +462,12 @@ async function fetchDashboardData() {
 }
 
 export function hasSessionToken() {
-    return Boolean(localStorage.getItem('aura_token'))
+    return hasStoredSessionToken()
 }
 
 export async function initializeDashboardSession(force = false) {
     const resolvedApiBaseUrl = resolveApiBaseUrl()
-    const storedToken = localStorage.getItem('aura_token') || ''
+    const storedToken = readStoredSessionToken()
 
     state.apiBaseUrl = resolvedApiBaseUrl
     state.token = storedToken
@@ -668,10 +669,7 @@ export function applySchoolSettingsSnapshot(nextSchoolSettings) {
 }
 
 export function clearDashboardSession() {
-    localStorage.removeItem('aura_token')
-    localStorage.removeItem('aura_user_roles')
-    clearStoredAuthMeta()
-    clearDashboardSnapshot()
+    clearStoredSessionArtifacts()
     setToken('')
     resetDashboardState()
 }

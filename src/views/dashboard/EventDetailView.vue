@@ -102,9 +102,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowUpRight, Bell } from 'lucide-vue-next'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
-import { hasNavigableHistory, resolveBackFallbackLocation } from '@/services/routeWorkspace.js'
+import { hasNavigableHistory, isGovernancePreviewPath, resolveBackFallbackLocation } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
@@ -116,9 +117,16 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
+const isCouncilPreviewRoute = computed(() => props.preview && isGovernancePreviewPath(route))
+const isSchoolItPreviewRoute = computed(() => props.preview && route.path.startsWith('/exposed/workspace'))
+const { previewBundle } = useSgPreviewBundle(isCouncilPreviewRoute)
 
 const eventId = computed(() => Number(route.params.id))
 const previewEvent = computed(() => {
+  if (isCouncilPreviewRoute.value) {
+    return previewBundle.value?.events?.find((entry) => Number(entry?.id) === eventId.value) ?? null
+  }
+
   const byStudent = studentDashboardPreviewData.events.find((entry) => Number(entry?.id) === eventId.value)
   if (byStudent) return byStudent
   // Add fallback for School IT preview events if viewed from Reports table
@@ -127,7 +135,13 @@ const previewEvent = computed(() => {
 })
 const event = computed(() => props.preview ? previewEvent.value : getDashboardEventById(eventId.value))
 
-usePreviewTheme(() => props.preview, () => studentDashboardPreviewData.schoolSettings)
+const previewSchoolSettings = computed(() => {
+  if (isCouncilPreviewRoute.value) return previewBundle.value?.schoolSettings || null
+  if (isSchoolItPreviewRoute.value) return schoolItPreviewData.schoolSettings
+  return studentDashboardPreviewData.schoolSettings
+})
+
+usePreviewTheme(() => props.preview, previewSchoolSettings)
 
 onMounted(() => {
   if (props.preview) return

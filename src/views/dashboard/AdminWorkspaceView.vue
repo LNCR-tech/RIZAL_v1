@@ -309,6 +309,22 @@
             <div><span>Schools</span><strong>{{ schools.length }}</strong></div>
             <div><span>Campus Admins</span><strong>{{ activeCampusAccountCount }}</strong></div>
           </div>
+          <button
+            class="admin-view__preference"
+            type="button"
+            :aria-pressed="isDarkMode"
+            aria-label="Toggle dark mode"
+            @click="toggleDarkMode"
+          >
+            <span class="admin-view__preference-copy">
+              <span class="admin-view__mini admin-view__mini--inline">Appearance</span>
+              <strong>Dark Mode</strong>
+              <small>Apply the theme across every workspace for this device.</small>
+            </span>
+            <span class="admin-view__settings-toggle" :class="{ 'admin-view__settings-toggle--on': isDarkMode }">
+              <span class="admin-view__settings-toggle-knob" />
+            </span>
+          </button>
         </article>
 
         <article class="admin-view__card">
@@ -331,6 +347,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, BellRing, Building2, Check, History, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, UserRoundX, X } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
+import { isDarkMode, toggleDarkMode } from '@/config/theme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useAdminWorkspaceData } from '@/composables/useAdminWorkspaceData.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -534,6 +551,15 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__profile{grid-template-columns:repeat(2,minmax(0,1fr))}
 .admin-view__profile div{display:flex;flex-direction:column;gap:6px;padding:16px 18px;border-radius:22px;background:var(--color-field-surface)}
 .admin-view__profile strong{font-size:15px;color:var(--color-text-primary)}
+.admin-view__preference{width:100%;margin-top:16px;padding:16px 18px;border:none;border-radius:24px;background:var(--color-field-surface);display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;color:var(--color-text-primary);font:inherit;cursor:pointer}
+.admin-view__preference-copy{display:flex;flex-direction:column;gap:4px}
+.admin-view__preference-copy strong{font-size:15px;line-height:1.1;color:var(--color-text-primary)}
+.admin-view__preference-copy small{font-size:13px;line-height:1.45;color:var(--color-text-secondary)}
+.admin-view__mini--inline{margin:0}
+.admin-view__settings-toggle{position:relative;flex-shrink:0;width:44px;height:26px;border-radius:999px;background:color-mix(in srgb,var(--color-text-primary) 12%, transparent);transition:background-color .22s ease}
+.admin-view__settings-toggle--on{background:var(--color-primary)}
+.admin-view__settings-toggle-knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:999px;background:var(--color-surface);transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.admin-view__settings-toggle--on .admin-view__settings-toggle-knob{transform:translateX(18px)}
 .admin-view__spinner{animation:admin-view-spin .9s linear infinite}
 @keyframes admin-view-spin{to{transform:rotate(360deg)}}
 @media (max-width:1100px){.admin-view__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
