@@ -44,6 +44,7 @@ const SchoolItScheduleView = dashboardView('SchoolItScheduleView')
 const SchoolItAttendanceMonitorView = dashboardView('SchoolItAttendanceMonitorView')
 const SchoolItEventReportsView = dashboardView('SchoolItEventReportsView')
 const SchoolItSettingsView = dashboardView('SchoolItSettingsView')
+const SchoolItAccountsView = dashboardView('SchoolItAccountsView')
 const SgDashboardView = dashboardView('SgDashboardView')
 const SgMembersView = dashboardView('SgMembersView')
 const SgStudentsView = dashboardView('SgStudentsView')
@@ -259,6 +260,11 @@ const routes = [
                 component: SchoolItUnassignedStudentsView,
             },
             {
+                path: 'accounts',
+                name: 'SchoolItAccounts',
+                component: SchoolItAccountsView,
+            },
+            {
                 path: 'student-council',
                 name: 'SchoolItStudentCouncil',
                 component: SchoolItStudentCouncilView,
@@ -341,6 +347,12 @@ const routes = [
                 path: 'users/unassigned',
                 name: 'PreviewSchoolItUnassignedStudents',
                 component: SchoolItUnassignedStudentsView,
+                props: { preview: true },
+            },
+            {
+                path: 'accounts',
+                name: 'PreviewSchoolItAccounts',
+                component: SchoolItAccountsView,
                 props: { preview: true },
             },
             {

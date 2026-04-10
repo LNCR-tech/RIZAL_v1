@@ -131,6 +131,8 @@ app.use((req, res, next) => {
     req.url = req.url.replace('/api/api/', '/');
   } else if (req.url.startsWith('/api/')) {
     req.url = req.url.replace('/api/', '/');
+  } else if (req.url.startsWith('/__backend__/')) {
+    req.url = req.url.replace('/__backend__/', '/');
   }
 
   // Handle slashes at the end
@@ -259,13 +261,69 @@ app.get('/governance/ssg/setup', (req, res) => res.json({
 app.get('/governance/access/me', (req, res) => res.json({ units: db.data.governance_units || [] }));
 app.get('/governance/units', (req, res) => res.json(db.data.governance_units || []));
 app.get('/attendance/summary', (req, res) => res.json({ summary: [], total: 0 }));
+app.get('/governance/students/search', (req, res) => {
+  const query = (req.query.q || '').toLowerCase();
+  const users = db.data.users || [];
+  const students = users.filter(u => 
+    u.roles.includes('student') && 
+    (u.email.toLowerCase().includes(query) || 
+     u.first_name.toLowerCase().includes(query) || 
+     u.last_name.toLowerCase().includes(query))
+  ).map(u => ({
+    id: u.id,
+    email: u.email,
+    first_name: u.first_name,
+    last_name: u.last_name,
+    student_id: u.student_profile?.student_id
+  }));
+  res.json(students);
+});
+
+app.post('/admin/import-students/preview', async (req, res) => {
+  console.log(`[POST] /api/admin/import-students/preview`);
+  await parseMultipartBody(req);
+  res.json({
+    preview_token: 'mock-preview-token-' + Date.now(),
+    total_rows: 50,
+    valid_rows: 48,
+    error_rows: 2,
+    rows: [
+      { email: 'imported1@example.com', first_name: 'Imported', last_name: 'One', status: 'valid' },
+      { email: 'imported2@example.com', first_name: 'Imported', last_name: 'Two', status: 'valid' }
+    ]
+  });
+});
+
+app.post('/admin/import-students', async (req, res) => {
+  console.log(`[POST] /api/admin/import-students`);
+  await parseBody(req);
+  const jobId = 'job-' + Math.random().toString(36).slice(-6);
+  res.json({
+    job_id: jobId,
+    status: 'pending',
+    message: 'Import job created successfully.'
+  });
+});
+
+app.get('/admin/import-students/jobs/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  res.json({
+    id: jobId,
+    status: 'completed',
+    progress: 100,
+    total_rows: 50,
+    processed_rows: 50,
+    success_count: 50,
+    error_count: 0
+  });
+});
 
 app.post('/token', async (req, res) => {
   await parseBody(req);
   handleTokenRequest(req, res);
 });
 
-app.post('/api/token', async (req, res) => {
+app.post('/token', async (req, res) => {
   await parseBody(req);
   handleTokenRequest(req, res);
 });
@@ -646,7 +704,26 @@ app.post('/school/admin/school-it-accounts/:id/reset-password', async (req, res)
     res.json({
       user_id: user.id,
       email: user.email,
-      generated_temporary_password: tempPassword,
+      temporary_password: tempPassword,
+      must_change_password: true,
+      expires_at: new Date(Date.now() + 86400000).toISOString()
+    });
+  } else {
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
+app.post('/users/:id/reset-password', async (req, res) => {
+  const { id } = req.params;
+  console.log(`[POST] /users/${id}/reset-password`);
+  const user = db.data.users.find(u => String(u.id) === String(id));
+  if (user) {
+    const tempPassword = `STU-RESET-${Math.random().toString(36).slice(-8).toUpperCase()}`;
+    res.json({
+      user_id: user.id,
+      email: user.email,
+      temporary_password: tempPassword,
+      must_change_password: true,
       expires_at: new Date(Date.now() + 86400000).toISOString()
     });
   } else {

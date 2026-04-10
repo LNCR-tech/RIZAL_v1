@@ -104,6 +104,26 @@
       "is_active": true,
       "school_id": 4,
       "created_at": "2026-04-05T06:54:07.376Z"
+    },
+    {
+      "id": "8",
+      "email": "student2@example.com",
+      "password": "password123",
+      "first_name": "Alice",
+      "last_name": "Smith",
+      "roles": [
+        "student"
+      ],
+      "is_active": true,
+      "school_id": 1,
+      "student_profile": {
+        "id": 102,
+        "student_id": "STU-002",
+        "year_level": 2,
+        "department_id": 2,
+        "program_id": 2,
+        "is_face_registered": true
+      }
     }
   ],
   "schools": [
@@ -291,6 +311,16 @@
       "status": "upcoming",
       "school_id": 1,
       "id": "r9yMu1wdZKk"
+    },
+    {
+      "id": "ongoing-1",
+      "name": "Live Tech Symposium",
+      "location": "Innovation Center",
+      "start_datetime": "2026-04-17T12:00:00Z",
+      "end_datetime": "2026-04-17T16:00:00Z",
+      "status": "ongoing",
+      "school_id": 1,
+      "geo_required": false
     }
   ],
   "attendance": [],
@@ -316,6 +346,14 @@
   ],
   "audit_logs": [],
   "notification_logs": [],
-  "governance_requests": [],
-  "$schema": "./node_modules/json-server/schema.json"
+  "governance_requests": [
+    {
+      "id": "req-1",
+      "user_id": 8,
+      "governance_unit_id": 1,
+      "request_type": "membership",
+      "status": "pending",
+      "created_at": "2026-04-16T10:00:00Z"
+    }
+  ]
 }

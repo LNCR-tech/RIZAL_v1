@@ -202,16 +202,24 @@
             </div>
           </section>
 
-          <section class="school-it-home__status dashboard-enter dashboard-enter--7">
-            <div class="school-it-home__status-grid">
-              <article class="school-it-home__status-panel">
-                <SchoolItMetricRing :value="lateRateLabel" compact :delay="0.16" />
-                <span class="school-it-home__metric-label school-it-home__metric-label--compact">Late</span>
-              </article>
               <article class="school-it-home__status-panel">
                 <SchoolItMetricRing :value="absentRateLabel" compact :delay="0.24" />
                 <span class="school-it-home__metric-label school-it-home__metric-label--compact">Absent</span>
               </article>
+            </div>
+          </section>
+
+          <section class="school-it-home__admins dashboard-enter dashboard-enter--8">
+            <div class="school-it-home__admins-content">
+              <div class="school-it-home__admins-header">
+                <span class="school-it-home__summary-mini">Account Access</span>
+                <h3 class="school-it-home__summary-title">Campus Admins</h3>
+              </div>
+              <p class="school-it-home__admins-description">Manage fellow administrators and reset credentials safely.</p>
+              <button class="school-it-home__ghost-pill" type="button" @click="router.push({ name: accountsRouteName })">
+                <span>Manage Accounts</span>
+                <ArrowRight :size="14" />
+              </button>
             </div>
           </section>
         </div>
@@ -332,6 +340,7 @@ const initials = computed(() => buildInitials(displayName.value))
 const schoolInitials = computed(() => buildInitials(schoolName.value))
 const settingsRouteName = computed(() => props.preview ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
 const scheduleRouteName = computed(() => props.preview ? 'PreviewSchoolItSchedule' : 'SchoolItSchedule')
+const accountsRouteName = computed(() => props.preview ? 'PreviewSchoolItAccounts' : 'SchoolItAccounts')
 
 const activeDepartments = computed(() => props.preview ? schoolItPreviewData.departments : workspaceDepartments.value)
 const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : workspacePrograms.value)
@@ -730,6 +739,9 @@ async function handleLogout() {
 .school-it-home__status{background:var(--color-surface);padding:12px}
 .school-it-home__status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .school-it-home__status-panel{min-height:222px;border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 10px 14px;border:1px solid var(--aura-glass-border);box-shadow:var(--aura-shadow-soft)}
+.school-it-home__admins{background:var(--color-surface);display:flex;flex-direction:column;border:1px solid var(--aura-glass-border);box-shadow:var(--aura-shadow-soft)}
+.school-it-home__admins-content{padding:26px;display:flex;flex-direction:column;gap:12px;flex:1}
+.school-it-home__admins-description{margin:0;font-size:14px;line-height:1.5;color:var(--color-text-secondary);max-width:32ch}
 @media (min-width:768px){
   .school-it-home{padding:40px 36px 56px}
   .school-it-home__body{margin-top:30px;gap:22px}
@@ -743,10 +755,11 @@ async function handleLogout() {
   .school-it-home__summary{grid-area:summary;min-height:266px}
   .school-it-home__rate{grid-area:rate;min-height:266px}
   .school-it-home__status{grid-area:status}
+  .school-it-home__admins{grid-area:admins}
   .school-it-home__status-panel{min-height:252px}
 }
 @media (min-width:1100px){
-  .school-it-home__cards{grid-template-columns:minmax(0,1.04fr) minmax(360px,.96fr);grid-template-areas:"hero hero" "summary rate" "summary status"}
+  .school-it-home__cards{grid-template-columns:minmax(0,1.04fr) minmax(360px,.96fr);grid-template-areas:"hero hero" "summary rate" "summary status" "admins status"}
 }
 @media (prefers-reduced-motion:reduce){
   .school-it-home__ai-pill,.school-it-home__ai-send,.school-it-bubble-enter-active{transition:none;animation:none}

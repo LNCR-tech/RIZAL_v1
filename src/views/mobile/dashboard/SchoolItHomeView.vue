@@ -196,16 +196,21 @@
             </div>
           </section>
 
-          <section class="school-it-home__status dashboard-enter dashboard-enter--7">
-            <div class="school-it-home__status-grid">
-              <article class="school-it-home__status-panel">
-                <SchoolItMetricRing :value="lateRateLabel" compact :delay="0.16" />
-                <span class="school-it-home__metric-label school-it-home__metric-label--compact">Late</span>
-              </article>
               <article class="school-it-home__status-panel">
                 <SchoolItMetricRing :value="absentRateLabel" compact :delay="0.24" />
                 <span class="school-it-home__metric-label school-it-home__metric-label--compact">Absent</span>
               </article>
+            </div>
+          </section>
+
+          <section class="school-it-home__admins-card dashboard-enter dashboard-enter--8">
+            <div class="school-it-home__admins-card-content">
+              <h3 class="school-it-home__summary-title">Admins</h3>
+              <p class="school-it-home__admins-card-text">Manage campus administrator accounts and reset credentials.</p>
+              <button class="school-it-home__pill school-it-home__pill--compact" type="button" @click="router.push({ name: accountsRouteName })">
+                <span class="school-it-home__pill-icon"><ArrowRight :size="18" /></span>
+                Manage Admins
+              </button>
             </div>
           </section>
         </div>
@@ -321,6 +326,7 @@ const initials = computed(() => buildInitials(displayName.value))
 const schoolInitials = computed(() => buildInitials(schoolName.value))
 const settingsRouteName = computed(() => props.preview ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
 const scheduleRouteName = computed(() => props.preview ? 'PreviewSchoolItSchedule' : 'SchoolItSchedule')
+const accountsRouteName = computed(() => props.preview ? 'PreviewSchoolItAccounts' : 'SchoolItAccounts')
 
 const activeDepartments = computed(() => props.preview ? schoolItPreviewData.departments : workspaceDepartments.value)
 const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : workspacePrograms.value)
@@ -717,6 +723,9 @@ async function handleLogout() {
 .school-it-home__status{background:var(--color-surface);padding:12px}
 .school-it-home__status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .school-it-home__status-panel{min-height:222px;border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 10px 14px}
+.school-it-home__admins-card{background:var(--color-surface);border-radius:32px;padding:24px}
+.school-it-home__admins-card-content{display:flex;flex-direction:column;gap:12px}
+.school-it-home__admins-card-text{margin:0;font-size:14px;color:var(--color-text-secondary);line-height:1.5}
 @media (min-width:768px){
   .school-it-home{padding:40px 36px 56px}
   .school-it-home__body{margin-top:30px;gap:22px}

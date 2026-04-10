@@ -1,12 +1,17 @@
-import { computed, reactive, readonly } from 'vue'
 import {
     BackendApiError,
+    getAdminSchoolItAccounts,
     getCampusSsgSetup,
     getDepartments,
     getPrograms,
     getUsers,
+    resetAdminSchoolItPassword,
     resolveApiBaseUrl,
 } from '@/services/backendApi.js'
+import {
+    normalizePasswordResetResponse,
+    normalizeSchoolItAccount,
+} from '@/services/backendNormalizers.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
 
 const state = reactive({
@@ -20,11 +25,14 @@ const state = reactive({
     departments: [],
     programs: [],
     users: [],
+    itAccounts: [],
+    lastItPasswordReset: null,
     campusSsgSetup: null,
     statuses: {
         departments: 'idle',
         programs: 'idle',
         users: 'idle',
+        itAccounts: 'idle',
         council: 'idle',
     },
 })
@@ -59,6 +67,8 @@ function resetWorkspaceState() {
     state.departments = []
     state.programs = []
     state.users = []
+    state.itAccounts = []
+    state.lastItPasswordReset = null
     state.campusSsgSetup = null
     state.schoolId = null
     state.userId = null
@@ -69,6 +79,7 @@ function resetWorkspaceState() {
         departments: 'idle',
         programs: 'idle',
         users: 'idle',
+        itAccounts: 'idle',
         council: 'idle',
     }
 }
@@ -148,6 +159,18 @@ function setResolvedCouncil(result) {
     state.statuses.council = classifyFailure(result.reason)
 }
 
+async function fetchSchoolItAccounts(token) {
+    if (!token) return
+    state.statuses.itAccounts = 'loading'
+    try {
+        const accounts = await getAdminSchoolItAccounts(state.apiBaseUrl, token)
+        state.itAccounts = Array.isArray(accounts) ? accounts.map(normalizeSchoolItAccount) : []
+        state.statuses.itAccounts = 'ready'
+    } catch (error) {
+        state.statuses.itAccounts = classifyFailure(error)
+    }
+}
+
 async function fetchSchoolItWorkspaceData() {
     const authMeta = getStoredAuthMeta()
     const schoolId = resolveNumericIdentityValue(authMeta?.schoolId)
@@ -167,6 +190,7 @@ async function fetchSchoolItWorkspaceData() {
             departments: 'loading',
             programs: 'loading',
             users: 'loading',
+            itAccounts: 'loading',
             council: 'loading',
         }
     }
@@ -195,6 +219,8 @@ async function fetchSchoolItWorkspaceData() {
         setResolvedCollection('programs', programsResult)
         setResolvedCollection('users', usersResult)
         setResolvedCouncil(councilResult)
+
+        await fetchSchoolItAccounts(token).catch(() => null)
 
         state.initialized = true
         return state
@@ -225,16 +251,32 @@ export function refreshSchoolItWorkspaceData() {
     return initializeSchoolItWorkspaceData(true)
 }
 
+export async function resetSchoolItAccountPassword(userId) {
+    const token = localStorage.getItem('aura_token') || ''
+    if (!token) throw new BackendApiError('Authentication is required.')
+
+    try {
+        const result = await resetAdminSchoolItPassword(state.apiBaseUrl, token, userId)
+        state.lastItPasswordReset = normalizePasswordResetResponse(result)
+        return state.lastItPasswordReset
+    } catch (error) {
+        throw error
+    }
+}
+
 export function useSchoolItWorkspaceData() {
     return {
         schoolItWorkspaceState: readonly(state),
         departments: computed(() => state.departments),
         programs: computed(() => state.programs),
         users: computed(() => state.users),
+        itAccounts: computed(() => state.itAccounts),
+        lastItPasswordReset: computed(() => state.lastItPasswordReset),
         campusSsgSetup: computed(() => state.campusSsgSetup),
         statuses: computed(() => state.statuses),
         initializeSchoolItWorkspaceData,
         refreshSchoolItWorkspaceData,
+        resetSchoolItAccountPassword,
         setCampusSsgSetupSnapshot,
         setDepartmentsSnapshot,
         setProgramsSnapshot,

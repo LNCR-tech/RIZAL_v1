@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 
 const DEFAULT_WEB_API_BASE_URL = '/__backend__'
 const DEFAULT_API_TIMEOUT_MS = 15000
-const DEFAULT_NATIVE_API_BASE_URL = 'https://backend-api-production-32e5.up.railway.app'
+const DEFAULT_NATIVE_API_BASE_URL = 'http://localhost:3001'
 
 function getRuntimeConfig() {
   if (typeof window === 'undefined') return {}
