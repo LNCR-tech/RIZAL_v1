@@ -86,7 +86,7 @@ Command:
 git push origin Aura_merge1
 
 Result
-The Aura_email2.0 branch now contains:
+The Aura_merge1 branch now contains:
 •Refactored notification system from Aura_update1_dibini
 •Resolved email service import errors and config enhancements
 •Fixed mailing system backend

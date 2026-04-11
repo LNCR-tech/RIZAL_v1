@@ -87,7 +87,7 @@ Command:
 git push origin Aura_merge2
 
 Result
-The Aura_merge1 branch now contains:
+The Aura_merge2 branch now contains:
 •Updated frontend views and dashboard
 •Dark mode and face verification features
 •Desktop and mobile architecture
