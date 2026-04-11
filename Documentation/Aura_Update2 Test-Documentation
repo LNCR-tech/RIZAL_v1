@@ -1,0 +1,239 @@
+QA Tester Documentation 
+Aura_update2 Branch – Setup and Functional Testing Report 
+Tester Information 
+Name: Rove Vie P. Mocay 
+Date Tested: April 11, 2026 
+Project: CodeKnights---VALID8 
+Branch: Aura_update2 
+
+1. Overview 
+This document describes the process of: 
+• Cloning the Aura_update2 branch from GitHub  
+• Setting up the project locally  
+• Running the application  
+• Performing functional testing as a QA tester 
+
+2. Repository Cloning 
+The repository was cloned using Git Bash: 
+git clone --branch Aura_update2 --single-branch https://github.com/ladyzoy15/CodeKnights--
+VALID8.git 
+Result: 
+• Repository successfully cloned  
+• Branch: Aura_update2  
+• Project downloaded locally
+
+3. Entering Project Directory 
+cd CodeKnights---VALID8 
+Project Structure Confirmed: 
+• Assistant/  
+• Backend/  
+• Frontend/  
+• Database/  
+• docker-compose.yml  
+• package.json  
+• Documentation/  
+
+4. Dependency Installation 
+npm install 
+Result: 
+• 228 packages installed successfully  
+Vulnerabilities were resolved using: 
+npm audit fix 
+Final Status: 
+• No remaining vulnerabilities 
+
+5. Running the Application 
+npm run dev:all 
+Services Started: 
+Mock API Server 
+• URL: http://localhost:3001  
+• Provides simulated backend data  
+Frontend Server 
+• URL: http://localhost:5173  
+
+6. Functional Testing Results 
+6.1 Login Functionality (Correct and Incorrect Credentials) 
+Result: PASSED 
+• Correct credentials successfully logged in users  
+• Incorrect credentials were properly rejected  
+• Authentication flow functions correctly  
+
+6.2 Attendance Flow (Click to Update) 
+Result: PASSED 
+• Attendance feature triggers correctly on user interaction  
+• System updates attendance records accurately  
+• User interface reflects updates properly  
+• No errors observed  
+
+6.3 Role-Based Access Control (Admin vs Student) 
+Objective: 
+To verify that the system correctly restricts and grants access based on user roles. 
+Test Accounts Used: 
+• Admin: admin@yourdomain.com / AdminPass123! 
+• Student: student1@example.com / password123
+
+Test Procedure 
+Admin Access Test: 
+• Logged in using admin credentials  
+• Accessed admin dashboard  
+• Navigated to:  
+o User Management  
+o School IT Accounts  
+o Audit Logs  
+o Governance Requests  
+• Verified full administrative access  
+
+Student Access Test: 
+• Logged in using student credentials  
+• Accessed student dashboard  
+• Verified access to:  
+o Personal attendance records  
+o Events list  
+• Attempted access to admin routes (e.g., /admin, /school/admin)  
+
+Expected Result: 
+• Admin has full access  
+• Student access is restricted to student features  
+• Unauthorized access is blocked or redirected 
+ 
+Actual Result: 
+• Admin accessed all administrative features successfully  
+• Student access was restricted appropriately  
+• Unauthorized route access was blocked or redirected
+
+Conclusion: 
+Role-based access control is functioning correctly in the current mock environment. 
+6.4 Responsiveness Test (UI Adaptability Across Devices) 
+Objective: 
+To verify that the interface adapts to different screen sizes (mobile, tablet, desktop). 
+
+Test Environment: 
+• Browser: Google Chrome (DevTools)  
+• Frontend URL: http://localhost:5173  
+• Method: Manual resizing and responsive mode  
+
+Procedure: 
+• Opened application in browser  
+• Enabled responsive mode  
+• Tested multiple screen sizes  
+• Observed layout behavior  
+
+Actual Result: 
+• Interface adapts correctly across all screen sizes  
+• Layout remains intact without breaking  
+• No overlapping elements observed  
+• Navigation and buttons remain functional  
+• Content remains readable  
+Conclusion: 
+The system is fully responsive across all tested devices. 
+
+7. Bug Report 1: Search Bar Functionality Issue 
+Test Case: Search Bar Functionality (Auto-suggest) 
+Objective: 
+To verify that the search bar returns relevant suggestions based on user input. 
+Test Environment: 
+• Frontend: http://localhost:5173  
+• Backend: Mock API Server (http://localhost:3001)  
+• Feature: Search Bar 
+
+Procedure: 
+• Entered keywords such as "school"  
+• Observed system response 
+
+Actual Result: 
+• No dropdown suggestions displayed  
+• No matching results shown  
+• No visible system feedback  
+• Feature appears unresponsive 
+
+Expected Result: 
+• Suggestions should appear dynamically while typing  
+• Matching data should be displayed  
+• User should receive visual feedback
+
+Impact: 
+• Medium severity  
+• Affects usability and navigation efficiency  
+Conclusion: 
+The search bar appears incomplete or not connected to backend data in the current environment. 
+
+8. Bug Report 2: Notification Bell Unresponsive 
+Test Case: Notification Display Functionality 
+Objective: 
+To verify that notifications are displayed when the notification bell is clicked. 
+Test Environment: 
+• Frontend: http://localhost:5173  
+• Backend: Mock API Server (http://localhost:3001)  
+• Feature: Notification System  
+
+Procedure: 
+• Clicked notification bell multiple times  
+• Observed system response  
+
+Actual Result: 
+• No response from notification bell  
+• No dropdown or panel displayed  
+• No visual feedback  
+
+Expected Result: 
+• Notification panel should open on click  
+• Notifications should be displayed  
+• UI should indicate active state  
+
+Impact: 
+• Medium to high severity  
+• Reduces usability and user awareness  
+Conclusion: 
+The notification system is currently non-functional or not implemented in the current build. 
+
+9. Forms and Buttons Functionality Test 
+Objective: 
+To verify that all forms validate input correctly and all buttons function as expected. 
+Form Testing 
+Scenarios Tested: 
+1. Valid Input  
+• Expected: Successful submission  
+• Result: PASSED 
+
+2. Empty Input  
+• Expected: Validation errors displayed  
+• Result: PASSED
+
+3. Invalid Input  
+• Expected: Error messages displayed  
+• Result: PASSED 
+
+4. Edge Cases (Long text, special characters)  
+• Expected: Proper handling or warnings  
+• Result: PASSED 
+
+Button Testing 
+Buttons Tested: 
+• Login  
+• Submit/Save  
+• Navigation  
+• Edit/Delete  
+• Sidebar/Menu  
+
+Observations: 
+• All buttons respond correctly  
+• No broken or inactive buttons  
+• No delays or UI freezing  
+• Actions match expected behavior  
+Conclusion: 
+All forms and buttons function correctly with no issues observed. 
+
+10. System Behavior Observed 
+• Mock API running on port 3001  
+• Frontend running on port 5173  
+• API routing functioning correctly  
+
+11. Summary 
+Overall Results: 
+• Login: PASSED  
+• Attendance: PASSED  
+• Role-Based Access: PASSED  
+• Responsiveness: PASSED  
+• Forms and Buttons: PASSED  
+• Search Bar: FAILED  
+• Notification System: FAILED
