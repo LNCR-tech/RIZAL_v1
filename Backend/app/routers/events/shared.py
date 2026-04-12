@@ -46,6 +46,7 @@ from app.services.event_workflow_status import (
     sync_event_workflow_status,
     sync_scope_event_workflow_statuses,
 )
+from app.services.sanctions_service import generate_sanctions_for_completed_event
 
 logger = logging.getLogger(__name__)
 NEAR_START_ATTENDANCE_OVERRIDE_ABSENT_WINDOW_MINUTES = (

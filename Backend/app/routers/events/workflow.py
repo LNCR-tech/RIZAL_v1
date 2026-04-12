@@ -137,6 +137,7 @@ def update_event_status(
             auto_sync_result and auto_sync_result.attendance_finalized
         ):
             finalize_completed_event_attendance(db, db_event)
+            generate_sanctions_for_completed_event(db, db_event)
 
         db.commit()
         db.refresh(db_event)

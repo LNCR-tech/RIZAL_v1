@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
+from app.reports.router import router as reports_router
 from app.services.email_service import validate_email_delivery_on_startup
 from app.routers import (
     users,
@@ -32,6 +33,7 @@ from app.routers import (
     face_recognition,
     public_attendance,
     health,
+    sanctions,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,6 +73,7 @@ include_api_router(events.router)
 include_api_router(programs.router)
 include_api_router(departments.router)
 include_api_router(attendance.router)
+include_api_router(reports_router)
 app.include_router(school_settings.router)
 app.include_router(admin_import.router)
 app.include_router(school.router)
@@ -83,6 +86,7 @@ app.include_router(governance_hierarchy.router)
 include_api_router(face_recognition.router)
 app.include_router(public_attendance.router)
 app.include_router(health.router)
+include_api_router(sanctions.router)
 
 logo_storage_dir = Path(settings.school_logo_storage_dir)
 logo_storage_dir.mkdir(parents=True, exist_ok=True)
@@ -111,5 +115,6 @@ async def root():
             "subscription": "/api/subscription/me",
             "governance": "/api/governance/settings/me",
             "governance_hierarchy": "/api/governance/units",
+            "sanctions": "/api/sanctions",
         }
     }

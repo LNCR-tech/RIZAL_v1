@@ -1,6 +1,8 @@
 """Permission-oriented governance service exports."""
 
 from .shared import (
+    SANCTIONS_MANAGEMENT_PERMISSION_CODES,
+    SANCTIONS_MANAGEMENT_PERMISSION_GROUP,
     assign_unit_permission,
     ensure_governance_permission,
     ensure_permission_catalog,

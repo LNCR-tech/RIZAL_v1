@@ -31,6 +31,8 @@ from app.models.program import Program
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.repositories.import_repository import ImportRepository
+from app.reports.system import queries as system_reports_queries
+from app.reports.system import router as system_reports_router
 from app.schemas.import_job import (
     ImportErrorItem,
     ImportJobCreateResponse,
@@ -321,23 +323,15 @@ def _build_validation_context(db: Session, target_school_id: int) -> ValidationC
     )
 
 
-def _preview_manifest_dir(settings) -> Path:
-    return Path(settings.import_storage_dir) / "previews"
-
-
-def _preview_manifest_path(settings, preview_token: str) -> Path:
-    return _preview_manifest_dir(settings) / f"{preview_token}.json"
-
-
 def _write_preview_manifest(
     *,
     settings,
     preview_token: str,
     manifest: dict,
 ) -> None:
-    preview_dir = _preview_manifest_dir(settings)
-    preview_dir.mkdir(parents=True, exist_ok=True)
-    _preview_manifest_path(settings, preview_token).write_text(
+    manifest_path = system_reports_queries.preview_manifest_path(settings, preview_token)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
         json.dumps(manifest, default=str),
         encoding="utf-8",
     )
@@ -375,43 +369,6 @@ def _store_preview_manifest(
         manifest=manifest,
     )
     return preview_token
-
-
-def _load_preview_manifest(
-    *,
-    settings,
-    preview_token: str,
-    current_user: User,
-) -> tuple[dict, Path]:
-    manifest_path = _preview_manifest_path(settings, preview_token)
-    if not manifest_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="Approved preview not found. Preview the file again before importing.",
-        )
-
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="Approved preview data is invalid. Preview the file again before importing.",
-        ) from exc
-
-    if manifest.get("created_by_user_id") != current_user.id:
-        raise HTTPException(status_code=404, detail="Approved preview not found")
-
-    target_school_id = _ensure_user_school(current_user)
-    if manifest.get("target_school_id") != target_school_id:
-        raise HTTPException(status_code=404, detail="Approved preview not found")
-
-    if not isinstance(manifest.get("rows"), list):
-        raise HTTPException(
-            status_code=400,
-            detail="Approved preview data is incomplete. Preview the file again before importing.",
-        )
-
-    return manifest, manifest_path
 
 
 def _build_preview_rows_from_manifest_rows(manifest_rows: list[dict]) -> list[ImportPreviewRow]:
@@ -470,38 +427,6 @@ def _find_persistent_row_conflicts(db: Session, rows: list[dict]) -> dict[int, l
             conflicts[int(row["row_number"])] = row_errors
 
     return conflicts
-
-
-def _build_retry_workbook_bytes(*, sheet_title: str, row_payloads: list[dict]) -> bytes:
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = sheet_title
-    sheet.append(EXPECTED_HEADERS)
-    for row_data in row_payloads:
-        sheet.append([str(row_data.get(header, "")) for header in EXPECTED_HEADERS])
-
-    output = io.BytesIO()
-    workbook.save(output)
-    workbook.close()
-    output.seek(0)
-    return output.read()
-
-
-def _build_preview_error_report_bytes(error_payloads: list[dict]) -> bytes:
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "Preview Errors"
-    sheet.append(EXPECTED_HEADERS + ["Error"])
-    for item in error_payloads:
-        row_data = item.get("row_data") if isinstance(item.get("row_data"), dict) else {}
-        error_message = "; ".join(item.get("errors") or []) or "Unknown preview error"
-        sheet.append([str(row_data.get(header, "")) for header in EXPECTED_HEADERS] + [error_message])
-
-    output = io.BytesIO()
-    workbook.save(output)
-    workbook.close()
-    output.seek(0)
-    return output.read()
 
 
 @router.get("/import-students/template")
@@ -714,7 +639,7 @@ def import_students(
     """Queue a preview-approved import job from a stored preview manifest."""
     settings = get_settings()
     if preview_token:
-        manifest, manifest_path = _load_preview_manifest(
+        manifest, manifest_path = system_reports_queries.load_preview_manifest(
             settings=settings,
             preview_token=preview_token,
             current_user=current_user,
@@ -747,24 +672,10 @@ def download_preview_errors(
     db: Session = Depends(get_db),
 ):
     """Download an Excel report of rows that failed during preview validation."""
-    settings = get_settings()
-    manifest, _ = _load_preview_manifest(
-        settings=settings,
+    return system_reports_router.download_preview_errors(
+        db,
         preview_token=preview_token,
         current_user=current_user,
-    )
-    error_rows = manifest.get("error_rows")
-    if not isinstance(error_rows, list) or not error_rows:
-        raise HTTPException(status_code=404, detail="No preview errors available to download")
-
-    original_filename = str(manifest.get("original_filename") or "student_import.xlsx")
-    report_bytes = _build_preview_error_report_bytes(error_rows)
-    download_name = f"preview_errors_{Path(original_filename).stem}.xlsx"
-
-    return StreamingResponse(
-        io.BytesIO(report_bytes),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )
 
 
@@ -775,38 +686,10 @@ def download_preview_retry_file(
     db: Session = Depends(get_db),
 ):
     """Download an Excel file containing only preview-failed rows for correction and re-upload."""
-    settings = get_settings()
-    manifest, _ = _load_preview_manifest(
-        settings=settings,
+    return system_reports_router.download_preview_retry_file(
+        db,
         preview_token=preview_token,
         current_user=current_user,
-    )
-    error_rows = manifest.get("error_rows")
-    if not isinstance(error_rows, list) or not error_rows:
-        raise HTTPException(status_code=404, detail="No preview errors available to retry")
-
-    retry_row_payloads = [
-        item["row_data"]
-        for item in error_rows
-        if isinstance(item, dict) and isinstance(item.get("row_data"), dict)
-    ]
-    if not retry_row_payloads:
-        raise HTTPException(
-            status_code=404,
-            detail="No retryable row payloads found for this preview",
-        )
-
-    original_filename = str(manifest.get("original_filename") or "student_import.xlsx")
-    retry_bytes = _build_retry_workbook_bytes(
-        sheet_title="Students-Retry",
-        row_payloads=retry_row_payloads,
-    )
-    download_name = f"preview_retry_{Path(original_filename).name}"
-
-    return StreamingResponse(
-        io.BytesIO(retry_bytes),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )
 
 
@@ -821,7 +704,7 @@ def remove_invalid_preview_rows(
 ):
     """Keep only preview-approved rows so the preview can proceed to import."""
     settings = get_settings()
-    manifest, _ = _load_preview_manifest(
+    manifest, _ = system_reports_queries.load_preview_manifest(
         settings=settings,
         preview_token=preview_token,
         current_user=current_user,
@@ -933,38 +816,10 @@ def get_import_status(
     db: Session = Depends(get_db),
 ):
     """Return job progress, row errors, and the failed-row report link when ready."""
-    repo = ImportRepository(db)
-    job = repo.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Import job not found")
-    if job.created_by_user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Import job not found")
-
-    percentage = 0.0
-    # Avoid division by zero when the worker has not counted rows yet.
-    if job.total_rows > 0:
-        percentage = round((job.processed_rows / job.total_rows) * 100, 2)
-
-    errors = [
-        ImportErrorItem(row=item.row_number, error=item.error_message)
-        for item in repo.fetch_errors(job_id, limit=5000)
-    ]
-
-    failed_report_download_url = None
-    if job.failed_report_path:
-        failed_report_download_url = f"/api/admin/import-errors/{job_id}/download"
-
-    return ImportJobStatusResponse(
-        job_id=job.id,
-        state=job.status,
-        total_rows=job.total_rows,
-        processed_rows=job.processed_rows,
-        success_count=job.success_count,
-        failed_count=job.failed_count,
-        percentage_completed=percentage,
-        estimated_time_remaining_seconds=job.eta_seconds,
-        errors=errors,
-        failed_report_download_url=failed_report_download_url,
+    return system_reports_router.get_import_status(
+        db,
+        job_id=job_id,
+        current_user=current_user,
     )
 
 
@@ -975,22 +830,9 @@ def download_import_errors(
     db: Session = Depends(get_db),
 ):
     """Download the Excel file that lists rows the worker could not import."""
-    repo = ImportRepository(db)
-    job = repo.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Import job not found")
-    if job.created_by_user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Import job not found")
-
-    if not job.failed_report_path:
-        raise HTTPException(status_code=404, detail="No failed row report available for this job")
-
-    if not os.path.exists(job.failed_report_path):
-        raise HTTPException(status_code=404, detail="Failed row report file no longer exists")
-
-    return FileResponse(
-        path=job.failed_report_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=f"import_{job.id}_failed_rows.xlsx",
+    return system_reports_router.download_import_errors(
+        db,
+        job_id=job_id,
+        current_user=current_user,
     )
 

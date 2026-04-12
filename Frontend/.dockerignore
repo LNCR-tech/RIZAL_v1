@@ -1,4 +1,11 @@
-.git
-dist
 node_modules
-npm-debug.log
+dist
+test-results
+coverage
+.git
+.vscode
+.idea
+vite-dev.log
+*.log
+.env
+.env.*

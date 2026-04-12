@@ -41,6 +41,12 @@ class PermissionCode(str, Enum):
     MANAGE_ATTENDANCE = "manage_attendance"
     MANAGE_ANNOUNCEMENTS = "manage_announcements"
     ASSIGN_PERMISSIONS = "assign_permissions"
+    VIEW_SANCTIONED_STUDENTS_LIST = "view_sanctioned_students_list"
+    VIEW_STUDENT_SANCTION_DETAIL = "view_student_sanction_detail"
+    APPROVE_SANCTION_COMPLIANCE = "approve_sanction_compliance"
+    CONFIGURE_EVENT_SANCTIONS = "configure_event_sanctions"
+    EXPORT_SANCTIONED_STUDENTS = "export_sanctioned_students"
+    VIEW_SANCTIONS_DASHBOARD = "view_sanctions_dashboard"
 
 
 class GovernanceAnnouncementStatus(str, Enum):
@@ -85,6 +91,30 @@ PERMISSION_DEFINITIONS: dict[PermissionCode, dict[str, str]] = {
     PermissionCode.ASSIGN_PERMISSIONS: {
         "permission_name": "Assign Permissions",
         "description": "Allows members of the unit to assign governance permissions.",
+    },
+    PermissionCode.VIEW_SANCTIONED_STUDENTS_LIST: {
+        "permission_name": "View Sanctioned Students List",
+        "description": "Allows members of the unit to view sanctioned students lists for accessible events.",
+    },
+    PermissionCode.VIEW_STUDENT_SANCTION_DETAIL: {
+        "permission_name": "View Student Sanction Detail",
+        "description": "Allows members of the unit to view detailed sanction records for accessible students.",
+    },
+    PermissionCode.APPROVE_SANCTION_COMPLIANCE: {
+        "permission_name": "Approve Sanction Compliance",
+        "description": "Allows members of the unit to mark student sanctions as complied for accessible events.",
+    },
+    PermissionCode.CONFIGURE_EVENT_SANCTIONS: {
+        "permission_name": "Configure Event Sanctions",
+        "description": "Allows members of the unit to configure event sanctions, delegation, and clearance deadline actions.",
+    },
+    PermissionCode.EXPORT_SANCTIONED_STUDENTS: {
+        "permission_name": "Export Sanctioned Students",
+        "description": "Allows members of the unit to export sanctioned student records for accessible events.",
+    },
+    PermissionCode.VIEW_SANCTIONS_DASHBOARD: {
+        "permission_name": "View Sanctions Dashboard",
+        "description": "Allows members of the unit to view sanctions dashboard summaries for accessible events.",
     },
 }
 

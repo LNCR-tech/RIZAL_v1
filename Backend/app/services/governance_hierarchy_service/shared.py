@@ -80,6 +80,16 @@ CHILD_DASHBOARD_UNIT_TYPE_MAP: dict[GovernanceUnitType, GovernanceUnitType] = {
     GovernanceUnitType.SG: GovernanceUnitType.ORG,
 }
 
+SANCTIONS_MANAGEMENT_PERMISSION_GROUP = "sanctions_management"
+SANCTIONS_MANAGEMENT_PERMISSION_CODES: set[PermissionCode] = {
+    PermissionCode.VIEW_SANCTIONED_STUDENTS_LIST,
+    PermissionCode.VIEW_STUDENT_SANCTION_DETAIL,
+    PermissionCode.APPROVE_SANCTION_COMPLIANCE,
+    PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+    PermissionCode.EXPORT_SANCTIONED_STUDENTS,
+    PermissionCode.VIEW_SANCTIONS_DASHBOARD,
+}
+
 UNIT_MEMBER_PERMISSION_WHITELIST: dict[GovernanceUnitType, set[PermissionCode]] = {
     GovernanceUnitType.SSG: {
         PermissionCode.CREATE_SG,
@@ -90,6 +100,12 @@ UNIT_MEMBER_PERMISSION_WHITELIST: dict[GovernanceUnitType, set[PermissionCode]] 
         PermissionCode.MANAGE_ATTENDANCE,
         PermissionCode.MANAGE_ANNOUNCEMENTS,
         PermissionCode.ASSIGN_PERMISSIONS,
+        PermissionCode.VIEW_SANCTIONED_STUDENTS_LIST,
+        PermissionCode.VIEW_STUDENT_SANCTION_DETAIL,
+        PermissionCode.APPROVE_SANCTION_COMPLIANCE,
+        PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        PermissionCode.EXPORT_SANCTIONED_STUDENTS,
+        PermissionCode.VIEW_SANCTIONS_DASHBOARD,
     },
     GovernanceUnitType.SG: {
         PermissionCode.CREATE_ORG,
@@ -100,6 +116,12 @@ UNIT_MEMBER_PERMISSION_WHITELIST: dict[GovernanceUnitType, set[PermissionCode]] 
         PermissionCode.MANAGE_ATTENDANCE,
         PermissionCode.MANAGE_ANNOUNCEMENTS,
         PermissionCode.ASSIGN_PERMISSIONS,
+        PermissionCode.VIEW_SANCTIONED_STUDENTS_LIST,
+        PermissionCode.VIEW_STUDENT_SANCTION_DETAIL,
+        PermissionCode.APPROVE_SANCTION_COMPLIANCE,
+        PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        PermissionCode.EXPORT_SANCTIONED_STUDENTS,
+        PermissionCode.VIEW_SANCTIONS_DASHBOARD,
     },
     GovernanceUnitType.ORG: {
         PermissionCode.MANAGE_STUDENTS,
@@ -109,6 +131,12 @@ UNIT_MEMBER_PERMISSION_WHITELIST: dict[GovernanceUnitType, set[PermissionCode]] 
         PermissionCode.MANAGE_ATTENDANCE,
         PermissionCode.MANAGE_ANNOUNCEMENTS,
         PermissionCode.ASSIGN_PERMISSIONS,
+        PermissionCode.VIEW_SANCTIONED_STUDENTS_LIST,
+        PermissionCode.VIEW_STUDENT_SANCTION_DETAIL,
+        PermissionCode.APPROVE_SANCTION_COMPLIANCE,
+        PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        PermissionCode.EXPORT_SANCTIONED_STUDENTS,
+        PermissionCode.VIEW_SANCTIONS_DASHBOARD,
     },
 }
 

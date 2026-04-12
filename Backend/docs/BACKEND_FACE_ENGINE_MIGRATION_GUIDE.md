@@ -170,7 +170,11 @@ What it does:
 
 ## Dependencies
 
-`Backend/requirements.txt` now includes:
+`Backend/requirements.txt` now contains the pinned runtime dependency set used by backend containers.
+
+`Backend/requirements-dev.txt` now contains test tooling layered on top of runtime deps (for local/CI testing only).
+
+Runtime requirements include:
 
 - `insightface`
 - `faiss-cpu`
@@ -187,7 +191,8 @@ Removed:
 
 Container note:
 
-- the backend Docker image must include `libgl1` so the OpenCV runtime required by InsightFace can import successfully
+- `Backend/Dockerfile.prod` now explicitly includes `libgl1` so the OpenCV runtime required by InsightFace can import successfully
+- `Backend/Dockerfile.prod` now runs as non-root user `appuser` for tighter runtime isolation
 - the backend container now starts without `uvicorn --reload` so long-running login and face-verification requests are not interrupted by live-reload restarts; restart or recreate the backend container manually after backend code changes
 
 ## Recommended rollout
@@ -205,14 +210,23 @@ Container note:
 Environment note:
 
 - remove any leftover `FACE_PROVIDER_SINGLE` and `FACE_PROVIDER_GROUP` values from local or deployed environments because the backend no longer reads them
-- `Backend/.env.example` contains the current InsightFace-era environment keys and safe placeholder values for new local setups
+- the repo-root `.env.example` contains the current InsightFace-era environment keys and safe placeholder values for new local setups
+- Alembic now loads repo-root `.env` first (then falls back to `Backend/.env` when present) so migration commands follow the shared env-file strategy
 
 ## Verification commands
 
 Run tests:
 
 ```powershell
+python -m pip install -r Backend/requirements-dev.txt
 python -m pytest -q Backend/app/tests/test_face_recognition_schemas.py Backend/app/tests/test_face_engines.py Backend/app/tests/test_public_attendance.py Backend/app/tests/test_routes_face.py
+```
+
+Smoke-check production backend image requirements:
+
+```powershell
+docker build -t valid8-backend:latest -f Backend/Dockerfile.prod Backend
+docker run --rm valid8-backend:latest python -c "import cv2, insightface; print('ok')"
 ```
 
 Run compile checks:

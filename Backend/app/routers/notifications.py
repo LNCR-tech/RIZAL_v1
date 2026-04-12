@@ -15,6 +15,7 @@ from app.core.security import (
 )
 from app.core.dependencies import get_db
 from app.models.platform_features import NotificationLog
+from app.reports.system import router as system_reports_router
 from app.models.user import User
 from app.schemas.notification import (
     NotificationDispatchSummary,
@@ -96,28 +97,14 @@ def list_notification_logs(
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    actor_school_id = getattr(current_user, "school_id", None)
-    is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
-
-    query = db.query(NotificationLog)
-    if not is_platform_admin:
-        if actor_school_id is None:
-            raise HTTPException(status_code=403, detail="User is not assigned to a school")
-        query = query.filter(NotificationLog.school_id == actor_school_id)
-    elif school_id is not None:
-        query = query.filter(NotificationLog.school_id == school_id)
-
-    if category:
-        query = query.filter(NotificationLog.category == category)
-    if status_value:
-        query = query.filter(NotificationLog.status == status_value)
-    if user_id is not None:
-        query = query.filter(NotificationLog.user_id == user_id)
-
-    return (
-        query.order_by(NotificationLog.created_at.desc())
-        .limit(limit)
-        .all()
+    return system_reports_router.list_notification_logs(
+        db,
+        current_user=current_user,
+        school_id=school_id,
+        category=category,
+        status_value=status_value,
+        user_id=user_id,
+        limit=limit,
     )
 
 

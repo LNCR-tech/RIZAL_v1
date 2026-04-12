@@ -14,6 +14,7 @@ from app.services.email_service import (
     EmailDeliveryError,
     send_import_onboarding_email,
     send_mfa_code_email,
+    send_plain_email,
     send_welcome_email,
 )
 from app.services.event_workflow_status import (
@@ -53,6 +54,8 @@ def _sync_event_workflow_statuses() -> dict[str, int]:
             "attendance_finalized_events": summary.attendance_finalized_events,
             "absent_records_created": summary.absent_records_created,
             "absent_no_timeout_marked": summary.absent_no_timeout_marked,
+            "sanction_records_created": summary.sanction_records_created,
+            "sanction_notification_emails_queued": summary.sanction_notification_emails_queued,
         }
         logger.info("Automatic event workflow sync completed: %s", payload)
         return payload
@@ -185,6 +188,136 @@ send_login_mfa_code_email = celery_app.task(
 )(_send_login_mfa_code_email)
 
 
+def _send_sanction_notification_email(
+    self,
+    recipient_email: str,
+    first_name: str | None,
+    event_name: str,
+    sanction_item_names: list[str] | None = None,
+) -> None:
+    resolved_first_name = (first_name or "").strip() or "Student"
+    normalized_item_names = [name.strip() for name in (sanction_item_names or []) if name and name.strip()]
+    items_block = "\n".join(f"- {item_name}" for item_name in normalized_item_names)
+    body_lines = [
+        f"Hello {resolved_first_name},",
+        "",
+        f"You were marked absent for the event: {event_name}.",
+        "A sanctions record has been generated for your account.",
+    ]
+    if items_block:
+        body_lines.extend(
+            [
+                "",
+                "Sanction items:",
+                items_block,
+            ]
+        )
+    body_lines.extend(
+        [
+            "",
+            "Please coordinate with your governance office for compliance instructions.",
+            "",
+            "VALID8 / Aura",
+        ]
+    )
+    send_plain_email(
+        recipient_email=recipient_email,
+        subject=f"Sanction Notice - {event_name}",
+        body="\n".join(body_lines),
+    )
+
+
+send_sanction_notification_email = celery_app.task(
+    bind=True,
+    name="app.workers.tasks.send_sanction_notification_email",
+    autoretry_for=(EmailDeliveryError,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+)(_send_sanction_notification_email)
+
+
+def _send_clearance_deadline_warning_email(
+    self,
+    recipient_email: str,
+    first_name: str | None,
+    event_name: str,
+    deadline_at_iso: str,
+    message: str | None = None,
+) -> None:
+    resolved_first_name = (first_name or "").strip() or "Student"
+    body_lines = [
+        f"Hello {resolved_first_name},",
+        "",
+        f"An SSG clearance deadline was posted for event sanctions: {event_name}.",
+        f"Deadline: {deadline_at_iso}",
+    ]
+    if message:
+        body_lines.extend(
+            [
+                "",
+                "Message:",
+                message.strip(),
+            ]
+        )
+    body_lines.extend(
+        [
+            "",
+            "Please complete pending sanctions before the deadline.",
+            "",
+            "VALID8 / Aura",
+        ]
+    )
+    send_plain_email(
+        recipient_email=recipient_email,
+        subject=f"Sanctions Clearance Deadline - {event_name}",
+        body="\n".join(body_lines),
+    )
+
+
+send_clearance_deadline_warning_email = celery_app.task(
+    bind=True,
+    name="app.workers.tasks.send_clearance_deadline_warning_email",
+    autoretry_for=(EmailDeliveryError,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+)(_send_clearance_deadline_warning_email)
+
+
+def _send_sanction_compliance_confirmation_email(
+    self,
+    recipient_email: str,
+    first_name: str | None,
+    event_name: str,
+) -> None:
+    resolved_first_name = (first_name or "").strip() or "Student"
+    body_lines = [
+        f"Hello {resolved_first_name},",
+        "",
+        f"Your sanctions for event {event_name} were marked as complied.",
+        "",
+        "If this is incorrect, contact your governance office immediately.",
+        "",
+        "VALID8 / Aura",
+    ]
+    send_plain_email(
+        recipient_email=recipient_email,
+        subject=f"Sanction Compliance Confirmed - {event_name}",
+        body="\n".join(body_lines),
+    )
+
+
+send_sanction_compliance_confirmation_email = celery_app.task(
+    bind=True,
+    name="app.workers.tasks.send_sanction_compliance_confirmation_email",
+    autoretry_for=(EmailDeliveryError,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+)(_send_sanction_compliance_confirmation_email)
+
+
 def _send_login_security_notification(
     user_id: int,
     subject: str,
@@ -220,8 +353,11 @@ send_login_security_notification = celery_app.task(
 
 __all__ = [
     "process_student_import_job",
+    "send_clearance_deadline_warning_email",
     "send_login_mfa_code_email",
     "send_login_security_notification",
+    "send_sanction_compliance_confirmation_email",
+    "send_sanction_notification_email",
     "send_student_import_onboarding_email",
     "send_student_welcome_email",
     "sync_event_workflow_statuses",

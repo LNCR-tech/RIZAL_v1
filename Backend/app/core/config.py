@@ -14,14 +14,31 @@ except ImportError:  # pragma: no cover - optional in runtime envs
 from dataclasses import dataclass
 
 
-def _get_env_candidate_paths(config_file: Path | None = None) -> list[Path]:
+def _get_backend_root(config_file: Path | None = None) -> Path:
     resolved_config_file = config_file or Path(__file__).resolve()
-    backend_root = resolved_config_file.parents[2]
-    repo_root = resolved_config_file.parents[3]
+    return resolved_config_file.parents[2]
+
+
+def _get_repo_root(config_file: Path | None = None) -> Path:
+    resolved_config_file = config_file or Path(__file__).resolve()
+    return resolved_config_file.parents[3]
+
+
+def _get_env_candidate_paths(config_file: Path | None = None) -> list[Path]:
+    backend_root = _get_backend_root(config_file)
+    repo_root = _get_repo_root(config_file)
     return [
         backend_root / ".env",
         repo_root / ".env",
     ]
+
+
+def _normalize_storage_path(value: str, config_file: Path | None = None) -> str:
+    normalized_value = value.strip()
+    path_value = Path(normalized_value).expanduser()
+    if path_value.is_absolute():
+        return str(path_value.resolve())
+    return str((_get_repo_root(config_file) / path_value).resolve())
 
 
 def _load_env_files() -> None:
@@ -200,7 +217,9 @@ def get_settings() -> Settings:
         tenant_database_prefix=(os.getenv("TENANT_DATABASE_PREFIX") or "school").strip() or "school",
         import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "50")),
         import_chunk_size=max(1, int(os.getenv("IMPORT_CHUNK_SIZE", "5000"))),
-        import_storage_dir=os.getenv("IMPORT_STORAGE_DIR", "/tmp/valid8_imports"),
+        import_storage_dir=_normalize_storage_path(
+            os.getenv("IMPORT_STORAGE_DIR") or "/tmp/valid8_imports",
+        ),
         import_rate_limit_count=max(1, int(os.getenv("IMPORT_RATE_LIMIT_COUNT", "3"))),
         import_rate_limit_window_seconds=max(1, int(os.getenv("IMPORT_RATE_LIMIT_WINDOW_SECONDS", "300"))),
         celery_broker_url=os.getenv("CELERY_BROKER_URL", redis_url),
@@ -256,7 +275,9 @@ def get_settings() -> Settings:
             False,
         ),
         login_url=os.getenv("LOGIN_URL", "http://localhost:5173"),
-        school_logo_storage_dir=os.getenv("SCHOOL_LOGO_STORAGE_DIR", "/tmp/valid8_school_logos"),
+        school_logo_storage_dir=_normalize_storage_path(
+            os.getenv("SCHOOL_LOGO_STORAGE_DIR") or "/tmp/valid8_school_logos",
+        ),
         school_logo_max_file_size_mb=max(1, int(os.getenv("SCHOOL_LOGO_MAX_FILE_SIZE_MB", "2"))),
         school_logo_public_prefix=os.getenv("SCHOOL_LOGO_PUBLIC_PREFIX", "/media/school-logos"),
         cors_allowed_origins=_as_csv_list(

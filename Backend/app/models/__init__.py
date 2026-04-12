@@ -37,6 +37,14 @@ from app.models.governance_hierarchy import (
     GovernanceUnit,
     GovernanceUnitPermission,
 )
+from app.models.sanctions import (
+    ClearanceDeadline,
+    EventSanctionConfig,
+    SanctionComplianceHistory,
+    SanctionDelegation,
+    SanctionItem,
+    SanctionRecord,
+)
 
 from .role import Role
 from .user import User, UserRole, StudentProfile
@@ -77,4 +85,10 @@ __all__ = [
     "GovernanceUnitPermission",
     "GovernanceAnnouncement",
     "GovernanceStudentNote",
+    "EventSanctionConfig",
+    "SanctionRecord",
+    "SanctionItem",
+    "SanctionDelegation",
+    "SanctionComplianceHistory",
+    "ClearanceDeadline",
 ]

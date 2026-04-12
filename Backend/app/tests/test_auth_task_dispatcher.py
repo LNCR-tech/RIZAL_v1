@@ -98,16 +98,22 @@ def test_dispatch_account_security_notification_falls_back_to_background_task(mo
 def test_worker_tasks_only_register_canonical_names() -> None:
     canonical_names = {
         "app.workers.tasks.process_student_import_job",
+        "app.workers.tasks.send_clearance_deadline_warning_email",
         "app.workers.tasks.send_login_mfa_code_email",
         "app.workers.tasks.send_login_security_notification",
+        "app.workers.tasks.send_sanction_compliance_confirmation_email",
+        "app.workers.tasks.send_sanction_notification_email",
         "app.workers.tasks.send_student_import_onboarding_email",
         "app.workers.tasks.send_student_welcome_email",
         "app.workers.tasks.sync_event_workflow_statuses",
     }
     legacy_names = {
         "app.worker.tasks.process_student_import_job",
+        "app.worker.tasks.send_clearance_deadline_warning_email",
         "app.worker.tasks.send_login_mfa_code_email",
         "app.worker.tasks.send_login_security_notification",
+        "app.worker.tasks.send_sanction_compliance_confirmation_email",
+        "app.worker.tasks.send_sanction_notification_email",
         "app.worker.tasks.send_student_import_onboarding_email",
         "app.worker.tasks.send_student_welcome_email",
         "app.worker.tasks.sync_event_workflow_statuses",
@@ -121,6 +127,15 @@ def test_worker_tasks_only_register_canonical_names() -> None:
     )
     assert worker_tasks.send_login_security_notification.name == (
         "app.workers.tasks.send_login_security_notification"
+    )
+    assert worker_tasks.send_sanction_notification_email.name == (
+        "app.workers.tasks.send_sanction_notification_email"
+    )
+    assert worker_tasks.send_clearance_deadline_warning_email.name == (
+        "app.workers.tasks.send_clearance_deadline_warning_email"
+    )
+    assert worker_tasks.send_sanction_compliance_confirmation_email.name == (
+        "app.workers.tasks.send_sanction_compliance_confirmation_email"
     )
     assert worker_tasks.send_student_import_onboarding_email.name == (
         "app.workers.tasks.send_student_import_onboarding_email"

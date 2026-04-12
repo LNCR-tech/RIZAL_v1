@@ -28,10 +28,8 @@ logs/
 # Environment / secrets
 .env
 .env.*
-!.env.smtp.example
-!Backend/.env.example
+!.env.example
 Frontend/.env.local
-Backend/.env
 
 # Database / local artifacts
 *.db
@@ -39,6 +37,10 @@ Backend/.env
 *.sqlite3
 postgres_data/
 Backend/smoke.db
+storage/imports/
+storage/school_logos/
+Backend/storage/imports/
+Backend/storage/school_logos/
 
 # Project-specific generated files
 Backend/face_encodings.pkl

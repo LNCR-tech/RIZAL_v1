@@ -172,7 +172,12 @@ def test_sync_event_workflow_status_completes_event_and_finalizes_attendance() -
     assert result.computed_time_status == "closed"
     assert event.status == ModelEventStatus.COMPLETED
     assert result.attendance_finalized is True
-    assert result.finalization_summary == {"created_absent": 3, "marked_absent_no_timeout": 1}
+    assert result.finalization_summary == {
+        "created_absent": 3,
+        "marked_absent_no_timeout": 1,
+        "sanction_records_created": 0,
+        "sanction_notification_emails_queued": 0,
+    }
     assert finalizer_calls == [(None, event)]
 
 
@@ -242,6 +247,8 @@ def test_summarize_event_workflow_status_sync_counts_changes_and_finalization() 
                 finalization_summary={
                     "created_absent": 4,
                     "marked_absent_no_timeout": 2,
+                    "sanction_records_created": 3,
+                    "sanction_notification_emails_queued": 3,
                 },
             ),
             EventWorkflowStatusSyncResult(
@@ -262,3 +269,5 @@ def test_summarize_event_workflow_status_sync_counts_changes_and_finalization() 
     assert summary.attendance_finalized_events == 1
     assert summary.absent_records_created == 4
     assert summary.absent_no_timeout_marked == 2
+    assert summary.sanction_records_created == 3
+    assert summary.sanction_notification_emails_queued == 3

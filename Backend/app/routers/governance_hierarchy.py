@@ -15,6 +15,7 @@ from app.core.security import (
     has_any_role,
 )
 from app.models.governance_hierarchy import GovernanceAnnouncementStatus, GovernanceUnitType
+from app.reports.system import router as system_reports_router
 from app.models.user import User
 from app.schemas.governance_hierarchy import (
     GovernanceAccessResponse,
@@ -243,7 +244,7 @@ def get_governance_dashboard_overview(
     current_user: User = Depends(get_current_governance_route_user),
     db: Session = Depends(get_db),
 ):
-    return governance_hierarchy_service.get_governance_dashboard_overview(
+    return system_reports_router.get_governance_dashboard_overview(
         db,
         current_user=current_user,
         governance_unit_id=governance_unit_id,

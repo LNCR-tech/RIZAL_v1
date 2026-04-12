@@ -1,0 +1,69 @@
+server {
+    listen 80;
+    server_name _;
+
+    resolver 127.0.0.11 ipv6=off valid=10s;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    client_max_body_size 25m;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location /__backend__/ {
+        set $backend_origin ${BACKEND_ORIGIN};
+
+        rewrite ^/__backend__(/.*)$ $1 break;
+        proxy_pass $backend_origin;
+        proxy_http_version 1.1;
+        proxy_ssl_server_name on;
+
+        proxy_buffering off;
+        proxy_request_buffering off;
+
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header ngrok-skip-browser-warning true;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 15s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    location /__assistant__/ {
+        set $assistant_origin ${ASSISTANT_ORIGIN};
+
+        rewrite ^/__assistant__(/.*)$ $1 break;
+        proxy_pass $assistant_origin;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 15s;
+        proxy_send_timeout 3600s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -108,14 +108,15 @@ def seed_default_school(db: Session) -> School:
     return school
 
 
-def _apply_admin_defaults(user: User, admin_email: str) -> bool:
+def _apply_admin_defaults(user: User, admin_email: str, default_school_id: int) -> bool:
     updated = False
 
     if user.email != admin_email:
         user.email = admin_email
         updated = True
-    if getattr(user, "school_id", None) is not None:
-        user.school_id = None
+    # Assign admin to default school so they can access school settings during onboarding
+    if getattr(user, "school_id", None) != default_school_id:
+        user.school_id = default_school_id
         updated = True
     if not getattr(user, "is_active", True):
         user.is_active = True
@@ -141,8 +142,6 @@ def _apply_admin_defaults(user: User, admin_email: str) -> bool:
 
 def seed_admin_user(db: Session, school: School) -> None:
     """Create or repair the initial platform admin user."""
-    del school
-
     admin_email = (os.getenv("ADMIN_EMAIL", "admin@university.edu") or "admin@university.edu").strip().lower()
     admin_password = os.getenv("ADMIN_PASSWORD", "AdminPass123!")
 
@@ -160,7 +159,7 @@ def seed_admin_user(db: Session, school: School) -> None:
     if existing_admin is None:
         existing_admin = User(
             email=admin_email,
-            school_id=None,
+            school_id=school.id,
             first_name="System",
             middle_name=None,
             last_name="Administrator",
@@ -172,7 +171,7 @@ def seed_admin_user(db: Session, school: School) -> None:
         db.flush()
         created_admin = True
 
-    updated = _apply_admin_defaults(existing_admin, admin_email)
+    updated = _apply_admin_defaults(existing_admin, admin_email, school.id)
     had_admin_role = "admin" in _role_names_for_user(existing_admin)
 
     if _ensure_user_role(db, existing_admin, "admin"):

@@ -1,5 +1,5 @@
-# Use official Python base image
-FROM python:3.10-slim
+# Use official Python base image (3.11+ required by pinned dependencies like numpy==2.4.4)
+FROM python:3.11-slim
 
 # Set working directory inside the container
 WORKDIR /app

@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:15
-    container_name: postgres-db
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -15,18 +14,43 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: valid8-redis
     restart: always
     ports:
       - "6379:6379"
 
+  migrate:
+    image: rizal-backend:local
+    command: alembic upgrade head
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+    volumes:
+      - ./Backend:/app
+    depends_on:
+      - db
+    restart: "no"
+
+  seed:
+    image: rizal-backend:local
+    command: python seed.py
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+    volumes:
+      - ./Backend:/app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   backend:
-    build: ./Backend
-    container_name: backend_v2
+    image: rizal-backend:local
     ports:
       - "8000:8000"
     env_file:
-      - ./Backend/.env
+      - ./.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -45,15 +69,18 @@ services:
       - branding_storage:/tmp/valid8_school_logos
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
 
   worker:
-    build: ./Backend
-    container_name: backend_worker_v2
+    image: rizal-backend:local
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
     env_file:
-      - ./Backend/.env
+      - ./.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -72,15 +99,18 @@ services:
       - branding_storage:/tmp/valid8_school_logos
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
 
   beat:
-    build: ./Backend
-    container_name: backend_beat_v2
+    image: rizal-backend:local
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
     env_file:
-      - ./Backend/.env
+      - ./.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -99,26 +129,45 @@ services:
       - branding_storage:/tmp/valid8_school_logos
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
 
   frontend:
-    build: ./Frontend
-    container_name: frontend_v2
+    build:
+      context: ./Frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
+    environment:
+      - BACKEND_ORIGIN=${BACKEND_ORIGIN:-http://backend:8000}
+      - ASSISTANT_ORIGIN=${ASSISTANT_ORIGIN:-http://assistant:8500}
+      - AURA_API_BASE_URL=${AURA_API_BASE_URL:-/__backend__}
+      - AURA_API_TIMEOUT_MS=${AURA_API_TIMEOUT_MS:-15000}
+      - AURA_ASSISTANT_BASE_URL=${AURA_ASSISTANT_BASE_URL:-/__assistant__}
     depends_on:
       - backend
-    working_dir: /app
-    volumes:
-      - ./Frontend:/app
-      - /app/node_modules
-    command: sh /app/scripts/dev-entrypoint.sh
+      - assistant
+    restart: unless-stopped
+
+  assistant:
+    build: ./Assistant
+    env_file:
+      - ./.env
+    environment:
+      - TENANT_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - APP_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - ASSISTANT_AUTO_MIGRATE=true
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+    depends_on:
+      - db
     restart: unless-stopped
 
   pgadmin:
     image: dpage/pgadmin4
-    container_name: pgadmin
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com

@@ -66,6 +66,38 @@ services:
       timeout: 5s
       retries: 10
 
+  assistant:
+    build:
+      context: ./Assistant
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TENANT_DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      APP_DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ASSISTANT_AUTO_MIGRATE: ${ASSISTANT_AUTO_MIGRATE:-true}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8500"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8500/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   worker:
     build:
       context: ./Backend
@@ -121,11 +153,20 @@ services:
       context: ./Frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/__backend__}
+        VITE_API_TIMEOUT_MS: ${VITE_API_TIMEOUT_MS:-15000}
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
+      assistant:
+        condition: service_healthy
+    environment:
+      BACKEND_ORIGIN: ${BACKEND_ORIGIN:-http://backend:8000}
+      ASSISTANT_ORIGIN: ${ASSISTANT_ORIGIN:-http://assistant:8500}
+      AURA_API_BASE_URL: ${AURA_API_BASE_URL:-/__backend__}
+      AURA_API_TIMEOUT_MS: ${AURA_API_TIMEOUT_MS:-15000}
+      AURA_ASSISTANT_BASE_URL: ${AURA_ASSISTANT_BASE_URL:-/__assistant__}
     ports:
       - "${FRONTEND_PORT:-80}:80"
     healthcheck:

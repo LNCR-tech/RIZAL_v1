@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.event import Event as EventModel
 from app.models.event import EventStatus as ModelEventStatus
 from app.services.event_attendance_service import finalize_completed_event_attendance
+from app.services.sanctions_service import generate_sanctions_for_completed_event
 from app.services.event_time_status import get_event_status
 
 
@@ -40,6 +41,8 @@ class EventWorkflowStatusSyncSummary:
     attendance_finalized_events: int
     absent_records_created: int
     absent_no_timeout_marked: int
+    sanction_records_created: int
+    sanction_notification_emails_queued: int
 
 
 def map_time_status_to_workflow_status(time_status: str) -> ModelEventStatus:
@@ -121,6 +124,15 @@ def sync_event_workflow_status(
 
     if expected_status == ModelEventStatus.COMPLETED:
         finalization_summary = completion_finalizer(db, event)
+        sanction_summary = generate_sanctions_for_completed_event(db, event)
+        merged_summary = dict(finalization_summary or {})
+        merged_summary["sanction_records_created"] = int(
+            sanction_summary.get("sanction_records_created", 0)
+        )
+        merged_summary["sanction_notification_emails_queued"] = int(
+            sanction_summary.get("sanction_notification_emails_queued", 0)
+        )
+        finalization_summary = merged_summary
         attendance_finalized = True
 
     return EventWorkflowStatusSyncResult(
@@ -173,6 +185,8 @@ def summarize_event_workflow_status_sync(
     attendance_finalized_events = 0
     absent_records_created = 0
     absent_no_timeout_marked = 0
+    sanction_records_created = 0
+    sanction_notification_emails_queued = 0
 
     for result in results:
         if not result.changed:
@@ -193,6 +207,12 @@ def summarize_event_workflow_status_sync(
             absent_no_timeout_marked += int(
                 result.finalization_summary.get("marked_absent_no_timeout", 0)
             )
+            sanction_records_created += int(
+                result.finalization_summary.get("sanction_records_created", 0)
+            )
+            sanction_notification_emails_queued += int(
+                result.finalization_summary.get("sanction_notification_emails_queued", 0)
+            )
 
     return EventWorkflowStatusSyncSummary(
         scanned_events=len(results),
@@ -203,4 +223,6 @@ def summarize_event_workflow_status_sync(
         attendance_finalized_events=attendance_finalized_events,
         absent_records_created=absent_records_created,
         absent_no_timeout_marked=absent_no_timeout_marked,
+        sanction_records_created=sanction_records_created,
+        sanction_notification_emails_queued=sanction_notification_emails_queued,
     )

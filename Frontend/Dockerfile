@@ -1,20 +1,27 @@
-# Use official Node.js image
-FROM node:20
+FROM node:20-alpine AS build
 
-# Set working directory inside the container
 WORKDIR /app
 
-# Copy only dependency files first to leverage Docker caching
 COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install dependencies using npm
-RUN npm install
-
-# Copy the rest of your app code
 COPY . .
 
-# Expose the port used by Vite dev server
-EXPOSE 5173
+ARG VITE_API_BASE_URL=/__backend__
+ARG VITE_API_TIMEOUT_MS=15000
 
-# Start Vite dev server
-CMD ["sh", "/app/scripts/dev-entrypoint.sh"]
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS}
+
+RUN npm run build
+
+FROM nginx:1.27-alpine AS runtime
+
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY runtime-config.js.template /opt/aura/runtime-config.js.template
+COPY docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.d/40-runtime-config.sh \
+    && chmod +x /docker-entrypoint.d/40-runtime-config.sh
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80

@@ -21,8 +21,11 @@ except ImportError:  # pragma: no cover - optional in runtime envs
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 if load_dotenv is not None:
-    env_path = Path(__file__).resolve().parents[1] / ".env"
-    load_dotenv(env_path, override=True)
+    root_env_path = Path(__file__).resolve().parents[2] / ".env"
+    backend_env_path = Path(__file__).resolve().parents[1] / ".env"
+    for env_path in (root_env_path, backend_env_path):
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -50,6 +53,7 @@ from app.models import password_reset_request
 from app.models import platform_features
 from app.models import user
 from app.models import governance_hierarchy
+from app.models import sanctions
 
 settings = get_settings()
 ini_database_url = config.get_main_option("sqlalchemy.url")
