@@ -56,6 +56,11 @@ def validate_headers(header_row: Iterable[object]) -> None:
     if not any(received):
         raise HeaderValidationError("Missing header row")
 
+    # Some Excel files keep extra formatted-but-empty columns in the header row.
+    # Ignore trailing empty columns while preserving strict expected order/content.
+    while received and received[-1] == "":
+        received.pop()
+
     if received != expected:
         raise HeaderValidationError(
             "Invalid header structure or order. Expected: "

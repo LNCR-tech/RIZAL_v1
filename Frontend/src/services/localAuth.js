@@ -21,16 +21,6 @@ function notifyAuthMetaChanged() {
     window.dispatchEvent(new CustomEvent(AUTH_META_CHANGED_EVENT))
 }
 
-function normalizeRoleName(role) {
-    const normalized = String(role || '')
-        .trim()
-        .toLowerCase()
-        .replace(/_/g, '-')
-
-    if (normalized === 'campus-admin') return 'school-it'
-    return normalized
-}
-
 function normalizeRoles(roles) {
     if (!Array.isArray(roles)) return []
 
@@ -131,15 +121,7 @@ export function needsStoredPasswordChange() {
 }
 
 export function hasPrivilegedPendingFace(meta = getStoredAuthMeta()) {
-    const roles = normalizeRoles(meta?.roles).map(normalizeRoleName)
-    const hasPrivilegedRole = roles.includes('admin') || roles.includes('school-it')
-
-    return Boolean(
-        hasPrivilegedRole &&
-        (
-            meta?.tokenType === 'face_pending' ||
-            meta?.faceVerificationPending ||
-            meta?.faceVerificationRequired
-        )
-    )
+    // MFA face-gating has been removed; keep this helper for compatibility.
+    void meta
+    return false
 }

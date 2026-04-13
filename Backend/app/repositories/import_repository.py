@@ -341,7 +341,6 @@ class ImportRepository:
         rows: Sequence[dict],
         student_role_id: int,
         *,
-        shared_password_hash: str,
         trust_preview: bool = False,
     ) -> tuple[List[dict], List[dict]]:
         if not rows:
@@ -354,6 +353,9 @@ class ImportRepository:
 
         candidate_rows: List[dict] = []
         errors: List[dict] = []
+
+        if any(not row.get("password_hash") for row in rows):
+            raise RuntimeError("Generated import credentials are missing for one or more rows")
 
         for row in rows:
             row_errors = []
@@ -382,7 +384,7 @@ class ImportRepository:
             {
                 "email": row["email"],
                 "school_id": row["school_id"],
-                "password_hash": shared_password_hash,
+                "password_hash": row["password_hash"],
                 "first_name": row["first_name"],
                 "middle_name": row["middle_name"],
                 "last_name": row["last_name"],

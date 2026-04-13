@@ -3,7 +3,6 @@ Where to use: Use this in routers and services when validating or returning auth
 Role: Schema layer. It keeps API payloads clear and typed.
 """
 
-from datetime import datetime
 from typing import List, Optional
 from enum import Enum
 from pydantic import BaseModel, EmailStr
@@ -28,9 +27,6 @@ class Token(BaseModel):
     change_password_endpoint: Optional[str] = None
     password_change_recommended: Optional[bool] = None
     session_id: Optional[str] = None
-    mfa_required: Optional[bool] = None
-    mfa_challenge_id: Optional[str] = None
-    mfa_expires_at: Optional[datetime] = None
     face_verification_required: Optional[bool] = None
     face_reference_enrolled: Optional[bool] = None
     face_verification_pending: Optional[bool] = None

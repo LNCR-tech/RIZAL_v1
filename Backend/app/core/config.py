@@ -104,7 +104,6 @@ class Settings:
     secret_key: str
     jwt_algorithm: str
     access_token_expire_minutes: int
-    auth_enable_mfa: bool
     face_scan_bypass_emails: list[str]
     face_threshold_single: float
     face_threshold_group: float
@@ -140,6 +139,12 @@ class Settings:
     email_from_email: str
     email_from_name: str
     email_reply_to: str
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_use_tls: bool
+    smtp_use_starttls: bool
     email_google_account_type: str
     email_google_allow_custom_from: bool
     google_oauth_client_id: str
@@ -174,7 +179,6 @@ def get_settings() -> Settings:
         secret_key=os.getenv("SECRET_KEY", "change-this-secret-in-production"),
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
         access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
-        auth_enable_mfa=_as_bool(os.getenv("AUTH_ENABLE_MFA"), True),
         face_scan_bypass_emails=_as_email_list(
             os.getenv("FACE_SCAN_BYPASS_EMAILS"),
             [],
@@ -237,6 +241,12 @@ def get_settings() -> Settings:
             default="VALID8 Notifications",
         ).strip(),
         email_reply_to=_get_first_env_value("EMAIL_REPLY_TO", "SMTP_REPLY_TO").strip(),
+        smtp_host=_get_first_env_value("SMTP_HOST", default="localhost").strip(),
+        smtp_port=max(1, int(_get_first_env_value("SMTP_PORT", default="1025"))),
+        smtp_username=_get_first_env_value("SMTP_USERNAME").strip(),
+        smtp_password=_get_first_env_value("SMTP_PASSWORD").strip(),
+        smtp_use_tls=_as_bool(_get_first_env_value("SMTP_USE_TLS"), False),
+        smtp_use_starttls=_as_bool(_get_first_env_value("SMTP_USE_STARTTLS"), False),
         email_google_account_type=_get_first_env_value(
             "EMAIL_GOOGLE_ACCOUNT_TYPE",
             "SMTP_GOOGLE_ACCOUNT_TYPE",

@@ -13,7 +13,6 @@ from app.repositories.import_repository import ImportRepository
 from app.services.email_service import (
     EmailDeliveryError,
     send_import_onboarding_email,
-    send_mfa_code_email,
     send_plain_email,
     send_welcome_email,
 )
@@ -161,31 +160,6 @@ send_student_import_onboarding_email = celery_app.task(
     retry_jitter=True,
     retry_kwargs={"max_retries": 5},
 )(_send_student_import_onboarding_email)
-
-
-def _send_login_mfa_code_email(
-    self,
-    recipient_email: str,
-    code: str,
-    first_name: str | None = None,
-    system_name: str | None = None,
-) -> None:
-    send_mfa_code_email(
-        recipient_email=recipient_email,
-        code=code,
-        first_name=first_name,
-        system_name=system_name,
-    )
-
-
-send_login_mfa_code_email = celery_app.task(
-    bind=True,
-    name="app.workers.tasks.send_login_mfa_code_email",
-    autoretry_for=(EmailDeliveryError,),
-    retry_backoff=True,
-    retry_jitter=True,
-    retry_kwargs={"max_retries": 5},
-)(_send_login_mfa_code_email)
 
 
 def _send_sanction_notification_email(
@@ -354,7 +328,6 @@ send_login_security_notification = celery_app.task(
 __all__ = [
     "process_student_import_job",
     "send_clearance_deadline_warning_email",
-    "send_login_mfa_code_email",
     "send_login_security_notification",
     "send_sanction_compliance_confirmation_email",
     "send_sanction_notification_email",

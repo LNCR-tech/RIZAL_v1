@@ -1,0 +1,379 @@
+VALID8 / Aura Email Formats (Editable)
+Version date: 2026-04-12
+
+How to use this file:
+1. Edit only the SUBJECT and BODY blocks below.
+2. Keep placeholder tokens in double braces, for example {{FIRST_NAME}}.
+3. Send this file back later and I will scan it against backend behavior.
+
+Placeholder legend:
+{{FIRST_NAME}}
+{{RECIPIENT_EMAIL}}
+{{SYSTEM_NAME}}
+{{LOGIN_URL}}
+{{TEMP_PASSWORD}}
+{{PASSWORD_LABEL}}
+{{CREDENTIAL_SUBJECT}}
+{{PASSWORD_NOTICE_BLOCK}}
+{{EVENT_NAME}}
+{{SANCTION_ITEMS_BULLETS}}
+{{DEADLINE_ISO}}
+{{OPTIONAL_MESSAGE_BLOCK}}
+{{ATTENDANCE_STATUS}}
+{{ABSENT_COUNT}}
+{{LOOKBACK_DAYS}}
+{{ATTENDANCE_PERCENT}}
+{{ATTENDED_COUNT}}
+{{TOTAL_COUNT}}
+{{THRESHOLD_PERCENT}}
+{{EVENT_START_DATETIME}}
+{{RENEWAL_DATE_ISO}}
+{{DAYS_UNTIL_RENEWAL}}
+{{CUSTOM_SUBJECT}}
+{{CUSTOM_MESSAGE}}
+{{TIMESTAMP_UTC}}
+
+================================================================
+[TEMPLATE] WELCOME EMAIL (ACTIVE, ALSO USED BY IMPORT ONBOARDING FLOW)
+Source:
+- Backend/app/services/email_service/use_cases.py
+- Backend/app/services/email_service/rendering.py
+
+SUBJECT:
+Welcome to {{SYSTEM_NAME}} - {{CREDENTIAL_SUBJECT}}
+
+TEXT BODY:
+Dear {{FIRST_NAME}},
+
+Welcome to {{SYSTEM_NAME}}!
+
+Your account has been successfully created.
+
+Login Credentials:
+-----------------------------------
+Email: {{RECIPIENT_EMAIL}}
+{{PASSWORD_LABEL}}: {{TEMP_PASSWORD}}
+Login URL: {{LOGIN_URL}}
+-----------------------------------
+
+{{PASSWORD_NOTICE_BLOCK}}Do not share your login credentials with anyone.
+
+If you experience issues, contact your Campus Admin.
+
+Best regards,
+{{SYSTEM_NAME}} Team
+
+HTML BODY:
+<p>Dear {{FIRST_NAME}},</p>
+<p>Welcome to <strong>{{SYSTEM_NAME}}</strong>.</p>
+<p>Your account has been successfully created.</p>
+<p><strong>Login Credentials</strong><br>
+Email: {{RECIPIENT_EMAIL}}<br>
+{{PASSWORD_LABEL}}: {{TEMP_PASSWORD}}<br>
+Login URL: <a href="{{LOGIN_URL}}">{{LOGIN_URL}}</a></p>
+<p>{{PASSWORD_NOTICE_BLOCK_HTML}}</p>
+<p>Do not share your login credentials with anyone.</p>
+<p>If you experience issues, contact your Campus Admin.</p>
+<p>Best regards,<br>{{SYSTEM_NAME}} Team</p>
+
+Current runtime defaults:
+- {{CREDENTIAL_SUBJECT}} = Temporary Login Credentials
+- {{PASSWORD_LABEL}} = Temporary Password
+- {{SYSTEM_NAME}} default = Valid8 Attendance Recognition System
+- {{PASSWORD_NOTICE_BLOCK}} default =
+IMPORTANT:
+For security reasons, this is a temporary password.
+You can keep using it after login, but changing it from your account settings is recommended.
+
+================================================================
+[TEMPLATE] IMPORT ONBOARDING EMAIL (IN CODE, CURRENTLY NOT USED BY ACTIVE CALL PATH)
+Source:
+- Backend/app/services/email_service/rendering.py (build_import_onboarding_email_content)
+
+SUBJECT:
+Welcome to {{SYSTEM_NAME}} - Account Ready
+
+TEXT BODY:
+Dear {{FIRST_NAME}},
+
+Your account has been created in {{SYSTEM_NAME}}.
+
+To set your first password, open the login page and use the Forgot Password option.
+A Campus Admin must approve the request before you can sign in.
+
+Login URL: {{LOGIN_URL}}
+
+If you experience issues, contact your Campus Admin.
+
+Best regards,
+{{SYSTEM_NAME}} Team
+
+HTML BODY:
+<p>Dear {{FIRST_NAME}},</p>
+<p>Your account has been created in <strong>{{SYSTEM_NAME}}</strong>.</p>
+<p>To set your first password, open the login page and use the Forgot Password option. A Campus Admin must approve the request before you can sign in.</p>
+<p>Login URL: <a href="{{LOGIN_URL}}">{{LOGIN_URL}}</a></p>
+<p>If you experience issues, contact your Campus Admin.</p>
+<p>Best regards,<br>{{SYSTEM_NAME}} Team</p>
+
+================================================================
+[TEMPLATE] PASSWORD RESET APPROVED EMAIL (ACTIVE)
+Source:
+- Backend/app/services/email_service/rendering.py
+- Backend/app/services/email_service/use_cases.py
+
+SUBJECT:
+{{SYSTEM_NAME}} - Password Reset Approved
+
+TEXT BODY:
+Dear {{FIRST_NAME}},
+
+Your password reset request has been approved.
+
+Temporary Login Credentials:
+-----------------------------------
+Email: {{RECIPIENT_EMAIL}}
+Temporary Password: {{TEMP_PASSWORD}}
+Login URL: {{LOGIN_URL}}
+-----------------------------------
+
+IMPORTANT:
+You are required to change this temporary password immediately after login.
+
+Best regards,
+{{SYSTEM_NAME}} Team
+
+HTML BODY:
+<p>Dear {{FIRST_NAME}},</p>
+<p>Your password reset request has been approved.</p>
+<p><strong>Temporary Login Credentials</strong><br>
+Email: {{RECIPIENT_EMAIL}}<br>
+Temporary Password: {{TEMP_PASSWORD}}<br>
+Login URL: <a href="{{LOGIN_URL}}">{{LOGIN_URL}}</a></p>
+<p><strong>IMPORTANT:</strong><br>
+You are required to change this temporary password immediately after login.</p>
+<p>Best regards,<br>{{SYSTEM_NAME}} Team</p>
+
+================================================================
+[TEMPLATE] SANCTION NOTICE EMAIL (ACTIVE)
+Source:
+- Backend/app/workers/tasks.py (_send_sanction_notification_email)
+
+SUBJECT:
+Sanction Notice - {{EVENT_NAME}}
+
+TEXT BODY:
+Hello {{FIRST_NAME_OR_STUDENT}},
+
+You were marked absent for the event: {{EVENT_NAME}}.
+A sanctions record has been generated for your account.
+
+Sanction items:
+{{SANCTION_ITEMS_BULLETS}}
+
+Please coordinate with your governance office for compliance instructions.
+
+VALID8 / Aura
+
+Notes:
+- The "Sanction items" section only appears when items exist.
+
+================================================================
+[TEMPLATE] SANCTIONS CLEARANCE DEADLINE EMAIL (ACTIVE)
+Source:
+- Backend/app/workers/tasks.py (_send_clearance_deadline_warning_email)
+
+SUBJECT:
+Sanctions Clearance Deadline - {{EVENT_NAME}}
+
+TEXT BODY:
+Hello {{FIRST_NAME_OR_STUDENT}},
+
+An SSG clearance deadline was posted for event sanctions: {{EVENT_NAME}}.
+Deadline: {{DEADLINE_ISO}}
+
+Message:
+{{OPTIONAL_MESSAGE_BLOCK}}
+
+Please complete pending sanctions before the deadline.
+
+VALID8 / Aura
+
+Notes:
+- The "Message" section only appears when a message exists.
+
+================================================================
+[TEMPLATE] SANCTION COMPLIANCE CONFIRMATION EMAIL (ACTIVE)
+Source:
+- Backend/app/workers/tasks.py (_send_sanction_compliance_confirmation_email)
+
+SUBJECT:
+Sanction Compliance Confirmed - {{EVENT_NAME}}
+
+TEXT BODY:
+Hello {{FIRST_NAME_OR_STUDENT}},
+
+Your sanctions for event {{EVENT_NAME}} were marked as complied.
+
+If this is incorrect, contact your governance office immediately.
+
+VALID8 / Aura
+
+================================================================
+[TEMPLATE] ACCOUNT SECURITY EMAIL (ACTIVE, GENERIC WRAPPER)
+Source:
+- Backend/app/services/notification_center_service.py (send_account_security_notification)
+
+SUBJECT:
+{{CUSTOM_SUBJECT}}
+
+TEXT BODY:
+{{CUSTOM_MESSAGE}}
+
+Current concrete examples used in auth flow:
+
+Example A:
+SUBJECT: Password Changed
+BODY: Your password was changed successfully.
+
+Example B:
+SUBJECT: Password Reset Approved
+BODY: Your password reset request was approved. Use your temporary password to log in.
+
+================================================================
+[TEMPLATE] ATTENDANCE SIGN-IN EMAIL (ACTIVE VIA NOTIFICATION CENTER WHEN EMAIL CHANNEL ENABLED)
+Source:
+- Backend/app/services/attendance_face_scan.py
+- Backend/app/routers/face_recognition.py
+
+SUBJECT (normal):
+Sign-in recorded for {{EVENT_NAME}}
+
+SUBJECT (late):
+Late attendance recorded for {{EVENT_NAME}}
+
+TEXT BODY:
+Your sign-in for {{EVENT_NAME}} was recorded and marked {{ATTENDANCE_STATUS}}. Complete sign-out during the allowed window to validate attendance.
+
+================================================================
+[TEMPLATE] ATTENDANCE SIGN-OUT EMAIL (ACTIVE VIA NOTIFICATION CENTER WHEN EMAIL CHANNEL ENABLED)
+Source:
+- Backend/app/services/attendance_face_scan.py
+- Backend/app/routers/face_recognition.py
+
+SUBJECT:
+Sign-out recorded for {{EVENT_NAME}}
+
+TEXT BODY (valid finalized status):
+Your sign-out for {{EVENT_NAME}} was recorded successfully.
+
+TEXT BODY (invalid finalized status):
+Your sign-out for {{EVENT_NAME}} was recorded, but the attendance is not valid.
+
+================================================================
+[TEMPLATE] MISSED EVENTS ALERT EMAIL (ACTIVE VIA NOTIFICATION CENTER)
+Source:
+- Backend/app/services/notification_center_service.py (dispatch_missed_event_notifications)
+
+SUBJECT:
+Attendance Alert: Missed Events Detected
+
+TEXT BODY:
+Hi {{FIRST_NAME_OR_STUDENT}},
+
+Our records show {{ABSENT_COUNT}} missed event(s) in the last {{LOOKBACK_DAYS}} days.
+Please coordinate with your school office if this is incorrect.
+
+Valid8 Attendance System
+
+================================================================
+[TEMPLATE] LOW ATTENDANCE ALERT EMAIL (ACTIVE VIA NOTIFICATION CENTER)
+Source:
+- Backend/app/services/notification_center_service.py (dispatch_low_attendance_notifications)
+
+SUBJECT:
+Attendance Alert: Low Attendance Rate
+
+TEXT BODY:
+Hi {{FIRST_NAME_OR_STUDENT}},
+
+Your attendance rate is currently {{ATTENDANCE_PERCENT}}% ({{ATTENDED_COUNT}}/{{TOTAL_COUNT}}) which is below the threshold of {{THRESHOLD_PERCENT}}%.
+Please review your recent attendance records.
+
+Valid8 Attendance System
+
+================================================================
+[TEMPLATE] EVENT REMINDER EMAIL (ACTIVE VIA NOTIFICATION CENTER)
+Source:
+- Backend/app/services/notification_center_service.py (dispatch_event_reminder_notifications)
+
+SUBJECT:
+Event Reminder: {{EVENT_NAME}}
+
+TEXT BODY:
+Hi {{FIRST_NAME_OR_STUDENT}},
+
+This is a reminder that {{EVENT_NAME}} starts at {{EVENT_START_DATETIME}}.
+Open the attendance page when the event window is active to complete both sign-in and sign-out.
+
+Valid8 Attendance System
+
+================================================================
+[TEMPLATE] SUBSCRIPTION RENEWAL REMINDER EMAIL (ACTIVE VIA NOTIFICATION CENTER)
+Source:
+- Backend/app/routers/subscription.py
+
+SUBJECT:
+Subscription Renewal Reminder
+
+TEXT BODY:
+Your school subscription renewal date is {{RENEWAL_DATE_ISO}} ({{DAYS_UNTIL_RENEWAL}} day(s) remaining).
+
+================================================================
+[TEMPLATE] TEST NOTIFICATION EMAIL (ACTIVE WHEN /notifications/test IS USED)
+Source:
+- Backend/app/routers/notifications.py
+
+SUBJECT:
+VALID8 Test Notification
+
+TEXT BODY:
+This is a test notification from VALID8.
+
+Notes:
+- API caller can override the body.
+
+================================================================
+[TEMPLATE] EMAIL TRANSPORT CONNECTIVITY TEST EMAIL (ACTIVE WHEN send_test_email IS USED)
+Source:
+- Backend/app/services/email_service/transport.py
+
+SUBJECT (default):
+VALID8 email transport connectivity test
+
+TEXT BODY (default):
+This is a production-style email transport smoke test from VALID8.
+
+If you received this email, the backend completed a real outbound email delivery attempt using the configured transport.
+
+HTML BODY (default):
+<p>This is a production-style email transport smoke test from <strong>VALID8</strong>.</p>
+<p>If you received this email, the backend completed a real outbound email delivery attempt using the configured transport.</p>
+
+================================================================
+[TEMPLATE] OPERATOR SCRIPT SMOKE TEST EMAIL (ACTIVE WHEN scripts/send_test_email.py IS USED WITH DEFAULTS)
+Source:
+- Backend/scripts/send_test_email.py
+
+SUBJECT (default):
+VALID8 email transport smoke test {{TIMESTAMP_UTC}}
+
+TEXT BODY (default):
+This is a real VALID8 transactional-email smoke test.
+
+UTC timestamp: {{TIMESTAMP_UTC}}
+If you received this message, the backend completed a full outbound send using the configured transport.
+
+================================================================
+END OF FILE
+

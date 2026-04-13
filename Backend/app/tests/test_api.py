@@ -22,7 +22,6 @@ from app.models import (
 from app.routers import security_center
 from app.routers import users as users_router
 from app.core.security import create_access_token, verify_password
-from app.services.security_service import create_mfa_challenge
 from app.utils.passwords import hash_password_bcrypt
 
 
@@ -166,37 +165,6 @@ def test_login_does_not_dispatch_gmail_login_notification(client, test_db, monke
     assert payload["email"] == user.email
 
 
-def test_mfa_verify_does_not_dispatch_gmail_login_notification(client, test_db, monkeypatch):
-    school = _create_school(test_db, code="MFA-NOTIFY")
-    user = _create_user_with_role(
-        test_db,
-        email="student.mfa.notify@example.com",
-        role_name="student",
-        password="StudentPass123!",
-        school_id=school.id,
-    )
-    challenge, code = create_mfa_challenge(test_db, user=user, ttl_minutes=10)
-    test_db.commit()
-
-    def fail_if_called(*args, **kwargs):
-        raise AssertionError("login security notification dispatch should not run")
-
-    monkeypatch.setattr("app.services.auth_task_dispatcher._enqueue_celery_task", fail_if_called)
-
-    response = client.post(
-        "/auth/mfa/verify",
-        json={
-            "email": user.email,
-            "challenge_id": challenge.id,
-            "code": code,
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["email"] == user.email
-
-
 def test_protected_endpoint(client, test_db):
     school = _create_school(test_db, code="PROTECTED-SCH")
     role = Role(name="student")
@@ -298,7 +266,7 @@ def test_users_router_supports_canonical_api_prefix(client, test_db):
     assert response.json()["email"] == "canonical.users@example.com"
 
 
-def test_security_router_supports_canonical_api_prefix(client, test_db):
+def test_security_router_removes_mfa_status_endpoint(client, test_db):
     school = _create_school(test_db, code="API-SECURITY")
     role = Role(name="student")
     test_db.add(role)
@@ -324,10 +292,20 @@ def test_security_router_supports_canonical_api_prefix(client, test_db):
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["user_id"] == user.id
-    assert "mfa_enabled" in payload
+    assert response.status_code == 404
+
+
+def test_auth_mfa_verify_endpoint_is_removed(client):
+    response = client.post(
+        "/auth/mfa/verify",
+        json={
+            "email": "removed@example.com",
+            "challenge_id": "removed-challenge",
+            "code": "123456",
+        },
+    )
+
+    assert response.status_code == 404
 
 
 def test_legacy_users_router_alias_is_removed(client, test_db):

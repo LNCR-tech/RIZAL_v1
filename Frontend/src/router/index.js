@@ -9,7 +9,7 @@ import {
     isSchoolItSession,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
+import { needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView } from '@/router/platformView.js'
 
@@ -84,16 +84,6 @@ const routes = [
         meta: {
             requiresAuth: true,
             allowWithoutFaceEnrollment: true,
-        },
-    },
-    {
-        path: '/privileged-face',
-        name: 'PrivilegedFaceVerification',
-        component: authView('PrivilegedFaceVerificationView'),
-        meta: {
-            requiresAuth: true,
-            allowWithoutFaceEnrollment: true,
-            allowPrivilegedPendingFace: true,
         },
     },
     {
@@ -783,41 +773,9 @@ router.beforeEach(async (to) => {
     setNavigationPending(true)
     const isAuthenticated = hasSessionToken()
     const mustChangePassword = needsStoredPasswordChange()
-    const privilegedPendingFace = hasPrivilegedPendingFace()
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: 'Login' }
-    }
-
-    if (to.name === 'PrivilegedFaceVerification') {
-        if (!isAuthenticated) {
-            return { name: 'Login' }
-        }
-
-        if (privilegedPendingFace) {
-            return true
-        }
-
-        if (mustChangePassword) {
-            return { name: 'ChangePassword' }
-        }
-
-        try {
-            await initializeDashboardSession()
-            return sessionNeedsFaceRegistration()
-                ? { name: 'FaceRegistration' }
-                : getDefaultAuthenticatedRoute()
-        } catch {
-            clearDashboardSession()
-            return { name: 'Login' }
-        }
-    }
-
-    if (isAuthenticated && privilegedPendingFace) {
-        if (to.meta.allowPrivilegedPendingFace) {
-            return true
-        }
-        return { name: 'PrivilegedFaceVerification' }
     }
 
     if (isAuthenticated && mustChangePassword && to.name !== 'ChangePassword') {

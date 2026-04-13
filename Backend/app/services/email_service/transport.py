@@ -1,8 +1,10 @@
-"""Transport helpers for the Gmail API email service package."""
+"""Transport helpers for the email service package."""
 
 from __future__ import annotations
 
 import base64
+import smtplib
+import ssl
 from urllib.parse import quote
 
 from email.message import EmailMessage
@@ -84,6 +86,50 @@ def _build_gmail_api_headers(access_token: str) -> dict[str, str]:
 
 def _gmail_api_timeout(settings: Settings) -> float:
     return float(settings.email_timeout_seconds)
+
+
+def _smtp_timeout(settings: Settings) -> float:
+    return float(settings.email_timeout_seconds)
+
+
+def _open_smtp_connection(settings: Settings):
+    host = (settings.smtp_host or "").strip()
+    port = int(settings.smtp_port)
+
+    try:
+        if settings.smtp_use_tls:
+            smtp_client = smtplib.SMTP_SSL(
+                host,
+                port,
+                timeout=_smtp_timeout(settings),
+            )
+        else:
+            smtp_client = smtplib.SMTP(
+                host,
+                port,
+                timeout=_smtp_timeout(settings),
+            )
+            smtp_client.ehlo()
+            if settings.smtp_use_starttls:
+                smtp_client.starttls(context=ssl.create_default_context())
+                smtp_client.ehlo()
+
+        if settings.smtp_username:
+            smtp_client.login(settings.smtp_username, settings.smtp_password)
+
+        return smtp_client
+    except smtplib.SMTPAuthenticationError as exc:
+        raise EmailDeliveryError(
+            "SMTP authentication failed. Check SMTP_USERNAME and SMTP_PASSWORD."
+        ) from exc
+    except smtplib.SMTPException as exc:
+        raise EmailDeliveryError(
+            "SMTP connection failed. Check SMTP_HOST/SMTP_PORT and TLS settings."
+        ) from exc
+    except OSError as exc:
+        raise EmailDeliveryError(
+            "Could not reach the SMTP server. Check SMTP_HOST/SMTP_PORT and network access."
+        ) from exc
 
 
 def _verify_gmail_api_sender(
@@ -210,6 +256,30 @@ def _send_via_gmail_api(
     )
 
 
+def _send_via_smtp(
+    *,
+    settings: Settings,
+    resolved_delivery,
+    msg: EmailMessage,
+) -> None:
+    smtp_client = _open_smtp_connection(settings)
+    try:
+        smtp_client.send_message(
+            msg,
+            from_addr=resolved_delivery.from_email,
+            to_addrs=[msg["To"]],
+        )
+    except smtplib.SMTPException as exc:
+        raise EmailDeliveryError(
+            f"SMTP send failed: {exc}"
+        ) from exc
+    finally:
+        try:
+            smtp_client.quit()
+        except Exception:
+            pass
+
+
 def _build_message(
     *,
     resolved_delivery,
@@ -275,10 +345,22 @@ def send_transactional_email(
         reply_to=reply_to,
     )
 
-    _send_via_gmail_api(
-        settings=settings,
-        resolved_delivery=resolved_delivery,
-        msg=msg,
+    if resolved_delivery.transport == "gmail_api":
+        _send_via_gmail_api(
+            settings=settings,
+            resolved_delivery=resolved_delivery,
+            msg=msg,
+        )
+        return
+    if resolved_delivery.transport == "smtp":
+        _send_via_smtp(
+            settings=settings,
+            resolved_delivery=resolved_delivery,
+            msg=msg,
+        )
+        return
+    raise EmailDeliveryError(
+        f"Unsupported email transport configured: {resolved_delivery.transport}"
     )
 
 
@@ -313,16 +395,37 @@ def check_email_delivery_connection(
     for warning in resolved_delivery.warnings:
         logger.warning(warning)
 
-    access_token = _request_google_oauth_access_token(resolved_settings)
-    if verify_sender:
-        _verify_gmail_api_sender(
-            settings=resolved_settings,
-            resolved_delivery=resolved_delivery,
-            access_token=access_token,
+    host = ""
+    port = 0
+
+    if resolved_delivery.transport == "gmail_api":
+        access_token = _request_google_oauth_access_token(resolved_settings)
+        if verify_sender:
+            _verify_gmail_api_sender(
+                settings=resolved_settings,
+                resolved_delivery=resolved_delivery,
+                access_token=access_token,
+            )
+        host = _gmail_api_host(resolved_settings)
+        port = 443
+    elif resolved_delivery.transport == "smtp":
+        smtp_client = _open_smtp_connection(resolved_settings)
+        try:
+            host = (resolved_settings.smtp_host or "").strip()
+            port = int(resolved_settings.smtp_port)
+        finally:
+            try:
+                smtp_client.quit()
+            except Exception:
+                pass
+    else:
+        raise EmailDeliveryError(
+            f"Unsupported email transport configured: {resolved_delivery.transport}"
         )
+
     return EmailConnectionStatus(
-        host=_gmail_api_host(resolved_settings),
-        port=443,
+        host=host,
+        port=port,
         transport=resolved_delivery.transport,
         auth_mode=resolved_delivery.auth_mode,
         sender=resolved_delivery.from_email,
@@ -337,10 +440,22 @@ def get_email_delivery_summary(settings: Settings | None = None) -> dict[str, ob
 
     resolved_settings = settings or get_settings()
     resolved_delivery = validate_email_delivery_settings(resolved_settings)
+
+    if resolved_delivery.transport == "gmail_api":
+        host = _gmail_api_host(resolved_settings)
+        port = 443
+    elif resolved_delivery.transport == "smtp":
+        host = (resolved_settings.smtp_host or "").strip()
+        port = int(resolved_settings.smtp_port)
+    else:
+        raise EmailDeliveryError(
+            f"Unsupported email transport configured: {resolved_delivery.transport}"
+        )
+
     return {
         "transport": resolved_delivery.transport,
-        "host": _gmail_api_host(resolved_settings),
-        "port": 443,
+        "host": host,
+        "port": port,
         "auth_mode": resolved_delivery.auth_mode,
         "sender": resolved_delivery.from_email,
         "reply_to": resolved_delivery.reply_to,
@@ -355,19 +470,19 @@ def send_test_email(
     subject: str | None = None,
     body: str | None = None,
 ) -> None:
-    resolved_subject = subject or "VALID8 Gmail API connectivity test"
+    resolved_subject = subject or "VALID8 email transport connectivity test"
     resolved_body = body or (
-        "This is a production-style Gmail API smoke test from VALID8.\n\n"
-        "If you received this email, the backend refreshed a Google OAuth token "
-        "and completed a real Gmail API delivery attempt."
+        "This is a production-style email transport smoke test from VALID8.\n\n"
+        "If you received this email, the backend completed a real outbound email "
+        "delivery attempt using the configured transport."
     )
     send_transactional_email(
         recipient_email=recipient_email,
         subject=resolved_subject,
         text_body=resolved_body,
         html_body=(
-            "<p>This is a production-style Gmail API smoke test from <strong>VALID8</strong>.</p>"
-            "<p>If you received this email, the backend refreshed a Google OAuth token "
-            "and completed a real Gmail API delivery attempt.</p>"
+            "<p>This is a production-style email transport smoke test from <strong>VALID8</strong>.</p>"
+            "<p>If you received this email, the backend completed a real outbound email "
+            "delivery attempt using the configured transport.</p>"
         ),
     )

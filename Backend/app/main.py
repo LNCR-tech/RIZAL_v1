@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import get_settings
 from app.reports.router import router as reports_router
 from app.services.email_service import validate_email_delivery_on_startup
+from app.services.face_recognition import FaceRecognitionService
 from app.routers import (
     users,
     events,
@@ -46,6 +47,21 @@ async def lifespan(_: FastAPI):
     except Exception:
         logger.exception("Email delivery startup validation failed.")
         raise
+    try:
+        face_runtime_ready, face_runtime_reason = FaceRecognitionService().face_recognition_status(
+            mode="single"
+        )
+        if face_runtime_ready:
+            logger.info("InsightFace runtime is ready at startup.")
+        else:
+            logger.info(
+                "InsightFace runtime warm-up started at startup (reason=%s).",
+                face_runtime_reason or "unknown",
+            )
+    except Exception:
+        # Face warm-up should not block API startup; registration endpoints still
+        # return explicit runtime errors when the model is not ready yet.
+        logger.exception("InsightFace startup warm-up probe failed.")
     yield
 
 

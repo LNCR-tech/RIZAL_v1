@@ -457,7 +457,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  stopProgressAnimation()
   clearPollTimer()
   window.removeEventListener('mousemove', handleSwipeMove)
   window.removeEventListener('mouseup', handleSwipeEnd)

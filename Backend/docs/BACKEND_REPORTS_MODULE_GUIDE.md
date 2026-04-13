@@ -101,6 +101,7 @@ Legacy router files were reduced to thin composition/wrapper behavior:
 - No request/response schema contracts were renamed.
 - No database migrations were added.
 - No environment variable or runtime config key changes were introduced.
+- Import preview validation now tolerates trailing blank header columns in Excel uploads while still enforcing the expected header names and order.
 
 ## How To Test
 
@@ -112,3 +113,5 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - `python -m pytest -q Backend/app/tests`
 4. Optional manual API smoke:
    - call each report endpoint listed above with an authenticated account and verify response shape/HTTP status parity with pre-refactor behavior.
+5. Import preview regression:
+   - upload an `.xlsx` file whose header row matches the template plus trailing blank columns and verify `POST /api/admin/import-students/preview` returns a successful preview when row data is valid.

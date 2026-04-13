@@ -11,6 +11,7 @@ const cachedPermissions = ref([])
 const cachedOfficerPosition = ref('')
 const cachedAcronym = ref('SSG')
 const cachedUnitName = ref('Student Government')
+const cachedActiveUnitId = ref(null)
 let hasFetched = false
 
 /**
@@ -39,6 +40,7 @@ export function useSgDashboard(preview = false) {
   const unitName = preview ? computed(() => (
     previewBundle.value?.activeUnit?.unit_name || 'Supreme Student Government'
   )) : cachedUnitName
+  const activeUnitId = preview ? computed(() => Number(previewBundle.value?.activeUnit?.id || 0) || null) : cachedActiveUnitId
 
   const currentUser = computed(() => preview ? previewBundle.value?.user || null : dashboardState.user)
   const schoolSettings = computed(() => preview ? previewBundle.value?.schoolSettings || null : dashboardState.schoolSettings)
@@ -55,7 +57,7 @@ export function useSgDashboard(preview = false) {
   if (preview) {
     return {
       isLoading, error, permissionCodes, officerPosition,
-      officerName, acronym, unitName, currentUser, schoolSettings, schoolName, schoolLogo,
+      officerName, acronym, unitName, activeUnitId, currentUser, schoolSettings, schoolName, schoolLogo,
     }
   }
 
@@ -94,6 +96,7 @@ export function useSgDashboard(preview = false) {
       cachedOfficerPosition.value = ''
       cachedAcronym.value = 'SG'
       cachedUnitName.value = 'Student Government'
+      cachedActiveUnitId.value = null
       cachedError.value = 'You do not have access to a governance unit.'
       return
     }
@@ -104,6 +107,7 @@ export function useSgDashboard(preview = false) {
 
     cachedAcronym.value = governanceUnit.unit_code || 'SG'
     cachedUnitName.value = governanceUnit.unit_name || 'Student Government'
+    cachedActiveUnitId.value = Number(governanceUnit.governance_unit_id || governanceUnit.id || 0) || null
 
     const ssgProfile = user?.ssg_profile
     let rawPos = 
@@ -124,6 +128,6 @@ export function useSgDashboard(preview = false) {
 
   return {
     isLoading, error, permissionCodes, officerPosition,
-    officerName, acronym, unitName, currentUser, schoolSettings, schoolName, schoolLogo,
+    officerName, acronym, unitName, activeUnitId, currentUser, schoolSettings, schoolName, schoolLogo,
   }
 }

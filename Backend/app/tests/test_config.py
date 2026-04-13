@@ -43,6 +43,10 @@ def test_get_settings_exposes_tenant_database_fields(monkeypatch):
     monkeypatch.setenv("EMAIL_TIMEOUT_SECONDS", "45")
     monkeypatch.setenv("EMAIL_SENDER_EMAIL", "mailer@example.com")
     monkeypatch.setenv("EMAIL_FROM_NAME", "VALID8 Notifications")
+    monkeypatch.setenv("SMTP_HOST", "mailpit")
+    monkeypatch.setenv("SMTP_PORT", "1025")
+    monkeypatch.setenv("SMTP_USE_TLS", "false")
+    monkeypatch.setenv("SMTP_USE_STARTTLS", "false")
 
     settings = get_settings()
 
@@ -53,6 +57,10 @@ def test_get_settings_exposes_tenant_database_fields(monkeypatch):
     assert settings.email_timeout_seconds == 45
     assert settings.email_sender_email == "mailer@example.com"
     assert settings.email_from_name == "VALID8 Notifications"
+    assert settings.smtp_host == "mailpit"
+    assert settings.smtp_port == 1025
+    assert settings.smtp_use_tls is False
+    assert settings.smtp_use_starttls is False
 
 
 def test_get_settings_normalizes_relative_storage_paths(monkeypatch):

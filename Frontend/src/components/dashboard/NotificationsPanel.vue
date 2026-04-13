@@ -38,9 +38,18 @@
 
         <!-- List -->
         <div class="overflow-y-auto px-6 pb-8 flex-1 custom-scrollbar bg-[#FCFCFC]">
-          <div v-if="filteredNotifications.length === 0" class="py-12 text-center text-gray-400 text-sm font-medium">
+          <div v-if="loading && filteredNotifications.length === 0" class="py-12 text-center text-gray-400 text-sm font-medium">
+            Loading notifications...
+          </div>
+          <div v-else-if="error && filteredNotifications.length === 0" class="py-12 text-center text-[#D92D20] text-sm font-medium">
+            {{ error }}
+          </div>
+          <div v-else-if="filteredNotifications.length === 0" class="py-12 text-center text-gray-400 text-sm font-medium">
             No notifications to show.
           </div>
+          <p v-else-if="error" class="mb-4 rounded-[20px] bg-[#FEF2F2] px-4 py-3 text-[13px] font-medium text-[#B42318]">
+            {{ error }}
+          </p>
           <div class="flex flex-col gap-3">
             <div
               v-for="item in filteredNotifications"
@@ -100,7 +109,9 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false },
-  notifications: { type: Array, default: () => [] }
+  notifications: { type: Array, default: () => [] },
+  loading: { type: Boolean, default: false },
+  error: { type: String, default: '' },
 })
 
 const emit = defineEmits(['close'])

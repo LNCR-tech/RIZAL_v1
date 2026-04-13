@@ -158,12 +158,82 @@
         </div>
       </div>
 
+      <section class="sg-reports dashboard-enter dashboard-enter--5">
+        <article class="sg-report-card sg-report-card--summary">
+          <div class="sg-report-head">
+            <div>
+              <p class="sg-report-kicker">Governance Snapshot</p>
+              <h2 class="sg-report-title">{{ unitName }}</h2>
+            </div>
+            <span class="sg-report-badge">{{ overviewLoading ? 'Syncing' : 'Live' }}</span>
+          </div>
+
+          <p v-if="overviewError" class="sg-report-note">{{ overviewError }}</p>
+
+          <div class="sg-report-stats">
+            <article v-for="card in overviewCards" :key="card.id" class="sg-report-stat">
+              <span>{{ card.label }}</span>
+              <strong>{{ card.value }}</strong>
+              <small>{{ card.meta }}</small>
+            </article>
+          </div>
+        </article>
+
+        <article class="sg-report-card">
+          <div class="sg-report-head">
+            <div>
+              <p class="sg-report-kicker">Child Units</p>
+              <h2 class="sg-report-title">Member Load</h2>
+            </div>
+          </div>
+
+          <div v-if="childUnitChartData.labels.length" class="sg-report-chart">
+            <ReportsBarChart :data="childUnitChartData" :options="chartOptions.bar" />
+          </div>
+          <p v-else class="sg-report-empty">No child units are assigned to this governance scope yet.</p>
+        </article>
+
+        <article class="sg-report-card">
+          <div class="sg-report-head">
+            <div>
+              <p class="sg-report-kicker">Announcements</p>
+              <h2 class="sg-report-title">Publishing Mix</h2>
+            </div>
+          </div>
+
+          <div v-if="announcementStatusChartData.labels.length" class="sg-report-chart">
+            <ReportsPieChart :data="announcementStatusChartData" :options="chartOptions.pie" />
+          </div>
+          <p v-else class="sg-report-empty">No announcement activity is available yet.</p>
+        </article>
+
+        <article class="sg-report-card sg-report-card--feed">
+          <div class="sg-report-head">
+            <div>
+              <p class="sg-report-kicker">Recent Announcements</p>
+              <h2 class="sg-report-title">What Changed</h2>
+            </div>
+          </div>
+
+          <div v-if="recentAnnouncementRows.length" class="sg-report-feed">
+            <article v-for="item in recentAnnouncementRows" :key="item.id" class="sg-report-feed-row">
+              <div>
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.meta }}</p>
+              </div>
+              <span class="sg-report-feed-badge">{{ item.badge }}</span>
+            </article>
+          </div>
+          <p v-else class="sg-report-empty">No recent announcements to show.</p>
+        </article>
+      </section>
+
       <!-- Anti-Gravity Module Sections -->
       <div
         v-for="(section, sIndex) in filteredSections"
         :key="section.id"
         class="ag-section dashboard-enter"
-        :class="`dashboard-enter--${5 + sIndex}`"
+        :class="`dashboard-enter--${6 + sIndex}`"
       >
         <h2 class="ag-section-title">{{ section.title }}</h2>
 
@@ -232,11 +302,17 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, ArrowRight, AlertCircle, Send, Lock } from 'lucide-vue-next'
 import TopBar from '@/components/dashboard/TopBar.vue'
+import ReportsBarChart from '@/components/reports/ReportsBarChart.vue'
+import ReportsPieChart from '@/components/reports/ReportsPieChart.vue'
 import { secondaryAuraLogo, applyTheme, loadTheme, defaultTheme } from '@/config/theme.js'
+import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useChat } from '@/composables/useChat.js'
 import { getAllSections, filterSectionsBySearch } from '@/data/sgModules.js'
+import { getGovernanceDashboardOverview } from '@/services/backendApi.js'
 import { resolveBackendMediaCandidates, withMediaCacheKey } from '@/services/backendMedia.js'
+import { buildBarChartData, buildPieChartData, toCount } from '@/services/dashboardReportCharts.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
 import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
@@ -257,9 +333,14 @@ const toastVisible = ref(false)
 const toastMessage = ref('')
 const isMobileAiOpen = ref(false)
 const mobileInputEl = ref(null)
+const overviewLoading = ref(false)
+const overviewError = ref('')
+const governanceOverview = ref(null)
 let toastTimer = null
 
 const authMeta = useStoredAuthMeta()
+const { apiBaseUrl, token } = useDashboardSession()
+const { previewBundle } = useSgPreviewBundle(() => props.preview)
 
 const {
   isLoading,
@@ -268,6 +349,8 @@ const {
   officerPosition,
   officerName,
   acronym,
+  unitName,
+  activeUnitId,
   currentUser,
   schoolSettings,
   schoolName,
@@ -337,11 +420,118 @@ const filteredSections = computed(() =>
   filterSectionsBySearch(allSections.value, searchQuery.value)
 )
 
+const resolvedGovernanceOverview = computed(() => props.preview
+  ? buildPreviewGovernanceOverview(previewBundle.value)
+  : governanceOverview.value
+)
+
+const overviewCards = computed(() => {
+  const overview = resolvedGovernanceOverview.value
+  return [
+    {
+      id: 'students',
+      label: 'Students in Scope',
+      value: toCount(overview?.total_students),
+      meta: 'Students you can currently reach',
+    },
+    {
+      id: 'published',
+      label: 'Published Announcements',
+      value: toCount(overview?.published_announcement_count),
+      meta: `${toCount(overview?.recent_announcements?.length)} recent updates`,
+    },
+    {
+      id: 'children',
+      label: 'Child Units',
+      value: toCount(overview?.child_units?.length),
+      meta: 'Directly under this governance scope',
+    },
+    {
+      id: 'permissions',
+      label: 'Active Permissions',
+      value: toCount(permissionCodes.value.length),
+      meta: 'Granted to this officer session',
+    },
+  ]
+})
+
+const childUnitChartData = computed(() => buildBarChartData(
+  (Array.isArray(resolvedGovernanceOverview.value?.child_units) ? resolvedGovernanceOverview.value.child_units : []).map((item) => ({
+    label: item.unit_code || item.unit_name,
+    value: item.member_count,
+  })),
+  {
+    label: 'Members',
+    backgroundColor: 'rgba(0,87,184,0.82)',
+  }
+))
+
+const announcementStatusChartData = computed(() => {
+  const grouped = new Map()
+  for (const item of Array.isArray(resolvedGovernanceOverview.value?.recent_announcements) ? resolvedGovernanceOverview.value.recent_announcements : []) {
+    const status = String(item?.status || 'draft').trim().toLowerCase() || 'draft'
+    grouped.set(status, (grouped.get(status) || 0) + 1)
+  }
+
+  return buildPieChartData(Array.from(grouped.entries()).map(([label, value]) => ({
+    label: prettify(label),
+    value,
+  })))
+})
+
+const recentAnnouncementRows = computed(() => (Array.isArray(resolvedGovernanceOverview.value?.recent_announcements)
+  ? resolvedGovernanceOverview.value.recent_announcements
+      .slice(0, 5)
+      .map((item) => ({
+        id: item.id,
+        title: item.title || 'Untitled Announcement',
+        meta: `${item.author_name || officerName.value || 'Governance'} • ${formatRelativeDate(item.updated_at)}`,
+        badge: prettify(item.status),
+      }))
+  : []
+))
+
+const chartOptions = {
+  bar: {
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+        },
+      },
+    },
+  },
+  pie: {
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+    },
+  },
+}
+
 watch(
   [() => props.preview, schoolSettings],
   ([preview, settings]) => {
     if (!preview || !settings) return
     applyTheme(loadTheme(settings))
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => props.preview, apiBaseUrl, token, activeUnitId],
+  async ([preview, url, authToken, unitId]) => {
+    if (preview) {
+      governanceOverview.value = null
+      overviewLoading.value = false
+      overviewError.value = ''
+      return
+    }
+
+    if (!url || !authToken || !unitId) return
+    await loadGovernanceOverview(url, authToken, Number(unitId))
   },
   { immediate: true }
 )
@@ -369,6 +559,66 @@ function showToast(message) {
   toastTimer = setTimeout(() => {
     toastVisible.value = false
   }, 3200)
+}
+
+async function loadGovernanceOverview(url, authToken, unitId) {
+  overviewLoading.value = true
+  overviewError.value = ''
+
+  try {
+    governanceOverview.value = await getGovernanceDashboardOverview(url, authToken, unitId)
+  } catch (error) {
+    governanceOverview.value = null
+    overviewError.value = error?.message || 'Governance dashboard data is unavailable right now.'
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
+function buildPreviewGovernanceOverview(bundle = null) {
+  const announcements = Array.isArray(bundle?.announcements) ? bundle.announcements : []
+  const scopeOptions = Array.isArray(bundle?.createUnit?.scopeOptions) ? bundle.createUnit.scopeOptions.slice(0, 4) : []
+  const childUnitType = bundle?.createUnit?.childType || 'ORG'
+
+  return {
+    governance_unit_id: bundle?.activeUnit?.id || null,
+    unit_type: bundle?.activeUnit?.unit_type || null,
+    published_announcement_count: announcements.filter((item) => String(item?.status || '').toLowerCase() === 'published').length,
+    total_students: Array.isArray(bundle?.students) ? bundle.students.length : 0,
+    recent_announcements: announcements.map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      author_name: officerName.value,
+      updated_at: item.updated_at || item.created_at || null,
+    })),
+    child_units: scopeOptions.map((option, index) => ({
+      id: index + 1,
+      unit_code: `${childUnitType}-${index + 1}`,
+      unit_name: option.label,
+      description: null,
+      unit_type: childUnitType,
+      member_count: Math.max(4, 14 - (index * 2)),
+    })),
+  }
+}
+
+function prettify(value) {
+  return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function formatRelativeDate(value) {
+  if (!value) return 'Unknown update'
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(value))
+  } catch {
+    return String(value)
+  }
 }
 
 // --- Chat & Panel Logic ---
@@ -829,6 +1079,157 @@ watch(searchActive, (active) => {
   z-index: 1;
 }
 
+.sg-reports {
+  display: grid;
+  gap: 16px;
+}
+
+.sg-report-card {
+  padding: 18px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.05);
+}
+
+.sg-report-card--summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sg-report-card--feed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sg-report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sg-report-kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.sg-report-title {
+  margin: 4px 0 0;
+  font-size: 24px;
+  line-height: 1.04;
+  letter-spacing: -0.05em;
+  color: var(--color-text-primary);
+}
+
+.sg-report-badge {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 16%, white);
+  color: var(--color-text-always-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sg-report-note,
+.sg-report-empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.sg-report-stats {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sg-report-stat {
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sg-report-stat span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.sg-report-stat strong {
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: var(--color-primary);
+}
+
+.sg-report-stat small {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.sg-report-chart {
+  min-height: 250px;
+}
+
+.sg-report-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sg-report-feed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-bg);
+}
+
+.sg-report-feed-row h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--color-text-primary);
+}
+
+.sg-report-feed-row p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.sg-report-feed-badge {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--color-field-surface);
+  color: var(--color-text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* ═══════════════════════════════════════════════════════
    ANTI-GRAVITY MODULE SECTIONS
    ═══════════════════════════════════════════════════════ */
@@ -1106,6 +1507,14 @@ watch(searchActive, (active) => {
   .sg-hero-logo-wrap { right: -24px; }
   .sg-hero-logo { width: 165px; height: 165px; }
   .sg-hero-logo-fallback { right: -24px; width: 165px; height: 165px; }
+
+  .sg-reports {
+    grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.95fr) minmax(260px, 0.95fr);
+  }
+
+  .sg-report-card--feed {
+    grid-column: 1 / -1;
+  }
 
   .ag-module-row {
     padding: 22px 24px 22px 20px;

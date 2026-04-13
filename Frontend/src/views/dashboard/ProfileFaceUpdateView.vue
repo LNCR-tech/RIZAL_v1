@@ -494,8 +494,24 @@ async function captureAndRegister() {
       router.replace({ name: 'ProfileSecurity', query: { done: 'face' } })
     }, 900)
   } catch (error) {
-    setEnrollmentError(error?.message || 'Unable to update your Face ID right now.')
+    setEnrollmentError(buildFaceUpdateErrorMessage(error))
   }
+}
+
+function buildFaceUpdateErrorMessage(error) {
+  const fallbackMessage = 'Unable to update your Face ID right now.'
+  const rawMessage = String(error?.message || '').trim()
+  if (!rawMessage) return fallbackMessage
+
+  if (/insightface|warm-up|warming up|model warm-up|model download/i.test(rawMessage)) {
+    return 'Face engine warm-up is still in progress. Keep this page open and try again shortly.'
+  }
+
+  if (/took too long to respond/i.test(rawMessage)) {
+    return 'Face engine setup is still running. Please keep the backend online and retry shortly.'
+  }
+
+  return rawMessage
 }
 
 function setEnrollmentError(message) {

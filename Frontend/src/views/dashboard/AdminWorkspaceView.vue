@@ -126,6 +126,50 @@
             </div>
           </article>
         </section>
+
+        <section class="admin-view__grid admin-view__grid--reports">
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div>
+                <p class="admin-view__mini">Subscriptions</p>
+                <h2>School Spread</h2>
+              </div>
+            </div>
+
+            <div v-if="subscriptionChartData.labels.length" class="admin-view__chart">
+              <ReportsBarChart :data="subscriptionChartData" :options="chartOptions.bar" />
+            </div>
+            <p v-else class="admin-view__muted">No school subscription data yet.</p>
+          </article>
+
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div>
+                <p class="admin-view__mini">Operations</p>
+                <h2>Audit + Notification Trend</h2>
+              </div>
+            </div>
+
+            <div v-if="activityTrendChartData.labels.length" class="admin-view__chart">
+              <ReportsLineChart :data="activityTrendChartData" :options="chartOptions.line" />
+            </div>
+            <p v-else class="admin-view__muted">Recent operational activity will appear here.</p>
+          </article>
+
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div>
+                <p class="admin-view__mini">Governance</p>
+                <h2>Queue Status</h2>
+              </div>
+            </div>
+
+            <div v-if="requestStatusChartData.labels.length" class="admin-view__chart">
+              <ReportsPieChart :data="requestStatusChartData" :options="chartOptions.pie" />
+            </div>
+            <p v-else class="admin-view__muted">No governance requests are waiting right now.</p>
+          </article>
+        </section>
       </div>
 
       <div v-else-if="section === 'schools'" class="admin-view__stack">
@@ -347,12 +391,16 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, BellRing, Building2, Check, History, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, UserRoundX, X } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
+import ReportsBarChart from '@/components/reports/ReportsBarChart.vue'
+import ReportsLineChart from '@/components/reports/ReportsLineChart.vue'
+import ReportsPieChart from '@/components/reports/ReportsPieChart.vue'
 import { isDarkMode, toggleDarkMode } from '@/config/theme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useAdminWorkspaceData } from '@/composables/useAdminWorkspaceData.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { adminDashboardPreviewData } from '@/data/adminDashboardPreview.js'
+import { buildBarChartData, buildLineChartData, buildPieChartData, buildTrailingDayLabels } from '@/services/dashboardReportCharts.js'
 
 const props = defineProps({
   preview: { type: Boolean, default: false },
@@ -440,6 +488,104 @@ const oversightLogFeed = computed(() => [
   ...filteredAuditLogs.value.slice(0, 4).map((item) => ({ kind: 'audit', id: item.id, title: prettify(item.action), meta: `${resolveSchoolName(item.school_id)} • ${formatDateTime(item.created_at)}`, badge: prettify(item.status) })),
   ...filteredNotificationLogs.value.slice(0, 4).map((item) => ({ kind: 'notification', id: item.id, title: item.subject, meta: `${resolveSchoolName(item.school_id)} • ${formatDateTime(item.created_at)}`, badge: prettify(item.status) })),
 ])
+
+const scopedAuditLogs = computed(() => selectedSchoolId.value
+  ? auditLogs.value.filter((item) => Number(item?.school_id) === Number(selectedSchoolId.value))
+  : auditLogs.value
+)
+const scopedNotificationLogs = computed(() => selectedSchoolId.value
+  ? notificationLogs.value.filter((item) => Number(item?.school_id) === Number(selectedSchoolId.value))
+  : notificationLogs.value
+)
+const scopedGovernanceRequests = computed(() => selectedSchoolId.value
+  ? governanceRequests.value.filter((item) => Number(item?.school_id) === Number(selectedSchoolId.value))
+  : governanceRequests.value
+)
+
+const subscriptionChartData = computed(() => {
+  const counts = {
+    active: 0,
+    trial: 0,
+    suspended: 0,
+  }
+
+  for (const school of schools.value) {
+    const key = String(school?.subscription_status || 'trial').toLowerCase()
+    if (Object.hasOwn(counts, key)) counts[key] += 1
+  }
+
+  return buildBarChartData([
+    { label: 'Active', value: counts.active },
+    { label: 'Trial', value: counts.trial },
+    { label: 'Suspended', value: counts.suspended },
+  ], {
+    label: 'Schools',
+    backgroundColor: 'rgba(0,87,184,0.82)',
+  })
+})
+
+const activityTrendChartData = computed(() => {
+  const labels = buildTrailingDayLabels(7)
+  const buckets = new Map(labels.map((item) => [item.key, { audits: 0, notifications: 0 }]))
+
+  for (const item of scopedAuditLogs.value) {
+    const key = String(item?.created_at || '').slice(0, 10)
+    if (buckets.has(key)) buckets.get(key).audits += 1
+  }
+
+  for (const item of scopedNotificationLogs.value) {
+    const key = String(item?.created_at || '').slice(0, 10)
+    if (buckets.has(key)) buckets.get(key).notifications += 1
+  }
+
+  return buildLineChartData(
+    labels.map((item) => item.label),
+    [
+      { label: 'Audit Logs', data: labels.map((item) => buckets.get(item.key).audits), borderColor: 'rgba(0,87,184,0.88)' },
+      { label: 'Notifications', data: labels.map((item) => buckets.get(item.key).notifications), borderColor: 'rgba(16,185,129,0.88)' },
+    ]
+  )
+})
+
+const requestStatusChartData = computed(() => {
+  const grouped = new Map()
+  for (const item of scopedGovernanceRequests.value) {
+    const status = prettify(item?.status || 'pending')
+    grouped.set(status, (grouped.get(status) || 0) + 1)
+  }
+
+  return buildPieChartData(Array.from(grouped.entries()).map(([label, value]) => ({ label, value })))
+})
+
+const chartOptions = {
+  bar: {
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+        },
+      },
+    },
+  },
+  line: {
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+        },
+      },
+    },
+  },
+  pie: {
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+    },
+  },
+}
 
 usePreviewTheme(() => props.preview, computed(() => ({
   school_name: 'VALID8 Platform',
@@ -530,6 +676,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__metric strong{font-size:56px;line-height:.9;letter-spacing:-.06em}
 .admin-view__soft-button{margin-top:auto;align-self:flex-start;padding-left:8px;background:#0A0A0A;color:#fff}
 .admin-view__card{padding:22px}
+.admin-view__grid--reports{grid-template-columns:repeat(3,minmax(0,1fr))}
+.admin-view__chart{min-height:260px}
 .admin-view__card h2,.admin-view__row h3{margin:0;color:var(--color-text-primary);line-height:1.05;letter-spacing:-.04em}
 .admin-view__card h2{font-size:28px}
 .admin-view__muted,.admin-view__row p{margin:6px 0 0;font-size:14px;line-height:1.5;color:var(--color-text-secondary)}
@@ -562,7 +710,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__settings-toggle--on .admin-view__settings-toggle-knob{transform:translateX(18px)}
 .admin-view__spinner{animation:admin-view-spin .9s linear infinite}
 @keyframes admin-view-spin{to{transform:rotate(360deg)}}
-@media (max-width:1100px){.admin-view__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1100px){.admin-view__metrics,.admin-view__grid--reports{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:767px){.admin-view{padding:26px 18px 118px}.admin-view__hero,.admin-view__toolbar,.admin-view__row,.admin-view__card-head,.admin-view__actions,.admin-view__footer{flex-direction:column;align-items:stretch}.admin-view__toolbar{grid-template-columns:1fr}.admin-view__pill,.admin-view__soft-button{width:100%}.admin-view__metrics,.admin-view__grid,.admin-view__form-grid,.admin-view__profile{grid-template-columns:1fr}}
 @media (max-width:420px){.admin-view__metric,.admin-view__card{border-radius:28px}.admin-view__card h2{font-size:24px}}
 </style>

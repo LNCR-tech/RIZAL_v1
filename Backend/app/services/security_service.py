@@ -6,16 +6,12 @@ Role: Service layer. It keeps business logic out of the route files.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import hashlib
-import secrets
-import uuid
 from typing import Iterable, Optional
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.models.platform_features import LoginHistory, MfaChallenge, UserSecuritySetting, UserSession
+from app.models.platform_features import LoginHistory, UserSession
 from app.models.user import User
 
 
@@ -46,101 +42,6 @@ def _normalize_role_names(user: User) -> set[str]:
         if role_key:
             normalized.add(role_key)
     return normalized
-
-
-def is_privileged_user(user: User) -> bool:
-    role_names = _normalize_role_names(user)
-    return "admin" in role_names or "campus-admin" in role_names
-
-
-def get_or_create_security_setting(db: Session, user: User) -> UserSecuritySetting:
-    setting = db.query(UserSecuritySetting).filter(UserSecuritySetting.user_id == user.id).first()
-    if setting:
-        return setting
-
-    setting = UserSecuritySetting(
-        user_id=user.id,
-        mfa_enabled=is_privileged_user(user),
-        trusted_device_days=14,
-    )
-    db.add(setting)
-    db.flush()
-    return setting
-
-
-def should_require_mfa(db: Session, user: User) -> bool:
-    settings = get_settings()
-    if not settings.auth_enable_mfa:
-        return False
-
-    setting = get_or_create_security_setting(db, user)
-    return bool(setting.mfa_enabled)
-
-
-def _mfa_code_hash(challenge_id: str, code: str) -> str:
-    payload = f"{challenge_id}:{code.strip()}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def create_mfa_challenge(
-    db: Session,
-    *,
-    user: User,
-    request: Optional[Request] = None,
-    ttl_minutes: int = 10,
-) -> tuple[MfaChallenge, str]:
-    challenge_id = str(uuid.uuid4())
-    code = "".join(str(secrets.randbelow(10)) for _ in range(6))
-    challenge = MfaChallenge(
-        id=challenge_id,
-        user_id=user.id,
-        code_hash=_mfa_code_hash(challenge_id, code),
-        channel="email",
-        attempts=0,
-        expires_at=datetime.utcnow() + timedelta(minutes=max(1, ttl_minutes)),
-        ip_address=_request_ip(request),
-        user_agent=_request_agent(request),
-    )
-    db.add(challenge)
-    db.flush()
-    return challenge, code
-
-
-def verify_mfa_challenge(
-    db: Session,
-    *,
-    user: User,
-    challenge_id: str,
-    code: str,
-    max_attempts: int = 5,
-) -> MfaChallenge:
-    challenge = (
-        db.query(MfaChallenge)
-        .filter(
-            MfaChallenge.id == challenge_id,
-            MfaChallenge.user_id == user.id,
-        )
-        .first()
-    )
-    if not challenge:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MFA challenge not found")
-
-    if challenge.consumed_at is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA challenge already used")
-    if challenge.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA challenge expired")
-    if challenge.attempts >= max_attempts:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="MFA attempts exceeded")
-
-    submitted_hash = _mfa_code_hash(challenge_id, code)
-    if submitted_hash != challenge.code_hash:
-        challenge.attempts += 1
-        db.flush()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid MFA code")
-
-    challenge.consumed_at = datetime.utcnow()
-    db.flush()
-    return challenge
 
 
 def record_login_history(

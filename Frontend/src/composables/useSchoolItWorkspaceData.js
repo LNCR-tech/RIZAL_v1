@@ -30,6 +30,7 @@ const state = reactive({
 })
 
 let initPromise = null
+let initPromiseOptions = null
 let fetchSequence = 0
 
 function hasResolvedCouncilUnit(setup = null) {
@@ -105,13 +106,39 @@ function classifyFailure(error) {
     return 'error'
 }
 
-function hasReusableWorkspaceSnapshot() {
+function normalizeInitOptions(forceOrOptions = false) {
+    if (forceOrOptions && typeof forceOrOptions === 'object') {
+        return {
+            force: Boolean(forceOrOptions.force),
+            includeUsers: forceOrOptions.includeUsers !== false,
+            includeCouncil: forceOrOptions.includeCouncil !== false,
+        }
+    }
+
+    return {
+        force: Boolean(forceOrOptions),
+        includeUsers: true,
+        includeCouncil: true,
+    }
+}
+
+function requestOptionsCover(requested = {}, expected = {}) {
+    const requestedOptions = requested || {}
+    const expectedOptions = expected || {}
+
+    return (
+        (requestedOptions.includeUsers || !expectedOptions.includeUsers)
+        && (requestedOptions.includeCouncil || !expectedOptions.includeCouncil)
+    )
+}
+
+function hasReusableWorkspaceSnapshot(options = {}) {
     return (
         state.initialized &&
         state.statuses.departments === 'ready' &&
         state.statuses.programs === 'ready' &&
-        state.statuses.users === 'ready' &&
-        state.statuses.council === 'ready'
+        (!options.includeUsers || state.statuses.users === 'ready') &&
+        (!options.includeCouncil || state.statuses.council === 'ready')
     )
 }
 
@@ -148,7 +175,7 @@ function setResolvedCouncil(result) {
     state.statuses.council = classifyFailure(result.reason)
 }
 
-async function fetchSchoolItWorkspaceData() {
+async function fetchSchoolItWorkspaceData(options = {}) {
     const authMeta = getStoredAuthMeta()
     const schoolId = resolveNumericIdentityValue(authMeta?.schoolId)
     const userId = resolveNumericIdentityValue(authMeta?.userId)
@@ -166,8 +193,8 @@ async function fetchSchoolItWorkspaceData() {
         state.statuses = {
             departments: 'loading',
             programs: 'loading',
-            users: 'loading',
-            council: 'loading',
+            users: options.includeUsers ? 'loading' : 'idle',
+            council: options.includeCouncil ? 'loading' : 'idle',
         }
     }
 
@@ -183,8 +210,8 @@ async function fetchSchoolItWorkspaceData() {
         const [departmentsResult, programsResult, usersResult, councilResult] = await Promise.allSettled([
             getDepartments(state.apiBaseUrl, token),
             getPrograms(state.apiBaseUrl, token),
-            getUsers(state.apiBaseUrl, token),
-            getCampusSsgSetup(state.apiBaseUrl, token),
+            options.includeUsers ? getUsers(state.apiBaseUrl, token) : Promise.resolve(null),
+            options.includeCouncil ? getCampusSsgSetup(state.apiBaseUrl, token) : Promise.resolve(null),
         ])
 
         if (currentFetchSequence !== fetchSequence) {
@@ -193,8 +220,12 @@ async function fetchSchoolItWorkspaceData() {
 
         setResolvedCollection('departments', departmentsResult)
         setResolvedCollection('programs', programsResult)
-        setResolvedCollection('users', usersResult)
-        setResolvedCouncil(councilResult)
+        if (options.includeUsers) {
+            setResolvedCollection('users', usersResult)
+        }
+        if (options.includeCouncil) {
+            setResolvedCouncil(councilResult)
+        }
 
         state.initialized = true
         return state
@@ -205,24 +236,33 @@ async function fetchSchoolItWorkspaceData() {
     }
 }
 
-export async function initializeSchoolItWorkspaceData(force = false) {
-    if (initPromise && !force) return initPromise
+export async function initializeSchoolItWorkspaceData(forceOrOptions = false) {
+    const options = normalizeInitOptions(forceOrOptions)
+
+    if (initPromise && !options.force && requestOptionsCover(initPromiseOptions, options)) {
+        return initPromise
+    }
 
     if (!hasMatchingIdentity()) {
         resetWorkspaceState()
     }
 
-    if (!force && hasReusableWorkspaceSnapshot()) return state
+    if (!options.force && hasReusableWorkspaceSnapshot(options)) return state
 
-    initPromise = fetchSchoolItWorkspaceData().finally(() => {
+    initPromiseOptions = options
+    initPromise = fetchSchoolItWorkspaceData(options).finally(() => {
         initPromise = null
+        initPromiseOptions = null
     })
 
     return initPromise
 }
 
-export function refreshSchoolItWorkspaceData() {
-    return initializeSchoolItWorkspaceData(true)
+export function refreshSchoolItWorkspaceData(options = {}) {
+    return initializeSchoolItWorkspaceData({
+        ...options,
+        force: true,
+    })
 }
 
 export function useSchoolItWorkspaceData() {

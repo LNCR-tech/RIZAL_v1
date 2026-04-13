@@ -26,7 +26,6 @@ from .config import (
 from .rendering import (
     _send_email,
     build_import_onboarding_email_content,
-    build_mfa_code_email_content,
     build_password_reset_email_content,
     build_welcome_email_content,
 )
@@ -47,7 +46,6 @@ from .transport import (
 )
 from .use_cases import (
     send_import_onboarding_email,
-    send_mfa_code_email,
     send_password_reset_email,
     send_welcome_email,
 )

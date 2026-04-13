@@ -54,6 +54,7 @@ services:
     volumes:
       - import_storage:/tmp/valid8_imports
       - branding_storage:/tmp/valid8_school_logos
+      - insightface_models:/home/appuser/.insightface
     healthcheck:
       test:
         [
@@ -179,3 +180,4 @@ volumes:
   postgres_data:
   import_storage:
   branding_storage:
+  insightface_models:

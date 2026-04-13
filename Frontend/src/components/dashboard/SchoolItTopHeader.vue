@@ -41,9 +41,14 @@
       class="school-it-top-header__notify"
       type="button"
       aria-label="Notifications"
-      @click="emit('toggle-notifications')"
+      @click="handleNotificationClick"
     >
       <Bell :size="18" :stroke-width="2" />
+      <span
+        v-if="unreadNotifCount > 0"
+        class="school-it-top-header__notify-dot"
+        aria-hidden="true"
+      />
     </button>
   </header>
 </template>
@@ -51,6 +56,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Bell, LogOut } from 'lucide-vue-next'
+import { useNotifications } from '@/composables/useNotifications.js'
 
 const props = defineProps({
   avatarUrl: {
@@ -76,12 +82,18 @@ const emit = defineEmits(['logout', 'toggle-notifications'])
 const isExpanded = ref(false)
 const headerEl = ref(null)
 const profileEl = ref(null)
+const { toggleNotifications, unreadNotifCount } = useNotifications()
 
 const schoolLabel = computed(() => abbreviateSchoolName(props.schoolName || props.displayName))
 const avatarAlt = computed(() => props.displayName || schoolLabel.value)
 
 function toggleExpanded() {
   isExpanded.value = !isExpanded.value
+}
+
+function handleNotificationClick() {
+  toggleNotifications()
+  emit('toggle-notifications')
 }
 
 function collapseExpanded(event) {
@@ -139,9 +151,10 @@ onBeforeUnmount(() => {
 .school-it-top-header__signout{display:inline-flex;align-items:center;overflow:hidden;max-width:0;min-width:0;opacity:0;margin-left:0;white-space:nowrap;transition:max-width .3s ease,opacity .25s ease,margin .3s ease;color:#D92D20;cursor:pointer;flex-shrink:1}
 .school-it-top-header__signout-label{margin-left:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;letter-spacing:-.02em}
 .school-it-top-header__profile--expanded .school-it-top-header__signout{max-width:min(36vw,118px);opacity:1;margin-left:clamp(8px,2.4vw,16px)}
-.school-it-top-header__notify{width:42px;height:42px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);display:inline-grid;place-items:center;transition:transform .16s ease;flex-shrink:0;line-height:0;box-shadow:0 10px 22px rgba(15,23,42,.04);justify-self:end}
+.school-it-top-header__notify{position:relative;width:42px;height:42px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);display:inline-grid;place-items:center;transition:transform .16s ease;flex-shrink:0;line-height:0;box-shadow:0 10px 22px rgba(15,23,42,.04);justify-self:end}
 .school-it-top-header__notify:active{transform:scale(.95)}
 .school-it-top-header__notify :deep(svg){display:block}
+.school-it-top-header__notify-dot{position:absolute;top:11px;right:11px;width:8px;height:8px;border-radius:999px;background:#FF5A36;box-shadow:0 0 0 2px var(--color-surface)}
 
 @media (max-width: 420px){
   .school-it-top-header{gap:10px}

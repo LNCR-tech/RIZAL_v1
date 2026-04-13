@@ -35,14 +35,11 @@ from app.schemas.face_recognition import (
 )
 from app.schemas.security import (
     LoginHistoryItem,
-    MfaStatusResponse,
-    MfaStatusUpdate,
     RevokeSessionResponse,
     UserSessionItem,
 )
 from app.services.auth_session import issue_full_access_token_response
 from app.services.security_service import (
-    get_or_create_security_setting,
     list_active_sessions,
     list_login_history_for_actor,
     record_login_history,
@@ -105,43 +102,6 @@ def _run_status_probe_with_timeout(
     except Exception:
         future.cancel()
         return False, error_reason
-
-
-@router.get("/mfa-status", response_model=MfaStatusResponse)
-def get_mfa_status(
-    current_user: User = Depends(get_current_application_user),
-    db: Session = Depends(get_db),
-):
-    setting = get_or_create_security_setting(db, current_user)
-    db.commit()
-    db.refresh(setting)
-    return MfaStatusResponse(
-        user_id=current_user.id,
-        mfa_enabled=setting.mfa_enabled,
-        trusted_device_days=setting.trusted_device_days,
-        updated_at=setting.updated_at,
-    )
-
-
-@router.put("/mfa-status", response_model=MfaStatusResponse)
-def update_mfa_status(
-    payload: MfaStatusUpdate,
-    current_user: User = Depends(get_current_application_user),
-    db: Session = Depends(get_db),
-):
-    setting = get_or_create_security_setting(db, current_user)
-    setting.mfa_enabled = payload.mfa_enabled
-    if payload.trusted_device_days is not None:
-        setting.trusted_device_days = payload.trusted_device_days
-    db.commit()
-    db.refresh(setting)
-    return MfaStatusResponse(
-        user_id=current_user.id,
-        mfa_enabled=setting.mfa_enabled,
-        trusted_device_days=setting.trusted_device_days,
-        updated_at=setting.updated_at,
-    )
-
 
 @router.get("/sessions", response_model=list[UserSessionItem])
 def get_active_sessions(

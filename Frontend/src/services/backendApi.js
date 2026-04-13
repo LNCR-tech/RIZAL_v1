@@ -22,11 +22,13 @@ import {
     normalizeFaceStatus,
     normalizeFaceVerificationResponse,
     normalizeGovernanceMember,
+    normalizeGovernanceDashboardOverview,
     normalizeGovernanceSsgSetup,
     normalizeGovernanceStudentCandidate,
     normalizeGovernanceUnitDetail,
     normalizeNotificationDispatchSummary,
     normalizeNotificationLogItem,
+    normalizeNotificationPreference,
     normalizePaginatedSanctionRecordsResponse,
     normalizePasswordChangeResponse,
     normalizePasswordResetResponse,
@@ -64,6 +66,8 @@ export class BackendApiError extends Error {
 export { resolveApiBaseUrl }
 // First-time face operations can block while InsightFace models download and initialize.
 const FACE_ENGINE_BOOTSTRAP_TIMEOUT_MS = 300000
+const FACE_REGISTER_WARMUP_RETRY_DELAY_MS = 8000
+const FACE_REGISTER_WARMUP_RETRY_ATTEMPTS = 75
 
 function buildUrl(baseUrl, path, params) {
     const url = new URL(`${resolveAbsoluteApiBaseUrl(baseUrl)}${path}`)
@@ -495,6 +499,29 @@ export async function getGovernanceUnitDetail(baseUrl, token, governanceUnitId) 
     }))
 }
 
+function waitFor(ms) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, Math.max(0, Number(ms) || 0))
+    })
+}
+
+function isFaceRuntimeWarmupError(error) {
+    if (!(error instanceof BackendApiError)) return false
+    if (Number(error.status) !== 503) return false
+
+    const message = String(error?.message || '').toLowerCase()
+    const detail = String(error?.details?.detail || '').toLowerCase()
+    const combined = `${message} ${detail}`
+
+    return (
+        combined.includes('insightface') ||
+        combined.includes('warm-up') ||
+        combined.includes('warming up') ||
+        combined.includes('model warm-up') ||
+        combined.includes('model download')
+    )
+}
+
 export async function getGovernanceUnits(baseUrl, token, params = {}) {
     const payload = await request(baseUrl, '/api/governance/units', {
         method: 'GET',
@@ -503,6 +530,13 @@ export async function getGovernanceUnits(baseUrl, token, params = {}) {
     })
 
     return Array.isArray(payload) ? payload.map(normalizeGovernanceUnitDetail) : []
+}
+
+export async function getGovernanceDashboardOverview(baseUrl, token, governanceUnitId) {
+    return normalizeGovernanceDashboardOverview(await request(baseUrl, `/api/governance/units/${governanceUnitId}/dashboard-overview`, {
+        method: 'GET',
+        token,
+    }))
 }
 
 function hasResolvedSsgUnit(setup = null) {
@@ -810,6 +844,34 @@ export async function getNotificationLogs(baseUrl, token, params = {}) {
     })
 
     return Array.isArray(payload) ? payload.map(normalizeNotificationLogItem).filter(Boolean) : []
+}
+
+export async function getMyNotificationInbox(baseUrl, token, params = {}) {
+    const payload = await request(baseUrl, '/api/notifications/inbox/me', {
+        method: 'GET',
+        token,
+        params,
+    })
+
+    return Array.isArray(payload) ? payload.map(normalizeNotificationLogItem).filter(Boolean) : []
+}
+
+export async function getMyNotificationPreferences(baseUrl, token) {
+    return normalizeNotificationPreference(await request(baseUrl, '/api/notifications/preferences/me', {
+        method: 'GET',
+        token,
+    }))
+}
+
+export async function updateMyNotificationPreferences(baseUrl, token, payload) {
+    return normalizeNotificationPreference(await request(baseUrl, '/api/notifications/preferences/me', {
+        method: 'PUT',
+        token,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }))
 }
 
 export async function dispatchMissedEventNotifications(baseUrl, token, params = {}) {
@@ -1390,7 +1452,7 @@ export async function saveFaceReference(baseUrl, token, imageBase64) {
     }, [404, 405]))
 }
 
-export async function registerStudentFace(baseUrl, token, imageBase64) {
+async function registerStudentFaceOnce(baseUrl, token, imageBase64) {
     return normalizeStudentFaceRegistrationResponse(await requestWithFallback(baseUrl, ['/api/face/register', '/face/register'], {
         method: 'POST',
         token,
@@ -1402,6 +1464,29 @@ export async function registerStudentFace(baseUrl, token, imageBase64) {
             image_base64: imageBase64,
         }),
     }))
+}
+
+export async function registerStudentFace(baseUrl, token, imageBase64) {
+    let lastError = null
+
+    for (let attempt = 0; attempt < FACE_REGISTER_WARMUP_RETRY_ATTEMPTS; attempt += 1) {
+        try {
+            return await registerStudentFaceOnce(baseUrl, token, imageBase64)
+        } catch (error) {
+            lastError = error
+
+            const shouldRetry =
+                isFaceRuntimeWarmupError(error) &&
+                attempt < FACE_REGISTER_WARMUP_RETRY_ATTEMPTS - 1
+            if (!shouldRetry) {
+                throw error
+            }
+
+            await waitFor(FACE_REGISTER_WARMUP_RETRY_DELAY_MS)
+        }
+    }
+
+    throw lastError || new BackendApiError('Unable to register face right now.')
 }
 
 export async function verifyFaceReference(baseUrl, token, payload) {

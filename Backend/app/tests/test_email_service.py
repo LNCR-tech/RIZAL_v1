@@ -37,6 +37,37 @@ def _gmail_api_settings(**overrides):
     return SimpleNamespace(**defaults)
 
 
+def _smtp_settings(**overrides):
+    defaults = {
+        "email_transport": "smtp",
+        "email_required_on_startup": True,
+        "email_verify_connection_on_startup": False,
+        "email_timeout_seconds": 20,
+        "email_sender_email": "mailer@example.com",
+        "email_from_email": "mailer@example.com",
+        "email_from_name": "VALID8 Notifications",
+        "email_reply_to": "",
+        "email_google_account_type": "auto",
+        "email_google_allow_custom_from": False,
+        "smtp_host": "mailpit",
+        "smtp_port": 1025,
+        "smtp_username": "",
+        "smtp_password": "",
+        "smtp_use_tls": False,
+        "smtp_use_starttls": False,
+        "google_oauth_client_id": "",
+        "google_oauth_client_secret": "",
+        "google_oauth_refresh_token": "",
+        "google_oauth_auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "google_oauth_token_url": "https://oauth2.googleapis.com/token",
+        "google_oauth_scopes": [],
+        "google_gmail_api_base_url": "https://gmail.googleapis.com/gmail/v1",
+        "login_url": "https://valid8.example/login",
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
 def test_send_welcome_email_allows_temporary_password_after_login(monkeypatch) -> None:
     sent: dict[str, str] = {}
 
@@ -172,6 +203,17 @@ def test_validate_email_delivery_settings_accepts_gmail_api_transport() -> None:
     assert resolved.from_email == "mailer@example.com"
 
 
+def test_validate_email_delivery_settings_accepts_smtp_transport() -> None:
+    resolved = email_service.validate_email_delivery_settings(
+        _smtp_settings(),
+    )
+
+    assert resolved.transport == "smtp"
+    assert resolved.auth_mode == "none"
+    assert resolved.sender_email == "mailer@example.com"
+    assert resolved.from_email == "mailer@example.com"
+
+
 def test_validate_email_delivery_settings_falls_back_to_authenticated_personal_gmail_sender() -> None:
     resolved = email_service.validate_email_delivery_settings(
         _gmail_api_settings(
@@ -280,6 +322,82 @@ def test_send_plain_email_uses_gmail_api_transport(monkeypatch) -> None:
     assert captured["url"] == "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
     assert captured["headers"]["Authorization"] == "Bearer access-token"
     assert isinstance(captured["json"]["raw"], str)
+
+
+def test_send_plain_email_uses_smtp_transport(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeSMTP:
+        def __init__(self, host: str, port: int, timeout: float):
+            captured["host"] = host
+            captured["port"] = port
+            captured["timeout"] = timeout
+
+        def ehlo(self):
+            captured["ehlo_called"] = True
+
+        def starttls(self, context=None):
+            captured["starttls_called"] = True
+
+        def login(self, username, password):
+            captured["login"] = (username, password)
+
+        def send_message(self, msg, from_addr=None, to_addrs=None):
+            captured["from_addr"] = from_addr
+            captured["to_addrs"] = to_addrs
+            captured["subject"] = msg.get("Subject")
+            captured["to_header"] = msg.get("To")
+
+        def quit(self):
+            captured["quit_called"] = True
+
+    monkeypatch.setattr(
+        email_service,
+        "get_settings",
+        lambda: _smtp_settings(),
+    )
+    monkeypatch.setattr(
+        "app.services.email_service.transport.smtplib.SMTP",
+        FakeSMTP,
+    )
+
+    email_service.send_plain_email(
+        recipient_email="recipient@example.com",
+        subject="Subject",
+        body="Body",
+    )
+
+    assert captured["host"] == "mailpit"
+    assert captured["port"] == 1025
+    assert captured["from_addr"] == "mailer@example.com"
+    assert captured["to_addrs"] == ["recipient@example.com"]
+    assert captured["subject"] == "Subject"
+    assert captured["to_header"] == "recipient@example.com"
+
+
+def test_check_email_delivery_connection_verifies_smtp_transport(monkeypatch) -> None:
+    class FakeSMTP:
+        def __init__(self, host: str, port: int, timeout: float):
+            self.host = host
+            self.port = port
+            self.timeout = timeout
+
+        def ehlo(self):
+            return None
+
+        def quit(self):
+            return None
+
+    monkeypatch.setattr(
+        "app.services.email_service.transport.smtplib.SMTP",
+        FakeSMTP,
+    )
+
+    status = email_service.check_email_delivery_connection(settings=_smtp_settings())
+
+    assert status.transport == "smtp"
+    assert status.host == "mailpit"
+    assert status.port == 1025
 
 
 def test_send_plain_email_surfaces_gmail_api_scope_errors(monkeypatch) -> None:

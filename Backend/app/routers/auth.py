@@ -1,11 +1,11 @@
-"""Use: Handles login, MFA, and authentication API endpoints.
-Where to use: Use this through the FastAPI app when the frontend or an API client needs login, MFA, and authentication features.
+"""Use: Handles login and authentication API endpoints.
+Where to use: Use this through the FastAPI app when the frontend or an API client needs login and authentication features.
 Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
 """
 
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
@@ -13,16 +13,13 @@ from sqlalchemy.orm import joinedload
 from app.core.security import (
     PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT,
     authenticate_user,
-    get_user_for_login,
     get_current_admin_or_campus_admin,
     get_current_application_user,
     has_any_role,
-    normalize_role_name,
     verify_password,
 )
 from app.core.dependencies import get_db
 from app.schemas.auth import ChangePasswordRequest, Token, LoginRequest
-from app.schemas.security import MfaChallengeVerifyRequest
 from app.schemas.password_reset import (
     ForgotPasswordRequestCreate,
     ForgotPasswordRequestResponse,
@@ -34,23 +31,13 @@ from app.models.school import School
 from app.models.user import User, UserRole
 from app.services.email_service import EmailDeliveryError, send_password_reset_email
 from app.services.auth_session import (
-    get_school_context,
-    get_user_role_names,
-    has_face_reference_enrolled,
     issue_login_token_response,
-    should_recommend_password_change,
     validate_login_account_state,
-)
-from app.services.auth_task_dispatcher import (
-    dispatch_mfa_code_email,
 )
 from app.services.notification_center_service import send_account_security_notification
 from app.services.password_change_policy import must_change_password_for_temporary_reset
 from app.services.security_service import (
-    create_mfa_challenge,
     record_login_history,
-    should_require_mfa,
-    verify_mfa_challenge,
 )
 from app.utils.passwords import generate_secure_password
 
@@ -111,11 +98,7 @@ def login_for_access_token(
         email_attempted=user.email,
         user=user,
         success=True,
-        auth_method=(
-            "password_face_pending"
-            if response_payload.get("face_verification_pending")
-            else "password"
-        ),
+        auth_method="password",
         request=request,
     )
     db.commit()
@@ -124,7 +107,6 @@ def login_for_access_token(
 @router.post("/login", response_model=Token)
 def login_with_email(
     request: Request,
-    background_tasks: BackgroundTasks,
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
@@ -147,54 +129,6 @@ def login_with_email(
         )
     validate_login_account_state(db, user)
 
-    role_names = get_user_role_names(user)
-    school_context = get_school_context(db, user)
-
-    if should_require_mfa(db, user):
-        challenge, code = create_mfa_challenge(db, user=user, request=request, ttl_minutes=10)
-        try:
-            dispatch_mfa_code_email(
-                background_tasks,
-                recipient_email=user.email,
-                code=code,
-                first_name=user.first_name,
-                system_name=school_context.get("school_name"),
-            )
-        except EmailDeliveryError as exc:
-            db.rollback()
-            raise HTTPException(status_code=502, detail=f"Failed to send MFA code: {exc}") from exc
-
-        record_login_history(
-            db,
-            email_attempted=user.email,
-            user=user,
-            success=True,
-            auth_method="password_mfa_pending",
-            request=request,
-        )
-        db.commit()
-        return {
-            "access_token": None,
-            "token_type": "mfa",
-            "email": user.email,
-            "roles": role_names,
-            "user_id": user.id,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "is_admin": "admin" in role_names,
-            "must_change_password": user.must_change_password,
-            "password_change_recommended": should_recommend_password_change(user),
-            "mfa_required": True,
-            "mfa_challenge_id": challenge.id,
-            "mfa_expires_at": challenge.expires_at,
-            "face_verification_required": any(
-                normalize_role_name(role_name) in {"admin", "campus-admin"}
-                for role_name in role_names
-            ),
-            "face_reference_enrolled": has_face_reference_enrolled(db, user.id),
-            **school_context,
-        }
-
     response_payload = issue_login_token_response(
         db=db,
         user=user,
@@ -205,53 +139,10 @@ def login_with_email(
         email_attempted=user.email,
         user=user,
         success=True,
-        auth_method=(
-            "password_face_pending"
-            if response_payload.get("face_verification_pending")
-            else "password"
-        ),
+        auth_method="password",
         request=request,
     )
 
-    db.commit()
-    return response_payload
-
-
-@router.post("/auth/mfa/verify", response_model=Token)
-def verify_mfa_and_login(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    payload: MfaChallengeVerifyRequest,
-    db: Session = Depends(get_db),
-):
-    user = get_user_for_login(db, payload.email)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    validate_login_account_state(db, user)
-
-    verify_mfa_challenge(
-        db,
-        user=user,
-        challenge_id=payload.challenge_id,
-        code=payload.code,
-    )
-    response_payload = issue_login_token_response(
-        db=db,
-        user=user,
-        request=request,
-    )
-    record_login_history(
-        db,
-        email_attempted=user.email,
-        user=user,
-        success=True,
-        auth_method=(
-            "mfa_face_pending"
-            if response_payload.get("face_verification_pending")
-            else "mfa"
-        ),
-        request=request,
-    )
     db.commit()
     return response_payload
 

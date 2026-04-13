@@ -12,13 +12,8 @@ from fastapi import BackgroundTasks
 
 from app.core.database import SessionLocal
 from app.models.user import User as UserModel
-from app.services.email_service import (
-    send_mfa_code_email,
-    validate_email_delivery_settings,
-)
 from app.services.notification_center_service import send_account_security_notification
 from app.workers.tasks import (
-    send_login_mfa_code_email,
     send_login_security_notification,
 )
 
@@ -63,34 +58,6 @@ def _send_account_security_notification_in_process(
         db.commit()
 
 
-def dispatch_mfa_code_email(
-    background_tasks: BackgroundTasks,
-    *,
-    recipient_email: str,
-    code: str,
-    first_name: str | None = None,
-    system_name: str | None = None,
-) -> str:
-    validate_email_delivery_settings()
-    if _enqueue_celery_task(
-        send_login_mfa_code_email,
-        recipient_email,
-        code,
-        first_name,
-        system_name,
-    ):
-        return "celery"
-
-    background_tasks.add_task(
-        send_mfa_code_email,
-        recipient_email=recipient_email,
-        code=code,
-        first_name=first_name,
-        system_name=system_name,
-    )
-    return "background"
-
-
 def dispatch_account_security_notification(
     background_tasks: BackgroundTasks,
     *,
@@ -120,5 +87,4 @@ def dispatch_account_security_notification(
 
 __all__ = [
     "dispatch_account_security_notification",
-    "dispatch_mfa_code_email",
 ]

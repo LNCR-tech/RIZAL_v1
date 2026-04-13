@@ -14,6 +14,317 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-13 - Add local Mailpit support via SMTP transport and Docker wiring
+
+### Purpose
+
+Enable local outbound email testing without real Gmail/OAuth credentials by adding SMTP transport support and a Mailpit service in local Docker Compose.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service/config.py`
+- `Backend/app/services/email_service/transport.py`
+- `Backend/scripts/send_test_email.py`
+- `Backend/app/tests/test_email_service.py`
+- `Backend/app/tests/test_config.py`
+- `.env.example`
+- `docker-compose.yml`
+- `Backend/docs/EMAIL_FORMATS_EDITABLE.txt`
+- `Backend/docs/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added SMTP runtime settings to backend config:
+  - `SMTP_HOST`
+  - `SMTP_PORT`
+  - `SMTP_USERNAME`
+  - `SMTP_PASSWORD`
+  - `SMTP_USE_TLS`
+  - `SMTP_USE_STARTTLS`
+- extended email transport validation to support `EMAIL_TRANSPORT=smtp`
+- added SMTP send and connection-check flow in email transport layer
+- updated email summary/connectivity helpers to report host/port per active transport
+- generalized test-email script messaging so it applies to both SMTP and Gmail API
+- added tests for:
+  - SMTP transport validation
+  - SMTP send path
+  - SMTP connectivity check path
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - backend can now send outbound email through SMTP in addition to Gmail API
+
+### Migration impact
+
+- no database migrations required
+- local runtime configuration changed:
+  - `docker-compose.yml` now includes `mailpit` service (`1025` SMTP, `8025` web UI)
+  - local `backend`, `worker`, and `beat` services default to SMTP transport targeting `mailpit`
+
+### How to test
+
+1. Start local stack with mail services:
+   - `docker compose up -d --build backend worker beat mailpit`
+2. Run backend email tests:
+   - `python -m pytest -q Backend/app/tests/test_email_service.py Backend/app/tests/test_config.py`
+3. Send a test message:
+   - `python Backend/scripts/send_test_email.py --recipient test@example.com`
+4. Open Mailpit:
+   - `http://localhost:8025`
+   - verify email appears.
+
+## 2026-04-13 - Generate unique temporary passwords per imported student account
+
+### Purpose
+
+Fix student bulk-import onboarding so each newly created student account receives its own unique temporary password in email, instead of one shared password for the entire import job.
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/app/tests/test_import_repository.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed shared import-job credential generation from `StudentImportService`
+- now generates password credentials per row before batch insert:
+  - `temporary_password` (email credential)
+  - `password_hash` (stored user password)
+- updated batch email queueing to use each inserted row's own `temporary_password`
+- updated `ImportRepository.bulk_insert_students(...)` to use per-row `password_hash` values
+- added a repository guard that raises a runtime error if a row reaches insertion without generated credentials
+- added tests for:
+  - per-row credential generation behavior
+  - per-row password usage during onboarding email queueing
+  - repository insertion validation with row-level password hashes
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - `POST /api/admin/import-students` now creates unique temporary passwords for each imported account email
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run import-related tests:
+   - `python -m pytest -q Backend/app/tests/test_student_import_email_delivery.py Backend/app/tests/test_import_repository.py`
+2. Perform a bulk student import with at least two new rows that have different email addresses.
+3. Verify the onboarding emails show different temporary passwords per account.
+4. Verify each imported user can log in only with the password sent to that specific email.
+
+## 2026-04-12 - Stabilize first-login student face registration in Docker
+
+### Purpose
+
+Fix `POST /api/face/register` returning `503 Service Unavailable` during cold starts when InsightFace model files are still downloading or multiple workers initialize the runtime at the same time.
+
+### Main files
+
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/main.py`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+
+### Backend changes
+
+- added a cross-process model initialization lock around InsightFace startup so only one process performs first-time model initialization/download at a time
+- added wait-and-retry behavior when another process is already warming the model bundle, instead of failing fast with generic initialization errors
+- improved runtime reason handling with explicit warm-up state (`insightface_warming_up`) for pending model readiness
+- triggered non-blocking face runtime warm-up during app startup via `FaceRecognitionService().face_recognition_status(mode="single")`
+- face routes now return an explicit warm-up `503` quickly when the shared runtime warm-up thread is still running, instead of hanging until long model downloads finish
+- added stale InsightFace init-lock recovery (PID-aware lock files plus age guard) so container restarts do not leave face warm-up permanently stuck behind orphaned lock files
+
+### Runtime configuration changes
+
+- local compose (`docker-compose.yml`):
+  - backend now sets `UVICORN_WORKERS=1` to avoid multi-worker cold-start races in development
+  - backend now mounts persistent InsightFace cache volume at `/root/.insightface`
+- production compose (`docker-compose.prod.yml`):
+  - backend now mounts persistent InsightFace cache volume at `/home/appuser/.insightface`
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - first-login face registration is less likely to fail with 503 during model warm-up in Docker deployments
+
+### Migration impact
+
+- no database migrations required
+- Docker volume requirement added for InsightFace model cache persistence:
+  - `insightface_models`
+
+### How to test
+
+1. Redeploy backend services:
+   - `docker compose up -d --force-recreate backend`
+2. Verify startup logs show face warm-up start/ready messages.
+3. Login as a student and call `POST /api/face/register` with a valid face image:
+   - expect success once model warm-up completes
+   - repeated container restarts should no longer re-download the model every time when using the new cache volume.
+
+## 2026-04-12 - Allow Excel import headers with trailing blank columns
+
+### Purpose
+
+Fix bulk import preview failures for valid Excel templates where spreadsheet formatting leaves extra empty header cells after the expected columns.
+
+### Main files
+
+- `Backend/app/services/import_validation_service.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- updated `validate_headers(...)` to trim trailing empty normalized header cells before strict header comparison
+- preserved strict validation for column names and order in the expected import template
+- added an API-level test that uploads `.xlsx` with the expected headers plus trailing blank header columns
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - `POST /api/admin/import-students/preview` now accepts template headers with trailing blank columns
+
+### Migration impact
+
+- no database migrations required
+- no configuration changes required
+
+### How to test
+
+1. Run import preview tests:
+   - `python -m pytest -q Backend/app/tests/test_admin_import_preview_flow.py`
+2. Upload an Excel file with template headers plus trailing blank columns and verify preview succeeds when row values are valid.
+
+## 2026-04-12 - Fix Docker bulk-import worker file sharing in local compose
+
+### Purpose
+
+Fix import jobs failing in Docker because backend and worker containers were not guaranteed to use the same import storage path.
+
+### Main files
+
+- `docker-compose.yml`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- set `IMPORT_STORAGE_DIR=/tmp/valid8_imports` for local `backend`, `worker`, and `beat` services in `docker-compose.yml`
+- aligned runtime import storage path with the shared `import_storage` Docker volume mount already configured at `/tmp/valid8_imports`
+- prevents preview manifests/import payloads from being written to non-shared container-local paths (for example `/storage/imports`)
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior fix:
+  - `POST /api/admin/import-students` jobs can now read preview/import files from the worker in local Docker deployments
+
+### Migration impact
+
+- no database migrations required
+- local Docker environment behavior changed:
+  - import artifacts are now consistently stored in the shared import volume path
+
+### How to test
+
+1. Redeploy local stack:
+   - `docker compose up -d --force-recreate backend worker beat`
+2. Upload a valid student import file, preview it, and start import.
+3. Verify `/api/admin/import-status/{job_id}` advances beyond `pending/queued` and no `Uploaded file was not found on server` appears in worker logs.
+
+## 2026-04-12 - Remove MFA login flow and MFA management endpoints
+
+### Purpose
+
+Remove MFA challenge-based authentication so login always returns a direct bearer session, and remove backend MFA management routes and email/task wiring tied to that flow.
+
+### Main files
+
+- `Backend/app/routers/auth.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/services/security_service.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/schemas/security.py`
+- `Backend/app/services/auth_task_dispatcher.py`
+- `Backend/app/workers/tasks.py`
+- `Backend/app/services/email_service/__init__.py`
+- `Backend/app/services/email_service/use_cases.py`
+- `Backend/app/services/email_service/rendering.py`
+- `Backend/app/services/email_service/config.py`
+- `Backend/app/core/config.py`
+- `Backend/app/schemas/auth.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/tests/test_auth_task_dispatcher.py`
+- `.env.example`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/EMAIL_FORMATS_EDITABLE.txt`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed email-code MFA login flow from `POST /login`
+- removed `POST /auth/mfa/verify`
+- removed MFA status management routes from security center
+- removed MFA challenge generation/verification helpers from security service
+- removed MFA task dispatch and worker task registrations
+- removed MFA email template/use-case exports from the email service package
+- login token issuance no longer returns face-pending sessions as an auth gate
+- login history now records successful login auth method as `password` for login routes
+
+### Route or schema impact
+
+- removed route: `POST /auth/mfa/verify`
+- removed routes: `GET /api/auth/security/mfa-status`, `PUT /api/auth/security/mfa-status`
+- `POST /login` and `POST /token` now return direct bearer token payloads without MFA challenge fields
+- token schema no longer includes:
+  - `mfa_required`
+  - `mfa_challenge_id`
+  - `mfa_expires_at`
+
+### Migration impact
+
+- no database migration required
+- existing `mfa_challenges`/`user_security_settings.mfa_enabled` data remains unused by auth flow
+
+### Configuration impact
+
+- removed `AUTH_ENABLE_MFA` from `.env.example` and backend runtime config parsing
+- if `AUTH_ENABLE_MFA` is still present in existing deployments, it is ignored by current code
+
+### How to test
+
+1. Run auth regression tests:
+   - `python -m pytest -q Backend/app/tests/test_api.py Backend/app/tests/test_auth_task_dispatcher.py`
+2. Call `POST /token` and `POST /login` with valid credentials and verify:
+   - `200 OK`
+   - `access_token` is present
+   - no MFA challenge response fields are returned
+3. Verify removed endpoints now return `404`:
+   - `POST /auth/mfa/verify`
+   - `GET /api/auth/security/mfa-status`
+   - `PUT /api/auth/security/mfa-status`
+
 ## 2026-04-12 - Align backend container Python runtime with pinned dependency constraints
 
 ### Purpose

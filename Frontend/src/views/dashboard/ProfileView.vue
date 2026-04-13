@@ -291,6 +291,7 @@ import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
+import { getMyNotificationPreferences, updateMyNotificationPreferences } from '@/services/backendApi.js'
 import {
   DEFAULT_FONT_SIZE,
   FONT_SIZE_MAX,
@@ -314,10 +315,12 @@ const router = useRouter()
 // ── Auth ─────────────────────────────────────────────────────────────
 const { logout } = useAuth()
 const {
+  apiBaseUrl,
   currentUser: sessionCurrentUser,
   schoolSettings: sessionSchoolSettings,
   attendanceRecords: sessionAttendanceRecords,
   saveCurrentUserProfile,
+  token,
 } = useDashboardSession()
 
 const previewUser = ref(JSON.parse(JSON.stringify(studentDashboardPreviewData.user)))
@@ -456,29 +459,63 @@ watch(fontSize, val => {
   }
 })
 
-// ── Notifications ──────────────────────────────────────────────────────
-// Currently persisted to localStorage.
-//
-// When backend is ready, swap savePreferences() to:
-//   await api.patch('/api/users/preferences', { notifications_enabled: value })
-//
 const notificationsEnabled = ref(
   JSON.parse(localStorage.getItem('aura_notif_enabled') ?? 'true')
 )
+const notificationPreferenceReady = ref(Boolean(props.preview))
+const notificationPreferenceSyncing = ref(false)
 
 async function savePreferences(payload) {
-  // ── LOCAL (current) ───────────────────────────────────────────────
   if ('notifications_enabled' in payload) {
-    localStorage.setItem('aura_notif_enabled', payload.notifications_enabled)
+    localStorage.setItem('aura_notif_enabled', JSON.stringify(Boolean(payload.notifications_enabled)))
   }
 
-  // ── BACKEND (swap in when ready) ─────────────────────────────────
-  // await api.patch('/api/users/preferences', payload)
+  if (props.preview) return
+  if (!apiBaseUrl.value || !token.value) return
+
+  notificationPreferenceSyncing.value = true
+  try {
+    const updated = await updateMyNotificationPreferences(apiBaseUrl.value, token.value, {
+      email_enabled: Boolean(payload.notifications_enabled),
+    })
+    notificationsEnabled.value = Boolean(updated?.email_enabled)
+  } finally {
+    notificationPreferenceSyncing.value = false
+  }
 }
 
-watch(notificationsEnabled, enabled =>
-  savePreferences({ notifications_enabled: enabled })
+watch(
+  [() => props.preview, apiBaseUrl, token, () => user.value?.id],
+  async ([previewMode, url, authToken, userId]) => {
+    if (previewMode) {
+      notificationPreferenceReady.value = true
+      return
+    }
+
+    if (!url || !authToken || !Number.isFinite(Number(userId))) {
+      notificationPreferenceReady.value = false
+      return
+    }
+
+    notificationPreferenceSyncing.value = true
+    try {
+      const preference = await getMyNotificationPreferences(url, authToken)
+      notificationsEnabled.value = Boolean(preference?.email_enabled)
+      localStorage.setItem('aura_notif_enabled', JSON.stringify(Boolean(preference?.email_enabled)))
+      notificationPreferenceReady.value = true
+    } catch {
+      notificationPreferenceReady.value = true
+    } finally {
+      notificationPreferenceSyncing.value = false
+    }
+  },
+  { immediate: true }
 )
+
+watch(notificationsEnabled, async (enabled) => {
+  if (!notificationPreferenceReady.value || notificationPreferenceSyncing.value) return
+  await savePreferences({ notifications_enabled: enabled })
+})
 
 watch(schoolLogo, () => {
   schoolLogoError.value = false

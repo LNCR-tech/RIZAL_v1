@@ -20,9 +20,8 @@ from app.core.security import (
 from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.school import School, SchoolSetting
 from app.models.user import User
-from app.services.security_service import create_user_session, is_privileged_user
+from app.services.security_service import create_user_session
 
-PENDING_FACE_TOKEN_EXPIRE_MINUTES = 15
 BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
 
 
@@ -154,56 +153,9 @@ def issue_full_access_token_response(
         "must_change_password": user.must_change_password,
         "password_change_recommended": should_recommend_password_change(user),
         "session_id": session_id,
-        "face_verification_required": is_privileged_user(user),
+        "face_verification_required": False,
         "face_reference_enrolled": face_reference_enrolled,
         "face_verification_pending": False,
-        **school_context,
-    }
-
-
-def issue_pending_face_token_response(
-    *,
-    db: Session,
-    user: User,
-) -> dict[str, object | None]:
-    role_names = get_user_role_names(user)
-    school_context = get_school_context(db, user)
-    face_reference_enrolled = (
-        getattr(user, "face_profile", None) is not None
-        or has_face_reference_enrolled(db, user.id)
-    )
-
-    token_payload = {
-        "sub": user.email,
-        "roles": role_names,
-        "user_id": user.id,
-        "is_admin": "admin" in role_names,
-        "must_change_password": user.must_change_password,
-        "face_pending": True,
-    }
-    if school_context.get("school_id") is not None:
-        token_payload["school_id"] = school_context["school_id"]
-
-    access_token = create_access_token(
-        data=token_payload,
-        expires_delta=timedelta(minutes=PENDING_FACE_TOKEN_EXPIRE_MINUTES),
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "face_pending",
-        "email": user.email,
-        "roles": role_names,
-        "user_id": user.id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "is_admin": "admin" in role_names,
-        "must_change_password": user.must_change_password,
-        "password_change_recommended": should_recommend_password_change(user),
-        "session_id": None,
-        "face_verification_required": True,
-        "face_reference_enrolled": face_reference_enrolled,
-        "face_verification_pending": True,
         **school_context,
     }
 
@@ -215,6 +167,4 @@ def issue_login_token_response(
     request: Request | None = None,
 ) -> dict[str, object | None]:
     validate_login_account_state(db, user)
-    if is_privileged_user(user):
-        return issue_pending_face_token_response(db=db, user=user)
     return issue_full_access_token_response(db=db, user=user, request=request)

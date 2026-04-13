@@ -16,7 +16,7 @@ from app.models.department import Department as DepartmentModel
 from app.schemas.department import DepartmentCreate, DepartmentUpdate
 
 logger = logging.getLogger(__name__)
-
+803424
 
 def list_departments(
     db: Session,

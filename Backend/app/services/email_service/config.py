@@ -1,4 +1,4 @@
-"""Configuration helpers for the Gmail API email service package."""
+"""Configuration helpers for the email service package."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from email_validator import EmailNotValidError, validate_email as validate_email
 from app.core.config import Settings
 
 GOOGLE_GMAIL_API_HOST = "gmail.googleapis.com"
-ALLOWED_EMAIL_TRANSPORTS = {"disabled", "gmail_api"}
+ALLOWED_EMAIL_TRANSPORTS = {"disabled", "gmail_api", "smtp"}
 ALLOWED_GOOGLE_ACCOUNT_TYPES = {"auto", "personal", "workspace", "unknown"}
 TEMPORARY_GMAIL_API_STATUS_CODES = {429, 500, 502, 503, 504}
 
@@ -102,6 +102,8 @@ def _resolve_sender_settings(
     *,
     transport: str,
     google_account_type: str,
+    auth_mode: str,
+    enforce_google_alias_rules: bool,
 ) -> ResolvedEmailDeliverySettings:
     from email.utils import formataddr
 
@@ -121,28 +123,29 @@ def _resolve_sender_settings(
     if not normalized_from_email:
         normalized_from_email = normalized_sender_email
 
-    if google_account_type == "personal" and normalized_from_email != normalized_sender_email:
-        warnings.append(
-            "EMAIL_FROM_EMAIL was changed to the authenticated Gmail address because personal "
-            "Gmail cannot reliably send as an arbitrary custom-domain sender."
-        )
-        normalized_from_email = normalized_sender_email
-    elif (
-        normalized_from_email != normalized_sender_email
-        and not settings.email_google_allow_custom_from
-    ):
-        raise EmailConfigurationError(
-            "EMAIL_FROM_EMAIL differs from EMAIL_SENDER_EMAIL. For Google Workspace aliases or "
-            "Gmail 'Send mail as' aliases, configure the alias in Google first and then set "
-            "EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true. Otherwise use the authenticated mailbox as the sender."
-        )
+    if enforce_google_alias_rules:
+        if google_account_type == "personal" and normalized_from_email != normalized_sender_email:
+            warnings.append(
+                "EMAIL_FROM_EMAIL was changed to the authenticated Gmail address because personal "
+                "Gmail cannot reliably send as an arbitrary custom-domain sender."
+            )
+            normalized_from_email = normalized_sender_email
+        elif (
+            normalized_from_email != normalized_sender_email
+            and not settings.email_google_allow_custom_from
+        ):
+            raise EmailConfigurationError(
+                "EMAIL_FROM_EMAIL differs from EMAIL_SENDER_EMAIL. For Google Workspace aliases or "
+                "Gmail 'Send mail as' aliases, configure the alias in Google first and then set "
+                "EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true. Otherwise use the authenticated mailbox as the sender."
+            )
 
     from_name = (settings.email_from_name or "").strip()
     from_header = formataddr((from_name, normalized_from_email)) if from_name else normalized_from_email
 
     return ResolvedEmailDeliverySettings(
         transport=transport,
-        auth_mode="oauth2",
+        auth_mode=auth_mode,
         sender_email=normalized_sender_email,
         from_email=normalized_from_email,
         from_header=from_header,
@@ -150,6 +153,17 @@ def _resolve_sender_settings(
         google_account_type=google_account_type,
         warnings=tuple(warnings),
     )
+
+
+def _validate_smtp_transport_settings(settings: Settings) -> None:
+    if not (settings.smtp_host or "").strip():
+        raise EmailConfigurationError("SMTP_HOST is not configured")
+    if int(settings.smtp_port) <= 0:
+        raise EmailConfigurationError("SMTP_PORT must be greater than 0")
+    if settings.smtp_use_tls and settings.smtp_use_starttls:
+        raise EmailConfigurationError("SMTP_USE_TLS and SMTP_USE_STARTTLS cannot both be true")
+    if settings.smtp_username and not settings.smtp_password:
+        raise EmailConfigurationError("SMTP_PASSWORD is required when SMTP_USERNAME is configured")
 
 
 def validate_email_delivery_settings(settings: Settings | None = None) -> ResolvedEmailDeliverySettings:
@@ -164,36 +178,52 @@ def validate_email_delivery_settings(settings: Settings | None = None) -> Resolv
 
     if transport == "disabled":
         raise EmailConfigurationError(
-            "EMAIL_TRANSPORT is disabled. Set EMAIL_TRANSPORT to gmail_api to enable outbound email delivery."
+            "EMAIL_TRANSPORT is disabled. Set EMAIL_TRANSPORT to smtp or gmail_api to enable outbound email delivery."
         )
 
     if resolved_settings.email_timeout_seconds <= 0:
         raise EmailConfigurationError("EMAIL_TIMEOUT_SECONDS must be greater than 0")
-    if not resolved_settings.google_gmail_api_base_url.strip():
-        raise EmailConfigurationError("GOOGLE_GMAIL_API_BASE_URL is not configured")
 
-    missing_oauth_fields = [
-        field_name
-        for field_name, value in [
-            ("EMAIL_SENDER_EMAIL", resolved_settings.email_sender_email),
-            ("GOOGLE_OAUTH_CLIENT_ID", resolved_settings.google_oauth_client_id),
-            ("GOOGLE_OAUTH_CLIENT_SECRET", resolved_settings.google_oauth_client_secret),
-            ("GOOGLE_OAUTH_REFRESH_TOKEN", resolved_settings.google_oauth_refresh_token),
-            ("GOOGLE_OAUTH_TOKEN_URL", resolved_settings.google_oauth_token_url),
+    if transport == "gmail_api":
+        if not resolved_settings.google_gmail_api_base_url.strip():
+            raise EmailConfigurationError("GOOGLE_GMAIL_API_BASE_URL is not configured")
+
+        missing_oauth_fields = [
+            field_name
+            for field_name, value in [
+                ("EMAIL_SENDER_EMAIL", resolved_settings.email_sender_email),
+                ("GOOGLE_OAUTH_CLIENT_ID", resolved_settings.google_oauth_client_id),
+                ("GOOGLE_OAUTH_CLIENT_SECRET", resolved_settings.google_oauth_client_secret),
+                ("GOOGLE_OAUTH_REFRESH_TOKEN", resolved_settings.google_oauth_refresh_token),
+                ("GOOGLE_OAUTH_TOKEN_URL", resolved_settings.google_oauth_token_url),
+            ]
+            if not value
         ]
-        if not value
-    ]
-    if missing_oauth_fields:
-        raise EmailConfigurationError(
-            "Missing Gmail API settings: " + ", ".join(missing_oauth_fields)
+        if missing_oauth_fields:
+            raise EmailConfigurationError(
+                "Missing Gmail API settings: " + ", ".join(missing_oauth_fields)
+            )
+
+        google_account_type = _resolve_google_account_type(resolved_settings)
+        return _resolve_sender_settings(
+            resolved_settings,
+            transport=transport,
+            google_account_type=google_account_type,
+            auth_mode="oauth2",
+            enforce_google_alias_rules=True,
         )
 
-    google_account_type = _resolve_google_account_type(resolved_settings)
-    return _resolve_sender_settings(
-        resolved_settings,
-        transport=transport,
-        google_account_type=google_account_type,
-    )
+    if transport == "smtp":
+        _validate_smtp_transport_settings(resolved_settings)
+        return _resolve_sender_settings(
+            resolved_settings,
+            transport=transport,
+            google_account_type="unknown",
+            auth_mode="plain" if resolved_settings.smtp_username else "none",
+            enforce_google_alias_rules=False,
+        )
+
+    raise EmailConfigurationError(f"Unsupported EMAIL_TRANSPORT value: {transport}")
 
 
 def validate_email_delivery_on_startup() -> None:
@@ -217,7 +247,7 @@ def validate_email_delivery_on_startup() -> None:
                 "EMAIL_REQUIRED_ON_STARTUP is enabled but EMAIL_TRANSPORT is disabled."
             )
         logger.warning(
-            "Outbound email delivery is disabled. Forgot-password, MFA, and onboarding emails will not be sent."
+            "Outbound email delivery is disabled. Forgot-password and onboarding emails will not be sent."
         )
         return
 

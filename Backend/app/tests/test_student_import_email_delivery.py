@@ -212,3 +212,105 @@ def test_send_student_import_onboarding_email_logs_sent_delivery(monkeypatch) ->
             "retry_count": 0,
         }
     ]
+
+
+def test_attach_import_password_credentials_generates_unique_values_per_row(monkeypatch) -> None:
+    generated_passwords = iter(["ImportPass111A", "ImportPass222B"])
+
+    monkeypatch.setattr(
+        "app.services.student_import_service.generate_secure_password",
+        lambda min_length=10, max_length=14: next(generated_passwords),
+    )
+    monkeypatch.setattr(
+        "app.services.student_import_service.hash_password_bcrypt",
+        lambda password: f"hash::{password}",
+    )
+
+    service = StudentImportService()
+    first_row: dict[str, object] = {}
+    second_row: dict[str, object] = {}
+
+    service._attach_import_password_credentials(first_row)
+    service._attach_import_password_credentials(second_row)
+
+    assert first_row["temporary_password"] == "ImportPass111A"
+    assert first_row["password_hash"] == "hash::ImportPass111A"
+    assert second_row["temporary_password"] == "ImportPass222B"
+    assert second_row["password_hash"] == "hash::ImportPass222B"
+
+
+def test_flush_batch_queues_email_with_each_row_temporary_password(monkeypatch) -> None:
+    queued: list[dict[str, object]] = []
+
+    class FakeImportRepository:
+        def __init__(self, db):
+            self.db = db
+
+        def bulk_insert_students(self, rows, student_role_id, trust_preview=False):
+            return [
+                {**rows[0], "user_id": 101},
+                {**rows[1], "user_id": 102},
+            ], []
+
+    def fake_queue(
+        self,
+        *,
+        job_id: str,
+        user_id: int,
+        email: str,
+        first_name: str | None = None,
+        temporary_password: str,
+    ) -> None:
+        queued.append(
+            {
+                "job_id": job_id,
+                "user_id": user_id,
+                "email": email,
+                "first_name": first_name,
+                "temporary_password": temporary_password,
+            }
+        )
+
+    monkeypatch.setattr("app.services.student_import_service.SessionLocal", lambda: _DummySession())
+    monkeypatch.setattr("app.services.student_import_service.ImportRepository", FakeImportRepository)
+    monkeypatch.setattr(StudentImportService, "_queue_account_ready_email", fake_queue)
+
+    service = StudentImportService()
+    success_count, failed_count, errors = service._flush_batch(
+        job_id="job-credentials",
+        row_buffer=[
+            {
+                "email": "row.one@example.com",
+                "first_name": "RowOne",
+                "temporary_password": "ImportPass111A",
+                "password_hash": "hash::ImportPass111A",
+            },
+            {
+                "email": "row.two@example.com",
+                "first_name": "RowTwo",
+                "temporary_password": "ImportPass222B",
+                "password_hash": "hash::ImportPass222B",
+            },
+        ],
+        student_role_id=7,
+    )
+
+    assert success_count == 2
+    assert failed_count == 0
+    assert errors == []
+    assert queued == [
+        {
+            "job_id": "job-credentials",
+            "user_id": 101,
+            "email": "row.one@example.com",
+            "first_name": "RowOne",
+            "temporary_password": "ImportPass111A",
+        },
+        {
+            "job_id": "job-credentials",
+            "user_id": 102,
+            "email": "row.two@example.com",
+            "first_name": "RowTwo",
+            "temporary_password": "ImportPass222B",
+        },
+    ]

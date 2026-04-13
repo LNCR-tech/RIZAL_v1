@@ -92,9 +92,6 @@ export function normalizeTokenPayload(payload = {}) {
         accent_color: toOptionalString(payload.accent_color, null),
         must_change_password: Boolean(payload.must_change_password),
         session_id: toOptionalString(payload.session_id, null),
-        mfa_required: Boolean(payload.mfa_required),
-        mfa_challenge_id: toOptionalString(payload.mfa_challenge_id, null),
-        mfa_expires_at: toOptionalString(payload.mfa_expires_at, null),
         face_verification_required: Boolean(payload.face_verification_required),
         face_reference_enrolled: Boolean(payload.face_reference_enrolled),
         face_verification_pending: Boolean(payload.face_verification_pending),
@@ -438,6 +435,23 @@ export function normalizeNotificationLogItem(item = null) {
     }
 }
 
+export function normalizeNotificationPreference(payload = null) {
+    if (!payload || typeof payload !== 'object') return null
+
+    return {
+        ...payload,
+        user_id: toOptionalNumber(payload.user_id, null),
+        email_enabled: typeof payload.email_enabled === 'boolean' ? payload.email_enabled : true,
+        sms_enabled: typeof payload.sms_enabled === 'boolean' ? payload.sms_enabled : false,
+        sms_number: toOptionalString(payload.sms_number, null),
+        notify_missed_events: typeof payload.notify_missed_events === 'boolean' ? payload.notify_missed_events : true,
+        notify_low_attendance: typeof payload.notify_low_attendance === 'boolean' ? payload.notify_low_attendance : true,
+        notify_account_security: typeof payload.notify_account_security === 'boolean' ? payload.notify_account_security : true,
+        notify_subscription: typeof payload.notify_subscription === 'boolean' ? payload.notify_subscription : true,
+        updated_at: toOptionalString(payload.updated_at, nowIso()),
+    }
+}
+
 export function normalizeNotificationDispatchSummary(payload = {}) {
     return {
         ...payload,
@@ -734,6 +748,39 @@ export function normalizeGovernanceSsgSetup(payload = null) {
         ...payload,
         unit: normalizeGovernanceUnitDetail(unitPayload),
         total_imported_students: toOptionalNumber(payload.total_imported_students, 0),
+    }
+}
+
+export function normalizeGovernanceDashboardOverview(payload = null) {
+    if (!payload || typeof payload !== 'object') return null
+
+    return {
+        ...payload,
+        governance_unit_id: toOptionalNumber(payload.governance_unit_id, null),
+        unit_type: toOptionalString(payload.unit_type, null),
+        published_announcement_count: toOptionalNumber(payload.published_announcement_count, 0),
+        total_students: toOptionalNumber(payload.total_students, 0),
+        recent_announcements: Array.isArray(payload.recent_announcements)
+            ? payload.recent_announcements.map((item) => ({
+                ...item,
+                id: toOptionalNumber(item?.id, 0),
+                title: toOptionalString(item?.title, 'Untitled Announcement'),
+                status: toOptionalString(item?.status, 'draft'),
+                author_name: toOptionalString(item?.author_name, null),
+                updated_at: toOptionalString(item?.updated_at, null),
+            }))
+            : [],
+        child_units: Array.isArray(payload.child_units)
+            ? payload.child_units.map((item) => ({
+                ...item,
+                id: toOptionalNumber(item?.id, 0),
+                unit_code: toOptionalString(item?.unit_code, ''),
+                unit_name: toOptionalString(item?.unit_name, 'Student Government'),
+                description: toOptionalString(item?.description, null),
+                unit_type: toOptionalString(item?.unit_type, null),
+                member_count: toOptionalNumber(item?.member_count, 0),
+            }))
+            : [],
     }
 }
 

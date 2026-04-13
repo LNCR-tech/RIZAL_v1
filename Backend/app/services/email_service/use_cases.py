@@ -88,28 +88,3 @@ def send_password_reset_email(
         body=body,
         html_body=html_body,
     )
-
-
-def send_mfa_code_email(
-    *,
-    recipient_email: str,
-    code: str,
-    first_name: str | None = None,
-    system_name: str | None = None,
-) -> None:
-    from . import _send_email
-    from .rendering import build_mfa_code_email_content
-
-    resolved_first_name = (first_name or "").strip() or "User"
-    resolved_system_name = (system_name or "").strip() or "Valid8 Attendance Recognition System"
-    subject, body, html_body = build_mfa_code_email_content(
-        code=code,
-        first_name=resolved_first_name,
-        system_name=resolved_system_name,
-    )
-    _send_email(
-        subject=subject,
-        recipient_email=recipient_email,
-        body=body,
-        html_body=html_body,
-    )

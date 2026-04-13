@@ -370,6 +370,65 @@ def test_preview_import_students_accepts_csv_uploads(
     assert payload["preview_token"]
 
 
+def test_preview_import_students_accepts_xlsx_with_trailing_blank_header_columns(
+    client,
+    test_db,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+
+    school = _create_school(test_db, code="IMPORT-PREVIEW-XLSX-BLANK-HEADER")
+    _create_department_and_program(test_db, school_id=school.id)
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="campus.preview.xlsx.blank.header@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+    )
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Students"
+    sheet.append(EXPECTED_HEADERS + ["", ""])
+    sheet.append(
+        [
+            "STU-00031",
+            "xlsx.blank.header@example.edu",
+            "Excel",
+            "Student",
+            "E",
+            "Computer Science",
+            "BS Computer Science",
+            "",
+            "",
+        ]
+    )
+    output = io.BytesIO()
+    workbook.save(output)
+    workbook.close()
+
+    response = client.post(
+        "/api/admin/import-students/preview",
+        headers=_auth_headers(campus_admin),
+        files={
+            "file": (
+                "students.xlsx",
+                output.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["can_commit"] is True
+    assert payload["valid_rows"] == 1
+    assert payload["invalid_rows"] == 0
+    assert payload["preview_token"]
+
+
 def test_remove_invalid_preview_rows_keeps_only_valid_rows_and_allows_import(
     client,
     test_db,

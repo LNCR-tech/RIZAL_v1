@@ -52,7 +52,9 @@
 
     <NotificationsPanel
       :is-open="showNotifications"
-      :notifications="mockNotifications"
+      :notifications="notifications"
+      :loading="notificationsLoading"
+      :error="notificationsError"
       @close="showNotifications = false"
     />
 
@@ -82,7 +84,13 @@ import { getActiveClearanceDeadline, getMySanctions } from '@/services/backendAp
 const router = useRouter()
 const route = useRoute()
 const networkOnline = computed(() => isOnline.value)
-const { showNotifications, mockNotifications } = useNotifications()
+const {
+  showNotifications,
+  notifications,
+  notificationsLoading,
+  notificationsError,
+  syncNotificationSession,
+} = useNotifications()
 const fatalErrorMessage = computed(() => appFatalErrorMessage.value)
 const hasResolvedInitialRoute = ref(false)
 const showInitialBootScreen = computed(() => !hasResolvedInitialRoute.value && isNavigationPending.value)
@@ -117,6 +125,19 @@ watch(
     if (!pending) {
       hasResolvedInitialRoute.value = true
     }
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => dashboardState.initialized, apiBaseUrl, token, () => currentUser.value?.id],
+  async ([initialized, url, authToken, userId]) => {
+    const hasActiveSession = initialized && url && authToken && Number.isFinite(Number(userId))
+    await syncNotificationSession({
+      baseUrl: hasActiveSession ? url : '',
+      token: hasActiveSession ? authToken : '',
+      sessionKey: hasActiveSession ? `user:${Number(userId)}` : '',
+    })
   },
   { immediate: true }
 )

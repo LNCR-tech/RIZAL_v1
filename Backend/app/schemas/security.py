@@ -6,25 +6,7 @@ Role: Schema layer. It keeps API payloads clear and typed.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class MfaChallengeVerifyRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=255)
-    challenge_id: str = Field(min_length=8, max_length=64)
-    code: str = Field(min_length=4, max_length=12)
-
-
-class MfaStatusResponse(BaseModel):
-    user_id: int
-    mfa_enabled: bool
-    trusted_device_days: int
-    updated_at: datetime
-
-
-class MfaStatusUpdate(BaseModel):
-    mfa_enabled: bool
-    trusted_device_days: Optional[int] = Field(default=None, ge=1, le=60)
+from pydantic import BaseModel, ConfigDict
 
 
 class UserSessionItem(BaseModel):

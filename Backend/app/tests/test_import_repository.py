@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from app.models import Department, Program, Role, School, StudentProfile, User, UserRole
 from app.repositories.import_repository import ImportRepository
-from app.utils.passwords import hash_password_bcrypt
+from app.utils.passwords import hash_password_bcrypt, verify_password_bcrypt
 
 
 def _create_school(test_db, *, code: str) -> School:
@@ -159,7 +159,7 @@ def test_bulk_insert_students_auto_creates_catalog_entries(test_db):
     school = _create_school(test_db, code="REPO-AUTO-CATALOG")
     student_role = _get_or_create_role(test_db, name="student")
     repo = ImportRepository(test_db)
-    shared_password_hash = hash_password_bcrypt("SharedImportPass123")
+    temporary_password = "SharedImportPass123"
 
     success_rows, errors = repo.bulk_insert_students(
         [
@@ -168,6 +168,7 @@ def test_bulk_insert_students_auto_creates_catalog_entries(test_db):
                 "school_id": school.id,
                 "student_id": "STU-20001",
                 "email": "auto.catalog@example.edu",
+                "password_hash": hash_password_bcrypt(temporary_password),
                 "first_name": "Auto",
                 "middle_name": "C",
                 "last_name": "Catalog",
@@ -185,7 +186,6 @@ def test_bulk_insert_students_auto_creates_catalog_entries(test_db):
             }
         ],
         student_role.id,
-        shared_password_hash=shared_password_hash,
         trust_preview=True,
     )
     test_db.commit()
@@ -210,7 +210,7 @@ def test_bulk_insert_students_auto_creates_catalog_entries(test_db):
     assert errors == []
     assert len(success_rows) == 1
     assert created_user is not None
-    assert created_user.password_hash == shared_password_hash
+    assert verify_password_bcrypt(temporary_password, created_user.password_hash)
     assert created_profile is not None
     assert created_department is not None
     assert created_program is not None

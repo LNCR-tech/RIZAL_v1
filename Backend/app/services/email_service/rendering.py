@@ -137,27 +137,3 @@ def build_password_reset_email_content(
     )
 
 
-def build_mfa_code_email_content(
-    *,
-    code: str,
-    first_name: str,
-    system_name: str,
-) -> tuple[str, str, str]:
-    return (
-        f"{system_name} - MFA Verification Code",
-        (
-            f"Dear {first_name},\n\n"
-            "Use the code below to complete your login:\n\n"
-            f"MFA Code: {code}\n\n"
-            "This code expires in 10 minutes.\n"
-            "If you did not attempt to log in, please reset your password immediately.\n\n"
-            f"{system_name} Team\n"
-        ),
-        (
-            f"<p>Dear {html.escape(first_name)},</p>"
-            "<p>Use the code below to complete your login:</p>"
-            f"<p><strong>MFA Code: {html.escape(code)}</strong></p>"
-            "<p>This code expires in 10 minutes. If you did not attempt to log in, please reset your password immediately.</p>"
-            f"<p>{html.escape(system_name)} Team</p>"
-        ),
-    )
