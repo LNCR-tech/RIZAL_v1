@@ -195,6 +195,7 @@ services:
       - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - ASSISTANT_AUTO_MIGRATE=true
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - BACKEND_API_BASE_URL=${BACKEND_API_BASE_URL:-http://backend:8000}
     depends_on:
       - db
     restart: unless-stopped

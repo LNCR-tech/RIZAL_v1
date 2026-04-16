@@ -55,3 +55,4 @@ Expected result:
 
 - command exits `0`
 - Mailpit UI shows the new message
+- default subject uses `Aura email transport smoke test ...`

@@ -191,7 +191,7 @@ def _send_sanction_notification_email(
             "",
             "Please coordinate with your governance office for compliance instructions.",
             "",
-            "VALID8 / Aura",
+            "Aura",
         ]
     )
     send_plain_email(
@@ -239,7 +239,7 @@ def _send_clearance_deadline_warning_email(
             "",
             "Please complete pending sanctions before the deadline.",
             "",
-            "VALID8 / Aura",
+            "Aura",
         ]
     )
     send_plain_email(
@@ -273,7 +273,7 @@ def _send_sanction_compliance_confirmation_email(
         "",
         "If this is incorrect, contact your governance office immediately.",
         "",
-        "VALID8 / Aura",
+        "Aura",
     ]
     send_plain_email(
         recipient_email=recipient_email,

@@ -24,6 +24,25 @@ const conversationId = ref(loadStoredConversationId())
 // Holds a ref to the messages scroll container (set by the active chat view)
 const scrollEl   = ref(null)
 
+function getAssistantErrorMessage(error) {
+  const status = Number(error?.status || 0)
+  const message = String(error?.message || '').trim()
+
+  if (status === 401) {
+    return 'Your session expired. Log in again so Aura can use your account scope.'
+  }
+
+  if (status === 403 && message) {
+    return message
+  }
+
+  if (message) {
+    return message
+  }
+
+  return 'Something went wrong while contacting Aura Assistant. Please try again.'
+}
+
 function loadStoredConversationId() {
   try {
     const raw = localStorage.getItem('aura_assistant_conversation_id')
@@ -102,11 +121,11 @@ async function sendMessage() {
     }
 
     await streamAiResponse(text, { token, userMeta })
-  } catch {
+  } catch (error) {
     messages.value.push({
       id: Date.now() + 1,
       sender: 'ai',
-      text: 'Something went wrong while contacting Aura Assistant. Please try again.'
+      text: getAssistantErrorMessage(error)
     })
   } finally {
     isTyping.value = false

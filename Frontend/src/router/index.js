@@ -41,6 +41,7 @@ const SchoolItAttendanceMonitorView = dashboardView('SchoolItAttendanceMonitorVi
 const SchoolItEventReportsView = dashboardView('SchoolItEventReportsView')
 const SchoolItSettingsView = dashboardView('SchoolItSettingsView')
 const GovernanceWorkspaceView = dashboardView('GovernanceWorkspaceView')
+const SgEventsView = dashboardView('SgEventsView')
 const SgCreateUnitView = dashboardView('SgCreateUnitView')
 const SanctionsDashboardView = dashboardView('SanctionsDashboardView')
 const SanctionedStudentsListView = dashboardView('SanctionedStudentsListView')
@@ -486,8 +487,7 @@ const routes = [
             {
                 path: 'events',
                 name: 'SgEvents',
-                component: GovernanceWorkspaceView,
-                props: { section: 'events' },
+                component: SgEventsView,
             },
             {
                 path: 'announcements',
@@ -573,8 +573,8 @@ const routes = [
             {
                 path: 'events',
                 name: 'PreviewSgEvents',
-                component: GovernanceWorkspaceView,
-                props: { preview: true, section: 'events' },
+                component: SgEventsView,
+                props: { preview: true },
             },
             {
                 path: 'announcements',

@@ -112,3 +112,4 @@ The system follows a modern decoupled architecture:
 - **Security-First:** Heavy emphasis on face liveness and role-based gating for sensitive actions.
 - **Scalability:** Uses background workers (Celery) for heavy tasks like student imports and face embedding computations.
 - **Maintainability:** Clear separation of Models, Schemas, Routers, and Services in the backend.
+ 

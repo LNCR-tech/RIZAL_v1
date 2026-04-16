@@ -86,9 +86,9 @@ def main() -> int:
             return 0
 
         timestamp = datetime.now(timezone.utc).isoformat()
-        subject = args.subject.strip() or f"VALID8 email transport smoke test {timestamp}"
+        subject = args.subject.strip() or f"Aura email transport smoke test {timestamp}"
         body = args.body.strip() or (
-            "This is a real VALID8 transactional-email smoke test.\n\n"
+            "This is a real Aura transactional-email smoke test.\n\n"
             f"UTC timestamp: {timestamp}\n"
             "If you received this message, the backend completed a full outbound send "
             "using the configured transport."

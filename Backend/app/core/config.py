@@ -238,7 +238,7 @@ def get_settings() -> Settings:
         email_from_name=_get_first_env_value(
             "EMAIL_FROM_NAME",
             "SMTP_FROM_NAME",
-            default="VALID8 Notifications",
+            default="Aura Notifications",
         ).strip(),
         email_reply_to=_get_first_env_value("EMAIL_REPLY_TO", "SMTP_REPLY_TO").strip(),
         smtp_host=_get_first_env_value("SMTP_HOST", default="localhost").strip(),

@@ -127,13 +127,13 @@ def send_test_notification(
     current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
-    message = payload.message or "This is a test notification from VALID8."
+    message = payload.message or "This is a test notification from Aura."
     status_value = send_notification_to_user(
         db,
         user=current_user,
         school_id=getattr(current_user, "school_id", None),
         category="test_notification",
-        subject="VALID8 Test Notification",
+        subject="Aura Test Notification",
         message=message,
         metadata_json={"triggered_by": current_user.id, "channel_hint": payload.channel},
     )
