@@ -27,7 +27,8 @@
             type="button"
             @click="copyConversation"
           >
-            <Copy :size="15" />
+            <Check v-if="copyStatus === 'copied'" :size="15" class="text-green-500" />
+            <Copy v-else :size="15" />
           </button>
           <button
             class="chat-icon-btn"
@@ -132,7 +133,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Copy, Send, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Copy, Send, Plus, Trash2, Check } from 'lucide-vue-next'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
@@ -157,6 +158,7 @@ const {
   scrollEl,
   sendMessage,
   copyConversation,
+  copyStatus,
   refreshConversations,
   startNewConversation,
   selectConversation,

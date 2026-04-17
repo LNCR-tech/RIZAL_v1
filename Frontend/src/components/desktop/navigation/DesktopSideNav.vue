@@ -81,7 +81,8 @@
                     title="Copy conversation"
                     @click.stop="copyConversation"
                   >
-                    <Copy :size="14" :color="'var(--color-banner-text)'" />
+                    <Check v-if="copyStatus === 'copied'" :size="14" class="text-green-500" />
+                    <Copy v-else :size="14" :color="'var(--color-banner-text)'" />
                   </button>
                   <button
                     class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
@@ -156,7 +157,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Maximize2, Send, ChevronDown, Copy, Plus } from 'lucide-vue-next'
+import { Maximize2, Send, ChevronDown, Copy, Plus, Check } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
@@ -172,14 +173,11 @@ const {
   startNewConversation,
   openPill,
   closeMini,
+  copyConversation,
+  copyStatus,
 } = useChat()
 
-function copyConversation() {
-  const transcript = messages.value
-    .map((m) => `${m.sender === 'ai' ? 'Aura AI' : 'Me'}: ${m.text}`)
-    .join('\n\n')
-  navigator.clipboard.writeText(transcript)
-}
+
 
 const pillRef = ref(null)
 const router = useRouter()
