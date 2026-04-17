@@ -105,14 +105,14 @@
 
               <div class="mini-messages flex-1 overflow-y-auto scrollbar-hide pb-1">
                 <TransitionGroup name="mini-bubble" tag="div" class="mini-messages-inner">
-                  <div
-                    v-for="msg in messages"
-                    :key="msg.id"
-                    v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
-                    :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
-                  >
-                    <ChatMarkdownMessage :text="msg.text" />
-                  </div>
+                  <template v-for="msg in messages" :key="msg.id">
+                    <div
+                      v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
+                      :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
+                    >
+                      <ChatMarkdownMessage :text="msg.text" />
+                    </div>
+                  </template>
 
                   <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
                     <div class="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style="animation-delay:0ms" />

@@ -101,14 +101,14 @@
             <!-- ── Messages area ──────────────────────────────────────── -->
             <div class="chat-messages" ref="scrollEl">
               <TransitionGroup name="bubble" tag="div" class="chat-messages-inner">
-                <div
-                  v-for="msg in messages"
-                  :key="msg.id"
-                  v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
-                  :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
-                >
-                  <ChatMarkdownMessage :text="msg.text" />
-                </div>
+                <template v-for="msg in messages" :key="msg.id">
+                  <div
+                    v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
+                    :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
+                  >
+                    <ChatMarkdownMessage :text="msg.text" />
+                  </div>
+                </template>
 
                 <!-- Typing indicator -->
                 <div v-if="isTyping" key="typing" class="bubble bubble--ai bubble--typing">

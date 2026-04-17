@@ -85,14 +85,14 @@
         <div class="chat-main">
           <div class="chat-messages" ref="scrollEl">
             <TransitionGroup name="bubble" tag="div" class="chat-messages-inner">
-              <div
-                v-for="message in messages"
-                :key="message.id"
-                v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0)"
-                :class="['bubble', message.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
-              >
-                <ChatMarkdownMessage :text="message.text" />
-              </div>
+              <template v-for="message in messages" :key="message.id">
+                <div
+                  v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0)"
+                  :class="['bubble', message.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
+                >
+                  <ChatMarkdownMessage :text="message.text" />
+                </div>
+              </template>
 
               <div v-if="isTyping && typingConversationId === conversationId" key="typing" class="bubble bubble--ai bubble--typing">
                 <span class="dot" style="animation-delay: 0ms" />
