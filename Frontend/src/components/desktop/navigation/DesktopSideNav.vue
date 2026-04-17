@@ -40,9 +40,9 @@
 
         <div v-if="showMiniAssistant" ref="pillRef" class="relative w-[40px] h-[74px] mx-2 mb-1.5 z-50">
           <div
-            class="absolute top-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-left"
+            class="absolute bottom-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-bottom-left"
             :class="isMiniOpen
-              ? 'w-[300px] h-[190px] rounded-[32px] cursor-default'
+              ? 'w-[360px] h-[550px] rounded-[32px] cursor-default shadow-2xl'
               : 'w-[40px] h-[74px] rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95'"
             style="background: var(--color-primary);"
             @click="!isMiniOpen ? openPill() : null"
@@ -64,14 +64,15 @@
               class="absolute inset-0 flex flex-col p-3 transition-opacity duration-300 delay-100"
               :class="isMiniOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'"
             >
-              <div class="flex items-center justify-between mb-2">
-                <img
-                  :src="activeAuraLogo"
-                  alt="Aura"
-                  class="w-7 h-7 object-contain opacity-90 cursor-pointer transition-transform hover:scale-110"
-                  title="Collapse chat"
+              <div class="flex items-center justify-between mb-2 px-1">
+                <button
+                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors flex items-center justify-center group"
+                  aria-label="Minimize chat"
+                  title="Minimize chat"
                   @click.stop="closeMini"
-                />
+                >
+                  <ChevronDown :size="16" :color="'var(--color-banner-text)'" class="transition-transform group-hover:scale-110" />
+                </button>
 
                 <button
                   class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
@@ -88,9 +89,19 @@
                   <div
                     v-for="msg in messages"
                     :key="msg.id"
+                    class="group relative"
                     :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
                   >
                     <ChatMarkdownMessage :text="msg.text" />
+                    <!-- Copy Button for AI Messages -->
+                    <button
+                      v-if="msg.sender === 'ai' && msg.text.trim()"
+                      class="absolute -top-3 right-2 p-1.5 bg-[var(--color-surface)] border border-black/10 rounded-full opacity-0 translate-y-2 transition-all group-hover:opacity-100 group-hover:translate-y-0 hover:bg-black/5 hover:scale-105 active:scale-95 shadow-sm"
+                      title="Copy message"
+                      @click="copyToClipboard(msg.text)"
+                    >
+                      <Copy :size="12" class="text-black/60" />
+                    </button>
                   </div>
 
                   <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
@@ -137,7 +148,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Maximize2, Send } from 'lucide-vue-next'
+import { Maximize2, Send, ChevronDown, Copy } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
@@ -153,6 +164,11 @@ const {
   openPill,
   closeMini,
 } = useChat()
+
+function copyToClipboard(text) {
+  if (!text) return
+  navigator.clipboard.writeText(String(text).trim())
+}
 
 const pillRef = ref(null)
 const router = useRouter()
