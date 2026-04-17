@@ -12,6 +12,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -38,7 +43,8 @@ services:
     volumes:
       - ./Backend:/app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: "no"
 
   seed:
@@ -85,7 +91,7 @@ services:
     restart: unless-stopped
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
       seed:
@@ -118,7 +124,7 @@ services:
     restart: unless-stopped
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
       seed:
@@ -151,7 +157,7 @@ services:
     restart: unless-stopped
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
       seed:
@@ -186,7 +192,8 @@ services:
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - BACKEND_API_BASE_URL=${BACKEND_API_BASE_URL:-http://backend:8000}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   pgadmin:
@@ -198,7 +205,8 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   dashboard:
     image: alpine
