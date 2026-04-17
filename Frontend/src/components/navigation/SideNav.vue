@@ -81,14 +81,41 @@
                   @click.stop="closeMini"
                 />
                 <!-- ★ This expand button opens the full floating window -->
-                <button
-                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                  aria-label="Expand chat to full window"
-                  title="Open full chat"
-                  @click.stop="expandToFull"
-                >
-                  <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
-                </button>
+                <div class="flex items-center gap-1">
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="Copy conversation"
+                    title="Copy conversation"
+                    @click.stop="copyConversation"
+                  >
+                    <Copy :size="15" :color="'var(--color-banner-text)'" />
+                  </button>
+
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="Start new chat"
+                    title="New chat"
+                    @click.stop="startNewConversation"
+                  >
+                    <Plus :size="15" :color="'var(--color-banner-text)'" />
+                  </button>
+
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="Expand chat to full window"
+                    title="Open full chat"
+                    @click.stop="openFullChatPage"
+                  >
+                    <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                class="mb-2 text-[10px] font-semibold tracking-wide"
+                :style="{ color: 'var(--color-banner-text)', opacity: 0.75 }"
+              >
+                {{ getActiveConversationLabel() }}
               </div>
 
               <!-- Mini messages (read-only scroll) -->
@@ -99,7 +126,7 @@
                     :key="msg.id"
                     :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
                   >
-                    {{ msg.text }}
+                    <ChatMarkdownMessage :text="msg.text" />
                   </div>
 
                   <!-- Typing dots -->
@@ -144,18 +171,17 @@
   </aside>
 
   <!-- ── Full floating chat window (teleported to body) ────── -->
-  <AuraChatWindow />
 </template>
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Maximize2, Send } from 'lucide-vue-next'
+import { Copy, Maximize2, Send, Plus } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
-import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
+import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
-import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
+import { resolveChatLocation, withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 // ── Chat state from singleton composable ──────────────────
 const {
@@ -164,9 +190,11 @@ const {
   isTyping,
   isMiniOpen,
   sendMessage,
+  copyConversation,
+  startNewConversation,
+  getActiveConversationLabel,
   openPill,
   closeMini,
-  expandToFull,
 } = useChat()
 
 // ── Click-outside to close mini pill ─────────────────────
@@ -215,6 +243,14 @@ function isActive(item) {
 
 function navigate(path) {
   const target = withPreservedGovernancePreviewQuery(route, path)
+  const resolvedTarget = router.resolve(target)
+  if (route.fullPath === resolvedTarget.fullPath) return
+  router.push(target)
+}
+
+function openFullChatPage() {
+  closeMini()
+  const target = resolveChatLocation(route)
   const resolvedTarget = router.resolve(target)
   if (route.fullPath === resolvedTarget.fullPath) return
   router.push(target)

@@ -218,6 +218,51 @@ Fix bulk import preview failures for valid Excel templates where spreadsheet for
 
 ## 2026-04-12 - Fix Docker bulk-import worker file sharing in local compose
 
+## 2026-04-16 - Seed multi-school demo dataset for assistant role/permission testing
+
+### Purpose
+
+Enable realistic manual testing of the UI + Aura AI assistant across multiple schools, roles, and governance permission codes.
+
+### Main files
+
+- `Backend/app/seeder.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/docs/BACKEND_DEMO_SEEDING_GUIDE.md`
+- `.gitignore`
+
+### Backend changes
+
+- seeder now supports demo seeding (default on) to generate:
+  - 5 sample schools
+  - 100 sample users (platform admins, campus admins, students)
+  - departments/programs per school
+  - governance units (SSG/SG/ORG) + governance member permissions for a subset of users
+  - demo credentials saved to `Backend/storage/seed_credentials.csv` (gitignored)
+- login token issuance now includes:
+  - derived governance membership roles in `roles` (`ssg`, `sg`, `org`)
+  - governance permission codes in `permissions`
+  so the assistant can enforce MCP policy based on the JWT claims.
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - JWT payload now includes a `permissions` claim and may include governance roles (`ssg`/`sg`/`org`) in `roles`
+
+### Migration impact
+
+- no new migrations required
+
+### How to test
+
+1. Run migrations:
+   - `python -m alembic upgrade head`
+2. Run seeder:
+   - `python Backend/seed.py`
+3. Open `Backend/storage/seed_credentials.csv` and log in with different users to test assistant behavior.
+
 ### Purpose
 
 Fix import jobs failing in Docker because backend and worker containers were not guaranteed to use the same import storage path.

@@ -119,6 +119,29 @@ export function resolveWorkspaceHomeLocation(routeOrPath = null) {
   }
 }
 
+export function resolveChatLocation(routeOrPath = null) {
+  switch (resolveWorkspaceContext(routeOrPath)) {
+    case 'admin':
+      return { name: 'AdminAuraChat' }
+    case 'admin_preview':
+      return { name: 'PreviewAdminAuraChat' }
+    case 'workspace':
+      return { name: 'SchoolItAuraChat' }
+    case 'workspace_preview':
+      return { name: 'PreviewSchoolItAuraChat' }
+    case 'governance':
+    case 'sg':
+      return { name: 'SgAuraChat' }
+    case 'governance_preview':
+    case 'sg_preview':
+      return withPreservedGovernancePreviewQuery(routeOrPath, { name: 'PreviewSgAuraChat' })
+    case 'dashboard_preview':
+      return { name: 'PreviewDashboardAuraChat' }
+    default:
+      return { name: 'DashboardAuraChat' }
+  }
+}
+
 export function resolveGovernanceWorkspaceLocation(routeOrPath = null) {
   return isPreviewWorkspaceContext(routeOrPath)
     ? withPreservedGovernancePreviewQuery(routeOrPath, { name: 'PreviewSgDashboard' })

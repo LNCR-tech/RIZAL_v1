@@ -48,6 +48,7 @@ const StudentSanctionDetailView = dashboardView('StudentSanctionDetailView')
 const StudentSanctionsView = dashboardView('StudentSanctionsView')
 const GatherWelcomeView = dashboardView('GatherWelcomeView')
 const GatherAttendanceView = dashboardView('GatherAttendanceView')
+const AuraChatView = dashboardView('AuraChatView')
 
 const routes = [
     // Auth routes (no layout)
@@ -163,6 +164,14 @@ const routes = [
                 component: AdminWorkspaceView,
                 props: { section: 'profile' },
             },
+            {
+                path: 'chat',
+                name: 'AdminAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
         ],
     },
     {
@@ -202,6 +211,14 @@ const routes = [
                 name: 'PreviewAdminProfile',
                 component: AdminWorkspaceView,
                 props: { preview: true, section: 'profile' },
+            },
+            {
+                path: 'chat',
+                name: 'PreviewAdminAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
         ],
     },
@@ -283,6 +300,14 @@ const routes = [
                 path: 'profile',
                 name: 'SchoolItProfile',
                 component: ProfileView,
+            },
+            {
+                path: 'chat',
+                name: 'SchoolItAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
         ],
     },
@@ -375,6 +400,14 @@ const routes = [
                     description: 'Profile controls will stay on the real authenticated workspace once the backend is available again.',
                 },
             },
+            {
+                path: 'chat',
+                name: 'PreviewSchoolItAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
         ],
     },
     {
@@ -429,6 +462,14 @@ const routes = [
                 name: 'PreviewDashboardProfile',
                 component: ProfileView,
                 props: { preview: true },
+            },
+            {
+                path: 'chat',
+                name: 'PreviewDashboardAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
             {
                 path: 'gather',
@@ -523,6 +564,14 @@ const routes = [
                 component: EventDetailView,
             },
             {
+                path: 'chat',
+                name: 'SgAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
+            },
+            {
                 path: 'gather',
                 name: 'SgGatherWelcome',
                 component: GatherWelcomeView,
@@ -613,6 +662,14 @@ const routes = [
                 name: 'PreviewSgEventDetail',
                 component: EventDetailView,
                 props: { preview: true },
+            },
+            {
+                path: 'chat',
+                name: 'PreviewSgAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
             {
                 path: 'gather',
@@ -739,6 +796,14 @@ const routes = [
                 path: 'sanctions',
                 name: 'DashboardSanctions',
                 component: StudentSanctionsView,
+            },
+            {
+                path: 'chat',
+                name: 'DashboardAuraChat',
+                component: AuraChatView,
+                meta: {
+                    hideMobileNav: true,
+                },
             },
             {
                 path: 'gather',

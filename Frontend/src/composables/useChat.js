@@ -9,7 +9,13 @@
 import { ref, nextTick } from 'vue'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
 import { resolveAssistantBaseUrl } from '@/services/assistantBaseUrl.js'
-import { streamAssistantReply } from '@/services/assistantApi.js'
+import {
+  streamAssistantReply,
+  listAssistantConversations,
+  getAssistantConversation,
+  deleteAssistantConversation,
+  AssistantApiError,
+} from '@/services/assistantApi.js'
 
 // ─── Shared singleton state ───────────────────────────────────────────────────
 const messages   = ref([
@@ -17,12 +23,18 @@ const messages   = ref([
 ])
 const inputText  = ref('')
 const isTyping   = ref(false)
+const typingConversationId = ref(null)
 const isMiniOpen = ref(false)
 const isFullOpen = ref(false)
 const conversationId = ref(loadStoredConversationId())
+const conversations = ref([]) // [{ conversation_id, title, last_message, updated_at }]
+const isLoadingConversations = ref(false)
+const conversationsError = ref(null)
+const copyStatus = ref('idle') // idle | copied | failed
 
 // Holds a ref to the messages scroll container (set by the active chat view)
 const scrollEl   = ref(null)
+let copyResetTimer = null
 
 function loadStoredConversationId() {
   try {
@@ -58,24 +70,185 @@ function scrollToBottom() {
   })
 }
 
+function getAuthToken() {
+  return String(localStorage.getItem('aura_token') || '').trim()
+}
+
+function normalizeConversationTitle(convo) {
+  const raw = String(convo?.title || '').trim()
+  if (raw) return raw
+  const fallback = String(convo?.last_message || '').trim()
+  return fallback ? fallback.slice(0, 44) : 'New chat'
+}
+
+function resetToGreeting() {
+  messages.value = [
+    { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' },
+  ]
+}
+
+function formatConversationText() {
+  return (messages.value || [])
+    .map((msg) => {
+      const sender = msg?.sender === 'user' ? 'You' : 'Aura'
+      const text = String(msg?.text ?? '').trim()
+      if (!text) return null
+      return `${sender}: ${text}`
+    })
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+async function copyConversation() {
+  const text = formatConversationText()
+  if (!text) return false
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      // Fallback for environments where Clipboard API isn't available.
+      const el = document.createElement('textarea')
+      el.value = text
+      el.setAttribute('readonly', '')
+      el.style.position = 'fixed'
+      el.style.left = '-9999px'
+      el.style.top = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+
+    copyStatus.value = 'copied'
+    if (copyResetTimer) clearTimeout(copyResetTimer)
+    copyResetTimer = setTimeout(() => { copyStatus.value = 'idle' }, 1200)
+    return true
+  } catch {
+    copyStatus.value = 'failed'
+    if (copyResetTimer) clearTimeout(copyResetTimer)
+    copyResetTimer = setTimeout(() => { copyStatus.value = 'idle' }, 1500)
+    return false
+  }
+}
+
 async function streamAiResponse(userMessage, { token, userMeta } = {}) {
   const aiMessage = { id: Date.now() + 1, sender: 'ai', text: '' }
   messages.value.push(aiMessage)
 
-  await streamAssistantReply({
+  try {
+    return await streamAssistantReply({
+      baseUrl: resolveAssistantBaseUrl(),
+      token,
+      message: userMessage,
+      conversationId: conversationId.value,
+      userMeta,
+      onMessageChunk: (chunk, meta) => {
+        aiMessage.text += chunk
+        if (meta?.conversationId) {
+          storeConversationId(meta.conversationId)
+        }
+        scrollToBottom()
+      },
+    })
+  } catch (err) {
+    // If the request fails before any chunks arrive, avoid leaving an empty bubble behind.
+    const idx = messages.value.indexOf(aiMessage)
+    if (idx >= 0) messages.value.splice(idx, 1)
+    throw err
+  }
+}
+
+async function refreshConversations() {
+  const token = getAuthToken()
+  conversationsError.value = null
+
+  if (!token) {
+    conversations.value = []
+    return []
+  }
+
+  isLoadingConversations.value = true
+  try {
+    const data = await listAssistantConversations({ baseUrl: resolveAssistantBaseUrl(), token })
+    conversations.value = Array.isArray(data) ? data : []
+    return conversations.value
+  } catch (err) {
+    conversationsError.value = err instanceof AssistantApiError
+      ? `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}`
+      : (err?.message || 'Failed to load conversations.')
+    conversations.value = []
+    return []
+  } finally {
+    isLoadingConversations.value = false
+  }
+}
+
+async function startNewConversation() {
+  storeConversationId(null)
+  resetToGreeting()
+}
+
+async function selectConversation(targetConversationId) {
+  const token = getAuthToken()
+  const normalized = String(targetConversationId || '').trim()
+  if (!token || !normalized) return false
+
+  try {
+    const convo = await getAssistantConversation({
+      baseUrl: resolveAssistantBaseUrl(),
+      token,
+      conversationId: normalized,
+    })
+
+    const mapped = (convo?.messages || []).map((m, idx) => ({
+      id: idx + 1,
+      sender: m?.role === 'user' ? 'user' : 'ai',
+      text: String(m?.content ?? ''),
+    }))
+
+    messages.value = mapped.length
+      ? mapped
+      : [{ id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }]
+
+    storeConversationId(convo?.conversation_id || normalized)
+    scrollToBottom()
+    return true
+  } catch (err) {
+    if (err instanceof AssistantApiError && err.status === 404) {
+      await startNewConversation()
+      await refreshConversations()
+      return false
+    }
+    throw err
+  }
+}
+
+async function removeConversation(targetConversationId) {
+  const token = getAuthToken()
+  const normalized = String(targetConversationId || '').trim()
+  if (!token || !normalized) return false
+
+  await deleteAssistantConversation({
     baseUrl: resolveAssistantBaseUrl(),
     token,
-    message: userMessage,
-    conversationId: conversationId.value,
-    userMeta,
-    onMessageChunk: (chunk, meta) => {
-      aiMessage.text += chunk
-      if (meta?.conversationId) {
-        storeConversationId(meta.conversationId)
-      }
-      scrollToBottom()
-    },
+    conversationId: normalized,
   })
+
+  if (conversationId.value === normalized) {
+    await startNewConversation()
+  }
+  await refreshConversations()
+  return true
+}
+
+function getActiveConversationLabel() {
+  const current = conversationId.value
+  if (!current) return 'New chat'
+
+  const match = (conversations.value || []).find((c) => String(c?.conversation_id || '') === current)
+  if (!match) return 'Continuing chat'
+  return normalizeConversationTitle(match)
 }
 
 // ─── Public actions ───────────────────────────────────────────────────────────
@@ -86,12 +259,12 @@ async function sendMessage() {
   messages.value.push({ id: Date.now(), sender: 'user', text })
   inputText.value = ''
   isTyping.value  = true
+  typingConversationId.value = conversationId.value
   scrollToBottom()
 
   try {
-    const token = String(localStorage.getItem('aura_token') || '').trim()
+    const token = getAuthToken()
     const userMeta = getStoredAuthMeta()
-
     if (!token) {
       messages.value.push({
         id: Date.now() + 1,
@@ -101,15 +274,45 @@ async function sendMessage() {
       return
     }
 
-    await streamAiResponse(text, { token, userMeta })
-  } catch {
+    try {
+      const result = await streamAiResponse(text, { token, userMeta })
+      if (result?.conversationId && result.conversationId !== conversationId.value) {
+        storeConversationId(result.conversationId)
+      }
+      refreshConversations()
+    } catch (err) {
+      // The assistant stores conversations per-user; if the browser has a stale conversation_id
+      // (e.g., assistant restarted or user token identity changed), reset and start a new chat.
+      const isConversationNotFound = err instanceof AssistantApiError
+        && err.status === 404
+        && /conversation not found/i.test(String(err.message || ''))
+
+      if (isConversationNotFound && conversationId.value) {
+        storeConversationId(null)
+        const result = await streamAiResponse(text, { token, userMeta })
+        if (result?.conversationId) storeConversationId(result.conversationId)
+        refreshConversations()
+      } else {
+        throw err
+      }
+    }
+  } catch (err) {
+    const messageText = err instanceof AssistantApiError
+      ? `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}`
+      : (err?.message || 'Something went wrong while contacting Aura Assistant. Please try again.')
+
+    if (typeof console !== 'undefined') {
+      console.warn('Aura assistant request failed:', err)
+    }
+
     messages.value.push({
       id: Date.now() + 1,
       sender: 'ai',
-      text: 'Something went wrong while contacting Aura Assistant. Please try again.'
+      text: messageText,
     })
   } finally {
     isTyping.value = false
+    typingConversationId.value = null
     scrollToBottom()
   }
 }
@@ -152,11 +355,22 @@ export function useChat() {
     messages,
     inputText,
     isTyping,
+    typingConversationId,
     isMiniOpen,
     isFullOpen,
     conversationId,
+    conversations,
+    isLoadingConversations,
+    conversationsError,
     scrollEl,
+    copyStatus,
     sendMessage,
+    copyConversation,
+    refreshConversations,
+    startNewConversation,
+    selectConversation,
+    removeConversation,
+    getActiveConversationLabel,
     openMini,
     closeMini,
     openFull,

@@ -20,6 +20,7 @@ from app.core.security import (
 from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.school import School, SchoolSetting
 from app.models.user import User
+from app.services import governance_hierarchy_service
 from app.services.security_service import create_user_session
 
 BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
@@ -43,6 +44,41 @@ def get_user_role_names(user: User) -> list[str]:
 
 def validate_login_account_state(db: Session, user: User) -> None:
     validate_user_account_state(db, user)
+
+
+def _get_governance_role_names(db: Session, user: User) -> list[str]:
+    """Expose governance memberships as assistant-friendly role strings (ssg/sg/org)."""
+    if getattr(user, "school_id", None) is None:
+        return []
+    try:
+        unit_types = governance_hierarchy_service.get_user_governance_unit_types(
+            db,
+            current_user=user,
+        )
+    except Exception:
+        return []
+
+    # GovernanceUnitType values are "SSG"/"SG"/"ORG".
+    role_names: list[str] = []
+    for unit_type in sorted({ut.value for ut in unit_types}):
+        normalized = str(unit_type).strip().lower()
+        if normalized in {"ssg", "sg", "org"}:
+            role_names.append(normalized)
+    return role_names
+
+
+def _get_governance_permission_codes(db: Session, user: User) -> list[str]:
+    """Expose governance member permission codes for assistant MCP policy enforcement."""
+    if getattr(user, "school_id", None) is None:
+        return []
+    try:
+        permission_codes = governance_hierarchy_service.get_user_governance_permission_codes(
+            db,
+            current_user=user,
+        )
+    except Exception:
+        return []
+    return sorted({str(code.value).strip().lower() for code in permission_codes if getattr(code, "value", None)})
 
 
 def get_school_context(db: Session, user: User) -> dict[str, object | None]:
@@ -106,7 +142,13 @@ def issue_full_access_token_response(
     user: User,
     request: Request | None = None,
 ) -> dict[str, object | None]:
-    role_names = get_user_role_names(user)
+    base_roles = get_user_role_names(user)
+    governance_roles = _get_governance_role_names(db, user)
+    permission_codes = _get_governance_permission_codes(db, user)
+    role_names = [*base_roles]
+    for role_name in governance_roles:
+        if role_name not in role_names:
+            role_names.append(role_name)
     school_context = get_school_context(db, user)
     face_reference_enrolled = (
         getattr(user, "face_profile", None) is not None
@@ -118,6 +160,7 @@ def issue_full_access_token_response(
     token_payload = {
         "sub": user.email,
         "roles": role_names,
+        "permissions": permission_codes,
         "user_id": user.id,
         "is_admin": "admin" in role_names,
         "must_change_password": user.must_change_password,

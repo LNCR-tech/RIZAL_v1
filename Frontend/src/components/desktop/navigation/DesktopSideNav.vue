@@ -77,7 +77,7 @@
                   class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
                   aria-label="Expand chat to full window"
                   title="Open full chat"
-                  @click.stop="expandToFull"
+                  @click.stop="openFullChatPage"
                 >
                   <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
                 </button>
@@ -90,7 +90,7 @@
                     :key="msg.id"
                     :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
                   >
-                    {{ msg.text }}
+                    <ChatMarkdownMessage :text="msg.text" />
                   </div>
 
                   <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
@@ -132,7 +132,6 @@
     </div>
   </aside>
 
-  <AuraChatWindow />
 </template>
 
 <script setup>
@@ -141,9 +140,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { Maximize2, Send } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
-import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
+import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
-import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
+import { resolveChatLocation, withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const {
   messages,
@@ -153,7 +152,6 @@ const {
   sendMessage,
   openPill,
   closeMini,
-  expandToFull,
 } = useChat()
 
 const pillRef = ref(null)
@@ -196,6 +194,14 @@ function isActive(item) {
 
 function navigate(path) {
   const target = withPreservedGovernancePreviewQuery(route, path)
+  const resolvedTarget = router.resolve(target)
+  if (route.fullPath === resolvedTarget.fullPath) return
+  router.push(target)
+}
+
+function openFullChatPage() {
+  closeMini()
+  const target = resolveChatLocation(route)
   const resolvedTarget = router.resolve(target)
   if (route.fullPath === resolvedTarget.fullPath) return
   router.push(target)

@@ -3,21 +3,43 @@ Where to use: Use this from setup scripts or local development when you need sam
 Role: Data setup layer. It prepares initial records for the app.
 """
 
+from __future__ import annotations
+
 from datetime import date
+import csv
 import os
+from pathlib import Path
+import random
+import string
 
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
+from app.models.department import Department
+from app.models.governance_hierarchy import (
+    GovernanceMember,
+    GovernanceMemberPermission,
+    GovernancePermission,
+    GovernanceUnit,
+    GovernanceUnitType,
+    PERMISSION_DEFINITIONS,
+    PermissionCode,
+)
+from app.models.program import Program
 from app.models.role import Role
 from app.models.school import School, SchoolSetting
-from app.models.user import User, UserRole
+from app.models.user import StudentProfile, User, UserRole
 
 load_dotenv()
 
 LEGACY_PLACEHOLDER_ADMIN_EMAIL = "admin@yourdomain.com"
+DEMO_SEED_RANDOM_SEED = 1337
+DEFAULT_DEMO_EMAIL_DOMAIN = "demo.valid8.dev"
+
+# Generated demo credentials are written to a local file (gitignored).
+DEFAULT_DEMO_CREDENTIALS_PATH = Path(__file__).resolve().parents[1] / "storage" / "seed_credentials.csv"
 
 
 def create_tables() -> None:
@@ -28,6 +50,8 @@ def create_tables() -> None:
 
 def seed_roles(db: Session) -> None:
     """Seed roles table with required roles."""
+    # Note: Governance permissions are managed via governance tables; these are the auth roles
+    # used for API access + login.
     role_names = ["student", "campus_admin", "admin"]
     existing_role_names = {role.name for role in db.query(Role).all()}
 
@@ -106,6 +130,567 @@ def seed_default_school(db: Session) -> School:
 
     print(f"Default school created: {school.name}")
     return school
+
+
+def _as_bool(value: str | None, default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _normalize_email(value: str) -> str:
+    return (value or "").strip().lower()
+
+
+def _ensure_permission_catalog(db: Session) -> None:
+    existing = {row.permission_code for row in db.query(GovernancePermission).all()}
+    created = 0
+    for code, definition in PERMISSION_DEFINITIONS.items():
+        if code in existing:
+            continue
+        db.add(
+            GovernancePermission(
+                permission_code=code,
+                permission_name=definition.get("permission_name") or code.value,
+                description=definition.get("description") or "",
+            )
+        )
+        created += 1
+    if created:
+        db.flush()
+
+
+def _get_permission(db: Session, code: PermissionCode) -> GovernancePermission:
+    perm = db.query(GovernancePermission).filter(GovernancePermission.permission_code == code).first()
+    if perm is None:
+        raise RuntimeError(f"Missing governance permission in catalog: {code.value}")
+    return perm
+
+
+def _get_or_create_school(
+    db: Session,
+    *,
+    name: str,
+    school_code: str,
+    address: str,
+    primary_color: str,
+    secondary_color: str,
+    accent_color: str,
+) -> School:
+    school_code = (school_code or "").strip() or None
+    existing = None
+    if school_code:
+        existing = db.query(School).filter(School.school_code == school_code).first()
+    if existing is None:
+        existing = db.query(School).filter(School.school_name == name).first()
+    if existing is not None:
+        # Ensure settings row exists (older DBs).
+        if not db.query(SchoolSetting).filter(SchoolSetting.school_id == existing.id).first():
+            db.add(
+                SchoolSetting(
+                    school_id=existing.id,
+                    primary_color=primary_color,
+                    secondary_color=secondary_color,
+                    accent_color=accent_color,
+                )
+            )
+            db.flush()
+        return existing
+
+    school = School(
+        name=name,
+        school_name=name,
+        address=address,
+        school_code=school_code,
+        subscription_status="trial",
+        active_status=True,
+        subscription_plan="free",
+        subscription_start=date.today(),
+        primary_color=primary_color,
+        secondary_color=secondary_color,
+    )
+    db.add(school)
+    db.flush()
+    db.add(
+        SchoolSetting(
+            school_id=school.id,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+            accent_color=accent_color,
+        )
+    )
+    db.refresh(school)
+    return school
+
+
+def _get_or_create_department(db: Session, *, school_id: int, name: str) -> Department:
+    existing = (
+        db.query(Department)
+        .filter(Department.school_id == school_id, Department.name == name)
+        .first()
+    )
+    if existing is not None:
+        return existing
+    dept = Department(school_id=school_id, name=name)
+    db.add(dept)
+    db.flush()
+    return dept
+
+
+def _get_or_create_program(db: Session, *, school_id: int, name: str) -> Program:
+    existing = (
+        db.query(Program)
+        .filter(Program.school_id == school_id, Program.name == name)
+        .first()
+    )
+    if existing is not None:
+        return existing
+    prog = Program(school_id=school_id, name=name)
+    db.add(prog)
+    db.flush()
+    return prog
+
+
+def _get_or_create_governance_unit(
+    db: Session,
+    *,
+    school_id: int,
+    unit_code: str,
+    unit_name: str,
+    unit_type: GovernanceUnitType,
+    parent_unit_id: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
+    created_by_user_id: int | None = None,
+) -> GovernanceUnit:
+    existing = (
+        db.query(GovernanceUnit)
+        .filter(
+            GovernanceUnit.school_id == school_id,
+            GovernanceUnit.unit_code == unit_code,
+        )
+        .first()
+    )
+    if existing is not None:
+        return existing
+    unit = GovernanceUnit(
+        school_id=school_id,
+        unit_code=unit_code,
+        unit_name=unit_name,
+        unit_type=unit_type,
+        parent_unit_id=parent_unit_id,
+        department_id=department_id,
+        program_id=program_id,
+        created_by_user_id=created_by_user_id,
+        is_active=True,
+    )
+    db.add(unit)
+    db.flush()
+    return unit
+
+
+def _get_or_create_user(
+    db: Session,
+    *,
+    email: str,
+    password: str,
+    school_id: int | None,
+    first_name: str,
+    last_name: str,
+    must_change_password: bool = False,
+    reset_password: bool = False,
+) -> User:
+    normalized_email = _normalize_email(email)
+    user = db.query(User).filter(User.email == normalized_email).first()
+    if user is None:
+        user = User(
+            email=normalized_email,
+            school_id=school_id,
+            first_name=first_name,
+            middle_name=None,
+            last_name=last_name,
+            is_active=True,
+            must_change_password=must_change_password,
+            should_prompt_password_change=False,
+        )
+        # `password_hash` is NOT NULL; set it before first flush/insert.
+        user.set_password(password)
+        db.add(user)
+        db.flush()
+        return user
+
+    user.is_active = True
+    if reset_password:
+        user.set_password(password)
+    return user
+
+
+def _ensure_student_profile(
+    db: Session,
+    *,
+    user: User,
+    school_id: int,
+    student_id: str,
+    department_id: int | None,
+    program_id: int | None,
+    year_level: int,
+    section: str,
+) -> None:
+    existing = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
+    if existing is not None:
+        return
+    profile = StudentProfile(
+        user_id=user.id,
+        school_id=school_id,
+        student_id=student_id,
+        department_id=department_id,
+        program_id=program_id,
+        year_level=year_level,
+        section=section,
+        is_face_registered=False,
+        registration_complete=True,
+    )
+    db.add(profile)
+
+
+def _assign_governance_membership(
+    db: Session,
+    *,
+    user: User,
+    governance_unit: GovernanceUnit,
+    assigned_by_user_id: int | None,
+    permission_codes: list[PermissionCode],
+) -> None:
+    existing = (
+        db.query(GovernanceMember)
+        .filter(
+            GovernanceMember.governance_unit_id == governance_unit.id,
+            GovernanceMember.user_id == user.id,
+        )
+        .first()
+    )
+    if existing is None:
+        existing = GovernanceMember(
+            governance_unit_id=governance_unit.id,
+            user_id=user.id,
+            position_title="Officer",
+            assigned_by_user_id=assigned_by_user_id,
+            is_active=True,
+        )
+        db.add(existing)
+        db.flush()
+    else:
+        existing.is_active = True
+
+    existing_codes = {
+        mp.permission.permission_code
+        for mp in getattr(existing, "member_permissions", [])
+        if getattr(mp, "permission", None) is not None
+    }
+    for code in permission_codes:
+        if code in existing_codes:
+            continue
+        perm = _get_permission(db, code)
+        db.add(
+            GovernanceMemberPermission(
+                governance_member_id=existing.id,
+                permission_id=perm.id,
+                granted_by_user_id=assigned_by_user_id,
+            )
+        )
+
+
+def seed_demo_data(
+    db: Session,
+    *,
+    schools_target: int = 5,
+    users_target: int = 100,
+    credentials_path: Path = DEFAULT_DEMO_CREDENTIALS_PATH,
+) -> None:
+    """Seed a multi-school demo dataset for manual UI + assistant testing."""
+    rng = random.Random(DEMO_SEED_RANDOM_SEED)
+    demo_email_domain = (os.getenv("SEED_DEMO_EMAIL_DOMAIN") or DEFAULT_DEMO_EMAIL_DOMAIN).strip().lstrip("@").lower()
+
+    # Older demo datasets used `@demo.local` which fails strict email validation. Repair in-place so
+    # existing foreign keys stay valid and users can still log in.
+    legacy_domain = "demo.local"
+    if demo_email_domain and demo_email_domain != legacy_domain:
+        legacy_users = db.query(User).filter(User.email.like(f"%@{legacy_domain}")).all()
+        for user in legacy_users:
+            local_part = (user.email or "").split("@", 1)[0]
+            if not local_part:
+                continue
+            candidate = f"{local_part}@{demo_email_domain}"
+            collision = db.query(User).filter(User.email == candidate, User.id != user.id).first()
+            if collision is None:
+                user.email = candidate
+        db.flush()
+
+    demo_schools = [
+        ("Aurora State University", "ASU", "1 Aurora Ave", "#162F65", "#2C5F9E", "#4A90E2"),
+        ("Bayview Polytechnic Institute", "BPI", "22 Bayview Rd", "#0B3D2E", "#1E6F5C", "#5BC0BE"),
+        ("Cedar Ridge College", "CRC", "7 Cedar Ridge", "#3B1F2B", "#B76E79", "#F2C14E"),
+        ("Delta City University", "DCU", "99 Delta Blvd", "#1D3557", "#457B9D", "#E63946"),
+        ("Evergreen Arts & Tech", "EAT", "14 Evergreen St", "#2D1E2F", "#6D597A", "#B56576"),
+    ]
+    demo_schools = demo_schools[: max(1, schools_target)]
+
+    _ensure_permission_catalog(db)
+
+    schools: list[School] = []
+    for name, code, address, p, s, a in demo_schools:
+        schools.append(
+            _get_or_create_school(
+                db,
+                name=name,
+                school_code=code,
+                address=address,
+                primary_color=p,
+                secondary_color=s,
+                accent_color=a,
+            )
+        )
+
+    # Create departments/programs and governance units per school.
+    school_context: dict[int, dict[str, object]] = {}
+    for school in schools:
+        dept_names = [
+            "College of Engineering",
+            "College of Business",
+            "College of Arts",
+            "College of Computing",
+        ]
+        prog_names = [
+            "BS Computer Science",
+            "BS Information Technology",
+            "BS Civil Engineering",
+            "BS Accountancy",
+            "BA Communication",
+            "BS Data Science",
+        ]
+        departments = [_get_or_create_department(db, school_id=school.id, name=n) for n in dept_names]
+        programs = [_get_or_create_program(db, school_id=school.id, name=n) for n in prog_names]
+
+        # Associate programs with departments (many-to-many).
+        for program in programs:
+            # Link each program to 1-2 departments deterministically.
+            chosen = rng.sample(departments, k=2 if rng.random() < 0.35 else 1)
+            for dept in chosen:
+                if dept not in program.departments:
+                    program.departments.append(dept)
+
+        ssg = _get_or_create_governance_unit(
+            db,
+            school_id=school.id,
+            unit_code="SSG",
+            unit_name="Supreme Students Government",
+            unit_type=GovernanceUnitType.SSG,
+        )
+
+        sg_units: list[GovernanceUnit] = []
+        for dept in departments[:2]:
+            sg_units.append(
+                _get_or_create_governance_unit(
+                    db,
+                    school_id=school.id,
+                    unit_code=f"SG-{dept.id}",
+                    unit_name=f"Student Government ({dept.name})",
+                    unit_type=GovernanceUnitType.SG,
+                    parent_unit_id=ssg.id,
+                    department_id=dept.id,
+                )
+            )
+
+        org_units: list[GovernanceUnit] = []
+        for idx, program in enumerate(programs[:3]):
+            parent_sg = sg_units[idx % len(sg_units)] if sg_units else ssg
+            org_units.append(
+                _get_or_create_governance_unit(
+                    db,
+                    school_id=school.id,
+                    unit_code=f"ORG-{program.id}",
+                    unit_name=f"Org ({program.name})",
+                    unit_type=GovernanceUnitType.ORG,
+                    parent_unit_id=parent_sg.id,
+                    program_id=program.id,
+                )
+            )
+
+        school_context[school.id] = {
+            "departments": departments,
+            "programs": programs,
+            "ssg": ssg,
+            "sg_units": sg_units,
+            "org_units": org_units,
+        }
+
+    # Make sure we have roles to assign.
+    _get_or_create_role(db, "student")
+    _get_or_create_role(db, "campus_admin")
+    _get_or_create_role(db, "admin")
+    db.flush()
+
+    # Build demo users.
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    created_credentials: list[dict[str, str]] = []
+
+    def _record_cred(*, email: str, password: str, roles: list[str], permissions: list[str], school: School | None):
+        created_credentials.append(
+            {
+                "email": email,
+                "password": password,
+                "school_code": school.school_code if school else "",
+                "school_id": str(school.id) if school else "",
+                "roles": ",".join(roles),
+                "permissions": ",".join(permissions),
+            }
+        )
+
+    # 3 platform admins (no school scope).
+    platform_admin_password = "AdminPass123!"
+    for i in range(1, 4):
+        email = f"platform.admin{i}@{demo_email_domain}"
+        user = _get_or_create_user(
+            db,
+            email=email,
+            password=platform_admin_password,
+            school_id=None,
+            first_name="Platform",
+            last_name=f"Admin{i}",
+            must_change_password=False,
+            reset_password=True,
+        )
+        _ensure_user_role(db, user, "admin")
+        _record_cred(email=user.email, password=platform_admin_password, roles=["admin"], permissions=[], school=None)
+
+    # One campus admin per school.
+    campus_admin_password = "CampusPass123!"
+    campus_admin_users_by_school: dict[int, User] = {}
+    for school in schools:
+        email = f"campus.admin+{(school.school_code or str(school.id)).lower()}@{demo_email_domain}"
+        user = _get_or_create_user(
+            db,
+            email=email,
+            password=campus_admin_password,
+            school_id=school.id,
+            first_name="Campus",
+            last_name=f"Admin{school.school_code or school.id}",
+            must_change_password=False,
+            reset_password=True,
+        )
+        _ensure_user_role(db, user, "campus_admin")
+        campus_admin_users_by_school[school.id] = user
+        _record_cred(
+            email=user.email,
+            password=campus_admin_password,
+            roles=["campus_admin"],
+            permissions=[],
+            school=school,
+        )
+
+    # Remaining users: mostly students with varied governance permissions.
+    remaining = max(0, users_target - (3 + len(schools)))
+    # Mix: 70% plain students, 30% governance officers.
+    if remaining == 0:
+        officer_count = 0
+        student_count = 0
+    else:
+        officer_count = max(1, int(remaining * 0.30))
+        student_count = remaining - officer_count
+
+    def _create_student_user(*, school: School, index: int, is_officer: bool) -> tuple[User, str]:
+        password = f"UserPass{index:03d}!"
+        email = f"user{index:03d}+{(school.school_code or school.id).lower()}@{demo_email_domain}"
+        user = _get_or_create_user(
+            db,
+            email=email,
+            password=password,
+            school_id=school.id,
+            first_name="Demo",
+            last_name=f"User{index:03d}",
+            must_change_password=False,
+            reset_password=True,
+        )
+        _ensure_user_role(db, user, "student")
+
+        ctx = school_context[school.id]
+        departments: list[Department] = ctx["departments"]  # type: ignore[assignment]
+        programs: list[Program] = ctx["programs"]  # type: ignore[assignment]
+        dept = rng.choice(departments)
+        prog = rng.choice(programs)
+        _ensure_student_profile(
+            db,
+            user=user,
+            school_id=school.id,
+            student_id=f"{school.school_code or 'SCH'}-{index:04d}",
+            department_id=dept.id,
+            program_id=prog.id,
+            year_level=1 + (index % 4),
+            section=f"SEC-{1 + (index % 3)}",
+        )
+        return user, password
+
+    # Create plain students.
+    index_base = 1
+    current_index = 1
+    for _ in range(student_count):
+        school = rng.choice(schools)
+        user, password = _create_student_user(school=school, index=current_index, is_officer=False)
+        _record_cred(email=user.email, password=password, roles=["student"], permissions=[], school=school)
+        current_index += 1
+
+    # Create officers with varied permissions and unit types.
+    officer_permission_sets: list[list[PermissionCode]] = [
+        [PermissionCode.VIEW_STUDENTS],
+        [PermissionCode.VIEW_STUDENTS, PermissionCode.MANAGE_STUDENTS],
+        [PermissionCode.MANAGE_EVENTS, PermissionCode.MANAGE_ATTENDANCE],
+        [PermissionCode.MANAGE_ANNOUNCEMENTS],
+        [PermissionCode.ASSIGN_PERMISSIONS, PermissionCode.MANAGE_MEMBERS],
+        [PermissionCode.VIEW_SANCTIONED_STUDENTS_LIST, PermissionCode.VIEW_SANCTIONS_DASHBOARD],
+    ]
+
+    for j in range(officer_count):
+        school = schools[j % len(schools)]
+        user, password = _create_student_user(school=school, index=current_index, is_officer=True)
+        ctx = school_context[school.id]
+        ssg: GovernanceUnit = ctx["ssg"]  # type: ignore[assignment]
+        sg_units: list[GovernanceUnit] = ctx["sg_units"]  # type: ignore[assignment]
+        org_units: list[GovernanceUnit] = ctx["org_units"]  # type: ignore[assignment]
+
+        unit_choice_pool = [ssg, *sg_units, *org_units]
+        chosen_unit = unit_choice_pool[(current_index + j) % len(unit_choice_pool)]
+        assigned_by = campus_admin_users_by_school[school.id].id
+        perms = officer_permission_sets[(current_index + j) % len(officer_permission_sets)]
+        _assign_governance_membership(
+            db,
+            user=user,
+            governance_unit=chosen_unit,
+            assigned_by_user_id=assigned_by,
+            permission_codes=perms,
+        )
+
+        # Assistant derives governance roles/permissions from JWT; backend will include these in token.
+        derived_role = chosen_unit.unit_type.value.lower()
+        _record_cred(
+            email=user.email,
+            password=password,
+            roles=["student", derived_role],
+            permissions=[p.value for p in perms],
+            school=school,
+        )
+        current_index += 1
+
+    db.commit()
+
+    # Write credentials CSV (overwrite so it's always accurate for the current seed run).
+    fieldnames = ["email", "password", "school_code", "school_id", "roles", "permissions"]
+    with credentials_path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in created_credentials:
+            writer.writerow(row)
+
+    print(f"Demo seed credentials written to: {credentials_path}")
 
 
 def _apply_admin_defaults(user: User, admin_email: str, default_school_id: int) -> bool:
@@ -217,6 +802,10 @@ def run_seeder() -> None:
         seed_roles(db)
         school = seed_default_school(db)
         seed_admin_user(db, school)
+        if _as_bool(os.getenv("SEED_DEMO_DATA"), True):
+            schools_target = max(1, int(os.getenv("SEED_DEMO_SCHOOLS", "5")))
+            users_target = max(1, int(os.getenv("SEED_DEMO_USERS", "100")))
+            seed_demo_data(db, schools_target=schools_target, users_target=users_target)
         print("Database seeding completed successfully")
     except Exception as exc:
         print(f"Error during seeding: {exc}")

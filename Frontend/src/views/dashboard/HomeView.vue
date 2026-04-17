@@ -107,7 +107,7 @@
                     :key="msg.id"
                     :class="['mobile-bubble', msg.sender === 'ai' ? 'mobile-bubble--ai' : 'mobile-bubble--user']"
                   >
-                    {{ msg.text }}
+                    <ChatMarkdownMessage :text="msg.text" />
                   </div>
 
                   <div v-if="isTyping" key="typing" class="mobile-bubble mobile-bubble--ai mobile-bubble--typing">
@@ -278,6 +278,7 @@ import UniversityBanner from '@/components/dashboard/UniversityBanner.vue'
 import EventsCard from '@/components/dashboard/EventsCard.vue'
 import ReportsLineChart from '@/components/reports/ReportsLineChart.vue'
 import ReportsPieChart from '@/components/reports/ReportsPieChart.vue'
+import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 
 import { applyTheme, loadTheme, secondaryAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'

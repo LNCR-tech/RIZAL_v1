@@ -8,9 +8,12 @@ Environment variables:
   JWT_SECRET             JWT HMAC secret (or set JWT_PUBLIC_KEY for RS256)
   JWT_ALGORITHM          Default: HS256
   JWT_PUBLIC_KEY         Optional PEM for RS256 verification
-  OPENAI_API_KEY         Optional, used for LLM calls
-  OPENAI_API_BASE        Optional, default: https://api.openai.com/v1
-  OPENAI_MODEL           Optional, default: gpt-4o
+  LLM_API_KEY            Optional, used for LLM calls
+  LLM_API_BASE           Optional, default: https://api.openai.com/v1 (OpenAI-compatible)
+  LLM_MODEL              Optional, default: gpt-4o-mini
+  OPENAI_API_KEY         Legacy alias for LLM_API_KEY
+  OPENAI_API_BASE        Legacy alias for LLM_API_BASE
+  OPENAI_MODEL           Legacy alias for LLM_MODEL
   ASSISTANT_AUTO_MIGRATE Optional, default: true
   MCP_SCHEMA_URL         Optional, role-scoped schema service endpoint
   MCP_QUERY_URL          Optional, role-scoped query service endpoint
@@ -18,12 +21,15 @@ Environment variables:
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
 import re
 import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -36,9 +42,19 @@ from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional in some environments
+    load_dotenv = None
+
 MCP_DIR = os.path.join(os.path.dirname(__file__), "mcp")
 if MCP_DIR not in sys.path:
     sys.path.insert(0, MCP_DIR)
+
+ASSISTANT_DIR = os.path.dirname(__file__)
+if ASSISTANT_DIR not in sys.path:
+    # Ensure `import mcp.*` works when running via uvicorn from other working dirs.
+    sys.path.insert(0, ASSISTANT_DIR)
 
 from policy import (
     get_effective_policy,
@@ -53,6 +69,63 @@ except Exception:  # pragma: no cover - dependency may be missing in some setups
     jwt = None
     JWTError = Exception
 
+
+logger = logging.getLogger("uvicorn.error")
+
+LOADED_ENV_PATHS: list[str] = []
+
+
+def _parse_env_file(path: Path) -> Dict[str, str]:
+    """Minimal .env parser so local runs work even without python-dotenv.
+
+    Supports:
+      - blank lines / comments
+      - KEY=VALUE
+      - optional leading "export "
+      - single/double-quoted values (no variable expansion)
+    """
+    values: Dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:
+        return values
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.lower().startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def _load_env_files() -> None:
+    """Load .env files for local runs (uvicorn won't do this automatically)."""
+    assistant_root = Path(__file__).resolve().parent
+    repo_root = assistant_root.parent
+    for env_path in (assistant_root / ".env", repo_root / ".env"):
+        if env_path.exists():
+            LOADED_ENV_PATHS.append(str(env_path))
+            if load_dotenv is not None:
+                load_dotenv(env_path, override=False)
+            # If the shell has vars set but empty, python-dotenv won't override them by default.
+            # Treat empty as "unset" for local developer ergonomics.
+            for key, value in _parse_env_file(env_path).items():
+                if os.environ.get(key, "") == "":
+                    os.environ[key] = value
+
+
+_load_env_files()
 
 APP_DATABASE_URL = os.getenv("APP_DATABASE_URL") or os.getenv("TENANT_DATABASE_URL") or os.getenv("DATABASE_URL")
 ASSISTANT_DB_URL = os.getenv("ASSISTANT_DB_URL") or APP_DATABASE_URL
@@ -69,19 +142,41 @@ JWT_SECRETS = list(
 )
 JWT_PUBLIC_KEY = os.getenv("JWT_PUBLIC_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+# Prefer repo-agnostic `LLM_*` variables; keep `OPENAI_*` as backwards-compatible aliases.
+LLM_API_KEY = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+LLM_API_BASE = os.getenv("LLM_API_BASE") or os.getenv("OPENAI_API_BASE") or "https://api.openai.com/v1"
+LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
 try:
-    OPENAI_MAX_TOKENS = max(1, int(os.getenv("OPENAI_MAX_TOKENS", "1024")))
+    LLM_MAX_TOKENS = max(
+        1,
+        int(
+            os.getenv("LLM_MAX_TOKENS")
+            or os.getenv("OPENAI_MAX_TOKENS")
+            or "1024"
+        ),
+    )
 except ValueError:
-    OPENAI_MAX_TOKENS = 1024
+    LLM_MAX_TOKENS = 1024
 ASSISTANT_AUTO_MIGRATE = os.getenv("ASSISTANT_AUTO_MIGRATE", "true").lower() == "true"
 MCP_SCHEMA_URL = os.getenv("MCP_SCHEMA_URL") or "http://127.0.0.1:8500/mcp/schema/schema"
 MCP_QUERY_URL = os.getenv("MCP_QUERY_URL") or "http://127.0.0.1:8500/mcp/query/query"
 MCP_SCHOOL_ADMIN_URL = os.getenv("MCP_SCHOOL_ADMIN_URL") or "http://127.0.0.1:8500/mcp/school-admin/action"
 MCP_STUDENT_IMPORT_URL = os.getenv("MCP_STUDENT_IMPORT_URL") or "http://127.0.0.1:8500/mcp/student-import/action"
 ASSISTANT_CONTEXT_MAX_MESSAGES = os.getenv("ASSISTANT_CONTEXT_MAX_MESSAGES")
+
+if not JWT_PUBLIC_KEY and not JWT_SECRETS:
+    logger.warning(
+        "Assistant JWT verification is not configured yet: set SECRET_KEY/JWT_SECRET or JWT_PUBLIC_KEY "
+        "(check that your repo-root .env is being loaded for this process)."
+    )
+else:
+    logger.info(
+        "Assistant auth config loaded (algorithm=%s, hmac_secrets=%s, public_key=%s, env_files=%s).",
+        JWT_ALGORITHM,
+        len(JWT_SECRETS),
+        bool(JWT_PUBLIC_KEY),
+        LOADED_ENV_PATHS or [],
+    )
 
 if not ASSISTANT_DB_URL:
     raise RuntimeError("ASSISTANT_DB_URL is required for assistant storage.")
@@ -176,11 +271,15 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Integrated MCP sub-apps (Role-scoped tools)
-from mcp.schema_server import app as schema_app
-from mcp.query_server import app as query_app
-from mcp.school_admin_server import app as school_admin_app
-from mcp.student_import_server import app as student_import_app
+# Integrated MCP sub-apps (Role-scoped tools).
+#
+# Note: There is a third-party PyPI package named `mcp`; importing `mcp.*` would
+# resolve to that package instead of our local `Assistant/mcp/*.py`. We add
+# `MCP_DIR` to `sys.path` above so we can import these modules directly.
+from schema_server import app as schema_app
+from query_server import app as query_app
+from school_admin_server import app as school_admin_app
+from student_import_server import app as student_import_app
 
 app.mount("/mcp/schema", schema_app)
 app.mount("/mcp/query", query_app)
@@ -211,6 +310,25 @@ def on_startup() -> None:
 def health() -> Dict[str, str]:
     # Lightweight health endpoint for docker compose / probes.
     return {"status": "ok"}
+
+
+@app.get("/debug/auth-config")
+def debug_auth_config() -> Dict[str, Any]:
+    """Dev-only helper: confirms what the running assistant process sees.
+
+    Does not return secret values.
+    """
+    return {
+        "jwt_algorithm": JWT_ALGORITHM,
+        "has_jwt_public_key": bool(JWT_PUBLIC_KEY),
+        "jwt_hmac_secrets_configured": len(JWT_SECRETS),
+        "env_files_loaded": LOADED_ENV_PATHS,
+        "env_present": {
+            "SECRET_KEY": bool(os.getenv("SECRET_KEY")),
+            "JWT_SECRET": bool(os.getenv("JWT_SECRET")),
+            "JWT_PUBLIC_KEY": bool(os.getenv("JWT_PUBLIC_KEY")),
+        },
+    }
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -500,26 +618,51 @@ def _append_message(db: Session, conversation_id: str, role: str, content: str) 
 
 
 async def _call_openai(messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-    if not OPENAI_API_KEY:
-        return {"content": "LLM is not configured. Set OPENAI_API_KEY."}
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-    payload = {"model": OPENAI_MODEL, "messages": messages, "max_tokens": OPENAI_MAX_TOKENS}
+    if not LLM_API_KEY:
+        return {"content": "LLM is not configured. Set LLM_API_KEY."}
+    headers = {"Authorization": f"Bearer {LLM_API_KEY}", "Content-Type": "application/json"}
+    payload = {"model": LLM_MODEL, "messages": messages, "max_tokens": LLM_MAX_TOKENS}
     if tools:
         payload["tools"] = tools
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(f"{OPENAI_API_BASE}/chat/completions", headers=headers, json=payload)
-            if resp.status_code >= 400:
-                recovered_tool_call = _recover_tool_call_from_error(resp.text)
-                if recovered_tool_call is not None:
-                    return recovered_tool_call
-                return {"content": f"LLM error {resp.status_code}: {resp.text}"}
-            data = resp.json()
-    except httpx.HTTPError as exc:
-        return {"content": f"LLM request failed: {exc}"}
-    except ValueError as exc:
-        return {"content": f"LLM returned invalid JSON: {exc}"}
+    last_exc: Optional[Exception] = None
+    async with httpx.AsyncClient(timeout=60) as client:
+        for attempt in range(3):
+            try:
+                resp = await client.post(f"{LLM_API_BASE}/chat/completions", headers=headers, json=payload)
+                if resp.status_code >= 400:
+                    recovered_tool_call = _recover_tool_call_from_error(resp.text)
+                    if recovered_tool_call is not None:
+                        return recovered_tool_call
+                    # Keep the response body, but cap it to avoid UI spam.
+                    body_preview = (resp.text or "").strip()
+                    if len(body_preview) > 1200:
+                        body_preview = body_preview[:1200] + "…"
+                    logger.warning("LLM HTTP error (status=%s): %s", resp.status_code, body_preview)
+                    return {"content": f"LLM error {resp.status_code}: {body_preview}"}
+                try:
+                    data = resp.json()
+                except ValueError as exc:
+                    body_preview = (resp.text or "").strip()
+                    if len(body_preview) > 600:
+                        body_preview = body_preview[:600] + "…"
+                    logger.warning("LLM returned non-JSON (content_type=%s): %s", resp.headers.get("content-type"), body_preview)
+                    return {"content": f"LLM returned invalid JSON: {exc}"}
+                break
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                exc_name = type(exc).__name__
+                exc_str = str(exc).strip()
+                # Retry a couple times on transient transport errors.
+                transient = exc_name.lower().endswith("timeout") or "connect" in exc_name.lower() or "protocol" in exc_name.lower()
+                logger.warning("LLM transport error (attempt=%s, transient=%s, type=%s, detail=%s)", attempt + 1, transient, exc_name, exc_str or repr(exc))
+                if attempt < 2 and transient:
+                    await asyncio.sleep(0.35 * (attempt + 1))
+                    continue
+                detail = f"{exc_name}: {exc_str or repr(exc)}"
+                return {"content": f"LLM request failed: {detail}"}
+        else:
+            return {"content": f"LLM request failed: {type(last_exc).__name__ if last_exc else 'unknown'}"}
 
     try:
         message = data["choices"][0]["message"]
@@ -533,12 +676,12 @@ async def _call_openai(messages: List[Dict[str, str]], tools: Optional[List[Dict
 
 async def _call_openai_json(messages: List[Dict[str, str]]) -> Dict[str, Any]:
     """Best-effort JSON-mode call for validators (temperature=0, JSON object output)."""
-    if not OPENAI_API_KEY:
+    if not LLM_API_KEY:
         return {"content": '{"error":"llm_not_configured"}'}
 
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {LLM_API_KEY}", "Content-Type": "application/json"}
     base_payload: Dict[str, Any] = {
-        "model": OPENAI_MODEL,
+        "model": LLM_MODEL,
         "messages": messages,
         "temperature": 0,
         "max_tokens": 200,
@@ -550,14 +693,22 @@ async def _call_openai_json(messages: List[Dict[str, str]]) -> Dict[str, Any]:
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(f"{OPENAI_API_BASE}/chat/completions", headers=headers, json=payload)
+            resp = await client.post(f"{LLM_API_BASE}/chat/completions", headers=headers, json=payload)
             if resp.status_code >= 400:
                 payload = dict(base_payload)
-                resp = await client.post(f"{OPENAI_API_BASE}/chat/completions", headers=headers, json=payload)
+                resp = await client.post(f"{LLM_API_BASE}/chat/completions", headers=headers, json=payload)
             if resp.status_code >= 400:
+                body_preview = (resp.text or "").strip()
+                if len(body_preview) > 600:
+                    body_preview = body_preview[:600] + "…"
+                logger.warning("LLM JSON-mode HTTP error (status=%s): %s", resp.status_code, body_preview)
                 return {"content": '{"error":"llm_error"}'}
             data = resp.json()
-    except Exception:
+    except httpx.HTTPError as exc:
+        logger.warning("LLM JSON-mode transport error: %s", str(exc).strip() or repr(exc))
+        return {"content": '{"error":"llm_request_failed"}'}
+    except Exception as exc:
+        logger.warning("LLM JSON-mode unexpected error: %s", str(exc).strip() or repr(exc))
         return {"content": '{"error":"llm_request_failed"}'}
 
     try:
@@ -567,7 +718,7 @@ async def _call_openai_json(messages: List[Dict[str, str]]) -> Dict[str, Any]:
 
 
 async def _summarize_title(messages: List[Dict[str, str]]) -> Optional[str]:
-    if not OPENAI_API_KEY:
+    if not LLM_API_KEY:
         return None
     prompt = [
         {
@@ -858,19 +1009,92 @@ def _tool_call_message(name: str, arguments: str) -> Dict[str, Any]:
     }
 
 
+def _normalize_function_markup(text: str) -> str:
+    # Some providers emit full-width separators in pseudo-markup tags.
+    # Normalize them so one parser can handle both variants.
+    return (text or "").replace("｜", "|")
+
+
+def _parse_dsml_parameter_value(raw_value: str, force_string: bool) -> Any:
+    value = (raw_value or "").strip()
+    if force_string:
+        return value
+
+    if not value:
+        return ""
+
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        lowered = value.lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        if lowered == "null":
+            return None
+        return value
+
+
+def _extract_dsml_invoke_markup(text: str) -> Optional[Dict[str, Any]]:
+    normalized = _normalize_function_markup(text)
+    invoke_match = re.search(
+        r"<\|?DSML\|?invoke\s+name=\"([a-zA-Z0-9_]+)\"\s*>(.*?)</\|?DSML\|?invoke>",
+        normalized,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not invoke_match:
+        return None
+
+    function_name = invoke_match.group(1).strip()
+    param_block = invoke_match.group(2) or ""
+
+    args: Dict[str, Any] = {}
+    for parameter_match in re.finditer(
+        r"<\|?DSML\|?parameter\s+name=\"([^\"]+)\"(?:\s+string=\"(true|false)\")?\s*>(.*?)</\|?DSML\|?parameter>",
+        param_block,
+        re.DOTALL | re.IGNORECASE,
+    ):
+        key = (parameter_match.group(1) or "").strip()
+        if not key:
+            continue
+        force_string = (parameter_match.group(2) or "").lower() == "true"
+        raw_value = parameter_match.group(3) or ""
+        args[key] = _parse_dsml_parameter_value(raw_value, force_string)
+
+    return _tool_call_message(function_name, json.dumps(args, ensure_ascii=False))
+
+
 def _extract_function_markup(text: str) -> Optional[Dict[str, Any]]:
     if not text:
         return None
+    normalized = _normalize_function_markup(text)
+
     match = re.search(
         r"<function=([a-zA-Z0-9_]+)\s*>?\s*(\{.*?\})\s*</function>",
-        text,
+        normalized,
         re.DOTALL,
     )
-    if not match:
-        return None
-    function_name = match.group(1).strip()
-    arguments = match.group(2).strip()
-    return _tool_call_message(function_name, arguments)
+    if match:
+        function_name = match.group(1).strip()
+        arguments = match.group(2).strip()
+        return _tool_call_message(function_name, arguments)
+
+    return _extract_dsml_invoke_markup(normalized)
+
+
+def _looks_like_tool_markup(text: str) -> bool:
+    normalized = _normalize_function_markup(text).lower()
+    if not normalized:
+        return False
+    markers = (
+        "<function=",
+        "<function_calls",
+        "<|dsml|function_calls>",
+        "<|dsml|invoke ",
+        "<tool_call",
+    )
+    return any(marker in normalized for marker in markers)
 
 
 def _recover_tool_call_from_error(error_text: str) -> Optional[Dict[str, Any]]:
@@ -1315,6 +1539,55 @@ async def assistant_stream(
     else:
         last_content = messages[-1].get("content") if messages else None
         assistant_text = last_content if isinstance(last_content, str) and last_content.strip() else "No response generated."
+
+    # Safety net: if a provider returns pseudo tool markup as plain text,
+    # recover and execute it so raw internals never leak to end users.
+    if isinstance(assistant_text, str) and assistant_text.strip() and _looks_like_tool_markup(assistant_text):
+        recovered_tool_call = _extract_function_markup(assistant_text)
+        if recovered_tool_call is not None:
+            if messages and isinstance(messages[-1], dict) and not messages[-1].get("tool_calls"):
+                messages[-1] = recovered_tool_call
+            else:
+                messages.append(recovered_tool_call)
+
+            for tool_call in recovered_tool_call["tool_calls"]:
+                fname = tool_call["function"]["name"]
+                fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
+                if "__parse_error__" in fargs:
+                    result = json.dumps({"error": fargs["__parse_error__"]})
+                else:
+                    fargs = _sanitize_tool_args(fname, fargs)
+                    result = await execute_tool(
+                        fname,
+                        fargs,
+                        roles=effective_roles,
+                        permissions=effective_permissions,
+                        user_id=request_user_id,
+                        school_id=effective_school_id,
+                        authorization=authorization,
+                    )
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "name": fname,
+                    "content": result,
+                })
+
+            follow_up = await _call_openai(messages, tools=None)
+            messages.append(follow_up)
+            follow_up_content = follow_up.get("content")
+            if isinstance(follow_up_content, str) and follow_up_content.strip():
+                assistant_text = follow_up_content
+            else:
+                assistant_text = (
+                    "I hit a formatting issue while processing your request, "
+                    "but I can continue if you ask me again."
+                )
+        else:
+            assistant_text = (
+                "I hit a formatting issue while processing your request, "
+                "but I can continue if you ask me again."
+            )
 
     _append_message(db, conversation_id, "assistant", assistant_text)
     await _update_conversation_title(db, conversation_id)

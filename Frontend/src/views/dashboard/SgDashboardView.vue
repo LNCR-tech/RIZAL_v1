@@ -87,7 +87,7 @@
                     :key="msg.id"
                     :class="['mobile-bubble', msg.sender === 'ai' ? 'mobile-bubble--ai' : 'mobile-bubble--user']"
                   >
-                    {{ msg.text }}
+                    <ChatMarkdownMessage :text="msg.text" />
                   </div>
 
                   <div v-if="isTyping" key="typing" class="mobile-bubble mobile-bubble--ai mobile-bubble--typing">
@@ -304,6 +304,7 @@ import { Search, ArrowRight, AlertCircle, Send, Lock } from 'lucide-vue-next'
 import TopBar from '@/components/dashboard/TopBar.vue'
 import ReportsBarChart from '@/components/reports/ReportsBarChart.vue'
 import ReportsPieChart from '@/components/reports/ReportsPieChart.vue'
+import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { secondaryAuraLogo, applyTheme, loadTheme, defaultTheme } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'

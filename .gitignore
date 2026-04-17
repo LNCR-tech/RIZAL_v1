@@ -41,6 +41,8 @@ storage/imports/
 storage/school_logos/
 Backend/storage/imports/
 Backend/storage/school_logos/
+Backend/storage/seed_credentials.csv
+Backend/storage/seed_credentials.json
 
 # Project-specific generated files
 Backend/face_encodings.pkl

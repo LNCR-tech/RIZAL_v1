@@ -4,6 +4,8 @@ import { createPinia } from 'pinia'
 import router from '@/router/index.js'
 import App from './App.vue'
 import './assets/css/main.css'
+import 'katex/dist/katex.min.css'
+import 'highlight.js/styles/github-dark.css'
 
 import { loadTheme, applyTheme } from '@/config/theme.js'
 import { clearDashboardSession, initializeDashboardSession } from '@/composables/useDashboardSession.js'

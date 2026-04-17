@@ -31,7 +31,7 @@ body {
 html {
   font-size: var(--aura-font-base, 16px);
   min-height: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
   scrollbar-gutter: stable;
   touch-action: manipulation;
   overscroll-behavior-y: contain; /* Prevent pull-to-refresh */
@@ -48,6 +48,13 @@ body {
 #app {
   min-height: 100dvh;
   width: 100%;
+}
+
+.no-scroll {
+  overflow: hidden !important;
+  height: 100dvh !important;
+  width: 100% !important;
+  position: fixed !important;
 }
 
 .mobile-fullscreen-hint {

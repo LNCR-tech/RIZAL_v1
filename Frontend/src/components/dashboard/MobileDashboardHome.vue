@@ -97,7 +97,7 @@
                 :key="message.id"
                 :class="['mobile-dashboard__bubble', message.sender === 'ai' ? 'mobile-dashboard__bubble--ai' : 'mobile-dashboard__bubble--user']"
               >
-                {{ message.text }}
+                <ChatMarkdownMessage :text="message.text" />
               </div>
             </div>
 
@@ -175,6 +175,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Search, Send } from 'lucide-vue-next'
 import { secondaryAuraLogo, surfaceAuraLogo } from '@/config/theme.js'
+import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
