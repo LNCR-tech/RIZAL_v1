@@ -442,13 +442,18 @@ class FaceRecognitionService:
 
 def is_face_scan_bypass_enabled_for_email(email: str | None) -> bool:
     """Return True when the email is explicitly allowed to bypass live face matching."""
+    settings = get_settings()
+    if settings.face_scan_bypass_all:
+        return True
     if not email:
         return False
-    settings = get_settings()
     normalized_email = email.strip().lower()
     return normalized_email in set(settings.face_scan_bypass_emails)
 
 
 def is_face_scan_bypass_enabled_for_user(user: Any) -> bool:
     """Convenience wrapper for checking bypass rules from a user object."""
+    settings = get_settings()
+    if settings.face_scan_bypass_all:
+        return True
     return is_face_scan_bypass_enabled_for_email(getattr(user, "email", None))

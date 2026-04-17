@@ -104,6 +104,7 @@ class Settings:
     secret_key: str
     jwt_algorithm: str
     access_token_expire_minutes: int
+    face_scan_bypass_all: bool
     face_scan_bypass_emails: list[str]
     face_threshold_single: float
     face_threshold_group: float
@@ -180,6 +181,7 @@ def get_settings() -> Settings:
         secret_key=os.getenv("SECRET_KEY", "change-this-secret-in-production"),
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
         access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
+        face_scan_bypass_all=_as_bool(os.getenv("FACE_SCAN_BYPASS_ALL"), False),
         face_scan_bypass_emails=_as_email_list(
             os.getenv("FACE_SCAN_BYPASS_EMAILS"),
             [],
