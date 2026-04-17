@@ -1458,6 +1458,7 @@ async def _call_openai_json(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         return {"content": '{"error":"llm_bad_shape"}'}
 
 
+async def _summarize_title(messages: List[Dict[str, Any]]) -> Optional[str]:
     provider = _infer_ai_provider()
     if _provider_requires_api_key(provider) and not AI_API_KEY:
         return None
