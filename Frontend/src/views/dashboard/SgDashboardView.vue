@@ -85,6 +85,7 @@
                   <div
                     v-for="msg in messages"
                     :key="msg.id"
+                    v-show="msg.sender === 'user' || msg.text.length > 0"
                     :class="['mobile-bubble', msg.sender === 'ai' ? 'mobile-bubble--ai' : 'mobile-bubble--user']"
                   >
                     <ChatMarkdownMessage :text="msg.text" />
