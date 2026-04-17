@@ -11,6 +11,7 @@ from app.utils.passwords import generate_secure_password
 
 from .accounts import create_user, get_all_users, router as account_router
 from .passwords import router as password_router
+from .preferences import router as preference_router
 from .roles import router as role_router
 from .students import router as student_router
 
@@ -21,6 +22,7 @@ router.include_router(account_router)
 router.include_router(student_router)
 router.include_router(role_router)
 router.include_router(password_router)
+router.include_router(preference_router)
 
 __all__ = [
     "EmailDeliveryError",

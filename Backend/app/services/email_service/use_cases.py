@@ -17,7 +17,7 @@ def send_welcome_email(
     settings = get_settings()
 
     resolved_first_name = (first_name or "").strip() or "User"
-    resolved_system_name = (system_name or "").strip() or "Valid8 Attendance Recognition System"
+    resolved_system_name = (system_name or "").strip() or "Aura"
     resolved_login_url = (login_url or "").strip() or settings.login_url
     password_label = "Temporary Password" if password_is_temporary else "Password"
     credential_subject = "Temporary Login Credentials" if password_is_temporary else "Login Credentials"
@@ -72,7 +72,7 @@ def send_password_reset_email(
     settings = get_settings()
 
     resolved_first_name = (first_name or "").strip() or "User"
-    resolved_system_name = (system_name or "").strip() or "Valid8 Attendance Recognition System"
+    resolved_system_name = (system_name or "").strip() or "Aura"
     resolved_login_url = (login_url or "").strip() or settings.login_url
 
     subject, body, html_body = build_password_reset_email_content(

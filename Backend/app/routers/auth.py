@@ -5,7 +5,7 @@ Role: Router layer. It receives HTTP requests, checks access rules, and returns 
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
@@ -66,6 +66,7 @@ def _can_submit_public_password_reset_request(user: User | None) -> bool:
 def login_for_access_token(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
+    remember_me: bool = Form(default=False),
     db: Session = Depends(get_db)
 ):
     """OAuth2-compatible token endpoint (for Swagger UI)"""
@@ -92,6 +93,7 @@ def login_for_access_token(
         db=db,
         user=user,
         request=request,
+        remember_me=remember_me,
     )
     record_login_history(
         db,
@@ -133,6 +135,7 @@ def login_with_email(
         db=db,
         user=user,
         request=request,
+        remember_me=login_data.remember_me,
     )
     record_login_history(
         db,

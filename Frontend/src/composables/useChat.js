@@ -36,6 +36,25 @@ const copyStatus = ref('idle') // idle | copied | failed
 const scrollEl   = ref(null)
 let copyResetTimer = null
 
+function getAssistantErrorMessage(error) {
+  const status = Number(error?.status || 0)
+  const message = String(error?.message || '').trim()
+
+  if (status === 401) {
+    return 'Your session expired. Log in again so Aura can use your account scope.'
+  }
+
+  if (status === 403 && message) {
+    return message
+  }
+
+  if (message) {
+    return message
+  }
+
+  return 'Something went wrong while contacting Aura Assistant. Please try again.'
+}
+
 function loadStoredConversationId() {
   try {
     const raw = localStorage.getItem('aura_assistant_conversation_id')
@@ -296,19 +315,15 @@ async function sendMessage() {
         throw err
       }
     }
-  } catch (err) {
-    const messageText = err instanceof AssistantApiError
-      ? `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}`
-      : (err?.message || 'Something went wrong while contacting Aura Assistant. Please try again.')
-
+  } catch (error) {
     if (typeof console !== 'undefined') {
-      console.warn('Aura assistant request failed:', err)
+      console.warn('Aura assistant request failed:', error)
     }
 
     messages.value.push({
       id: Date.now() + 1,
       sender: 'ai',
-      text: messageText,
+      text: getAssistantErrorMessage(error),
     })
   } finally {
     isTyping.value = false

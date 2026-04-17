@@ -121,7 +121,12 @@ export function needsStoredPasswordChange() {
 }
 
 export function hasPrivilegedPendingFace(meta = getStoredAuthMeta()) {
-    // MFA face-gating has been removed; keep this helper for compatibility.
-    void meta
-    return false
+    const roleKeys = normalizeRoles(meta?.roles)
+        .map((role) => String(role).trim().toLowerCase().replace(/_/g, '-'))
+        .map((role) => role === 'campus-admin' ? 'school-it' : role)
+
+    const isPrivilegedUser = roleKeys.includes('admin') || roleKeys.includes('school-it')
+    if (!isPrivilegedUser) return false
+
+    return Boolean(meta?.faceVerificationPending || meta?.faceVerificationRequired)
 }

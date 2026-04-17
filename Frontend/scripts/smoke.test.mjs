@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 
@@ -20,10 +20,13 @@ test('frontend bootstrap mounts app root', () => {
   assert.match(mainSource, /app\.mount\('#app'\)/)
 })
 
-test('shared env example includes frontend keys', () => {
-  const envExample = readFileSync(join(repoRoot, '.env.example'), 'utf8')
-  assert.match(envExample, /^VITE_API_BASE_URL=/m)
-  assert.match(envExample, /^AURA_API_BASE_URL=/m)
+test('shared env configuration includes frontend keys', () => {
+  const envPath = existsSync(join(repoRoot, '.env.example'))
+    ? join(repoRoot, '.env.example')
+    : join(repoRoot, '.env')
+  const envSource = readFileSync(envPath, 'utf8')
+  assert.match(envSource, /^VITE_API_BASE_URL=/m)
+  assert.match(envSource, /^AURA_API_BASE_URL=/m)
 })
 
 test('student dashboard sanctions routes are wired', () => {
@@ -44,4 +47,22 @@ test('app shell wires sanctions deadline warning redirect', () => {
   assert.match(appSource, /SanctionsDeadlineWarningModal/)
   assert.match(appSource, /getActiveClearanceDeadline/)
   assert.match(appSource, /name:\s*'DashboardSanctions'/)
+})
+
+test('login surfaces remember-me controls', () => {
+  const loginSource = readFileSync(join(frontendRoot, 'src', 'views', 'auth', 'LoginView.vue'), 'utf8')
+  assert.match(loginSource, /Remember me/)
+  assert.match(loginSource, /v-model="rememberMe"/)
+})
+
+test('privileged face gate route is registered', () => {
+  const routerSource = readFileSync(join(frontendRoot, 'src', 'router', 'index.js'), 'utf8')
+  assert.match(routerSource, /name:\s*'PrivilegedFaceVerification'/)
+  assert.match(routerSource, /allowWithoutFaceEnrollment:\s*true/)
+})
+
+test('profile settings expose account configuration save action', () => {
+  const profileSource = readFileSync(join(frontendRoot, 'src', 'views', 'dashboard', 'ProfileView.vue'), 'utf8')
+  assert.match(profileSource, /Save Configuration/)
+  assert.match(profileSource, /saveAppConfiguration/)
 })

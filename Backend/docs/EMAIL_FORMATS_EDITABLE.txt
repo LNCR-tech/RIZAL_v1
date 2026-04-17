@@ -1,4 +1,4 @@
-VALID8 / Aura Email Formats (Editable)
+Aura Email Formats (Editable)
 Version date: 2026-04-12
 
 How to use this file:
@@ -79,7 +79,7 @@ Login URL: <a href="{{LOGIN_URL}}">{{LOGIN_URL}}</a></p>
 Current runtime defaults:
 - {{CREDENTIAL_SUBJECT}} = Temporary Login Credentials
 - {{PASSWORD_LABEL}} = Temporary Password
-- {{SYSTEM_NAME}} default = Valid8 Attendance Recognition System
+- {{SYSTEM_NAME}} default = Aura
 - {{PASSWORD_NOTICE_BLOCK}} default =
 IMPORTANT:
 For security reasons, this is a temporary password.
@@ -173,7 +173,7 @@ Sanction items:
 
 Please coordinate with your governance office for compliance instructions.
 
-VALID8 / Aura
+Aura
 
 Notes:
 - The "Sanction items" section only appears when items exist.
@@ -197,7 +197,7 @@ Message:
 
 Please complete pending sanctions before the deadline.
 
-VALID8 / Aura
+Aura
 
 Notes:
 - The "Message" section only appears when a message exists.
@@ -217,7 +217,7 @@ Your sanctions for event {{EVENT_NAME}} were marked as complied.
 
 If this is incorrect, contact your governance office immediately.
 
-VALID8 / Aura
+Aura
 
 ================================================================
 [TEMPLATE] ACCOUNT SECURITY EMAIL (ACTIVE, GENERIC WRAPPER)
@@ -284,7 +284,7 @@ Hi {{FIRST_NAME_OR_STUDENT}},
 Our records show {{ABSENT_COUNT}} missed event(s) in the last {{LOOKBACK_DAYS}} days.
 Please coordinate with your school office if this is incorrect.
 
-Valid8 Attendance System
+Aura
 
 ================================================================
 [TEMPLATE] LOW ATTENDANCE ALERT EMAIL (ACTIVE VIA NOTIFICATION CENTER)
@@ -300,7 +300,7 @@ Hi {{FIRST_NAME_OR_STUDENT}},
 Your attendance rate is currently {{ATTENDANCE_PERCENT}}% ({{ATTENDED_COUNT}}/{{TOTAL_COUNT}}) which is below the threshold of {{THRESHOLD_PERCENT}}%.
 Please review your recent attendance records.
 
-Valid8 Attendance System
+Aura
 
 ================================================================
 [TEMPLATE] EVENT REMINDER EMAIL (ACTIVE VIA NOTIFICATION CENTER)
@@ -316,7 +316,7 @@ Hi {{FIRST_NAME_OR_STUDENT}},
 This is a reminder that {{EVENT_NAME}} starts at {{EVENT_START_DATETIME}}.
 Open the attendance page when the event window is active to complete both sign-in and sign-out.
 
-Valid8 Attendance System
+Aura
 
 ================================================================
 [TEMPLATE] SUBSCRIPTION RENEWAL REMINDER EMAIL (ACTIVE VIA NOTIFICATION CENTER)
@@ -335,10 +335,10 @@ Source:
 - Backend/app/routers/notifications.py
 
 SUBJECT:
-VALID8 Test Notification
+Aura Test Notification
 
 TEXT BODY:
-This is a test notification from VALID8.
+This is a test notification from Aura.
 
 Notes:
 - API caller can override the body.
@@ -349,15 +349,15 @@ Source:
 - Backend/app/services/email_service/transport.py
 
 SUBJECT (default):
-VALID8 email transport connectivity test
+Aura email transport connectivity test
 
 TEXT BODY (default):
-This is a production-style email transport smoke test from VALID8.
+This is a production-style email transport smoke test from Aura.
 
 If you received this email, the backend completed a real outbound email delivery attempt using the configured transport.
 
 HTML BODY (default):
-<p>This is a production-style email transport smoke test from <strong>VALID8</strong>.</p>
+<p>This is a production-style email transport smoke test from <strong>Aura</strong>.</p>
 <p>If you received this email, the backend completed a real outbound email delivery attempt using the configured transport.</p>
 
 ================================================================
@@ -366,10 +366,10 @@ Source:
 - Backend/scripts/send_test_email.py
 
 SUBJECT (default):
-VALID8 email transport smoke test {{TIMESTAMP_UTC}}
+Aura email transport smoke test {{TIMESTAMP_UTC}}
 
 TEXT BODY (default):
-This is a real VALID8 transactional-email smoke test.
+This is a real Aura transactional-email smoke test.
 
 UTC timestamp: {{TIMESTAMP_UTC}}
 If you received this message, the backend completed a full outbound send using the configured transport.

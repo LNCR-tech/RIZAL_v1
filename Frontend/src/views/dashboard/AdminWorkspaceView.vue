@@ -348,7 +348,7 @@
             <span class="admin-view__badge admin-view__badge--muted">Admin</span>
           </div>
           <div class="admin-view__profile">
-            <div><span>Email</span><strong>{{ activeUser?.email || 'platform.admin@valid8.local' }}</strong></div>
+            <div><span>Email</span><strong>{{ activeUser?.email || 'platform.admin@aura.local' }}</strong></div>
             <div><span>Scope</span><strong>Platform-wide</strong></div>
             <div><span>Schools</span><strong>{{ schools.length }}</strong></div>
             <div><span>Campus Admins</span><strong>{{ activeCampusAccountCount }}</strong></div>
@@ -466,7 +466,7 @@ const displayName = computed(() => {
 })
 const avatarUrl = computed(() => activeUser.value?.avatar_url || '')
 const initials = computed(() => abbreviate(displayName.value, 2))
-const platformLabel = computed(() => 'VALID8 Platform')
+const platformLabel = computed(() => 'Aura Platform')
 const activeSchoolCount = computed(() => schools.value.filter((item) => item.active_status).length)
 const suspendedSchoolCount = computed(() => schools.value.filter((item) => item.subscription_status === 'suspended').length)
 const activeCampusAccountCount = computed(() => campusAccounts.value.filter((item) => item.is_active).length)
@@ -588,7 +588,7 @@ const chartOptions = {
 }
 
 usePreviewTheme(() => props.preview, computed(() => ({
-  school_name: 'VALID8 Platform',
+  school_name: 'Aura Platform',
   primary_color: schools.value[0]?.primary_color || '#AAFF00',
   secondary_color: schools.value[0]?.secondary_color || '#64748B',
   logo_url: schools.value[0]?.logo_url || null,

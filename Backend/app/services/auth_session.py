@@ -22,8 +22,10 @@ from app.models.school import School, SchoolSetting
 from app.models.user import User
 from app.services import governance_hierarchy_service
 from app.services.security_service import create_user_session
+from app.services.user_preference_service import get_or_create_user_security_setting
 
 BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
+PRIVILEGED_AUTH_ROLE_NAMES = {"admin", "campus_admin"}
 
 
 def get_user_role_names(user: User) -> list[str]:
@@ -136,11 +138,34 @@ def should_recommend_password_change(user: User) -> bool:
     )
 
 
+def _resolve_session_duration_minutes(
+    *,
+    db: Session,
+    user: User,
+    remember_me: bool,
+) -> int:
+    if not remember_me:
+        return ACCESS_TOKEN_EXPIRE_MINUTES
+
+    security_setting = get_or_create_user_security_setting(db, user=user)
+    trusted_device_days = max(1, int(security_setting.trusted_device_days or 14))
+    return trusted_device_days * 24 * 60
+
+
+def _should_require_face_scan_mfa(db: Session, user: User, role_names: list[str]) -> bool:
+    if not any(role_name in PRIVILEGED_AUTH_ROLE_NAMES for role_name in role_names):
+        return False
+
+    security_setting = get_or_create_user_security_setting(db, user=user)
+    return bool(security_setting.mfa_enabled)
+
+
 def issue_full_access_token_response(
     *,
     db: Session,
     user: User,
     request: Request | None = None,
+    expires_minutes: int | None = None,
 ) -> dict[str, object | None]:
     base_roles = get_user_role_names(user)
     governance_roles = _get_governance_role_names(db, user)
@@ -154,6 +179,7 @@ def issue_full_access_token_response(
         getattr(user, "face_profile", None) is not None
         or has_face_reference_enrolled(db, user.id)
     )
+    resolved_expires_minutes = max(1, int(expires_minutes or ACCESS_TOKEN_EXPIRE_MINUTES))
     session_id = str(uuid.uuid4())
     token_jti = str(uuid.uuid4())
 
@@ -167,20 +193,21 @@ def issue_full_access_token_response(
         "jti": token_jti,
         "sid": session_id,
         "face_pending": False,
+        "session_duration_minutes": resolved_expires_minutes,
     }
     if school_context.get("school_id") is not None:
         token_payload["school_id"] = school_context["school_id"]
 
     access_token = create_access_token(
         data=token_payload,
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        expires_delta=timedelta(minutes=resolved_expires_minutes),
     )
     create_user_session(
         db,
         user=user,
         token_jti=token_jti,
         session_id=session_id,
-        expires_in_minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
+        expires_in_minutes=resolved_expires_minutes,
         request=request,
     )
 
@@ -203,11 +230,81 @@ def issue_full_access_token_response(
     }
 
 
+def issue_face_pending_token_response(
+    *,
+    db: Session,
+    user: User,
+    expires_minutes: int,
+) -> dict[str, object | None]:
+    role_names = get_user_role_names(user)
+    school_context = get_school_context(db, user)
+    face_reference_enrolled = (
+        getattr(user, "face_profile", None) is not None
+        or has_face_reference_enrolled(db, user.id)
+    )
+    resolved_expires_minutes = max(1, int(expires_minutes))
+
+    token_payload = {
+        "sub": user.email,
+        "roles": role_names,
+        "user_id": user.id,
+        "is_admin": "admin" in role_names,
+        "must_change_password": user.must_change_password,
+        "face_pending": True,
+        "session_duration_minutes": resolved_expires_minutes,
+    }
+    if school_context.get("school_id") is not None:
+        token_payload["school_id"] = school_context["school_id"]
+
+    access_token = create_access_token(
+        data=token_payload,
+        expires_delta=timedelta(minutes=resolved_expires_minutes),
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "email": user.email,
+        "roles": role_names,
+        "user_id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "is_admin": "admin" in role_names,
+        "must_change_password": user.must_change_password,
+        "password_change_recommended": should_recommend_password_change(user),
+        "session_id": None,
+        "face_verification_required": True,
+        "face_reference_enrolled": face_reference_enrolled,
+        "face_verification_pending": True,
+        **school_context,
+    }
+
+
 def issue_login_token_response(
     *,
     db: Session,
     user: User,
     request: Request | None = None,
+    remember_me: bool = False,
 ) -> dict[str, object | None]:
     validate_login_account_state(db, user)
-    return issue_full_access_token_response(db=db, user=user, request=request)
+    role_names = get_user_role_names(user)
+    expires_minutes = _resolve_session_duration_minutes(
+        db=db,
+        user=user,
+        remember_me=remember_me,
+    )
+
+    if _should_require_face_scan_mfa(db, user, role_names):
+        return issue_face_pending_token_response(
+            db=db,
+            user=user,
+            expires_minutes=expires_minutes,
+        )
+
+    return issue_full_access_token_response(
+        db=db,
+        user=user,
+        request=request,
+        expires_minutes=expires_minutes,
+    )

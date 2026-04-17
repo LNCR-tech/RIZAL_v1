@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
 from app.core.event_defaults import resolve_school_event_default_values
-from app.core.security import get_current_admin_or_campus_admin
+from app.core.security import get_current_admin_or_campus_admin, get_school_id_with_admin_fallback
 from app.models.school import School, SchoolAuditLog, SchoolSetting
 from app.models.user import User as UserModel
 from app.schemas.school_settings import (
@@ -31,12 +31,7 @@ LEGACY_USER_IMPORT_DEPRECATION_DETAIL = (
 
 
 def _resolve_current_school(db: Session, current_user: UserModel) -> School:
-    user_school_id = getattr(current_user, "school_id", None)
-    if user_school_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not assigned to a school.",
-        )
+    user_school_id = get_school_id_with_admin_fallback(db, current_user)
 
     school = db.query(School).filter(School.id == user_school_id).first()
     if school is None:

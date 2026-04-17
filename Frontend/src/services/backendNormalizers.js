@@ -452,6 +452,18 @@ export function normalizeNotificationPreference(payload = null) {
     }
 }
 
+export function normalizeUserAppPreference(payload = null) {
+    if (!payload || typeof payload !== 'object') return null
+
+    return {
+        ...payload,
+        user_id: toOptionalNumber(payload.user_id, null),
+        dark_mode_enabled: Boolean(payload.dark_mode_enabled),
+        font_size_percent: toOptionalNumber(payload.font_size_percent, 100),
+        updated_at: toOptionalString(payload.updated_at, nowIso()),
+    }
+}
+
 export function normalizeNotificationDispatchSummary(payload = {}) {
     return {
         ...payload,

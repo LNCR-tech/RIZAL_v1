@@ -1,49 +1,46 @@
-# Backend Local Email Testing Guide (Mailpit)
+# Backend Email Delivery Guide (Gmail + Local Mailpit)
 
-This guide explains how to test backend outbound email locally with Mailpit.
+This guide explains how backend outbound email now works for cloud deployments and for optional local Mailpit testing.
 
-## What Changed
+## Current Runtime Behavior
 
-- local Docker Compose includes `mailpit` (SMTP + web inbox)
-- backend email transport supports `EMAIL_TRANSPORT=smtp`
-- local compose backend services are configured to use:
-  - `SMTP_HOST=mailpit`
-  - `SMTP_PORT=1025`
+- `docker-compose.yml` no longer forces `SMTP_HOST=mailpit` for `backend`, `worker`, and `beat`.
+- backend services now follow `EMAIL_TRANSPORT` from environment (default fallback: `gmail_api`).
+- Mailpit is still available as an optional local SMTP inbox service.
 
-## Local Mailpit Endpoints
+## Cloud (Gmail) Quick Start
 
-- Mailpit SMTP: `localhost:1025`
-- Mailpit Web UI: `http://localhost:8025`
-
-## Quick Start
-
-1. Start local services:
-   - `docker compose up -d --build backend worker beat mailpit`
-2. Open Mailpit inbox:
-   - `http://localhost:8025`
-3. Trigger any backend flow that sends email:
-   - onboarding import email
-   - password reset approval email
-   - `Backend/scripts/send_test_email.py`
-4. Verify the message appears in Mailpit.
-
-## Environment Variables
-
-When using SMTP transport locally:
-
-- `EMAIL_TRANSPORT=smtp`
-- `EMAIL_TIMEOUT_SECONDS=20`
-- `SMTP_HOST=mailpit`
-- `SMTP_PORT=1025`
-- `SMTP_USERNAME=` (blank for Mailpit default)
-- `SMTP_PASSWORD=` (blank for Mailpit default)
-- `SMTP_USE_TLS=false`
-- `SMTP_USE_STARTTLS=false`
-
-When using Gmail API instead:
+Use Gmail API transport in your deployment environment:
 
 - `EMAIL_TRANSPORT=gmail_api`
-- keep Google OAuth variables configured (`GOOGLE_OAUTH_CLIENT_ID`, etc.)
+- `EMAIL_SENDER_EMAIL=<your_gmail_or_workspace_sender>`
+- `EMAIL_FROM_EMAIL=<same_or_verified_alias>`
+- `GOOGLE_OAUTH_CLIENT_ID=<oauth_client_id>`
+- `GOOGLE_OAUTH_CLIENT_SECRET=<oauth_client_secret>`
+- `GOOGLE_OAUTH_REFRESH_TOKEN=<oauth_refresh_token>`
+- `GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/gmail.settings.basic`
+
+Recommended:
+
+- `EMAIL_REQUIRED_ON_STARTUP=true`
+- `EMAIL_VERIFY_CONNECTION_ON_STARTUP=true`
+
+## Optional Local Mailpit Testing
+
+If you want inbox testing without sending real Gmail messages:
+
+1. Set these local env values:
+   - `EMAIL_TRANSPORT=smtp`
+   - `SMTP_HOST=mailpit`
+   - `SMTP_PORT=1025`
+   - `SMTP_USERNAME=`
+   - `SMTP_PASSWORD=`
+   - `SMTP_USE_TLS=false`
+   - `SMTP_USE_STARTTLS=false`
+2. Start local services:
+   - `docker compose up -d --build backend worker beat mailpit`
+3. Open Mailpit inbox:
+   - `http://localhost:8025`
 
 ## Backend Smoke Test Command
 
@@ -54,4 +51,6 @@ From repo root:
 Expected result:
 
 - command exits `0`
-- Mailpit UI shows the new message
+- for Gmail transport: recipient receives the message
+- for Mailpit transport: message appears in `http://localhost:8025`
+- default subject uses `Aura email transport smoke test ...`

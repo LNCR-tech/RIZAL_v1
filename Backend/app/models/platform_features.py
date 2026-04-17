@@ -39,6 +39,17 @@ class UserNotificationPreference(Base):
     user = relationship("User")
 
 
+class UserAppPreference(Base):
+    __tablename__ = "user_app_preferences"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    dark_mode_enabled = Column(Boolean, nullable=False, default=False)
+    font_size_percent = Column(Integer, nullable=False, default=100)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
+
 class NotificationLog(Base):
     __tablename__ = "notification_logs"
 

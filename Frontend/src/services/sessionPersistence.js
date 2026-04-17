@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { clearStoredAuthMeta, getStoredAuthMeta } from '@/services/localAuth.js'
+import { getStoredRememberMePreference } from '@/services/userPreferences.js'
 
 const SESSION_TOKEN_STORAGE_KEY = 'aura_token'
 const USER_ROLES_STORAGE_KEY = 'aura_user_roles'
@@ -21,6 +22,9 @@ function getStoredRoleKeys(meta = getStoredAuthMeta()) {
 }
 
 export function shouldPersistStoredSession(meta = getStoredAuthMeta()) {
+  if (getStoredRememberMePreference()) {
+    return true
+  }
   return !getStoredRoleKeys(meta).includes('school-it')
 }
 

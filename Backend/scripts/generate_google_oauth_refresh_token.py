@@ -69,7 +69,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 def _build_parser() -> argparse.ArgumentParser:
     settings = get_settings()
     parser = argparse.ArgumentParser(
-        description="Generate a Google OAuth refresh token for VALID8 Gmail API delivery."
+        description="Generate a Google OAuth refresh token for Aura Gmail API delivery."
     )
     parser.add_argument("--client-id", default=settings.google_oauth_client_id, help="Google OAuth client ID.")
     parser.add_argument(

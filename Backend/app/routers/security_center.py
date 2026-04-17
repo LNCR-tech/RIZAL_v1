@@ -46,6 +46,7 @@ from app.services.security_service import (
     revoke_other_sessions,
     revoke_session,
 )
+from app.services.user_preference_service import get_or_create_user_security_setting
 from app.services.face_recognition import FaceRecognitionService
 
 router = APIRouter(prefix="/auth/security", tags=["security"])
@@ -188,6 +189,7 @@ def get_face_status(
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
+    security_setting = get_or_create_user_security_setting(db, user=current_user)
     profile = (
         db.query(UserFaceRecognitionProfile)
         .filter(UserFaceRecognitionProfile.user_id == current_user.id)
@@ -207,7 +209,7 @@ def get_face_status(
     )
     return SecurityFaceStatusResponse(
         user_id=current_user.id,
-        face_verification_required=True,
+        face_verification_required=bool(security_setting.mfa_enabled),
         face_reference_enrolled=profile is not None,
         provider=(
             profile.provider
@@ -344,6 +346,7 @@ def verify_face_reference(
                 db=db,
                 user=current_user,
                 request=request,
+                expires_minutes=token_data.session_duration_minutes,
             )
             record_login_history(
                 db,

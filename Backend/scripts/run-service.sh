@@ -7,15 +7,13 @@ logo_dir="${SCHOOL_LOGO_STORAGE_DIR:-/tmp/valid8_school_logos}"
 
 case "$mode" in
   web)
-    mkdir -p "$import_dir" "$logo_dir"
-    exec uvicorn app.main:app \
-      --host 0.0.0.0 \
-      --port "${PORT:-8000}" \
-      --workers "${UVICORN_WORKERS:-2}" \
-      --proxy-headers
+    exec python /app/scripts/run_runtime_stack.py
     ;;
   worker)
-    exec celery -A app.workers.celery_app.celery_app worker --loglevel="${CELERY_LOGLEVEL:-info}"
+    exec celery -A app.workers.celery_app.celery_app worker \
+      --loglevel="${CELERY_LOGLEVEL:-info}" \
+      --pool "${CELERY_WORKER_POOL:-solo}" \
+      --concurrency "${CELERY_WORKER_CONCURRENCY:-1}"
     ;;
   beat)
     exec celery -A app.workers.celery_app.celery_app beat \
@@ -23,7 +21,7 @@ case "$mode" in
       --schedule /tmp/celerybeat-schedule
     ;;
   migrate)
-    exec alembic upgrade head
+    exec alembic upgrade heads
     ;;
   *)
     echo "Unsupported SERVICE_MODE: $mode" >&2

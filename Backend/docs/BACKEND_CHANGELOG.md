@@ -14,6 +14,472 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-17 - Add Railway-friendly backend runtime supervisor and use `alembic upgrade heads`
+
+### Purpose
+
+Make the backend deployable on constrained Railway plans by allowing one backend service to run web, Celery worker, Celery beat, migrations, and seeding together at startup.
+
+### Main files
+
+- `Backend/scripts/run-service.sh`
+- `Backend/scripts/run_runtime_stack.py`
+- `Backend/docs/BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed web startup to execute a Python runtime supervisor script instead of starting only `uvicorn`
+- added optional startup steps driven by environment variables:
+  - `RUN_MIGRATIONS_ON_START`
+  - `RUN_SEED_ON_START`
+  - `RUN_CELERY_WORKER`
+  - `RUN_CELERY_BEAT`
+- constrained Celery worker startup for small-platform deployments with:
+  - `CELERY_WORKER_POOL` (recommended `solo`)
+  - `CELERY_WORKER_CONCURRENCY` (recommended `1`)
+- added optional `FACE_WARMUP_ON_STARTUP` configuration so constrained deployments can skip InsightFace warm-up during API startup
+- added process supervision so the backend service can launch:
+  - `uvicorn`
+  - Celery worker
+  - Celery beat
+- changed migration execution from `alembic upgrade head` to `alembic upgrade heads`
+  - required because the repository currently contains multiple Alembic heads
+- kept explicit single-purpose modes available:
+  - `SERVICE_MODE=worker`
+  - `SERVICE_MODE=beat`
+  - `SERVICE_MODE=migrate`
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - one backend service can now handle API + async sidecars + startup database initialization
+
+### Migration impact
+
+- no new database migrations added
+- operational migration command changed:
+  - use `alembic upgrade heads`
+- new runtime configuration supported:
+  - `RUN_MIGRATIONS_ON_START`
+  - `RUN_SEED_ON_START`
+  - `RUN_CELERY_WORKER`
+  - `RUN_CELERY_BEAT`
+  - `CELERY_WORKER_POOL`
+  - `CELERY_WORKER_CONCURRENCY`
+  - `FACE_WARMUP_ON_STARTUP`
+
+### How to test
+
+1. Run `python -m compileall Backend/scripts/run_runtime_stack.py`.
+2. Start the backend with:
+   - `SERVICE_MODE=web`
+   - `RUN_MIGRATIONS_ON_START=true`
+   - `RUN_SEED_ON_START=true`
+   - `RUN_CELERY_WORKER=true`
+   - `RUN_CELERY_BEAT=true`
+3. Confirm startup completes and logs show migrations, seeding, Celery, and `uvicorn`.
+
+## 2026-04-17 - Stop forcing local Mailpit SMTP overrides so deployments can use Gmail transport
+
+### Purpose
+
+Align container runtime email behavior with cloud deployment needs by removing hardcoded local SMTP overrides that pinned backend services to Mailpit.
+
+### Main files
+
+- `docker-compose.yml`
+- `Backend/docs/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed `backend`, `worker`, and `beat` hardcoded mail overrides:
+  - `EMAIL_TRANSPORT=smtp`
+  - `SMTP_HOST=mailpit`
+  - `SMTP_PORT=1025`
+  - `SMTP_USE_TLS=false`
+  - `SMTP_USE_STARTTLS=false`
+- added environment-driven transport defaults in local Compose:
+  - `EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-gmail_api}`
+  - `EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}`
+- removed `mailpit` as a required dependency for `backend`, `worker`, and `beat`
+- updated email guide to document:
+  - Gmail API cloud configuration
+  - optional Mailpit local testing workflow
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - backend containers now use environment-configured Gmail transport by default instead of forced Mailpit SMTP
+
+### Migration impact
+
+- no database migrations required
+- deployment/runtime configuration impact:
+  - cloud stacks can use Gmail transport without local Compose SMTP override conflicts
+  - Mailpit remains optional for local testing when `EMAIL_TRANSPORT=smtp` and `SMTP_HOST=mailpit`
+
+### How to test
+
+1. Run `docker compose config` and confirm `backend`, `worker`, and `beat` no longer include hardcoded `SMTP_HOST=mailpit`.
+2. For Gmail:
+   - set Gmail OAuth env vars and `EMAIL_TRANSPORT=gmail_api`
+   - run `python Backend/scripts/send_test_email.py --recipient <your-email>`
+3. For Mailpit local test:
+   - set `EMAIL_TRANSPORT=smtp`, `SMTP_HOST=mailpit`, `SMTP_PORT=1025`
+   - run `docker compose up -d --build backend worker beat mailpit`
+   - verify message in `http://localhost:8025`
+
+## 2026-04-17 - Restore privileged face-scan MFA, add account-level app preferences, and support remember-me session extension
+
+### Purpose
+
+Re-enable face-scan MFA for privileged users (`admin`, `campus_admin`), add a first-class backend store for cross-device app preferences, and let login callers request longer-lived sessions with `remember_me`.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/models/platform_features.py`
+- `Backend/app/models/__init__.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/routers/users/__init__.py`
+- `Backend/app/routers/users/preferences.py`
+- `Backend/app/schemas/auth.py`
+- `Backend/app/schemas/user_preference.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/services/user_preference_service.py`
+- `Backend/alembic/versions/a4f1b2c3d4e5_add_user_app_preferences.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- restored privileged login gating with face-scan MFA:
+  - `admin` and `campus_admin` logins now check `user_security_settings.mfa_enabled`
+  - MFA-enabled privileged users receive a face-pending token payload instead of an immediate full-access session
+  - no `UserSession` row is created until face verification succeeds
+- updated `/api/auth/security/face-status` to report `face_verification_required` from the stored security setting instead of only enrollment state
+- updated `/api/auth/security/face-verify` so a successful verification upgrades the face-pending token into a full-access session while preserving the requested session lifetime
+- added `user_app_preferences` model and service defaults for:
+  - `dark_mode_enabled`
+  - `font_size_percent`
+- added user app preference routes under `/api/users/preferences/me`
+- added login `remember_me` handling:
+  - `POST /token`
+  - `POST /login`
+  - requested long-lived sessions now use `user_security_settings.trusted_device_days` (default `14`)
+- added API tests for:
+  - privileged login returning face-pending tokens
+  - remember-me session duration persistence
+  - user app preference creation/update
+
+### Route or schema impact
+
+- updated request schemas:
+  - `POST /token` accepts form field `remember_me`
+  - `POST /login` accepts JSON field `remember_me`
+- updated token payload schema/claims:
+  - login responses can now return `face_verification_required=true`
+  - login responses can now return `face_verification_pending=true`
+  - internal token claims now carry `session_duration_minutes`
+- new routes:
+  - `GET /api/users/preferences/me`
+  - `PUT /api/users/preferences/me`
+- runtime behavior changes:
+  - privileged MFA-enabled logins no longer receive a direct bearer session immediately
+  - cross-device app preferences are now stored server-side for authenticated users
+
+### Migration impact
+
+- requires migration:
+  - `Backend/alembic/versions/a4f1b2c3d4e5_add_user_app_preferences.py`
+- adds table:
+  - `user_app_preferences`
+- no new environment variables required
+- existing `user_security_settings` rows are now active again for:
+  - `mfa_enabled`
+  - `trusted_device_days`
+
+### How to test
+
+1. Apply migrations:
+   - `alembic upgrade head`
+2. Run focused backend tests:
+   - `python -m pytest -q Backend/app/tests/test_api.py`
+3. Manual auth checks:
+   - login as `campus_admin` or `admin`
+   - confirm login returns `face_verification_required=true`, `face_verification_pending=true`, and `session_id=null`
+   - complete `POST /api/auth/security/face-verify`
+   - confirm the response returns a full `access_token` and non-null `session_id`
+4. Manual remember-me check:
+   - call `POST /token` with `remember_me=true`
+   - confirm the created session expiry reflects the configured trusted-device window
+5. Manual preferences check:
+   - call `GET /api/users/preferences/me`
+   - call `PUT /api/users/preferences/me` with `dark_mode_enabled` and `font_size_percent`
+   - sign in on another device and confirm the saved app preferences are returned by the same route
+
+## 2026-04-16 - Restore platform-admin access for sanctions dashboard and school settings when admin has `school_id = NULL`
+
+### Purpose
+
+Fix `403` regressions for platform admins on sanctions and school-settings flows by preserving true platform-admin identity (`admin` + `school_id = NULL`) while resolving a default school context where school-scoped data is required.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/services/sanctions_service.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/seeder.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `get_school_id_with_admin_fallback(db, user)` in security core:
+  - returns `user.school_id` for school-scoped users
+  - for platform `admin` with `school_id = NULL`, resolves default school by lowest `School.id`
+  - keeps `403` for non-admin users without school assignment
+- updated sanctions service to use admin fallback school resolution for all school-scoped sanctions operations (dashboard, config, list, approve, detail, export, delegation, and clearance deadline flows)
+- updated school-settings router `_resolve_current_school(...)` to use the same admin fallback helper
+- updated seeder admin bootstrap behavior:
+  - new admin rows are created with `school_id = None`
+  - removed unused `_apply_admin_defaults(..., default_school_id)` parameter
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - platform admin users with `school_id = NULL` can now access:
+    - `GET /api/sanctions/dashboard`
+    - `GET /school-settings/me`
+  - school-scoped users keep existing assignment checks
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+- data hygiene note:
+  - admin rows should remain `school_id = NULL` for platform-admin semantics
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_sanctions_api.py Backend/app/tests/test_api.py`.
+2. Login as platform admin (`admin` role, `school_id = NULL`) and call:
+   - `GET /api/sanctions/dashboard`
+   - `GET /school-settings/me`
+3. Confirm both endpoints return `200`.
+
+## 2026-04-16 - Make sanctions route access governance-role scoped (SSG/SG/ORG) across dashboard, students, approve, detail, export, and deadline flows
+
+### Purpose
+
+Ensure sanctions access is primarily based on active student governance scope ownership/delegation, not only explicit sanctions member-permission grants, so governance officers can use sanctions UI/routes in scoped events.
+
+### Main files
+
+- `Backend/app/routers/sanctions.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- updated `_ensure_sanctions_permission(...)` to resolve governance role fallback from active governance memberships (`SSG`/`SG`/`ORG` unit types) before enforcing explicit permission-code checks
+- retained legacy role-name compatibility fallback for `student_council` and `student council`
+- enabled governance-role fallback on additional sanctions routes:
+  - `GET /api/sanctions/events/{event_id}/students`
+  - `POST /api/sanctions/events/{event_id}/students/{user_id}/approve`
+  - `GET /api/sanctions/students/{user_id}`
+  - `POST /api/sanctions/clearance-deadline`
+  - `GET /api/sanctions/events/{event_id}/export`
+- kept service-layer access control unchanged:
+  - `_evaluate_event_access(...)` and `_require_event_access(...)` still enforce event scope/delegation/write boundaries
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - governance members can access sanctions routes for scoped events without explicit sanctions permission grants
+  - cross-scope access without delegation remains denied by service-level checks
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_sanctions_api.py`.
+2. Verify `SG` and `ORG` users with active governance membership (and no explicit sanctions permissions) can access:
+   - sanctions students list for owned-scope event
+   - sanctions dashboard
+   - sanctions export
+3. Verify `SG` access to `SSG`-owned event sanctions routes still returns `404` without delegation.
+
+## 2026-04-16 - Relax sanctions dashboard/config guards with manage-events fallback and legacy governance-role fallback
+
+### Purpose
+
+Fix `403` responses on sanctions dashboard/config flows for governance users that already have event-management authority but may not have explicit sanctions-specific permission grants in older setups.
+
+### Main files
+
+- `Backend/app/routers/sanctions.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- expanded `_ensure_sanctions_permission(...)` with:
+  - `fallback_permission_codes`
+  - broader governance-role fallback aliases (`student_council`, `student council`) when fallback mode is enabled
+- added `manage_events` fallback for sanctions config/delegation routes:
+  - `GET /api/sanctions/events/{event_id}/config`
+  - `PUT /api/sanctions/events/{event_id}/config`
+  - `GET /api/sanctions/events/{event_id}/delegation`
+  - `PUT /api/sanctions/events/{event_id}/delegation`
+- added dashboard fallback permissions for:
+  - `GET /api/sanctions/dashboard`
+  - accepts `view_sanctions_dashboard` OR `manage_events` OR `configure_event_sanctions`
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - governance users with `manage_events` can access sanctions config/delegation/dashboard without separate sanctions-dashboard grants
+  - legacy governance role naming (`student_council`) is accepted in sanctions role-fallback mode
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run sanctions API tests:
+   - `python -m pytest -q Backend/app/tests/test_sanctions_api.py`
+2. Verify a governance member with `manage_events` (without `view_sanctions_dashboard`) can call:
+   - `GET /api/sanctions/dashboard`
+   - `GET /api/sanctions/events/{event_id}/config`
+
+## 2026-04-16 - Allow SSG/SG/ORG sanctions configuration per scoped event without explicit member permission grants
+
+### Purpose
+
+Ensure governance officers (`SSG`, `SG`, `ORG`) can configure sanctions for events inside their own scope (or delegation scope) even when `configure_event_sanctions` was not explicitly granted at member-permission level.
+
+### Main files
+
+- `Backend/app/routers/sanctions.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended sanctions router permission helper with a governance-role fallback option
+- enabled role fallback for:
+  - `GET /api/sanctions/events/{event_id}/config`
+  - `PUT /api/sanctions/events/{event_id}/config`
+  - `GET /api/sanctions/events/{event_id}/delegation`
+  - `PUT /api/sanctions/events/{event_id}/delegation`
+  - `GET /api/sanctions/dashboard`
+- preserved existing guardrails:
+  - admin/campus_admin remains fully allowed
+  - active governance membership is still required for governance-role fallback
+  - service-level event scope and delegation checks still enforce read/write boundaries
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - `SSG`, `SG`, and `ORG` users can now open/manage sanctions config for events they are authorized to access by scope/delegation without requiring explicit member permission grants for `configure_event_sanctions`
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run sanctions API tests:
+   - `python -m pytest -q Backend/app/tests/test_sanctions_api.py`
+2. Verify role-scoped access manually:
+   - `SSG` can access sanctions config for SSG-owned event
+   - `SG` can access sanctions config for SG-owned event
+   - `ORG` can access sanctions config for ORG-owned event
+   - cross-scope access without delegation remains denied (`404`)
+   - non-governance user remains denied (`403`)
+
+## 2026-04-16 - Standardize backend system-name defaults and notification copy to Aura
+
+### Purpose
+
+Align backend-generated messaging with the current product name by replacing remaining `VALID8/Valid8` runtime defaults with `Aura`.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/services/email_service/use_cases.py`
+- `Backend/app/services/email_service/transport.py`
+- `Backend/app/services/notification_center_service.py`
+- `Backend/app/routers/notifications.py`
+- `Backend/app/workers/tasks.py`
+- `Backend/scripts/send_test_email.py`
+- `Backend/scripts/generate_google_oauth_refresh_token.py`
+- `.env.example`
+- `Backend/docs/EMAIL_FORMATS_EDITABLE.txt`
+- `Backend/docs/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed default email sender display name to `Aura Notifications` when `EMAIL_FROM_NAME`/`SMTP_FROM_NAME` are unset
+- changed email use-case fallback `system_name` to `Aura` when no school-scoped name is provided
+- updated default `/api/notifications/test` subject/body copy to Aura branding
+- updated missed/low/reminder notification footers and sanctions-task signatures to `Aura`
+- updated email-transport connectivity-test default subject/body/html copy to Aura
+- updated operator smoke-test script defaults to Aura wording
+- updated OAuth token helper script description text to Aura wording
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - default notification/email text generated by backend now uses `Aura` branding
+
+### Migration impact
+
+- no database migrations required
+- configuration default changed:
+  - `EMAIL_FROM_NAME` fallback is now `Aura Notifications`
+
+### How to test
+
+1. Run focused backend tests:
+   - `python -m pytest -q Backend/app/tests/test_email_service.py Backend/app/tests/test_config.py`
+2. Run backend transport smoke test command:
+   - `python Backend/scripts/send_test_email.py --recipient test@example.com`
+   - verify the default subject starts with `Aura email transport smoke test`
+3. Call `POST /api/notifications/test` without a custom `message` and verify the generated default text/subject uses `Aura`.
+
 ## 2026-04-13 - Add local Mailpit support via SMTP transport and Docker wiring
 
 ### Purpose

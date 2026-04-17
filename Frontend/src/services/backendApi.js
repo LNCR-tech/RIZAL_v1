@@ -29,6 +29,7 @@ import {
     normalizeNotificationDispatchSummary,
     normalizeNotificationLogItem,
     normalizeNotificationPreference,
+    normalizeUserAppPreference,
     normalizePaginatedSanctionRecordsResponse,
     normalizePasswordChangeResponse,
     normalizePasswordResetResponse,
@@ -269,10 +270,11 @@ async function requestWithFallback(baseUrl, candidatePaths, options = {}, fallba
     throw lastError ?? new BackendApiError('Request failed.')
 }
 
-export async function loginForAccessToken(baseUrl, { username, password }) {
+export async function loginForAccessToken(baseUrl, { username, password, rememberMe = false }) {
     const body = new URLSearchParams({
         username: String(username ?? ''),
         password: String(password ?? ''),
+        remember_me: String(Boolean(rememberMe)),
     })
 
     return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/token', '/api/token'], {
@@ -865,6 +867,24 @@ export async function getMyNotificationPreferences(baseUrl, token) {
 
 export async function updateMyNotificationPreferences(baseUrl, token, payload) {
     return normalizeNotificationPreference(await request(baseUrl, '/api/notifications/preferences/me', {
+        method: 'PUT',
+        token,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }))
+}
+
+export async function getMyUserAppPreferences(baseUrl, token) {
+    return normalizeUserAppPreference(await request(baseUrl, '/api/users/preferences/me', {
+        method: 'GET',
+        token,
+    }))
+}
+
+export async function updateMyUserAppPreferences(baseUrl, token, payload) {
+    return normalizeUserAppPreference(await request(baseUrl, '/api/users/preferences/me', {
         method: 'PUT',
         token,
         headers: {

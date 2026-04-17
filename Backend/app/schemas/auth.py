@@ -39,10 +39,12 @@ class TokenData(BaseModel):
     must_change_password: Optional[bool] = None
     jti: Optional[str] = None
     face_pending: Optional[bool] = None
+    session_duration_minutes: Optional[int] = None
 
 class LoginRequest(BaseModel):
     email: EmailStr  # More strict validation
     password: str
+    remember_me: bool = False
 
 
 class ChangePasswordRequest(BaseModel):

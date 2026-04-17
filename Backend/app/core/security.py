@@ -207,6 +207,7 @@ def decode_token_to_token_data(token: str) -> TokenData:
             must_change_password=payload.get("must_change_password"),
             jti=payload.get("jti"),
             face_pending=payload.get("face_pending"),
+            session_duration_minutes=payload.get("session_duration_minutes"),
         )
     except JWTError as exc:
         raise credentials_exception from exc
@@ -350,6 +351,27 @@ def get_school_id_or_403(user: User) -> int:
             detail="User is not assigned to a school",
         )
     return school_id
+
+
+def get_school_id_with_admin_fallback(db: Session, user: User) -> int:
+    """Resolve one school context for users that may be globally scoped (admin)."""
+    school_id = getattr(user, "school_id", None)
+    if school_id is not None:
+        return school_id
+
+    if has_any_role(user, ["admin"]):
+        default_school = db.query(School).order_by(School.id.asc()).first()
+        if default_school is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No school found.",
+            )
+        return default_school.id
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="User is not assigned to a school",
+    )
 
 
 def get_current_admin(current_user: User = Depends(get_current_user)) -> User:

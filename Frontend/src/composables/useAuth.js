@@ -8,16 +8,17 @@ import {
     sessionUsesLimitedMode,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { storeAuthMeta } from '@/services/localAuth.js'
+import { hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
 import { markCurrentRuntimeSession } from '@/services/sessionPersistence.js'
 import { clearSessionExpiredNotice } from '@/services/sessionExpiry.js'
+import { storeRememberMePreference } from '@/services/userPreferences.js'
 
 export function useAuth() {
     const router = useRouter()
     const isLoading = ref(false)
     const error = ref(null)
 
-    async function login(email, password) {
+    async function login(email, password, { rememberMe = false } = {}) {
         isLoading.value = true
         error.value = null
 
@@ -32,6 +33,7 @@ export function useAuth() {
             const tokenPayload = await loginForAccessToken(apiBaseUrl, {
                 username: email,
                 password,
+                rememberMe,
             })
 
             const accessToken = tokenPayload?.access_token
@@ -42,10 +44,16 @@ export function useAuth() {
             localStorage.setItem('aura_token', accessToken)
             localStorage.setItem('aura_user_roles', JSON.stringify(tokenPayload?.roles ?? []))
             const authMeta = storeAuthMeta(tokenPayload)
+            storeRememberMePreference(rememberMe)
             markCurrentRuntimeSession()
 
             if (authMeta.mustChangePassword) {
                 router.push({ name: 'ChangePassword' })
+                return
+            }
+
+            if (hasPrivilegedPendingFace(authMeta)) {
+                router.push({ name: 'PrivilegedFaceVerification' })
                 return
             }
 

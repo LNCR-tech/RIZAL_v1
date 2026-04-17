@@ -151,9 +151,9 @@
 
 /* Entry animations */
 .dashboard-enter {
-  opacity: 0;
-  transform: translateY(16px);
-  animation: sg-sub-fade-up 0.5s ease forwards;
+  opacity: 1;
+  transform: translateY(0);
+  animation: sg-sub-fade-up 0.5s ease both;
 }
 .dashboard-enter--1 { animation-delay: 0ms; }
 .dashboard-enter--2 { animation-delay: 80ms; }
@@ -161,5 +161,14 @@
 .dashboard-enter--4 { animation-delay: 240ms; }
 
 @keyframes sg-sub-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

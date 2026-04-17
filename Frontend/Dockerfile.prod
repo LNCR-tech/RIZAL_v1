@@ -17,6 +17,8 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
 
+ENV PORT=80
+
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY runtime-config.js.template /opt/aura/runtime-config.js.template
 COPY docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh

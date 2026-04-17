@@ -243,12 +243,12 @@ export function createAdminDashboardPreviewData() {
   return {
     user: normalizeUserWithRelations({
       id: 1,
-      email: 'platform.admin@valid8.local',
+      email: 'platform.admin@aura.local',
       first_name: 'Platform',
       last_name: 'Admin',
       roles: [{ role: { id: 1, name: 'admin' } }],
       school_id: null,
-      school_name: 'VALID8 Platform',
+      school_name: 'Aura Platform',
     }),
     schools: createSchools(),
     campusAccounts: createCampusAccounts(),

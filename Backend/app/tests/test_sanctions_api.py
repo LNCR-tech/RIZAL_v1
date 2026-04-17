@@ -55,7 +55,7 @@ def _create_user(
     test_db,
     *,
     email: str,
-    school_id: int,
+    school_id: int | None,
     role_ids: list[int],
 ) -> User:
     user = User(
@@ -493,11 +493,12 @@ def test_sg_delegation_allows_scoped_read_and_approve(client, test_db):
     assert approve_response.json()["status"] == "complied"
 
 
-def test_sanctions_routes_require_governance_permission_grants(client, test_db):
+def test_sanctions_config_routes_allow_governance_roles_with_event_scope(client, test_db):
     school = _create_school(test_db)
     ssg_role = _create_role(test_db, name="ssg")
     sg_role = _create_role(test_db, name="sg")
     org_role = _create_role(test_db, name="org")
+    student_role = _create_role(test_db, name="student")
 
     ssg_user = _create_user(
         test_db,
@@ -517,6 +518,267 @@ def test_sanctions_routes_require_governance_permission_grants(client, test_db):
         school_id=school.id,
         role_ids=[org_role.id],
     )
+    student_user = _create_user(
+        test_db,
+        email="student.permission@example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+
+    department, program = _create_scope(test_db, school_id=school.id)
+    _ssg_unit, _sg_unit, _org_unit = _create_governance_membership(
+        test_db,
+        school_id=school.id,
+        ssg_user_id=ssg_user.id,
+        sg_user_id=sg_user.id,
+        org_user_id=org_user.id,
+        department_id=department.id,
+        program_id=program.id,
+    )
+    ssg_event = _create_event(test_db, school_id=school.id, name="Permission Guard SSG Event")
+    sg_event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Permission Guard SG Event",
+        department_ids=[department.id],
+    )
+    org_event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Permission Guard ORG Event",
+        department_ids=[department.id],
+        program_ids=[program.id],
+    )
+
+    ssg_access = client.get(
+        f"/api/sanctions/events/{ssg_event.id}/config",
+        headers=_auth_headers(ssg_user),
+    )
+    assert ssg_access.status_code == 200
+
+    sg_access = client.get(
+        f"/api/sanctions/events/{sg_event.id}/config",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_access.status_code == 200
+
+    org_access = client.get(
+        f"/api/sanctions/events/{org_event.id}/config",
+        headers=_auth_headers(org_user),
+    )
+    assert org_access.status_code == 200
+
+    sg_cross_scope = client.get(
+        f"/api/sanctions/events/{ssg_event.id}/config",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_cross_scope.status_code == 404
+
+    org_cross_scope = client.get(
+        f"/api/sanctions/events/{sg_event.id}/config",
+        headers=_auth_headers(org_user),
+    )
+    assert org_cross_scope.status_code == 404
+
+    student_forbidden = client.get(
+        f"/api/sanctions/events/{ssg_event.id}/config",
+        headers=_auth_headers(student_user),
+    )
+    assert student_forbidden.status_code == 403
+
+
+def test_sanctions_routes_allow_governance_role_scope_without_member_permissions(client, test_db):
+    school = _create_school(test_db)
+    ssg_role = _create_role(test_db, name="ssg")
+    sg_role = _create_role(test_db, name="sg")
+    org_role = _create_role(test_db, name="org")
+    student_role = _create_role(test_db, name="student")
+
+    ssg_user = _create_user(
+        test_db,
+        email="ssg.role.fallback@example.com",
+        school_id=school.id,
+        role_ids=[ssg_role.id],
+    )
+    sg_user = _create_user(
+        test_db,
+        email="sg.role.fallback@example.com",
+        school_id=school.id,
+        role_ids=[sg_role.id],
+    )
+    org_user = _create_user(
+        test_db,
+        email="org.role.fallback@example.com",
+        school_id=school.id,
+        role_ids=[org_role.id],
+    )
+    student_user = _create_user(
+        test_db,
+        email="student.role.fallback@example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+
+    department, program = _create_scope(test_db, school_id=school.id)
+    _create_governance_membership(
+        test_db,
+        school_id=school.id,
+        ssg_user_id=ssg_user.id,
+        sg_user_id=sg_user.id,
+        org_user_id=org_user.id,
+        department_id=department.id,
+        program_id=program.id,
+    )
+    student_profile = _create_student_profile(
+        test_db,
+        user_id=student_user.id,
+        school_id=school.id,
+        student_id="ROLE-FB-001",
+        department_id=department.id,
+        program_id=program.id,
+    )
+
+    ssg_event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Role Fallback SSG Event",
+    )
+    sg_event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Role Fallback SG Event",
+        department_ids=[department.id],
+    )
+    org_event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Role Fallback ORG Event",
+        department_ids=[department.id],
+        program_ids=[program.id],
+    )
+
+    sg_config = EventSanctionConfig(
+        school_id=school.id,
+        event_id=sg_event.id,
+        sanctions_enabled=True,
+        item_definitions_json=[{"item_code": "notice", "item_name": "Notice"}],
+        created_by_user_id=ssg_user.id,
+    )
+    org_config = EventSanctionConfig(
+        school_id=school.id,
+        event_id=org_event.id,
+        sanctions_enabled=True,
+        item_definitions_json=[{"item_code": "reflection", "item_name": "Reflection"}],
+        created_by_user_id=ssg_user.id,
+    )
+    test_db.add_all([sg_config, org_config])
+    test_db.commit()
+    test_db.refresh(sg_config)
+    test_db.refresh(org_config)
+
+    test_db.add_all(
+        [
+            SanctionRecord(
+                school_id=school.id,
+                event_id=sg_event.id,
+                sanction_config_id=sg_config.id,
+                student_profile_id=student_profile.id,
+                status=SanctionComplianceStatus.PENDING,
+                assigned_by_user_id=ssg_user.id,
+            ),
+            SanctionRecord(
+                school_id=school.id,
+                event_id=org_event.id,
+                sanction_config_id=org_config.id,
+                student_profile_id=student_profile.id,
+                status=SanctionComplianceStatus.PENDING,
+                assigned_by_user_id=ssg_user.id,
+            ),
+        ]
+    )
+    test_db.commit()
+
+    sg_students_response = client.get(
+        f"/api/sanctions/events/{sg_event.id}/students",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_students_response.status_code == 200
+    assert sg_students_response.json()["total"] == 1
+
+    org_students_response = client.get(
+        f"/api/sanctions/events/{org_event.id}/students",
+        headers=_auth_headers(org_user),
+    )
+    assert org_students_response.status_code == 200
+    assert org_students_response.json()["total"] == 1
+
+    sg_cross_scope_students_response = client.get(
+        f"/api/sanctions/events/{ssg_event.id}/students",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_cross_scope_students_response.status_code == 404
+
+    sg_approve_response = client.post(
+        f"/api/sanctions/events/{sg_event.id}/students/{student_user.id}/approve",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_approve_response.status_code == 200
+    assert sg_approve_response.json()["status"] == "complied"
+
+    sg_student_detail_response = client.get(
+        f"/api/sanctions/students/{student_user.id}",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_student_detail_response.status_code == 200
+    sg_student_event_ids = {
+        item["event_id"]
+        for item in sg_student_detail_response.json()["sanctions"]
+    }
+    assert sg_event.id in sg_student_event_ids
+    assert org_event.id not in sg_student_event_ids
+
+    sg_export_response = client.get(
+        f"/api/sanctions/events/{sg_event.id}/export",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_export_response.status_code == 200
+    assert (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        in sg_export_response.headers.get("content-type", "")
+    )
+
+    sg_dashboard_response = client.get(
+        "/api/sanctions/dashboard",
+        headers=_auth_headers(sg_user),
+    )
+    assert sg_dashboard_response.status_code == 200
+    assert sg_dashboard_response.json()["total_events"] >= 1
+
+
+def test_sanctions_dashboard_and_config_allow_manage_events_fallback(client, test_db):
+    school = _create_school(test_db)
+    ssg_role = _create_role(test_db, name="ssg")
+    sg_role = _create_role(test_db, name="sg")
+    org_role = _create_role(test_db, name="org")
+
+    ssg_user = _create_user(
+        test_db,
+        email="ssg.dashboard.fallback@example.com",
+        school_id=school.id,
+        role_ids=[ssg_role.id],
+    )
+    sg_user = _create_user(
+        test_db,
+        email="sg.dashboard.fallback@example.com",
+        school_id=school.id,
+        role_ids=[sg_role.id],
+    )
+    org_user = _create_user(
+        test_db,
+        email="org.dashboard.fallback@example.com",
+        school_id=school.id,
+        role_ids=[org_role.id],
+    )
 
     department, program = _create_scope(test_db, school_id=school.id)
     ssg_unit, _sg_unit, _org_unit = _create_governance_membership(
@@ -528,14 +790,6 @@ def test_sanctions_routes_require_governance_permission_grants(client, test_db):
         department_id=department.id,
         program_id=program.id,
     )
-    event = _create_event(test_db, school_id=school.id, name="Permission Guard Event")
-
-    forbidden_response = client.get(
-        f"/api/sanctions/events/{event.id}/config",
-        headers=_auth_headers(ssg_user),
-    )
-    assert forbidden_response.status_code == 403
-
     ssg_member = _get_governance_member(
         test_db,
         governance_unit_id=ssg_unit.id,
@@ -544,16 +798,54 @@ def test_sanctions_routes_require_governance_permission_grants(client, test_db):
     _grant_member_permissions(
         test_db,
         governance_member=ssg_member,
-        permission_codes=[PermissionCode.CONFIGURE_EVENT_SANCTIONS],
+        permission_codes=[PermissionCode.MANAGE_EVENTS],
         granted_by_user_id=ssg_user.id,
     )
 
-    allowed_response = client.get(
-        f"/api/sanctions/events/{event.id}/config",
+    ssg_event = _create_event(
+        test_db,
+        school_id=school.id,
+        name="Dashboard Fallback Event",
+    )
+
+    dashboard_response = client.get(
+        "/api/sanctions/dashboard",
         headers=_auth_headers(ssg_user),
     )
-    assert allowed_response.status_code == 200
-    assert allowed_response.json()["event_id"] == event.id
+    assert dashboard_response.status_code == 200
+    assert dashboard_response.json()["total_events"] >= 1
+
+    config_response = client.get(
+        f"/api/sanctions/events/{ssg_event.id}/config",
+        headers=_auth_headers(ssg_user),
+    )
+    assert config_response.status_code == 200
+    assert config_response.json()["event_id"] == ssg_event.id
+
+
+def test_platform_admin_without_school_id_can_access_sanctions_dashboard(client, test_db):
+    school = _create_school(test_db)
+    admin_role = _create_role(test_db, name="admin")
+
+    admin_user = _create_user(
+        test_db,
+        email="platform.admin.sanctions@example.com",
+        school_id=None,
+        role_ids=[admin_role.id],
+    )
+    _create_event(
+        test_db,
+        school_id=school.id,
+        name="Platform Admin Dashboard Event",
+    )
+
+    dashboard_response = client.get(
+        "/api/sanctions/dashboard",
+        headers=_auth_headers(admin_user),
+    )
+    assert dashboard_response.status_code == 200
+    payload = dashboard_response.json()
+    assert payload["total_events"] >= 1
 
 
 def test_students_me_returns_only_current_student_sanctions(client, test_db):
