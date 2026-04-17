@@ -38,7 +38,7 @@
           </button>
         </div>
 
-        <div ref="pillRef" class="relative w-[40px] h-[74px] mx-2 mb-1.5 z-50">
+        <div v-if="showMiniAssistant" ref="pillRef" class="relative w-[40px] h-[74px] mx-2 mb-1.5 z-50">
           <div
             class="absolute top-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-left"
             :class="isMiniOpen
@@ -157,6 +157,7 @@ const {
 const pillRef = ref(null)
 const router = useRouter()
 const route = useRoute()
+const showMiniAssistant = computed(() => !route.path.endsWith('/chat') && !route.path.endsWith('/chat/'))
 const navItems = computed(() => getNavigationItemsForRoute(route))
 const railHeight = computed(() => Math.max(380, 150 + (navItems.value.length * 58)))
 const navRailStyle = computed(() => ({
