@@ -5,6 +5,39 @@ This repo contains:
 - `Assistant/`: FastAPI assistant service (MCP tools + chat endpoint) with Postgres-backed storage
 - `Frontend/`: Vue 3 (Vite) SPA
 
+## Quick Start (Docker)
+
+This is the fastest way to get the system running. It handles the database, migrations, and seeding automatically.
+
+### 1) Prerequisites
+- **Docker Desktop** installed and running.
+- A valid `.env` file in the project root.
+
+### 2) Core `.env` Checklist
+Before starting, ensure these values in your `.env` are correct:
+- **LLM_API_KEY**: Set this to your OpenAI key (or compatible provider) for the AI Assistant to work.
+- **ADMIN_EMAIL/PASSWORD**: These will be your login credentials for the first run.
+- **SECRET_KEY**: Change this if you plan to deploy the site publicly.
+
+### 3) Run One-Line Command
+Open your terminal in the project root and run:
+
+```powershell
+docker compose up --build
+```
+
+**What happens next?**
+- All images will be built.
+- The database will be created and migrated.
+- Sample data (Users, Schools, Orgs) will be seeded.
+- **Frontend**: [http://localhost:5173](http://localhost:5173)
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **pgAdmin (DB GUI)**: [http://localhost:5050](http://localhost:5050) (Login: admin@example.com / admin123)
+- **Mailpit (Email Test)**: [http://localhost:8025](http://localhost:8025)
+- **Database Port**: `5433` (for external tools like DBeaver)
+
+---
+
 ## Manual Run (No Docker)
 
 ### Prereqs

@@ -11,6 +11,7 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker-init:/docker-entrypoint-initdb.d
 
   redis:
     image: redis:7-alpine
@@ -26,6 +27,8 @@ services:
       - "8025:8025"
 
   migrate:
+    build:
+      context: ./Backend
     image: rizal-backend:local
     command: alembic upgrade head
     env_file:
@@ -165,6 +168,7 @@ services:
       - AURA_API_BASE_URL=${AURA_API_BASE_URL:-/__backend__}
       - AURA_API_TIMEOUT_MS=${AURA_API_TIMEOUT_MS:-15000}
       - AURA_ASSISTANT_BASE_URL=${AURA_ASSISTANT_BASE_URL:-/__assistant__}
+      - PORT=80
     depends_on:
       - backend
       - assistant
@@ -177,7 +181,7 @@ services:
     environment:
       - TENANT_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - APP_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/ai_assistant
       - ASSISTANT_AUTO_MIGRATE=true
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - BACKEND_API_BASE_URL=${BACKEND_API_BASE_URL:-http://backend:8000}
@@ -195,6 +199,23 @@ services:
       - "5050:80"
     depends_on:
       - db
+
+  dashboard:
+    image: alpine
+    depends_on:
+      frontend:
+        condition: service_started
+    command: >
+      sh -c "echo ' ' &&
+             echo '-------------------------------------------------------' &&
+             echo '   🚀 AURA SYSTEM IS READY!' &&
+             echo '-------------------------------------------------------' &&
+             echo 'Frontend:        http://localhost:5173' &&
+             echo 'Backend API:     http://localhost:8000' &&
+             echo 'pgAdmin (DB):    http://localhost:5050 (admin@example.com / admin123)' &&
+             echo 'Mailpit (Email): http://localhost:8025' &&
+             echo 'Database Port:   5433 (for external tools)' &&
+             echo '-------------------------------------------------------'"
 
 volumes:
   postgres_data:
