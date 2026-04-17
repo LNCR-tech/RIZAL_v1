@@ -54,13 +54,16 @@
           <div v-else-if="!conversations?.length" class="chat-sidebar-meta">No conversations yet.</div>
 
           <div v-if="conversations?.length" class="chat-sidebar-list">
-            <button
+            <div
               v-for="conversation in conversations"
               :key="conversation.conversation_id"
-              type="button"
+              role="button"
+              tabindex="0"
               class="chat-sidebar-item"
               :class="String(conversation.conversation_id) === String(conversationId || '') ? 'chat-sidebar-item--active' : ''"
               @click="selectConversation(conversation.conversation_id)"
+              @keydown.enter="selectConversation(conversation.conversation_id)"
+              @keydown.space.prevent="selectConversation(conversation.conversation_id)"
             >
               <div class="chat-sidebar-item-title">
                 {{ conversation.title || conversation.last_message || 'New chat' }}
@@ -74,7 +77,7 @@
               >
                 <Trash2 :size="14" />
               </button>
-            </button>
+            </div>
           </div>
         </aside>
 
