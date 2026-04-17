@@ -1,4 +1,6 @@
 <template>
+  <!-- |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| -->
+  <!-- FEATURE: Implement role-based UI (admin vs student view) -->
   <section class="admin-view">
     <div class="admin-view__shell">
       <StandardHeader
@@ -132,6 +134,8 @@
             <button class="admin-view__ghost" type="button" @click="showCreateForm = false">Close</button>
           </div>
 
+          <!-- |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| -->
+          <!-- FEATURE: Add basic form validation (required fields) -->
           <form class="admin-view__form" @submit.prevent="submitCreateSchool">
             <div class="admin-view__form-grid">
               <label class="admin-view__field"><span>School Name</span><input v-model.trim="createForm.school_name" required type="text"></label>
@@ -154,6 +158,7 @@
               <span>{{ adminState.creatingSchool ? 'Creating School...' : 'Create School' }}</span>
             </button>
           </form>
+          <!-- |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| -->
         </section>
 
         <section class="admin-view__grid">
@@ -331,6 +336,7 @@
       </div>
     </div>
   </section>
+  <!-- |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| -->
 </template>
 
 <script setup>

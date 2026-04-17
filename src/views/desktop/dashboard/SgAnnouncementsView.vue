@@ -30,6 +30,8 @@
         </button>
       </div>
 
+      <!-- |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| -->
+      <!-- FEATURE: Create notification UI (announcements/reminders display) -->
       <div class="sg-sub-card dashboard-enter dashboard-enter--3">
         <h2 class="sg-sub-card-title">Announcements ({{ filteredAnnouncements.length }})</h2>
         <div v-if="filteredAnnouncements.length" class="sg-ann-list">
@@ -58,6 +60,7 @@
         </div>
         <p v-else class="sg-sub-empty">No announcements yet.</p>
       </div>
+      <!-- |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| -->
     </template>
 
     <!-- Create/Edit Sheet -->

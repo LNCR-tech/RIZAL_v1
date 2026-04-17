@@ -1,7 +1,0 @@
-# Local env/secrets
-.env
-
-# Python cache
-__pycache__/
-*.pyc
-

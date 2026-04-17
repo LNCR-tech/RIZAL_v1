@@ -7,8 +7,6 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "mock-api": "node mock-api.js",
-    "dev:all": "concurrently \"npm run mock-api\" \"npm run dev\"",
     "cap:config": "node ./scripts/write-capacitor-config.mjs",
     "cap:sync": "npm run cap:config && npx cap sync",
     "android:sync": "npm run build && npm run cap:config && npx cap sync android",
