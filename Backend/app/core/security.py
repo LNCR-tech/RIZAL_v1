@@ -207,6 +207,7 @@ def decode_token_to_token_data(token: str) -> TokenData:
             must_change_password=payload.get("must_change_password"),
             jti=payload.get("jti"),
             face_pending=payload.get("face_pending"),
+            session_duration_minutes=payload.get("session_duration_minutes"),
         )
     except JWTError as exc:
         raise credentials_exception from exc

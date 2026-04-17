@@ -9,7 +9,7 @@ import {
     isSchoolItSession,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { needsStoredPasswordChange } from '@/services/localAuth.js'
+import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView } from '@/router/platformView.js'
 
@@ -29,6 +29,7 @@ const WorkspacePlaceholderView = dashboardView('WorkspacePlaceholderView')
 const PrivilegedComingSoonView = dashboardView('PrivilegedComingSoonView')
 const ProfileSecurityView = dashboardView('ProfileSecurityView')
 const ProfileFaceUpdateView = dashboardView('ProfileFaceUpdateView')
+const PrivilegedFaceVerificationView = authView('PrivilegedFaceVerificationView')
 const SchoolItHomeView = dashboardView('SchoolItHomeView')
 const SchoolItUsersView = dashboardView('SchoolItUsersView')
 const SchoolItImportStudentsView = dashboardView('SchoolItImportStudentsView')
@@ -110,6 +111,15 @@ const routes = [
         path: '/profile/security/face',
         name: 'ProfileSecurityFace',
         component: ProfileFaceUpdateView,
+        meta: {
+            requiresAuth: true,
+            allowWithoutFaceEnrollment: true,
+        },
+    },
+    {
+        path: '/privileged/face',
+        name: 'PrivilegedFaceVerification',
+        component: PrivilegedFaceVerificationView,
         meta: {
             requiresAuth: true,
             allowWithoutFaceEnrollment: true,
@@ -773,6 +783,7 @@ router.beforeEach(async (to) => {
     setNavigationPending(true)
     const isAuthenticated = hasSessionToken()
     const mustChangePassword = needsStoredPasswordChange()
+    const pendingPrivilegedFace = hasPrivilegedPendingFace()
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: 'Login' }
@@ -782,12 +793,48 @@ router.beforeEach(async (to) => {
         return { name: 'ChangePassword' }
     }
 
+    if (
+        isAuthenticated &&
+        pendingPrivilegedFace &&
+        !mustChangePassword &&
+        to.name !== 'PrivilegedFaceVerification'
+    ) {
+        return { name: 'PrivilegedFaceVerification' }
+    }
+
     if (to.name === 'ChangePassword') {
         if (!isAuthenticated) {
             return { name: 'Login' }
         }
 
         if (!mustChangePassword) {
+            if (pendingPrivilegedFace) {
+                return { name: 'PrivilegedFaceVerification' }
+            }
+            try {
+                await initializeDashboardSession()
+                return sessionNeedsFaceRegistration()
+                    ? { name: 'FaceRegistration' }
+                    : getDefaultAuthenticatedRoute()
+            } catch {
+                clearDashboardSession()
+                return { name: 'Login' }
+            }
+        }
+
+        return true
+    }
+
+    if (to.name === 'PrivilegedFaceVerification') {
+        if (!isAuthenticated) {
+            return { name: 'Login' }
+        }
+
+        if (mustChangePassword) {
+            return { name: 'ChangePassword' }
+        }
+
+        if (!pendingPrivilegedFace) {
             try {
                 await initializeDashboardSession()
                 return sessionNeedsFaceRegistration()
@@ -803,6 +850,9 @@ router.beforeEach(async (to) => {
     }
 
     if (to.meta.requiresGuest && isAuthenticated) {
+        if (pendingPrivilegedFace) {
+            return { name: 'PrivilegedFaceVerification' }
+        }
         try {
             await initializeDashboardSession()
             return sessionNeedsFaceRegistration()
@@ -815,6 +865,9 @@ router.beforeEach(async (to) => {
     }
 
     if (to.meta.requiresAuth && isAuthenticated) {
+        if (pendingPrivilegedFace) {
+            return true
+        }
         try {
             await initializeDashboardSession()
             const defaultRoute = getDefaultAuthenticatedRoute()

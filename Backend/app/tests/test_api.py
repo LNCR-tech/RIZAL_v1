@@ -6,6 +6,8 @@ Role: Test layer. It protects the app from regressions.
 import json
 from datetime import datetime, timedelta
 
+from jose import jwt
+
 from app.models import (
     Department,
     Event,
@@ -17,11 +19,13 @@ from app.models import (
     SchoolSetting,
     StudentProfile,
     User,
+    UserAppPreference,
     UserRole,
+    UserSession,
 )
 from app.routers import security_center
 from app.routers import users as users_router
-from app.core.security import create_access_token, verify_password
+from app.core.security import ALGORITHM, SECRET_KEY, create_access_token, verify_password
 from app.utils.passwords import hash_password_bcrypt
 
 
@@ -163,6 +167,121 @@ def test_login_does_not_dispatch_gmail_login_notification(client, test_db, monke
     assert response.status_code == 200
     payload = response.json()
     assert payload["email"] == user.email
+
+
+def test_privileged_login_requires_face_scan_mfa(client, test_db):
+    school = _create_school(test_db, code="LOGIN-FACE")
+    user = _create_user_with_role(
+        test_db,
+        email="campus.face.login@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+        first_name="Campus",
+        last_name="Admin",
+    )
+
+    response = client.post(
+        "/login",
+        json={
+            "email": user.email,
+            "password": "CampusPass123!",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["face_verification_required"] is True
+    assert payload["face_verification_pending"] is True
+    assert payload["face_reference_enrolled"] is False
+    assert payload["session_id"] is None
+
+    token_payload = jwt.decode(payload["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
+    assert token_payload["face_pending"] is True
+    assert token_payload["user_id"] == user.id
+
+
+def test_token_login_remember_me_extends_session_lifetime(client, test_db):
+    school = _create_school(test_db, code="REMEMBER-TKN")
+    user = _create_user_with_role(
+        test_db,
+        email="remember.token@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+        first_name="Remember",
+        last_name="Token",
+    )
+
+    response = client.post(
+        "/token",
+        data={
+            "username": user.email,
+            "password": "StudentPass123!",
+            "remember_me": "true",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    token_payload = jwt.decode(payload["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
+    assert token_payload["face_pending"] is False
+    assert token_payload["session_duration_minutes"] == 14 * 24 * 60
+
+    session = (
+        test_db.query(UserSession)
+        .filter(UserSession.user_id == user.id)
+        .order_by(UserSession.created_at.desc())
+        .first()
+    )
+    assert session is not None
+    assert session.expires_at >= datetime.utcnow() + timedelta(days=13)
+
+
+def test_user_app_preferences_routes_create_and_update_preferences(client, test_db):
+    school = _create_school(test_db, code="APP-PREF")
+    user = _create_user_with_role(
+        test_db,
+        email="app.pref@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+        first_name="App",
+        last_name="Pref",
+    )
+
+    response = client.get(
+        "/api/users/preferences/me",
+        headers=_auth_headers(user),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["dark_mode_enabled"] is False
+    assert payload["font_size_percent"] == 100
+
+    update_response = client.put(
+        "/api/users/preferences/me",
+        headers=_auth_headers(user),
+        json={
+            "dark_mode_enabled": True,
+            "font_size_percent": 123,
+        },
+    )
+
+    assert update_response.status_code == 200
+    updated_payload = update_response.json()
+    assert updated_payload["dark_mode_enabled"] is True
+    assert updated_payload["font_size_percent"] == 125
+
+    persisted = (
+        test_db.query(UserAppPreference)
+        .filter(UserAppPreference.user_id == user.id)
+        .first()
+    )
+    assert persisted is not None
+    assert persisted.dark_mode_enabled is True
+    assert persisted.font_size_percent == 125
 
 
 def test_protected_endpoint(client, test_db):

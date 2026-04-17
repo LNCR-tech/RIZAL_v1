@@ -14,6 +14,7 @@ from app.models.school import School, SchoolSetting, SchoolAuditLog
 from app.models.import_job import BulkImportJob, BulkImportError, EmailDeliveryLog
 from app.models.password_reset_request import PasswordResetRequest
 from app.models.platform_features import (
+    UserAppPreference,
     UserNotificationPreference,
     NotificationLog,
     UserSecuritySetting,
@@ -64,6 +65,7 @@ __all__ = [
     "BulkImportError",
     "EmailDeliveryLog",
     "PasswordResetRequest",
+    "UserAppPreference",
     "UserNotificationPreference",
     "NotificationLog",
     "UserSecuritySetting",

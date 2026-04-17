@@ -1,4 +1,5 @@
 const FONT_SIZE_STORAGE_KEY = 'aura_font_size'
+const REMEMBER_ME_STORAGE_KEY = 'aura_remember_me'
 
 export const FONT_SIZE_MIN = 80
 export const FONT_SIZE_MAX = 130
@@ -68,5 +69,33 @@ export function storeFontSizePreference(value) {
 export function initializeStoredFontSize() {
   const normalizedValue = getStoredFontSize()
   applyFontSizePreference(normalizedValue)
+  return normalizedValue
+}
+
+export function getStoredRememberMePreference() {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return false
+  }
+
+  try {
+    return window.localStorage.getItem(REMEMBER_ME_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function storeRememberMePreference(value) {
+  const normalizedValue = Boolean(value)
+
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return normalizedValue
+  }
+
+  try {
+    window.localStorage.setItem(REMEMBER_ME_STORAGE_KEY, normalizedValue ? '1' : '0')
+  } catch {
+    // Ignore storage failures and keep login usable.
+  }
+
   return normalizedValue
 }

@@ -49,6 +49,17 @@
             </p>
           </Transition>
 
+          <label class="remember-row" for="remember-me">
+            <input
+              id="remember-me"
+              v-model="rememberMe"
+              type="checkbox"
+              class="remember-row__checkbox"
+              :disabled="isLoading"
+            >
+            <span class="remember-row__label">Remember me</span>
+          </label>
+
           <!-- Login Button -->
           <BaseButton
             type="submit"
@@ -110,42 +121,21 @@
 </template>
 
 <script setup>
-import { computed, ref, onBeforeMount, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { useAuth } from '@/composables/useAuth.js'
-import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
-import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'
+import { surfaceAuraLogo } from '@/config/theme.js'
+import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
-const email = ref('')
-const password = ref('')
-const isMounted = ref(false)
-const sessionNotice = ref('')
-const router = useRouter()
-
-const { login, isLoading, error } = useAuth()
-const visibleMessage = computed(() => error.value || sessionNotice.value)
-
-onBeforeMount(() => {
-  applyTheme(loadUnbrandedTheme())
-})
-
-onMounted(() => {
-  sessionNotice.value = consumeSessionExpiredNotice()
-
-  setTimeout(() => {
-    isMounted.value = true
-  }, 50)
-})
-
-async function handleLogin() {
-  await login(email.value, password.value)
-}
-
-function openQuickAttendance() {
-  router.push({ name: 'QuickAttendance' })
-}
+const {
+  email,
+  password,
+  rememberMe,
+  isMounted,
+  isLoading,
+  visibleMessage,
+  handleLogin,
+  openQuickAttendance,
+} = useLoginViewModel()
 </script>
 
 <style scoped>
@@ -166,5 +156,25 @@ function openQuickAttendance() {
 /* When keyboard is open (viewport shrinks), allow scrolling */
 .login-page {
   -webkit-overflow-scrolling: touch;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.remember-row__checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+
+.remember-row__label {
+  line-height: 1.2;
 }
 </style>

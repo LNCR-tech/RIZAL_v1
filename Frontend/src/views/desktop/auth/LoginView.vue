@@ -42,6 +42,17 @@
             </p>
           </Transition>
 
+          <label class="remember-row" for="remember-me">
+            <input
+              id="remember-me"
+              v-model="rememberMe"
+              type="checkbox"
+              class="remember-row__checkbox"
+              :disabled="isLoading"
+            >
+            <span class="remember-row__label">Remember me</span>
+          </label>
+
           <BaseButton
             type="submit"
             variant="primary"
@@ -106,6 +117,7 @@ import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 const {
   email,
   password,
+  rememberMe,
   isMounted,
   isLoading,
   visibleMessage,
@@ -132,5 +144,25 @@ const {
 
 .login-form-area {
   padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.remember-row__checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+
+.remember-row__label {
+  line-height: 1.2;
 }
 </style>

@@ -3,10 +3,12 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth.js'
 import { applyTheme, loadUnbrandedTheme } from '@/config/theme.js'
 import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'
+import { getStoredRememberMePreference } from '@/services/userPreferences.js'
 
 export function useLoginViewModel() {
   const email = ref('')
   const password = ref('')
+  const rememberMe = ref(getStoredRememberMePreference())
   const isMounted = ref(false)
   const sessionNotice = ref('')
   const router = useRouter()
@@ -26,7 +28,7 @@ export function useLoginViewModel() {
   })
 
   async function handleLogin() {
-    await login(email.value, password.value)
+    await login(email.value, password.value, { rememberMe: rememberMe.value })
   }
 
   function openQuickAttendance() {
@@ -36,6 +38,7 @@ export function useLoginViewModel() {
   return {
     email,
     password,
+    rememberMe,
     isMounted,
     isLoading,
     visibleMessage,

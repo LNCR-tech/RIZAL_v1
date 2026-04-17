@@ -14,6 +14,98 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-17 - Restore privileged face-scan MFA, add account-level app preferences, and support remember-me session extension
+
+### Purpose
+
+Re-enable face-scan MFA for privileged users (`admin`, `campus_admin`), add a first-class backend store for cross-device app preferences, and let login callers request longer-lived sessions with `remember_me`.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/models/platform_features.py`
+- `Backend/app/models/__init__.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/routers/users/__init__.py`
+- `Backend/app/routers/users/preferences.py`
+- `Backend/app/schemas/auth.py`
+- `Backend/app/schemas/user_preference.py`
+- `Backend/app/services/auth_session.py`
+- `Backend/app/services/user_preference_service.py`
+- `Backend/alembic/versions/a4f1b2c3d4e5_add_user_app_preferences.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- restored privileged login gating with face-scan MFA:
+  - `admin` and `campus_admin` logins now check `user_security_settings.mfa_enabled`
+  - MFA-enabled privileged users receive a face-pending token payload instead of an immediate full-access session
+  - no `UserSession` row is created until face verification succeeds
+- updated `/api/auth/security/face-status` to report `face_verification_required` from the stored security setting instead of only enrollment state
+- updated `/api/auth/security/face-verify` so a successful verification upgrades the face-pending token into a full-access session while preserving the requested session lifetime
+- added `user_app_preferences` model and service defaults for:
+  - `dark_mode_enabled`
+  - `font_size_percent`
+- added user app preference routes under `/api/users/preferences/me`
+- added login `remember_me` handling:
+  - `POST /token`
+  - `POST /login`
+  - requested long-lived sessions now use `user_security_settings.trusted_device_days` (default `14`)
+- added API tests for:
+  - privileged login returning face-pending tokens
+  - remember-me session duration persistence
+  - user app preference creation/update
+
+### Route or schema impact
+
+- updated request schemas:
+  - `POST /token` accepts form field `remember_me`
+  - `POST /login` accepts JSON field `remember_me`
+- updated token payload schema/claims:
+  - login responses can now return `face_verification_required=true`
+  - login responses can now return `face_verification_pending=true`
+  - internal token claims now carry `session_duration_minutes`
+- new routes:
+  - `GET /api/users/preferences/me`
+  - `PUT /api/users/preferences/me`
+- runtime behavior changes:
+  - privileged MFA-enabled logins no longer receive a direct bearer session immediately
+  - cross-device app preferences are now stored server-side for authenticated users
+
+### Migration impact
+
+- requires migration:
+  - `Backend/alembic/versions/a4f1b2c3d4e5_add_user_app_preferences.py`
+- adds table:
+  - `user_app_preferences`
+- no new environment variables required
+- existing `user_security_settings` rows are now active again for:
+  - `mfa_enabled`
+  - `trusted_device_days`
+
+### How to test
+
+1. Apply migrations:
+   - `alembic upgrade head`
+2. Run focused backend tests:
+   - `python -m pytest -q Backend/app/tests/test_api.py`
+3. Manual auth checks:
+   - login as `campus_admin` or `admin`
+   - confirm login returns `face_verification_required=true`, `face_verification_pending=true`, and `session_id=null`
+   - complete `POST /api/auth/security/face-verify`
+   - confirm the response returns a full `access_token` and non-null `session_id`
+4. Manual remember-me check:
+   - call `POST /token` with `remember_me=true`
+   - confirm the created session expiry reflects the configured trusted-device window
+5. Manual preferences check:
+   - call `GET /api/users/preferences/me`
+   - call `PUT /api/users/preferences/me` with `dark_mode_enabled` and `font_size_percent`
+   - sign in on another device and confirm the saved app preferences are returned by the same route
+
 ## 2026-04-16 - Restore platform-admin access for sanctions dashboard and school settings when admin has `school_id = NULL`
 
 ### Purpose
