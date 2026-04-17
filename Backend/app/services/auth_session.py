@@ -23,6 +23,7 @@ from app.models.user import User
 from app.services import governance_hierarchy_service
 from app.services.security_service import create_user_session
 from app.services.user_preference_service import get_or_create_user_security_setting
+from app.services.face_recognition import is_face_scan_bypass_enabled_for_user
 
 BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
 PRIVILEGED_AUTH_ROLE_NAMES = {"admin", "campus_admin"}
@@ -153,6 +154,8 @@ def _resolve_session_duration_minutes(
 
 
 def _should_require_face_scan_mfa(db: Session, user: User, role_names: list[str]) -> bool:
+    if is_face_scan_bypass_enabled_for_user(user):
+        return False
     if not any(role_name in PRIVILEGED_AUTH_ROLE_NAMES for role_name in role_names):
         return False
 
