@@ -1,8 +1,6 @@
 server {
-    listen 80;
+    listen ${PORT};
     server_name _;
-
-    resolver 127.0.0.11 ipv6=off valid=10s;
 
     root /usr/share/nginx/html;
     index index.html;
@@ -16,10 +14,8 @@ server {
     }
 
     location /__backend__/ {
-        set $backend_origin ${BACKEND_ORIGIN};
-
         rewrite ^/__backend__(/.*)$ $1 break;
-        proxy_pass $backend_origin;
+        proxy_pass ${BACKEND_ORIGIN};
         proxy_http_version 1.1;
         proxy_ssl_server_name on;
 
@@ -41,10 +37,8 @@ server {
     }
 
     location /__assistant__/ {
-        set $assistant_origin ${ASSISTANT_ORIGIN};
-
         rewrite ^/__assistant__(/.*)$ $1 break;
-        proxy_pass $assistant_origin;
+        proxy_pass ${ASSISTANT_ORIGIN};
         proxy_http_version 1.1;
         proxy_buffering off;
         proxy_request_buffering off;

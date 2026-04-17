@@ -108,6 +108,7 @@ class Settings:
     face_threshold_single: float
     face_threshold_group: float
     face_threshold_mfa: float
+    face_warmup_on_startup: bool
     face_embedding_dim: int
     face_embedding_dtype: str
     liveness_threshold: float
@@ -186,6 +187,7 @@ def get_settings() -> Settings:
         face_threshold_single=float(os.getenv("FACE_THRESHOLD_SINGLE", "0.40")),
         face_threshold_group=float(os.getenv("FACE_THRESHOLD_GROUP", "0.40")),
         face_threshold_mfa=float(os.getenv("FACE_THRESHOLD_MFA", "0.35")),
+        face_warmup_on_startup=_as_bool(os.getenv("FACE_WARMUP_ON_STARTUP"), True),
         face_embedding_dim=max(1, int(os.getenv("FACE_EMBEDDING_DIM", "512"))),
         face_embedding_dtype=(os.getenv("FACE_EMBEDDING_DTYPE", "float32").strip().lower() or "float32"),
         liveness_threshold=float(os.getenv("LIVENESS_THRESHOLD", "0.85")),

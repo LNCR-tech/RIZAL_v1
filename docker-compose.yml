@@ -72,11 +72,8 @@ services:
       - IMPORT_STORAGE_DIR=/tmp/valid8_imports
       - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
       - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
-      - EMAIL_TRANSPORT=smtp
-      - SMTP_HOST=mailpit
-      - SMTP_PORT=1025
-      - SMTP_USE_TLS=false
-      - SMTP_USE_STARTTLS=false
+      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-gmail_api}
+      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
     volumes:
       - ./Backend:/app
       - import_storage:/tmp/valid8_imports
@@ -87,8 +84,6 @@ services:
       db:
         condition: service_started
       redis:
-        condition: service_started
-      mailpit:
         condition: service_started
       seed:
         condition: service_completed_successfully
@@ -111,11 +106,8 @@ services:
       - IMPORT_STORAGE_DIR=/tmp/valid8_imports
       - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
       - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
-      - EMAIL_TRANSPORT=smtp
-      - SMTP_HOST=mailpit
-      - SMTP_PORT=1025
-      - SMTP_USE_TLS=false
-      - SMTP_USE_STARTTLS=false
+      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-gmail_api}
+      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
     volumes:
       - ./Backend:/app
       - import_storage:/tmp/valid8_imports
@@ -125,8 +117,6 @@ services:
       db:
         condition: service_started
       redis:
-        condition: service_started
-      mailpit:
         condition: service_started
       seed:
         condition: service_completed_successfully
@@ -149,11 +139,8 @@ services:
       - IMPORT_STORAGE_DIR=/tmp/valid8_imports
       - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
       - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
-      - EMAIL_TRANSPORT=smtp
-      - SMTP_HOST=mailpit
-      - SMTP_PORT=1025
-      - SMTP_USE_TLS=false
-      - SMTP_USE_STARTTLS=false
+      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-gmail_api}
+      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
     volumes:
       - ./Backend:/app
       - import_storage:/tmp/valid8_imports
@@ -163,8 +150,6 @@ services:
       db:
         condition: service_started
       redis:
-        condition: service_started
-      mailpit:
         condition: service_started
       seed:
         condition: service_completed_successfully

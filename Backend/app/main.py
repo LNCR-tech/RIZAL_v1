@@ -47,6 +47,10 @@ async def lifespan(_: FastAPI):
     except Exception:
         logger.exception("Email delivery startup validation failed.")
         raise
+    if not settings.face_warmup_on_startup:
+        logger.info("InsightFace startup warm-up is disabled by configuration.")
+        yield
+        return
     try:
         face_runtime_ready, face_runtime_reason = FaceRecognitionService().face_recognition_status(
             mode="single"

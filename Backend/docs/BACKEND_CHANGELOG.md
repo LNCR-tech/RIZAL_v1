@@ -14,6 +14,127 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-17 - Add Railway-friendly backend runtime supervisor and use `alembic upgrade heads`
+
+### Purpose
+
+Make the backend deployable on constrained Railway plans by allowing one backend service to run web, Celery worker, Celery beat, migrations, and seeding together at startup.
+
+### Main files
+
+- `Backend/scripts/run-service.sh`
+- `Backend/scripts/run_runtime_stack.py`
+- `Backend/docs/BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed web startup to execute a Python runtime supervisor script instead of starting only `uvicorn`
+- added optional startup steps driven by environment variables:
+  - `RUN_MIGRATIONS_ON_START`
+  - `RUN_SEED_ON_START`
+  - `RUN_CELERY_WORKER`
+  - `RUN_CELERY_BEAT`
+- constrained Celery worker startup for small-platform deployments with:
+  - `CELERY_WORKER_POOL` (recommended `solo`)
+  - `CELERY_WORKER_CONCURRENCY` (recommended `1`)
+- added optional `FACE_WARMUP_ON_STARTUP` configuration so constrained deployments can skip InsightFace warm-up during API startup
+- added process supervision so the backend service can launch:
+  - `uvicorn`
+  - Celery worker
+  - Celery beat
+- changed migration execution from `alembic upgrade head` to `alembic upgrade heads`
+  - required because the repository currently contains multiple Alembic heads
+- kept explicit single-purpose modes available:
+  - `SERVICE_MODE=worker`
+  - `SERVICE_MODE=beat`
+  - `SERVICE_MODE=migrate`
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - one backend service can now handle API + async sidecars + startup database initialization
+
+### Migration impact
+
+- no new database migrations added
+- operational migration command changed:
+  - use `alembic upgrade heads`
+- new runtime configuration supported:
+  - `RUN_MIGRATIONS_ON_START`
+  - `RUN_SEED_ON_START`
+  - `RUN_CELERY_WORKER`
+  - `RUN_CELERY_BEAT`
+  - `CELERY_WORKER_POOL`
+  - `CELERY_WORKER_CONCURRENCY`
+  - `FACE_WARMUP_ON_STARTUP`
+
+### How to test
+
+1. Run `python -m compileall Backend/scripts/run_runtime_stack.py`.
+2. Start the backend with:
+   - `SERVICE_MODE=web`
+   - `RUN_MIGRATIONS_ON_START=true`
+   - `RUN_SEED_ON_START=true`
+   - `RUN_CELERY_WORKER=true`
+   - `RUN_CELERY_BEAT=true`
+3. Confirm startup completes and logs show migrations, seeding, Celery, and `uvicorn`.
+
+## 2026-04-17 - Stop forcing local Mailpit SMTP overrides so deployments can use Gmail transport
+
+### Purpose
+
+Align container runtime email behavior with cloud deployment needs by removing hardcoded local SMTP overrides that pinned backend services to Mailpit.
+
+### Main files
+
+- `docker-compose.yml`
+- `Backend/docs/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- removed `backend`, `worker`, and `beat` hardcoded mail overrides:
+  - `EMAIL_TRANSPORT=smtp`
+  - `SMTP_HOST=mailpit`
+  - `SMTP_PORT=1025`
+  - `SMTP_USE_TLS=false`
+  - `SMTP_USE_STARTTLS=false`
+- added environment-driven transport defaults in local Compose:
+  - `EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-gmail_api}`
+  - `EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}`
+- removed `mailpit` as a required dependency for `backend`, `worker`, and `beat`
+- updated email guide to document:
+  - Gmail API cloud configuration
+  - optional Mailpit local testing workflow
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - backend containers now use environment-configured Gmail transport by default instead of forced Mailpit SMTP
+
+### Migration impact
+
+- no database migrations required
+- deployment/runtime configuration impact:
+  - cloud stacks can use Gmail transport without local Compose SMTP override conflicts
+  - Mailpit remains optional for local testing when `EMAIL_TRANSPORT=smtp` and `SMTP_HOST=mailpit`
+
+### How to test
+
+1. Run `docker compose config` and confirm `backend`, `worker`, and `beat` no longer include hardcoded `SMTP_HOST=mailpit`.
+2. For Gmail:
+   - set Gmail OAuth env vars and `EMAIL_TRANSPORT=gmail_api`
+   - run `python Backend/scripts/send_test_email.py --recipient <your-email>`
+3. For Mailpit local test:
+   - set `EMAIL_TRANSPORT=smtp`, `SMTP_HOST=mailpit`, `SMTP_PORT=1025`
+   - run `docker compose up -d --build backend worker beat mailpit`
+   - verify message in `http://localhost:8025`
+
 ## 2026-04-17 - Restore privileged face-scan MFA, add account-level app preferences, and support remember-me session extension
 
 ### Purpose
