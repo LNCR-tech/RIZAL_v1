@@ -85,6 +85,7 @@ const config = {
     allowNavigation,
   },
   android: {
+    path: 'aura-apk/android',
     allowMixedContent: nativeApiBaseUrl.startsWith('http://'),
   },
   plugins: {
@@ -92,10 +93,11 @@ const config = {
       enabled: true,
     },
     SplashScreen: {
-      launchAutoHide: true,
-      launchShowDuration: 2000,
+      launchAutoHide: false,
+      launchShowDuration: 2400,
+      launchFadeOutDuration: 150,
       androidScaleType: 'CENTER_CROP',
-      backgroundColor: '#EBEBEB',
+      backgroundColor: '#050505',
       splashFullScreen: true,
       splashImmersive: true,
     },

@@ -3,7 +3,7 @@ Add-Type -AssemblyName System.Drawing
 $preferredSource = Join-Path $PSScriptRoot "..\assets\logos\apk_icon.png"
 $fallbackSource = Join-Path $PSScriptRoot "public\logos\aura.png"
 $source = if (Test-Path $preferredSource) { $preferredSource } else { $fallbackSource }
-$resBase = Join-Path $PSScriptRoot "android\app\src\main\res"
+$resBase = Join-Path $PSScriptRoot "aura-apk\android\app\src\main\res"
 $img = [System.Drawing.Image]::FromFile($source)
 Write-Host "Source: $($img.Width)x$($img.Height)"
 
