@@ -762,6 +762,29 @@ def test_legacy_school_settings_import_route_returns_gone(client, test_db):
     assert "/api/admin/import-students" in detail
 
 
+def test_platform_admin_without_school_assignment_can_get_school_settings(client, test_db):
+    school = _create_school(test_db, code="PLATFORM-ADMIN-SCHOOL-SETTINGS")
+    admin_user = _create_user_with_role(
+        test_db,
+        email="platform.school.settings@example.com",
+        role_name="admin",
+        password="AdminPass123!",
+        school_id=None,
+        first_name="Platform",
+        last_name="Admin",
+    )
+
+    response = client.get(
+        "/school-settings/me",
+        headers=_auth_headers(admin_user),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["school_id"] == school.id
+    assert payload["school_name"] == school.school_name
+
+
 def test_inactive_user_stays_blocked_after_school_reactivation(client, test_db):
     school = _create_school(test_db, code="REACT-INACTIVE-USER")
     admin_user = _create_user_with_role(

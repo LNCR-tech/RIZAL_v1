@@ -1471,9 +1471,9 @@ watch(searchActive, (active) => {
 
 /* ── Dashboard enter animation ────── */
 .dashboard-enter {
-  opacity: 0;
-  transform: translateY(16px);
-  animation: sg-fade-up 0.5s ease forwards;
+  opacity: 1;
+  transform: translateY(0);
+  animation: sg-fade-up 0.5s ease both;
 }
 
 .dashboard-enter--1 { animation-delay: 0ms; }
@@ -1488,9 +1488,21 @@ watch(searchActive, (active) => {
 .dashboard-enter--10 { animation-delay: 540ms; }
 
 @keyframes sg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 

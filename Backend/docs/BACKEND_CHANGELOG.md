@@ -14,6 +14,206 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-16 - Restore platform-admin access for sanctions dashboard and school settings when admin has `school_id = NULL`
+
+### Purpose
+
+Fix `403` regressions for platform admins on sanctions and school-settings flows by preserving true platform-admin identity (`admin` + `school_id = NULL`) while resolving a default school context where school-scoped data is required.
+
+### Main files
+
+- `Backend/app/core/security.py`
+- `Backend/app/services/sanctions_service.py`
+- `Backend/app/routers/school_settings.py`
+- `Backend/app/seeder.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added `get_school_id_with_admin_fallback(db, user)` in security core:
+  - returns `user.school_id` for school-scoped users
+  - for platform `admin` with `school_id = NULL`, resolves default school by lowest `School.id`
+  - keeps `403` for non-admin users without school assignment
+- updated sanctions service to use admin fallback school resolution for all school-scoped sanctions operations (dashboard, config, list, approve, detail, export, delegation, and clearance deadline flows)
+- updated school-settings router `_resolve_current_school(...)` to use the same admin fallback helper
+- updated seeder admin bootstrap behavior:
+  - new admin rows are created with `school_id = None`
+  - removed unused `_apply_admin_defaults(..., default_school_id)` parameter
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - platform admin users with `school_id = NULL` can now access:
+    - `GET /api/sanctions/dashboard`
+    - `GET /school-settings/me`
+  - school-scoped users keep existing assignment checks
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+- data hygiene note:
+  - admin rows should remain `school_id = NULL` for platform-admin semantics
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_sanctions_api.py Backend/app/tests/test_api.py`.
+2. Login as platform admin (`admin` role, `school_id = NULL`) and call:
+   - `GET /api/sanctions/dashboard`
+   - `GET /school-settings/me`
+3. Confirm both endpoints return `200`.
+
+## 2026-04-16 - Make sanctions route access governance-role scoped (SSG/SG/ORG) across dashboard, students, approve, detail, export, and deadline flows
+
+### Purpose
+
+Ensure sanctions access is primarily based on active student governance scope ownership/delegation, not only explicit sanctions member-permission grants, so governance officers can use sanctions UI/routes in scoped events.
+
+### Main files
+
+- `Backend/app/routers/sanctions.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- updated `_ensure_sanctions_permission(...)` to resolve governance role fallback from active governance memberships (`SSG`/`SG`/`ORG` unit types) before enforcing explicit permission-code checks
+- retained legacy role-name compatibility fallback for `student_council` and `student council`
+- enabled governance-role fallback on additional sanctions routes:
+  - `GET /api/sanctions/events/{event_id}/students`
+  - `POST /api/sanctions/events/{event_id}/students/{user_id}/approve`
+  - `GET /api/sanctions/students/{user_id}`
+  - `POST /api/sanctions/clearance-deadline`
+  - `GET /api/sanctions/events/{event_id}/export`
+- kept service-layer access control unchanged:
+  - `_evaluate_event_access(...)` and `_require_event_access(...)` still enforce event scope/delegation/write boundaries
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - governance members can access sanctions routes for scoped events without explicit sanctions permission grants
+  - cross-scope access without delegation remains denied by service-level checks
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run `python -m pytest -q Backend/app/tests/test_sanctions_api.py`.
+2. Verify `SG` and `ORG` users with active governance membership (and no explicit sanctions permissions) can access:
+   - sanctions students list for owned-scope event
+   - sanctions dashboard
+   - sanctions export
+3. Verify `SG` access to `SSG`-owned event sanctions routes still returns `404` without delegation.
+
+## 2026-04-16 - Relax sanctions dashboard/config guards with manage-events fallback and legacy governance-role fallback
+
+### Purpose
+
+Fix `403` responses on sanctions dashboard/config flows for governance users that already have event-management authority but may not have explicit sanctions-specific permission grants in older setups.
+
+### Main files
+
+- `Backend/app/routers/sanctions.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- expanded `_ensure_sanctions_permission(...)` with:
+  - `fallback_permission_codes`
+  - broader governance-role fallback aliases (`student_council`, `student council`) when fallback mode is enabled
+- added `manage_events` fallback for sanctions config/delegation routes:
+  - `GET /api/sanctions/events/{event_id}/config`
+  - `PUT /api/sanctions/events/{event_id}/config`
+  - `GET /api/sanctions/events/{event_id}/delegation`
+  - `PUT /api/sanctions/events/{event_id}/delegation`
+- added dashboard fallback permissions for:
+  - `GET /api/sanctions/dashboard`
+  - accepts `view_sanctions_dashboard` OR `manage_events` OR `configure_event_sanctions`
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - governance users with `manage_events` can access sanctions config/delegation/dashboard without separate sanctions-dashboard grants
+  - legacy governance role naming (`student_council`) is accepted in sanctions role-fallback mode
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run sanctions API tests:
+   - `python -m pytest -q Backend/app/tests/test_sanctions_api.py`
+2. Verify a governance member with `manage_events` (without `view_sanctions_dashboard`) can call:
+   - `GET /api/sanctions/dashboard`
+   - `GET /api/sanctions/events/{event_id}/config`
+
+## 2026-04-16 - Allow SSG/SG/ORG sanctions configuration per scoped event without explicit member permission grants
+
+### Purpose
+
+Ensure governance officers (`SSG`, `SG`, `ORG`) can configure sanctions for events inside their own scope (or delegation scope) even when `configure_event_sanctions` was not explicitly granted at member-permission level.
+
+### Main files
+
+- `Backend/app/routers/sanctions.py`
+- `Backend/app/tests/test_sanctions_api.py`
+- `Backend/docs/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended sanctions router permission helper with a governance-role fallback option
+- enabled role fallback for:
+  - `GET /api/sanctions/events/{event_id}/config`
+  - `PUT /api/sanctions/events/{event_id}/config`
+  - `GET /api/sanctions/events/{event_id}/delegation`
+  - `PUT /api/sanctions/events/{event_id}/delegation`
+  - `GET /api/sanctions/dashboard`
+- preserved existing guardrails:
+  - admin/campus_admin remains fully allowed
+  - active governance membership is still required for governance-role fallback
+  - service-level event scope and delegation checks still enforce read/write boundaries
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+- runtime behavior change:
+  - `SSG`, `SG`, and `ORG` users can now open/manage sanctions config for events they are authorized to access by scope/delegation without requiring explicit member permission grants for `configure_event_sanctions`
+
+### Migration impact
+
+- no database migrations required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run sanctions API tests:
+   - `python -m pytest -q Backend/app/tests/test_sanctions_api.py`
+2. Verify role-scoped access manually:
+   - `SSG` can access sanctions config for SSG-owned event
+   - `SG` can access sanctions config for SG-owned event
+   - `ORG` can access sanctions config for ORG-owned event
+   - cross-scope access without delegation remains denied (`404`)
+   - non-governance user remains denied (`403`)
+
 ## 2026-04-16 - Standardize backend system-name defaults and notification copy to Aura
 
 ### Purpose

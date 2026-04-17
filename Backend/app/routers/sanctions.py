@@ -39,21 +39,42 @@ def _ensure_sanctions_permission(
     current_user: User,
     permission_code: PermissionCode,
     detail: str,
+    allow_governance_role_fallback: bool = False,
+    fallback_permission_codes: tuple[PermissionCode, ...] = (),
 ) -> None:
     if has_any_role(current_user, ["admin", "campus_admin"]):
         return
 
-    if governance_hierarchy_service.get_user_governance_unit_types(
+    governance_unit_types = governance_hierarchy_service.get_user_governance_unit_types(
         db,
         current_user=current_user,
-    ):
-        governance_hierarchy_service.ensure_governance_permission(
-            db,
-            current_user=current_user,
-            permission_code=permission_code,
-            detail=detail,
-        )
+    )
+    if allow_governance_role_fallback:
+        # Prefer real governance membership fallback so sanctions access follows active SSG/SG/ORG scope ownership.
+        if governance_unit_types:
+            return
+        # Keep legacy role-name fallback for deployments where membership may not be synced yet.
+        if has_any_role(
+            current_user,
+            ["ssg", "sg", "org", "student_council", "student council"],
+        ):
+            return
+
+    user_permission_codes = governance_hierarchy_service.get_user_governance_permission_codes(
+        db,
+        current_user=current_user,
+    )
+    if permission_code in user_permission_codes:
         return
+
+    if any(
+        fallback_permission_code in user_permission_codes
+        for fallback_permission_code in fallback_permission_codes
+    ):
+        return
+
+    if governance_unit_types:
+        raise HTTPException(status_code=403, detail=detail)
 
     raise HTTPException(status_code=403, detail="Not authorized to access sanctions management")
 
@@ -68,10 +89,12 @@ def get_event_sanction_config(
         db,
         current_user=current_user,
         permission_code=PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        fallback_permission_codes=(PermissionCode.MANAGE_EVENTS,),
         detail=(
             "This governance account has no sanctions configuration features yet. "
             "Campus Admin must assign configure_event_sanctions to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.get_event_sanction_config(
         db,
@@ -91,10 +114,12 @@ def upsert_event_sanction_config(
         db,
         current_user=current_user,
         permission_code=PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        fallback_permission_codes=(PermissionCode.MANAGE_EVENTS,),
         detail=(
             "This governance account has no sanctions configuration features yet. "
             "Campus Admin must assign configure_event_sanctions to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.upsert_event_sanction_config(
         db,
@@ -121,6 +146,7 @@ def list_event_sanctioned_students(
             "This governance account has no sanctioned-students list access yet. "
             "Campus Admin must assign view_sanctioned_students_list to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.list_event_sanctioned_students(
         db,
@@ -151,6 +177,7 @@ def approve_student_sanction(
             "This governance account has no sanction-approval features yet. "
             "Campus Admin must assign approve_sanction_compliance to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.approve_student_sanction(
         db,
@@ -170,10 +197,12 @@ def get_event_delegation_config(
         db,
         current_user=current_user,
         permission_code=PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        fallback_permission_codes=(PermissionCode.MANAGE_EVENTS,),
         detail=(
             "This governance account has no sanctions configuration features yet. "
             "Campus Admin must assign configure_event_sanctions to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.get_event_delegation_config(
         db,
@@ -193,10 +222,12 @@ def set_event_delegation_config(
         db,
         current_user=current_user,
         permission_code=PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        fallback_permission_codes=(PermissionCode.MANAGE_EVENTS,),
         detail=(
             "This governance account has no sanctions configuration features yet. "
             "Campus Admin must assign configure_event_sanctions to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.set_event_delegation_config(
         db,
@@ -215,10 +246,15 @@ def get_sanctions_dashboard(
         db,
         current_user=current_user,
         permission_code=PermissionCode.VIEW_SANCTIONS_DASHBOARD,
+        fallback_permission_codes=(
+            PermissionCode.MANAGE_EVENTS,
+            PermissionCode.CONFIGURE_EVENT_SANCTIONS,
+        ),
         detail=(
             "This governance account has no sanctions dashboard access yet. "
             "Campus Admin must assign view_sanctions_dashboard to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.get_governance_sanctions_dashboard(
         db,
@@ -251,6 +287,7 @@ def get_student_sanctions_detail(
             "This governance account has no student-sanction detail access yet. "
             "Campus Admin must assign view_student_sanction_detail to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.get_student_sanctions_detail(
         db,
@@ -273,6 +310,7 @@ def create_clearance_deadline(
             "This governance account has no sanctions configuration features yet. "
             "Campus Admin must assign configure_event_sanctions to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     return sanctions_service.create_clearance_deadline(
         db,
@@ -306,6 +344,7 @@ def export_event_sanctions_excel(
             "This governance account has no sanctions export access yet. "
             "Campus Admin must assign export_sanctioned_students to the governance member."
         ),
+        allow_governance_role_fallback=True,
     )
     file_bytes, filename = sanctions_service.export_event_sanctions_excel(
         db,

@@ -16,7 +16,7 @@ from openpyxl import Workbook
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.core.security import get_school_id_or_403, has_any_role
+from app.core.security import get_school_id_with_admin_fallback, has_any_role
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel
 from app.models.governance_hierarchy import (
@@ -458,7 +458,7 @@ def get_event_sanction_config(
     current_user: User,
     event_id: int,
 ) -> SanctionConfigResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     _require_event_access(
         db,
         current_user=current_user,
@@ -483,7 +483,7 @@ def upsert_event_sanction_config(
     event_id: int,
     payload: SanctionConfigUpsertRequest,
 ) -> SanctionConfigResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     _require_event_access(
         db,
         current_user=current_user,
@@ -571,7 +571,7 @@ def list_event_sanctioned_students(
     limit: int = 50,
     status_filter: SanctionComplianceStatus | None = None,
 ) -> PaginatedSanctionRecordsResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     _event, access = _require_event_access(
         db,
         current_user=current_user,
@@ -716,7 +716,7 @@ def approve_student_sanction(
     event_id: int,
     user_id: int,
 ) -> SanctionRecordResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     event, access = _require_event_access(
         db,
         current_user=current_user,
@@ -832,7 +832,7 @@ def get_event_delegation_config(
     current_user: User,
     event_id: int,
 ) -> list[SanctionDelegationResponse]:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     _require_event_access(
         db,
         current_user=current_user,
@@ -860,7 +860,7 @@ def set_event_delegation_config(
     event_id: int,
     payload: SanctionDelegationUpsertRequest,
 ) -> list[SanctionDelegationResponse]:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     event, access = _require_event_access(
         db,
         current_user=current_user,
@@ -998,7 +998,7 @@ def get_governance_sanctions_dashboard(
     *,
     current_user: User,
 ) -> SanctionsDashboardResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     if has_any_role(current_user, ["student"]):
         raise HTTPException(status_code=403, detail="Students cannot access the governance sanctions dashboard")
 
@@ -1107,7 +1107,7 @@ def get_my_sanctions(
 ) -> list[SanctionRecordResponse]:
     if not has_any_role(current_user, ["student"]):
         raise HTTPException(status_code=403, detail="Only students can access /students/me sanctions")
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     student_profile = _get_school_student_profile_or_404(
         db,
         school_id=school_id,
@@ -1137,7 +1137,7 @@ def get_student_sanctions_detail(
     current_user: User,
     user_id: int,
 ) -> SanctionStudentDetailResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     if has_any_role(current_user, ["student"]):
         raise HTTPException(status_code=403, detail="Students cannot access governance student sanctions detail")
 
@@ -1198,7 +1198,7 @@ def create_clearance_deadline(
     current_user: User,
     payload: ClearanceDeadlineCreateRequest,
 ) -> ClearanceDeadlineResponse:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     event, access = _require_event_access(
         db,
         current_user=current_user,
@@ -1290,7 +1290,7 @@ def get_active_clearance_deadline(
     *,
     current_user: User,
 ) -> ClearanceDeadlineResponse | None:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
 
     query = (
         db.query(ClearanceDeadline)
@@ -1371,7 +1371,7 @@ def export_event_sanctions_excel(
     current_user: User,
     event_id: int,
 ) -> tuple[bytes, str]:
-    school_id = get_school_id_or_403(current_user)
+    school_id = get_school_id_with_admin_fallback(db, current_user)
     event, access = _require_event_access(
         db,
         current_user=current_user,

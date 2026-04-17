@@ -87,9 +87,9 @@ body {
 }
 
 .dashboard-enter {
-  opacity: 0;
-  transform: translateY(22px) scale(0.985);
-  animation: dashboardEnterRise 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  animation: dashboardEnterRise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--dashboard-enter-delay, 0ms);
   will-change: opacity, transform;
 }
@@ -101,11 +101,11 @@ body {
 .dashboard-enter--5 { --dashboard-enter-delay: 380ms; }
 
 @keyframes dashboardEnterRise {
-  0% {
+  from {
     opacity: 0;
     transform: translateY(22px) scale(0.985);
   }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }

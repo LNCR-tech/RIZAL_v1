@@ -135,18 +135,35 @@ Permission system updates:
   - `Backend/alembic/versions/e2f7a1c9d4b6_add_sanctions_governance_permissions.py`
   - Seeds the six new governance permission rows.
 
-Route-level permission guards now enforce sanctions actions in `Backend/app/routers/sanctions.py`:
+Route-level permission guards enforce sanctions actions in `Backend/app/routers/sanctions.py`:
 
-- `GET /events/{event_id}/config` -> `configure_event_sanctions`
-- `PUT /events/{event_id}/config` -> `configure_event_sanctions`
+- `GET /events/{event_id}/config` -> `configure_event_sanctions` (fallback: `manage_events`)
+- `PUT /events/{event_id}/config` -> `configure_event_sanctions` (fallback: `manage_events`)
 - `GET /events/{event_id}/students` -> `view_sanctioned_students_list`
 - `POST /events/{event_id}/students/{user_id}/approve` -> `approve_sanction_compliance`
-- `GET /events/{event_id}/delegation` -> `configure_event_sanctions`
-- `PUT /events/{event_id}/delegation` -> `configure_event_sanctions`
-- `GET /dashboard` -> `view_sanctions_dashboard`
+- `GET /events/{event_id}/delegation` -> `configure_event_sanctions` (fallback: `manage_events`)
+- `PUT /events/{event_id}/delegation` -> `configure_event_sanctions` (fallback: `manage_events`)
+- `GET /dashboard` -> `view_sanctions_dashboard` (fallback: `configure_event_sanctions` or `manage_events`)
 - `GET /students/{user_id}` -> `view_student_sanction_detail`
 - `POST /clearance-deadline` -> `configure_event_sanctions`
 - `GET /events/{event_id}/export` -> `export_sanctioned_students`
+
+Role fallback guardrails for governance sanctions routes:
+
+- role fallback now uses active governance membership first (`SSG`/`SG`/`ORG` unit types), then legacy role aliases (`student_council`, `student council`) as compatibility fallback
+- when fallback mode is enabled on a route, governance users can access sanctions features without explicit sanctions permission grants
+- governance-role fallback is enabled on:
+  - `GET /events/{event_id}/config`
+  - `PUT /events/{event_id}/config`
+  - `GET /events/{event_id}/students`
+  - `POST /events/{event_id}/students/{user_id}/approve`
+  - `GET /events/{event_id}/delegation`
+  - `PUT /events/{event_id}/delegation`
+  - `GET /dashboard`
+  - `GET /students/{user_id}`
+  - `POST /clearance-deadline`
+  - `GET /events/{event_id}/export`
+- service helpers (`_require_event_access`, `_evaluate_event_access`) remain the source of truth for event scope, write access, and delegation boundaries.
 
 Not guarded by governance permission (by design):
 
@@ -157,6 +174,9 @@ Not guarded by governance permission (by design):
 
 Service-level enforcement implemented in `_evaluate_event_access` and related helpers:
 
+- `Admin` (platform admin with `school_id = NULL`)
+  - sanctions service resolves a default school context (lowest `School.id`) when a school-scoped sanctions query needs `school_id`
+  - route-level admin bypass remains in place for sanctions permission checks
 - `SSG`
   - full sanctions read across governance levels
   - sanctions write restricted to SSG-owned events
@@ -220,3 +240,11 @@ Dispatch behavior:
 4. `python -m pytest -q Backend/app/tests/test_event_workflow_status.py`
 5. `python -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
 6. `python -m pytest -q Backend/tests/test_sanctions.py`
+
+Sanctions role-fallback verification:
+
+1. Login as `SSG`, `SG`, and `ORG` users that each have active governance membership, without granting explicit sanctions member permissions.
+2. Open a matching owned event (`SSG` campus-wide, `SG` department-scoped, `ORG` program-scoped).
+3. Confirm scoped endpoints return `200` (for example config, students list, dashboard, and export for their owned event scope).
+4. Confirm cross-scope access without delegation still returns `404` (for example `SG` reading an `SSG`-owned event sanctions list).
+5. Login as platform `admin` with `school_id = NULL`, call `GET /api/sanctions/dashboard`, and confirm `200`.

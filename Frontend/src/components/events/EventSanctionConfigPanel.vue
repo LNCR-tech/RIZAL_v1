@@ -7,7 +7,7 @@
       </p>
     </header>
 
-    <label class="sanction-config-panel__toggle">
+    <label v-if="showEnabledToggle" class="sanction-config-panel__toggle">
       <input
         :checked="normalizedValue.sanctions_enabled"
         :disabled="disabled"
@@ -17,7 +17,7 @@
       <span>Enable sanctions for this event</span>
     </label>
 
-    <div v-if="normalizedValue.sanctions_enabled" class="sanction-config-panel__body">
+    <div v-if="isConfigEnabled" class="sanction-config-panel__body">
       <article
         v-for="(item, index) in normalizedValue.items"
         :key="`sanction-item-${index}`"
@@ -95,6 +95,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showEnabledToggle: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -131,6 +135,9 @@ function normalizeValue(value = null) {
 }
 
 const normalizedValue = computed(() => normalizeValue(props.modelValue))
+const isConfigEnabled = computed(() => (
+  props.showEnabledToggle ? normalizedValue.value.sanctions_enabled : true
+))
 
 function updateValue(nextValue = {}) {
   emit('update:modelValue', normalizeValue(nextValue))
