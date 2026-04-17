@@ -42,8 +42,8 @@
           <div
             class="absolute bottom-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-bottom-left"
             :class="isMiniOpen
-              ? 'w-[360px] h-[550px] rounded-[32px] cursor-default shadow-2xl'
-              : 'w-[40px] h-[74px] rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95'"
+              ? 'w-90 h-137.5 translate-x-15 rounded-4xl cursor-default shadow-2xl'
+              : 'w-10 h-18.5 translate-x-0 rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95'"
             style="background: var(--color-primary);"
             @click="!isMiniOpen ? openPill() : null"
           >
@@ -74,14 +74,32 @@
                   <ChevronDown :size="16" :color="'var(--color-banner-text)'" class="transition-transform group-hover:scale-110" />
                 </button>
 
-                <button
-                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                  aria-label="Expand chat to full window"
-                  title="Open full chat"
-                  @click.stop="openFullChatPage"
-                >
-                  <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
-                </button>
+                <div class="flex items-center gap-1">
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="Copy conversation"
+                    title="Copy conversation"
+                    @click.stop="copyConversation"
+                  >
+                    <Copy :size="14" :color="'var(--color-banner-text)'" />
+                  </button>
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="New chat"
+                    title="New chat"
+                    @click.stop="startNewConversation"
+                  >
+                    <Plus :size="15" :color="'var(--color-banner-text)'" />
+                  </button>
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="Expand chat to full window"
+                    title="Open full chat"
+                    @click.stop="openFullChatPage"
+                  >
+                    <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
+                  </button>
+                </div>
               </div>
 
               <div class="mini-messages flex-1 overflow-y-auto scrollbar-hide pb-1">
@@ -89,19 +107,9 @@
                   <div
                     v-for="msg in messages"
                     :key="msg.id"
-                    class="group relative"
                     :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
                   >
                     <ChatMarkdownMessage :text="msg.text" />
-                    <!-- Copy Button for AI Messages -->
-                    <button
-                      v-if="msg.sender === 'ai' && msg.text.trim()"
-                      class="absolute -top-3 right-2 p-1.5 bg-[var(--color-surface)] border border-black/10 rounded-full opacity-0 translate-y-2 transition-all group-hover:opacity-100 group-hover:translate-y-0 hover:bg-black/5 hover:scale-105 active:scale-95 shadow-sm"
-                      title="Copy message"
-                      @click="copyToClipboard(msg.text)"
-                    >
-                      <Copy :size="12" class="text-black/60" />
-                    </button>
                   </div>
 
                   <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
@@ -148,7 +156,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Maximize2, Send, ChevronDown, Copy } from 'lucide-vue-next'
+import { Maximize2, Send, ChevronDown, Copy, Plus } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
@@ -161,13 +169,16 @@ const {
   isTyping,
   isMiniOpen,
   sendMessage,
+  startNewConversation,
   openPill,
   closeMini,
 } = useChat()
 
-function copyToClipboard(text) {
-  if (!text) return
-  navigator.clipboard.writeText(String(text).trim())
+function copyConversation() {
+  const transcript = messages.value
+    .map((m) => `${m.sender === 'ai' ? 'Aura AI' : 'Me'}: ${m.text}`)
+    .join('\n\n')
+  navigator.clipboard.writeText(transcript)
 }
 
 const pillRef = ref(null)

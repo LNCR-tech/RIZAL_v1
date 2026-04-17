@@ -1055,6 +1055,13 @@ def _ai_not_configured_message() -> str:
 def _extract_text_content(content: Any) -> str:
     if isinstance(content, str):
         return content
+    if isinstance(content, dict):
+        # Handle SiliconFlow / DeepSeek reasoning_content alongside standard content
+        main_text = str(content.get("content") or "").strip()
+        reasoning = str(content.get("reasoning_content") or "").strip()
+        if reasoning and not main_text:
+            return reasoning
+        return main_text
     if isinstance(content, list):
         parts: List[str] = []
         for item in content:
@@ -1063,7 +1070,7 @@ def _extract_text_content(content: Any) -> str:
                 continue
             if not isinstance(item, dict):
                 continue
-            text_value = item.get("text")
+            text_value = item.get("text") or item.get("content") or item.get("reasoning_content")
             if isinstance(text_value, str):
                 parts.append(text_value)
         return "\n".join(part for part in parts if part).strip()
@@ -2513,10 +2520,17 @@ async def assistant_stream(
     if final_assistant_text:
         assistant_text = final_assistant_text
     elif messages and messages[-1].get("role") == "tool":
-        assistant_text = "I completed a data step but couldn't finish the reply cleanly. Ask again and I'll continue from there."
+        # Final safety check: if we did tools but the model is silent, try one last time
+        # but with a more explicit prompt to summarize.
+        messages.append({"role": "user", "content": "The tool steps are complete. Summarize the results for me now."})
+        response_msg = await _call_openai(messages, tools=None)
+        messages.pop() # remove the temp prompt
+        assistant_text = _extract_text_content(response_msg.get("content"))
+        if not assistant_text.strip():
+            assistant_text = "I completed the data query but couldn't generate a text summary. Please try asking in a different way."
     else:
         last_content = _extract_text_content(messages[-1].get("content")) if messages else ""
-        assistant_text = last_content if last_content.strip() else "No response generated."
+        assistant_text = last_content if last_content.strip() else "I'm sorry, I couldn't generate a response. Please try again or rephrase your request."
 
     # Safety net: if a provider returns pseudo tool markup as plain text,
     # recover and execute it so raw internals never leak to end users.
