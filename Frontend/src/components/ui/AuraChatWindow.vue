@@ -104,7 +104,7 @@
                 <div
                   v-for="msg in messages"
                   :key="msg.id"
-                  v-show="msg.sender === 'user' || msg.text.length > 0"
+                  v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
                   :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
                 >
                   <ChatMarkdownMessage :text="msg.text" />

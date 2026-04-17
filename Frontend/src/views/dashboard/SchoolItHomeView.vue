@@ -85,7 +85,7 @@
                       <div
                         v-for="message in messages"
                         :key="message.id"
-                        v-show="message.sender === 'user' || message.text.length > 0"
+                        v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0)"
                         :class="[
                           'school-it-home__bubble',
                           message.sender === 'ai'
