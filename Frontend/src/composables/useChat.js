@@ -106,6 +106,17 @@ function resetToGreeting() {
   ]
 }
 
+function resetChatState() {
+  resetToGreeting()
+  storeConversationId(null)
+  conversations.value = []
+  typingConversationId.value = null
+  isTyping.value = false
+  isMiniOpen.value = false
+  isFullOpen.value = false
+  conversationsError.value = null
+}
+
 function formatConversationText() {
   return (messages.value || [])
     .map((msg) => {
@@ -394,5 +405,6 @@ export function useChat() {
     expandToFull,
     minimizeToMini,
     closeAll,
+    resetChatState,
   }
 }

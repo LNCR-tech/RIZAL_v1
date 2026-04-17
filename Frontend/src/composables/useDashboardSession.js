@@ -269,6 +269,8 @@ function applyActiveTheme() {
     ))
 }
 
+import { useChat } from '@/composables/useChat.js'
+
 function applyRemoteAppPreferences(preferences) {
     if (!preferences || typeof preferences !== 'object') return
 
@@ -690,6 +692,7 @@ export function clearDashboardSession() {
     clearStoredSessionArtifacts()
     setToken('')
     resetDashboardState()
+    useChat().resetChatState()
 }
 
 export function sessionUsesLimitedMode() {
