@@ -15,7 +15,8 @@ This is the fastest way to get the system running. It handles the database, migr
 
 ### 2) Core `.env` Checklist
 Before starting, ensure these values in your `.env` are correct:
-- **LLM_API_KEY**: Set this to your OpenAI key (or compatible provider) for the AI Assistant to work.
+- **AI_API_KEY**: Set this to your OpenAI or SiliconFlow/DeepSeek key for the AI Assistant to work.
+- **AI_MODEL**: The model name (e.g., `gpt-4o` or `deepseek-ai/DeepSeek-V3.2`).
 - **ADMIN_EMAIL/PASSWORD**: These will be your login credentials for the first run.
 - **SECRET_KEY**: Change this if you plan to deploy the site publicly.
 
@@ -34,7 +35,8 @@ docker compose up --build
 - **Backend API**: [http://localhost:8000](http://localhost:8000)
 - **pgAdmin (DB GUI)**: [http://localhost:5050](http://localhost:5050) (Login: admin@example.com / admin123)
 - **Mailpit (Email Test)**: [http://localhost:8025](http://localhost:8025)
-- **Database Port**: `5433` (for external tools like DBeaver)
+- **Database Port**: `5433` (exposed for tools like DBeaver; internal Postgres is 5432)
+- **AI Visuals**: Aura now supports native, full-screen data visualization (Bar, Pie, Doughnut).
 
 ---
 
@@ -62,10 +64,12 @@ ASSISTANT_DB_URL=postgresql://postgres:<PASSWORD>@localhost:5432/ai_assistant
 APP_DATABASE_URL=postgresql://postgres:<PASSWORD>@localhost:5432/fastapi_db
 TENANT_DATABASE_URL=postgresql://postgres:<PASSWORD>@localhost:5432/fastapi_db
 
-# Assistant LLM config (OpenAI-compatible API)
-LLM_MODEL=deepseek-ai/DeepSeek-V3.2
-LLM_API_BASE=https://api.siliconflow.com/v1
-LLM_API_KEY=<YOUR_KEY>
+# Assistant AI config (OpenAI-compatible API)
+AI_MODEL=deepseek-ai/DeepSeek-V3.2
+AI_API_BASE=https://api.siliconflow.com/v1
+AI_API_KEY=<YOUR_KEY>
+AI_MAX_TOKENS=16384
+AI_PROVIDER=openai # (Set to 'openai', 'anthropic', or 'gemini')
 ```
 
 ### 2) Create the databases
@@ -104,8 +108,8 @@ python -m uvicorn assistant:app --reload --host 127.0.0.1 --port 8501
 ```
 
 Verify:
-- `http://127.0.0.1:8500/health`
-- `http://127.0.0.1:8500/docs`
+- `http://127.0.0.1:8501/health`
+- `http://127.0.0.1:8501/docs`
 
 ### 6) Run the frontend
 
