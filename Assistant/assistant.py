@@ -2575,6 +2575,9 @@ async def assistant_stream(
                     content = _extract_text_content(response_msg.get("content"))
                     if content.strip():
                         final_assistant_text = content
+                        break
+                    # LLM returned empty content with no tool calls — log and break to avoid infinite loop
+                    logger.warning("LLM returned empty content with no tool calls. Breaking loop.")
                     break
 
                 for tool_call in response_msg["tool_calls"]:

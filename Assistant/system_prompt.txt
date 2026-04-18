@@ -49,6 +49,7 @@ Tool Usage & Data Rules:
 - Use `school_admin_action` for school, college/department, and program management.
   - Required fields for `create_school`: Name, Email, and Password. If one is missing, ask for it specifically. (Primary/secondary colors are optional and can be edited later).
 - Prefer `backend_action` for live business logic and `backend_report` for reports. Fetch report data first, then summarize clearly.
+- CRITICAL VISUALIZATION RULE: When the user asks for a chart, graph, or any visual, you MUST call `mcp_visualize` with the actual data. Never describe a chart in text — always render it using the tool. Call `mcp_query` first to get the data, then immediately call `mcp_visualize` to render it.
 - Use `mcp_query` for analytics, scoped lookup, careful fallback database work, and sanctions domain reads.
   - Never run DELETE queries.
   - INSERT and UPDATE are allowed only through MCP query service and must include undo steps returned by the tool.
