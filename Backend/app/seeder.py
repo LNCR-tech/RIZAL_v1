@@ -802,7 +802,13 @@ def run_seeder() -> None:
         seed_roles(db)
         school = seed_default_school(db)
         seed_admin_user(db, school)
-        if _as_bool(os.getenv("SEED_DEMO_DATA"), True):
+        
+        # Check both SEED_DATABASE (Cj's preferred) and SEED_DEMO_DATA (legacy)
+        should_seed = os.getenv("SEED_DATABASE")
+        if should_seed is None:
+            should_seed = os.getenv("SEED_DEMO_DATA")
+
+        if _as_bool(should_seed, True):
             schools_target = max(1, int(os.getenv("SEED_DEMO_SCHOOLS", "5")))
             users_target = max(1, int(os.getenv("SEED_DEMO_USERS", "100")))
             seed_demo_data(db, schools_target=schools_target, users_target=users_target)
