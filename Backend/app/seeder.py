@@ -14,6 +14,7 @@ import string
 
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+from app.utils.passwords import hash_password_bcrypt
 
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
@@ -889,25 +890,28 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
     db.commit()
 
     # 2. Create Students
-    print(f"Generating {students_target} realistic students...")
+    print(f"Generating {students_target} realistic students (Password Hashing Optimized)...")
     student_profiles = []
     created_creds = []
+    
+    # PRE-CALCULATE HASH ONCE: This eliminates 4,999 expensive Bcrypt operations.
+    common_password = "MassivePass123!"
+    template_hash = hash_password_bcrypt(common_password)
     
     for i in range(1, students_target + 1):
         first = random.choice(FIRST_NAMES)
         last = random.choice(LAST_NAMES)
         email = f"student.{i:05d}@massive.{DEFAULT_DEMO_EMAIL_DOMAIN}"
-        password = f"MassivePass{i:03d}!"
         
         user = User(
             email=email,
             school_id=target_school.id,
             first_name=first,
             last_name=last,
+            password_hash=template_hash, # Direct assignment
             is_active=True,
             must_change_password=False
         )
-        user.set_password(password)
         db.add(user)
         db.flush()
         
@@ -929,7 +933,7 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
         
         created_creds.append({
             "email": email,
-            "password": password,
+            "password": common_password,
             "school_code": target_school.school_code or "",
             "school_id": str(target_school.id),
             "roles": "student",
@@ -991,8 +995,12 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
 
     # Write credentials to storage
     fieldnames = ["email", "password", "school_code", "school_id", "roles", "permissions"]
-    with DEFAULT_DEMO_CREDENTIALS_PATH.open("a", newline="", encoding="utf-8") as fh:
+    # If wiping, overwrite the file to ensure sync. Otherwise append.
+    mode = "w" if _as_bool(os.getenv("SEED_WIPE_EXISTING"), False) else "a"
+    with DEFAULT_DEMO_CREDENTIALS_PATH.open(mode, newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        if mode == "w":
+            writer.writeheader()
         for row in created_creds:
             writer.writerow(row)
 
