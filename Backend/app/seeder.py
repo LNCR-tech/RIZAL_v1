@@ -132,6 +132,9 @@ def seed_default_school(db: Session) -> School:
         if not getattr(school, "school_name", None):
             school.school_name = school.name
             db.commit()
+        if not getattr(school, "school_code", None):
+            school.school_code = os.getenv("DEFAULT_SCHOOL_CODE", "DS-001")
+            db.commit()
         if not db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first():
             db.add(SchoolSetting(school_id=school.id))
             db.commit()
@@ -145,7 +148,7 @@ def seed_default_school(db: Session) -> School:
         logo_url=os.getenv("DEFAULT_SCHOOL_LOGO_URL"),
         primary_color=os.getenv("DEFAULT_SCHOOL_PRIMARY_COLOR", "#162F65"),
         secondary_color=os.getenv("DEFAULT_SCHOOL_SECONDARY_COLOR", "#2C5F9E"),
-        school_code=os.getenv("DEFAULT_SCHOOL_CODE"),
+        school_code=os.getenv("DEFAULT_SCHOOL_CODE", "DS-001"),
         subscription_status=os.getenv("DEFAULT_SUBSCRIPTION_STATUS", "trial"),
         active_status=True,
         subscription_plan=os.getenv("DEFAULT_SUBSCRIPTION_PLAN", "free"),
