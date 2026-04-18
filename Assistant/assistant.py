@@ -319,11 +319,12 @@ app.mount("/mcp/query", query_app)
 app.mount("/mcp/school-admin", school_admin_app)
 app.mount("/mcp/student-import", student_import_app)
 
-# Dev-friendly CORS (adjust origins for production)
+# CORS setup (Hardened for production)
+cors_allowed = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=cors_allowed,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
