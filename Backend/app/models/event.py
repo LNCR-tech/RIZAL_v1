@@ -59,6 +59,7 @@ class Event(Base):
     start_datetime = Column(DateTime, nullable=False)
     end_datetime = Column(DateTime, nullable=False)
     status = Column(Enum(EventStatus), nullable=False, default=EventStatus.UPCOMING)
+    event_type = Column(String(50), nullable=False, server_default="Regular Event")
     
     
     # Many-to-many relationships

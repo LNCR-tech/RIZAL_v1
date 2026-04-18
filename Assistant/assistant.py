@@ -2207,9 +2207,11 @@ async def _run_school_admin_action(
     *,
     roles: List[str],
     permissions: List[str],
+    user_id: Optional[str],
     school_id: Optional[int],
     action: str,
     payload: Dict[str, Any],
+    authorization: Optional[str] = None,
 ) -> Dict[str, Any]:
     request_body = {
         "roles": roles,
