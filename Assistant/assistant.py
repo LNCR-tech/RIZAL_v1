@@ -185,11 +185,11 @@ AI_API_VERSION = (
     or "2023-06-01"
 ).strip()
 ASSISTANT_AUTO_MIGRATE = os.getenv("ASSISTANT_AUTO_MIGRATE", "true").lower() == "true"
-MCP_SCHEMA_URL = os.getenv("MCP_SCHEMA_URL") or "http://127.0.0.1:8500/mcp/schema/schema"
-MCP_QUERY_URL = os.getenv("MCP_QUERY_URL") or "http://127.0.0.1:8500/mcp/query/query"
-MCP_SCHOOL_ADMIN_URL = os.getenv("MCP_SCHOOL_ADMIN_URL") or "http://127.0.0.1:8500/mcp/school-admin/action"
-MCP_STUDENT_IMPORT_URL = os.getenv("MCP_STUDENT_IMPORT_URL") or "http://127.0.0.1:8500/mcp/student-import/action"
-MCP_VISUALIZATION_URL = os.getenv("MCP_VISUALIZATION_URL") or "http://127.0.0.1:8500/mcp/visualization/visualize"
+MCP_SCHEMA_URL = os.getenv("MCP_SCHEMA_URL") or "http://127.0.0.1:8501/mcp/schema/schema"
+MCP_QUERY_URL = os.getenv("MCP_QUERY_URL") or "http://127.0.0.1:8501/mcp/query/query"
+MCP_SCHOOL_ADMIN_URL = os.getenv("MCP_SCHOOL_ADMIN_URL") or "http://127.0.0.1:8501/mcp/school-admin/action"
+MCP_STUDENT_IMPORT_URL = os.getenv("MCP_STUDENT_IMPORT_URL") or "http://127.0.0.1:8501/mcp/student-import/action"
+MCP_VISUALIZATION_URL = os.getenv("MCP_VISUALIZATION_URL") or "http://127.0.0.1:8501/mcp/visualization/visualize"
 ASSISTANT_CONTEXT_MAX_MESSAGES = os.getenv("ASSISTANT_CONTEXT_MAX_MESSAGES")
 BACKEND_API_BASE_URL = (os.getenv("BACKEND_API_BASE_URL") or "").strip()
 try:
@@ -1482,7 +1482,7 @@ async def _summarize_title(messages: List[Dict[str, Any]]) -> Optional[str]:
     ]
     result = await _call_openai(prompt)
     title = _extract_text_content(result.get("content")).strip().strip('"')
-    if not title:
+    if not title or title.startswith("LLM error") or title.startswith("LLM request failed"):
         return None
     return title[:80]
 
@@ -2560,8 +2560,8 @@ async def assistant_stream(
         db_bg = SessionLocal() 
         
         try:
-            # Handle multiple rounds of tool calls
-            for _ in range(3):
+            # Handle multiple rounds of tool calls (increased to 10 for complex tasks)
+            for _ in range(10):
                 try:
                     # Implement a timeout for AI calls to prevent indefinite "thinking"
                     response_msg = await asyncio.wait_for(_call_openai(messages, tools=TOOLS), timeout=90.0)
@@ -2635,7 +2635,13 @@ async def assistant_stream(
                     assistant_text = "I completed the data query but couldn't generate a text summary."
             else:
                 last_content = _extract_text_content(messages[-1].get("content")) if messages else ""
-                assistant_text = last_content if last_content.strip() else "I'm sorry, I couldn't generate a response."
+                if last_content.strip():
+                    assistant_text = last_content
+                elif any(m.get("name") == "mcp_visualize" for m in messages if m.get("role") == "tool"):
+                    # The LLM completed the request via the visual tool and deliberately returned empty text
+                    assistant_text = ""
+                else:
+                    assistant_text = "I'm sorry, I couldn't generate a response."
 
             # Safety net: pseudo tool markup recovery
             if isinstance(assistant_text, str) and assistant_text.strip() and _looks_like_tool_markup(assistant_text):

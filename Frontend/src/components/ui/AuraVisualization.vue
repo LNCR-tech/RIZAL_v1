@@ -41,6 +41,7 @@ import {
   ArcElement,
 } from 'chart.js'
 import { Bar, Line, Pie, Doughnut } from 'vue-chartjs'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
 import DOMPurify from 'dompurify'
 
 // Register Chart.js components
@@ -53,7 +54,8 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
-  ArcElement
+  ArcElement,
+  ChartDataLabels
 )
 
 const props = defineProps({
@@ -106,12 +108,26 @@ const chartOptions = computed(() => {
       },
       tooltip: {
         backgroundColor: '#161b22',
-        titleFont: { family: 'Inter', size: 12, weight: 'bold' },
-        bodyFont: { family: 'Inter', size: 12 },
+        titleFont: { family: 'Inter', size: 14, weight: 'bold' },
+        bodyFont: { family: 'Inter', size: 13 },
         borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
-        padding: 10,
-        boxPadding: 5,
+        padding: 12,
+        boxPadding: 6,
+      },
+      datalabels: {
+        display: ['pie', 'doughnut'].includes(props.type),
+        color: '#fff',
+        font: { family: 'Inter', size: 12, weight: 'bold' },
+        formatter: (value, context) => {
+          if (!value) return '';
+          const total = context.chart._metasets[context.datasetIndex].total;
+          const percentage = ((value / total) * 100).toFixed(1) + '%';
+          return `${value}\n(${percentage})`;
+        },
+        textAlign: 'center',
+        textShadowBlur: 4,
+        textShadowColor: 'rgba(0, 0, 0, 0.8)',
       },
     },
   }
@@ -142,8 +158,9 @@ const chartOptions = computed(() => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   margin: 16px 0;
-  padding: 14px;
+  padding: 20px;
   width: 100%;
+  min-width: 480px;
   max-width: 100%;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   overflow: hidden;
@@ -163,15 +180,15 @@ const chartOptions = computed(() => {
 
 .viz-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
   letter-spacing: -0.2px;
 }
 
 .viz-content {
-  min-height: 200px;
-  max-height: 320px;
+  min-height: 400px;
+  max-height: 600px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -180,7 +197,7 @@ const chartOptions = computed(() => {
 
 .chart-container {
   width: 100%;
-  height: 260px;
+  height: 480px;
   position: relative;
 }
 
