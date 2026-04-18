@@ -967,8 +967,12 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
         db.flush()
         _ensure_user_role(db, user, "campus_admin")
         created_creds.insert(0, { # Put at top of CSV
-            "email": email, "password": common_password, "school_code": target_school.school_code or "",
-            "school_id": str(target_school.id), "roles": "campus_admin", "permissions": "ALL_SCHOOL_SCOPE"
+            "email": email,
+            "password": common_password,
+            "school_code": target_school.school_code or "",
+            "school_id": str(target_school.id),
+            "roles": "campus_admin",
+            "permissions": "CAMPUS_ADMIN_ROLE" # Role-based access
         })
 
     # Create Governance Units (SSG, SGs, Orgs)
