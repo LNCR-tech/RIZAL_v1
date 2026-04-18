@@ -946,6 +946,63 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
 
     db.commit()
 
+    # 2.5 Create Multi-Role Personnel (Admins & Officers)
+    print(f"Generating realistic administration and governance layers...")
+    
+    # 5 Campus Admins
+    for i in range(1, 6):
+        first = random.choice(FIRST_NAMES)
+        last = random.choice(LAST_NAMES)
+        email = f"campus.admin.{i}@massive.{DEFAULT_DEMO_EMAIL_DOMAIN}"
+        user = User(
+            email=email,
+            school_id=target_school.id,
+            first_name=first,
+            last_name=last,
+            password_hash=template_hash,
+            is_active=True,
+            must_change_password=False
+        )
+        db.add(user)
+        db.flush()
+        _ensure_user_role(db, user, "campus_admin")
+        created_creds.insert(0, { # Put at top of CSV
+            "email": email, "password": common_password, "school_code": target_school.school_code or "",
+            "school_id": str(target_school.id), "roles": "campus_admin", "permissions": "ALL_SCHOOL_SCOPE"
+        })
+
+    # Create Governance Units (SSG, SGs, Orgs)
+    ssg = _get_or_create_governance_unit(
+        db, school_id=target_school.id, unit_code="SSG-MASSIVE", unit_name="Supreme Student Government",
+        unit_type=GovernanceUnitType.SSG
+    )
+    
+    # Promote 100 Students to Officers across various units
+    officer_pool = random.sample(student_profiles, 100)
+    officer_perms = [
+        [PermissionCode.VIEW_STUDENTS, PermissionCode.MANAGE_ATTENDANCE],
+        [PermissionCode.MANAGE_EVENTS, PermissionCode.VIEW_SANCTIONS_DASHBOARD],
+        [PermissionCode.VIEW_STUDENTS, PermissionCode.MANAGE_ANNOUNCEMENTS],
+        [PermissionCode.ASSIGN_PERMISSIONS, PermissionCode.MANAGE_MEMBERS]
+    ]
+
+    for idx, profile in enumerate(officer_pool):
+        # Assign to SSG or a random sub-unit
+        perms = random.choice(officer_perms)
+        _assign_governance_membership(
+            db, user=profile.user, governance_unit=ssg, 
+            assigned_by_user_id=target_school.id, # Placeholder
+            permission_codes=perms
+        )
+        # Update CSV metadata for this student
+        for cred in created_creds:
+            if cred["email"] == profile.user.email:
+                cred["roles"] = "student,officer"
+                cred["permissions"] = ",".join([p.value for p in perms])
+                break
+    
+    db.commit()
+
     # 3. Create Events
     print(f"Generating {events_count} historical events...")
     events_list = []
