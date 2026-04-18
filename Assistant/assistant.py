@@ -189,6 +189,7 @@ MCP_SCHEMA_URL = os.getenv("MCP_SCHEMA_URL") or "http://127.0.0.1:8500/mcp/schem
 MCP_QUERY_URL = os.getenv("MCP_QUERY_URL") or "http://127.0.0.1:8500/mcp/query/query"
 MCP_SCHOOL_ADMIN_URL = os.getenv("MCP_SCHOOL_ADMIN_URL") or "http://127.0.0.1:8500/mcp/school-admin/action"
 MCP_STUDENT_IMPORT_URL = os.getenv("MCP_STUDENT_IMPORT_URL") or "http://127.0.0.1:8500/mcp/student-import/action"
+MCP_VISUALIZATION_URL = os.getenv("MCP_VISUALIZATION_URL") or "http://127.0.0.1:8500/mcp/visualization/visualize"
 ASSISTANT_CONTEXT_MAX_MESSAGES = os.getenv("ASSISTANT_CONTEXT_MAX_MESSAGES")
 BACKEND_API_BASE_URL = (os.getenv("BACKEND_API_BASE_URL") or "").strip()
 try:
@@ -313,11 +314,13 @@ from schema_server import app as schema_app
 from query_server import app as query_app
 from school_admin_server import app as school_admin_app
 from student_import_server import app as student_import_app
+from visualization_server import app as visualization_app
 
 app.mount("/mcp/schema", schema_app)
 app.mount("/mcp/query", query_app)
 app.mount("/mcp/school-admin", school_admin_app)
 app.mount("/mcp/student-import", student_import_app)
+app.mount("/mcp/visualization", visualization_app)
 
 # CORS setup (Hardened for production)
 cors_allowed = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
@@ -1645,6 +1648,31 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "mcp_visualize",
+            "description": "Render a data visualization (chart, graph, svg) in the chat UI. Use this after obtaining results from a database query. Supports bar, line, pie, doughnut charts, or raw SVG.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chart_type": {
+                        "type": "string",
+                        "enum": ["bar", "line", "pie", "doughnut", "svg", "html"],
+                    },
+                    "title": {"type": "string"},
+                    "labels": {"type": "array", "items": {"type": "string"}},
+                    "data": {"type": "array", "items": {"type": "number"}},
+                    "source": {"type": "string", "description": "Raw SVG source or HTML snippet (required for svg/html modes)"},
+                    "options": {
+                        "type": "object",
+                        "description": "Optional configuration like colors, labels, etc.",
+                    },
+                },
+                "required": ["chart_type", "title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "backend_action",
             "description": "Call an allowlisted backend API route with the current user's token for role-validated business actions. Guardrails block auth, password, security, face, public-attendance, and DELETE routes.",
             "parameters": {
@@ -1760,9 +1788,24 @@ async def execute_tool(
         result = await _run_school_admin_action(
             roles=roles,
             permissions=permissions,
+            user_id=user_id,
             school_id=school_id,
             action=action,
             payload=payload,
+            authorization=authorization,
+        )
+        return json.dumps(result, default=str)
+
+    if name == "mcp_visualize":
+        result = await _run_visualization(
+            chart_type=args.get("chart_type"),
+            title=args.get("title"),
+            labels=args.get("labels"),
+            data=args.get("data"),
+            source=args.get("source"),
+            options=args.get("options") or {},
+            role=roles[0] if roles else None,
+            school_id=school_id,
         )
         return json.dumps(result, default=str)
 
@@ -2050,6 +2093,40 @@ async def _fetch_schema(roles: List[str], permissions: List[str], db_schema: str
                 "error": "schema service unreachable",
                 "detail": f"{exc}; fallback failed: {fallback_exc}",
             }
+
+
+async def _run_visualization(
+    chart_type: str,
+    title: str,
+    labels: Optional[List[str]] = None,
+    data: Optional[List[Any]] = None,
+    source: Optional[str] = None,
+    options: Optional[Dict[str, Any]] = None,
+    role: Optional[str] = None,
+    school_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    if not MCP_VISUALIZATION_URL:
+        return {"error": "visualization service not configured"}
+
+    payload = {
+        "chart_type": chart_type,
+        "title": title,
+        "labels": labels,
+        "data": data,
+        "source": source,
+        "options": options or {},
+        "role": role,
+        "school_id": school_id,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(MCP_VISUALIZATION_URL, json=payload)
+            if resp.status_code >= 400:
+                return {"error": f"visualization error {resp.status_code}", "detail": resp.text}
+            return resp.json()
+    except httpx.HTTPError as exc:
+        return {"error": "visualization service unreachable", "detail": str(exc)}
 
 
 async def _run_query(
@@ -2470,87 +2547,29 @@ async def assistant_stream(
         {"role": "user", "content": body.message},
     ]
 
-    # Handle multiple rounds of tool calls if necessary
-    final_assistant_text: Optional[str] = None
-    tools_used = False
-    for _ in range(3):
-        response_msg = await _call_openai(messages, tools=TOOLS)
-        messages.append(response_msg)
+    async def _stream_generator() -> AsyncGenerator[str, None]:
+        nonlocal messages
+        final_assistant_text: Optional[str] = None
         
-        if not response_msg.get("tool_calls"):
-            content = _extract_text_content(response_msg.get("content"))
-            if content.strip():
-                final_assistant_text = content
-            break
+        # Handle multiple rounds of tool calls
+        for _ in range(3):
+            response_msg = await _call_openai(messages, tools=TOOLS)
+            messages.append(response_msg)
+            
+            if not response_msg.get("tool_calls"):
+                content = _extract_text_content(response_msg.get("content"))
+                if content.strip():
+                    final_assistant_text = content
+                break
 
-        for tool_call in response_msg["tool_calls"]:
-            tools_used = True
-            fname = tool_call["function"]["name"]
-            fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
-            if "__parse_error__" in fargs:
-                result = json.dumps({"error": fargs["__parse_error__"]})
-            else:
-                fargs = _sanitize_tool_args(fname, fargs)
-                result = await execute_tool(
-                    fname,
-                    fargs,
-                    roles=effective_roles,
-                    permissions=effective_permissions,
-                    user_id=request_user_id,
-                    school_id=effective_school_id,
-                    authorization=authorization,
-                )
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call["id"],
-                "name": fname,
-                "content": result,
-            })
-
-
-
-    # If we ended on a tool message (provider oddities / max tool rounds), force one final
-    # non-tool completion so users don't see "I couldn't finish the reply cleanly."
-    if final_assistant_text is None and messages and messages[-1].get("role") == "tool":
-        response_msg = await _call_openai(messages, tools=None)
-        messages.append(response_msg)
-        content = _extract_text_content(response_msg.get("content"))
-        if content.strip():
-            final_assistant_text = content
-
-    if final_assistant_text:
-        assistant_text = final_assistant_text
-    elif messages and messages[-1].get("role") == "tool":
-        # Final safety check: if we did tools but the model is silent, try one last time
-        # but with a more explicit prompt to summarize.
-        messages.append({"role": "user", "content": "The tool steps are complete. Summarize the results for me now."})
-        response_msg = await _call_openai(messages, tools=None)
-        messages.pop() # remove the temp prompt
-        assistant_text = _extract_text_content(response_msg.get("content"))
-        if not assistant_text.strip():
-            assistant_text = "I completed the data query but couldn't generate a text summary. Please try asking in a different way."
-    else:
-        last_content = _extract_text_content(messages[-1].get("content")) if messages else ""
-        assistant_text = last_content if last_content.strip() else "I'm sorry, I couldn't generate a response. Please try again or rephrase your request."
-
-    # Safety net: if a provider returns pseudo tool markup as plain text,
-    # recover and execute it so raw internals never leak to end users.
-    if isinstance(assistant_text, str) and assistant_text.strip() and _looks_like_tool_markup(assistant_text):
-        recovered_tool_call = _extract_function_markup(assistant_text)
-        if recovered_tool_call is not None:
-            if messages and isinstance(messages[-1], dict) and not messages[-1].get("tool_calls"):
-                messages[-1] = recovered_tool_call
-            else:
-                messages.append(recovered_tool_call)
-
-            for tool_call in recovered_tool_call["tool_calls"]:
+            for tool_call in response_msg["tool_calls"]:
                 fname = tool_call["function"]["name"]
                 fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
                 if "__parse_error__" in fargs:
-                    result = json.dumps({"error": fargs["__parse_error__"]})
+                    result_json = json.dumps({"error": fargs["__parse_error__"]})
                 else:
                     fargs = _sanitize_tool_args(fname, fargs)
-                    result = await execute_tool(
+                    result_json = await execute_tool(
                         fname,
                         fargs,
                         roles=effective_roles,
@@ -2559,53 +2578,127 @@ async def assistant_stream(
                         school_id=effective_school_id,
                         authorization=authorization,
                     )
+                
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call["id"],
                     "name": fname,
-                    "content": result,
+                    "content": result_json,
                 })
 
-            follow_up = await _call_openai(messages, tools=None)
-            messages.append(follow_up)
-            follow_up_content = follow_up.get("content")
-            if isinstance(follow_up_content, str) and follow_up_content.strip():
-                assistant_text = follow_up_content
+                # INTERCEPTION: Emit visualization events immediately
+                if fname == "mcp_visualize":
+                    try:
+                        parsed_result = json.loads(result_json)
+                        if parsed_result.get("__aura_visual__"):
+                            yield _sse_event("visualization", {
+                                "conversation_id": conversation_id,
+                                "visual": parsed_result
+                            })
+                    except Exception as e:
+                        logger.warning("Failed to parse visual tool result: %s", e)
+
+        # Final cleanup for messages and text generation
+        if final_assistant_text is None and messages and messages[-1].get("role") == "tool":
+            response_msg = await _call_openai(messages, tools=None)
+            messages.append(response_msg)
+            content = _extract_text_content(response_msg.get("content"))
+            if content.strip():
+                final_assistant_text = content
+
+        if final_assistant_text:
+            assistant_text = final_assistant_text
+        elif messages and messages[-1].get("role") == "tool":
+            messages.append({"role": "user", "content": "The tool steps are complete. Summarize the results for me now."})
+            response_msg = await _call_openai(messages, tools=None)
+            messages.pop()
+            assistant_text = _extract_text_content(response_msg.get("content"))
+            if not assistant_text.strip():
+                assistant_text = "I completed the data query but couldn't generate a text summary."
+        else:
+            last_content = _extract_text_content(messages[-1].get("content")) if messages else ""
+            assistant_text = last_content if last_content.strip() else "I'm sorry, I couldn't generate a response."
+
+        # Safety net: if a provider returns pseudo tool markup as plain text,
+        # recover and execute it so raw internals never leak to end users.
+        if isinstance(assistant_text, str) and assistant_text.strip() and _looks_like_tool_markup(assistant_text):
+            recovered_tool_call = _extract_function_markup(assistant_text)
+            if recovered_tool_call is not None:
+                if messages and isinstance(messages[-1], dict) and not messages[-1].get("tool_calls"):
+                    messages[-1] = recovered_tool_call
+                else:
+                    messages.append(recovered_tool_call)
+
+                for tool_call in recovered_tool_call["tool_calls"]:
+                    fname = tool_call["function"]["name"]
+                    fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
+                    if "__parse_error__" in fargs:
+                        result_json = json.dumps({"error": fargs["__parse_error__"]})
+                    else:
+                        fargs = _sanitize_tool_args(fname, fargs)
+                        result_json = await execute_tool(
+                            fname,
+                            fargs,
+                            roles=effective_roles,
+                            permissions=effective_permissions,
+                            user_id=request_user_id,
+                            school_id=effective_school_id,
+                            authorization=authorization,
+                        )
+                    
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "name": fname,
+                        "content": result_json,
+                    })
+
+                    # INTERCEPTION: Emit visualization events from recovered markup too
+                    if fname == "mcp_visualize":
+                        try:
+                            parsed_result = json.loads(result_json)
+                            if parsed_result.get("__aura_visual__"):
+                                yield _sse_event("visualization", {
+                                    "conversation_id": conversation_id,
+                                    "visual": parsed_result
+                                })
+                        except Exception as e:
+                            logger.warning("Failed to parse visual tool result (recovered): %s", e)
+
+                follow_up = await _call_openai(messages, tools=None)
+                messages.append(follow_up)
+                follow_up_content = _extract_text_content(follow_up.get("content"))
+                if isinstance(follow_up_content, str) and follow_up_content.strip():
+                    assistant_text = follow_up_content
+                else:
+                    assistant_text = (
+                        "I hit a formatting issue while processing your request, "
+                        "but I can continue if you ask me again."
+                    )
             else:
                 assistant_text = (
                     "I hit a formatting issue while processing your request, "
                     "but I can continue if you ask me again."
                 )
-        else:
-            assistant_text = (
-                "I hit a formatting issue while processing your request, "
-                "but I can continue if you ask me again."
-            )
 
-    _append_message(db, conversation_id, "assistant", assistant_text)
-    await _update_conversation_title(db, conversation_id)
+        _append_message(db, conversation_id, "assistant", assistant_text)
+        await _update_conversation_title(db, conversation_id)
 
-    def stream() -> Generator[str, None, None]:
+        # Stream final text chunks
         chunk_size = 160
         for i in range(0, len(assistant_text), chunk_size):
-            chunk = assistant_text[i : i + chunk_size]
-            yield _sse_event(
-                "message",
-                {
-                    "conversation_id": conversation_id,
-                    "content": chunk,
-                },
-            )
-        yield _sse_event(
-            "done",
-            {
+            yield _sse_event("message", {
                 "conversation_id": conversation_id,
-                "message_id": str(uuid.uuid4()),
-                "finish_reason": "stop",
-            },
-        )
+                "content": assistant_text[i : i + chunk_size],
+            })
+            
+        yield _sse_event("done", {
+            "conversation_id": conversation_id,
+            "message_id": str(uuid.uuid4()),
+            "finish_reason": "stop",
+        })
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    return StreamingResponse(_stream_generator(), media_type="text/event-stream")
 
 
 @app.get("/conversations", response_model=List[ConversationSummary])

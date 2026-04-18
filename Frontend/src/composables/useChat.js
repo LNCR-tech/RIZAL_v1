@@ -180,6 +180,14 @@ async function streamAiResponse(userMessage, { token, userMeta } = {}) {
         }
         scrollToBottom()
       },
+      onVisualization: (viz, meta) => {
+        // Attach visualization data to the message object
+        aiMessage.visual = viz
+        if (meta?.conversationId) {
+          storeConversationId(meta.conversationId)
+        }
+        scrollToBottom()
+      },
     })
   } catch (err) {
     // If the request fails before any chunks arrive, avoid leaving an empty bubble behind.

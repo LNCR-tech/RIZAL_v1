@@ -87,10 +87,16 @@
             <TransitionGroup name="bubble" tag="div" class="chat-messages-inner">
               <template v-for="message in messages" :key="message.id">
                 <div
-                  v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0)"
+                  v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0) || message.visual"
                   :class="['bubble', message.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
                 >
-                  <ChatMarkdownMessage :text="message.text" />
+                  <ChatMarkdownMessage v-if="message.text" :text="message.text" />
+                  
+                  <!-- AI Visualizations -->
+                  <AuraVisualization 
+                    v-if="message.visual" 
+                    v-bind="message.visual" 
+                  />
                 </div>
               </template>
 
@@ -135,6 +141,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Copy, Send, Plus, Trash2, Check } from 'lucide-vue-next'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
+import AuraVisualization from '@/components/ui/AuraVisualization.vue'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import {
