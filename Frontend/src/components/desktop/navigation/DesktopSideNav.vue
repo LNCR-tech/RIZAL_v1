@@ -86,6 +86,19 @@
                   </button>
                   <button
                     class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                    aria-label="Refresh conversation"
+                    title="Refresh chat"
+                    :disabled="isRefreshing || !conversationId"
+                    @click.stop="refreshChat"
+                  >
+                    <RotateCw 
+                      :size="14" 
+                      :color="'var(--color-banner-text)'" 
+                      :class="{ 'animate-spin': isRefreshing }" 
+                    />
+                  </button>
+                  <button
+                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
                     aria-label="New chat"
                     title="New chat"
                     @click.stop="startNewConversation"
@@ -158,7 +171,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Maximize2, Send, ChevronDown, Copy, Plus, Check } from 'lucide-vue-next'
+import { Maximize2, Send, ChevronDown, Copy, Plus, Check, RotateCw } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
@@ -176,7 +189,23 @@ const {
   closeMini,
   copyConversation,
   copyStatus,
+  conversationId,
+  selectConversation,
 } = useChat()
+
+const isRefreshing = ref(false)
+
+async function refreshChat() {
+  if (!conversationId.value || isRefreshing.value) return
+  isRefreshing.value = true
+  try {
+    await selectConversation(conversationId.value)
+  } finally {
+    setTimeout(() => {
+      isRefreshing.value = false
+    }, 600)
+  }
+}
 
 
 

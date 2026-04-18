@@ -32,6 +32,16 @@
           </button>
           <button
             class="chat-icon-btn"
+            aria-label="Refresh conversation"
+            title="Refresh chat"
+            type="button"
+            :disabled="isRefreshing || !conversationId"
+            @click="refreshChat"
+          >
+            <RotateCw :size="15" :class="{ 'animate-spin': isRefreshing }" />
+          </button>
+          <button
+            class="chat-icon-btn"
             aria-label="Start new chat"
             title="New chat"
             type="button"
@@ -139,7 +149,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Copy, Send, Plus, Trash2, Check } from 'lucide-vue-next'
+import { ArrowLeft, Copy, Send, Plus, Trash2, Check, RotateCw } from 'lucide-vue-next'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import AuraVisualization from '@/components/ui/AuraVisualization.vue'
 import { activeAuraLogo } from '@/config/theme.js'
@@ -174,6 +184,21 @@ const {
   typingConversationId,
   closeAll,
 } = useChat()
+
+const isRefreshing = ref(false)
+
+async function refreshChat() {
+  if (!conversationId.value || isRefreshing.value) return
+  isRefreshing.value = true
+  try {
+    await selectConversation(conversationId.value)
+  } finally {
+    // Add a slight delay for visual feedback if it's too fast
+    setTimeout(() => {
+      isRefreshing.value = false
+    }, 600)
+  }
+}
 
 function goBack() {
   if (hasNavigableHistory(route)) {
