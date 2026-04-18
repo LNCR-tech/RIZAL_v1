@@ -32,6 +32,12 @@ from app.models.role import Role
 from app.models.school import School, SchoolSetting
 from app.models.user import StudentProfile, User, UserRole
 
+load_dotenv()
+
+LEGACY_PLACEHOLDER_ADMIN_EMAIL = "admin@yourdomain.com"
+DEMO_SEED_RANDOM_SEED = 1337
+DEFAULT_DEMO_EMAIL_DOMAIN = "demo.valid8.dev"
+
 # Generated demo credentials are written to a local file (gitignored).
 DEFAULT_DEMO_CREDENTIALS_PATH = Path(__file__).resolve().parents[1] / "storage" / "seed_credentials.csv"
 
