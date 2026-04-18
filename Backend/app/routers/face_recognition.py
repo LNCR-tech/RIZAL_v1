@@ -152,6 +152,10 @@ def _has_current_canonical_embedding(profile: StudentProfile) -> bool:
     )
 
 
+def _ensure_face_runtime_ready(mode: str, *, context: str) -> None:
+    face_service.ensure_face_runtime_ready(mode=mode, context=context)
+
+
 @router.post("/register", response_model=FaceRegistrationResponse)
 def register_face_from_base64(
     payload: Base64ImageRequest,
@@ -159,6 +163,7 @@ def register_face_from_base64(
     db: Session = Depends(get_db),
 ):
     """Register a student's reference face from a base64 camera capture."""
+    _ensure_face_runtime_ready(mode="single", context="face_register_base64")
     profile = _require_student_profile(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     encoding, liveness = face_service.extract_encoding_from_bytes(
@@ -190,6 +195,7 @@ async def register_face_from_upload(
     db: Session = Depends(get_db),
 ):
     """Register a student's reference face from an uploaded image file."""
+    _ensure_face_runtime_ready(mode="single", context="face_register_upload")
     profile = _require_student_profile(current_user)
     image_bytes = await file.read()
     encoding, liveness = face_service.extract_encoding_from_bytes(
@@ -221,6 +227,7 @@ def verify_face_against_registered_students(
     db: Session = Depends(get_db),
 ):
     """Match one probe image against all registered student faces in the school."""
+    _ensure_face_runtime_ready(mode="single", context="face_verify")
     school_id = get_school_id_or_403(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     encoding, liveness = face_service.extract_encoding_from_bytes(
@@ -371,6 +378,7 @@ def record_attendance_from_face_scan(
                 detail="A live camera frame is required for face attendance scans.",
             )
 
+        _ensure_face_runtime_ready(mode="single", context="face_attendance_scan")
         image_bytes = face_service.decode_base64_image(payload.image_base64)
         encoding, liveness = face_service.extract_encoding_from_bytes(
             image_bytes,

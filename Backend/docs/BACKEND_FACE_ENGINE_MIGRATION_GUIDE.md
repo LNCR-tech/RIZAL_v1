@@ -50,6 +50,63 @@ The factory now standardizes all three modes on InsightFace directly. There is n
 
 The adapter entry point lives in `Backend/app/services/face_engine/factory.py`.
 
+## Runtime lifecycle state model
+
+InsightFace runtime state is now tracked explicitly in the shared adapter runtime service (per process / per worker):
+
+- `initializing`
+- `ready`
+- `failed`
+
+Tracked lifecycle metadata:
+
+- `warmup_started_at`
+- `warmup_finished_at`
+- `initialized_at`
+- `last_error`
+- `model_construction_duration_ms`
+- `prepare_duration_ms`
+- `warmup_duration_ms`
+- `init_duration_ms`
+
+Runtime status payload now exposes at least:
+
+- `state`
+- `ready`
+- `reason`
+- `last_error`
+- `provider_target` (currently `CPUExecutionProvider`)
+- `mode`
+
+Initialization now includes an explicit warm-up inference stage:
+
+1. build `FaceAnalysis(...)`
+2. run `prepare(ctx_id=-1, det_size=(640, 640))`
+3. run one safe dummy-frame `face_analysis.get(...)` warm-up call
+4. mark runtime `ready` only after warm-up succeeds
+
+To reduce startup memory pressure, the adapter now requests only the required InsightFace modules during `FaceAnalysis(...)` construction:
+
+- `detection`
+- `recognition`
+
+Compatibility fallback:
+
+- if the installed InsightFace build does not support `allowed_modules`, the adapter falls back to default module loading and logs a warning.
+
+Startup logs now include phase timings (ms):
+
+- model construction
+- `prepare(...)`
+- warm-up inference
+- total initialization
+
+Important behavior change:
+
+- request paths no longer silently start InsightFace warm-up as a side effect
+- startup now explicitly requests runtime initialization through the lifecycle API
+- face routes return structured `503` runtime-state details when runtime is still `initializing` or has `failed`
+
 ## Matching rules
 
 The backend no longer compares embeddings with raw Euclidean distance. It now:
@@ -154,8 +211,19 @@ Behavior:
 - privileged users must re-enroll once to migrate their saved face reference
 - `GET /api/auth/security/face-status` now reports face-engine readiness separately from anti-spoof readiness so the frontend can distinguish a missing InsightFace runtime from a missing MiniFASNet liveness model
 - `GET /api/auth/security/face-status` now reports `face_verification_required` from the stored privileged security setting (`user_security_settings.mfa_enabled`)
-- `GET /api/auth/security/face-status` no longer blocks on the first InsightFace `buffalo_l` download; it can temporarily report `insightface_model_download_pending` or `insightface_warming_up` while the backend prepares the runtime in the background
-- repeated `GET /api/auth/security/face-status` calls stay non-blocking while that same background warmup thread is still running
+- `GET /api/auth/security/face-status` now also returns structured runtime lifecycle fields:
+  - `face_runtime_state`
+  - `face_runtime_last_error`
+  - `face_runtime_provider_target`
+  - `face_runtime_mode`
+  - `face_runtime_initialized_at`
+  - `face_runtime_warmup_started_at`
+  - `face_runtime_warmup_finished_at`
+  - `face_runtime_model_construction_duration_ms`
+  - `face_runtime_prepare_duration_ms`
+  - `face_runtime_warmup_duration_ms`
+  - `face_runtime_init_duration_ms`
+- if startup warm-up is still running, face-status reports `state=initializing` with warm-up reasons instead of kicking off hidden request-time initialization
 - if a live status probe itself runs too long, the route now fails fast with bounded fallback reasons instead of waiting indefinitely for the slow runtime check to finish
 - privileged login is now gated behind face verification again when the account has `mfa_enabled=true`
 - privileged password login first returns a face-pending token, and `POST /api/auth/security/face-verify` upgrades that pending token into a full-access session after a successful live face match
@@ -197,7 +265,8 @@ Container note:
 - `Backend/Dockerfile.prod` now explicitly includes `libgl1` so the OpenCV runtime required by InsightFace can import successfully
 - `Backend/Dockerfile.prod` now runs as non-root user `appuser` for tighter runtime isolation
 - the backend container now starts without `uvicorn --reload` so long-running login and face-verification requests are not interrupted by live-reload restarts; restart or recreate the backend container manually after backend code changes
-- app startup now triggers a non-blocking InsightFace warm-up probe so model initialization starts before the first face registration call
+- app startup now explicitly requests non-blocking InsightFace initialization via the face-runtime lifecycle API
+- face requests now consume runtime state and return structured runtime errors instead of silently triggering warm-up
 - Docker compose stacks should mount a persistent InsightFace cache volume:
   - local backend: `/root/.insightface`
   - production backend (`appuser`): `/home/appuser/.insightface`
@@ -213,7 +282,11 @@ Container note:
 6. Test one public kiosk event with multiple mock faces.
 7. Re-enroll any student or admin faces that were captured during the earlier DeepFace-plus-InsightFace hybrid period so every stored template is generated by the current InsightFace runtime.
 8. Test one privileged account login and confirm the API returns a face-pending token (`face_verification_required=true`, `session_id=null`) until `POST /api/auth/security/face-verify` succeeds.
-9. On a fresh machine or container, load the admin face-verification page once and confirm it reports InsightFace warmup progress instead of staying on a permanent loading screen while the first model download runs.
+9. On a fresh machine or container, call:
+   - `GET /health`
+   - `GET /health/readiness`
+   and confirm DB and face-runtime readiness are both clearly reported.
+10. On a fresh machine or container, load the admin face-verification page once and confirm it reports InsightFace runtime state/reason progress instead of staying on a permanent loading screen during first warm-up.
 
 Environment note:
 

@@ -38,8 +38,27 @@ class BaseFaceEngine(ABC):
         self.liveness_checker = liveness_checker or LivenessChecker(self.settings)
 
     @abstractmethod
-    def runtime_status(self) -> tuple[bool, str | None]:
-        """Return whether the engine runtime is ready."""
+    def runtime_status_payload(self, *, mode: str | None = None) -> dict[str, object]:
+        """Return structured runtime readiness and lifecycle metadata."""
+
+    def runtime_status(self, *, mode: str | None = None) -> tuple[bool, str | None]:
+        """Backward-compatible readiness tuple used by existing call sites."""
+        payload = self.runtime_status_payload(mode=mode)
+        ready = bool(payload.get("ready"))
+        if ready:
+            return True, None
+        reason = payload.get("reason")
+        return False, str(reason) if reason is not None else None
+
+    @abstractmethod
+    def request_runtime_initialization(
+        self,
+        *,
+        background: bool = True,
+        trigger: str = "manual",
+        force: bool = False,
+    ) -> dict[str, object]:
+        """Request explicit runtime initialization."""
 
     @abstractmethod
     def detect(self, frame_rgb: np.ndarray) -> list[FaceCrop]:

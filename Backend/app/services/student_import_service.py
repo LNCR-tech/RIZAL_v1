@@ -5,6 +5,7 @@ Role: Service layer. It keeps business logic out of the route files.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import os
@@ -42,6 +43,9 @@ from app.models.school import School
 
 
 logger = logging.getLogger(__name__)
+
+_MAX_IMPORT_PASSWORD_HASH_WORKERS = 8
+_MAX_IMPORT_PASSWORD_GENERATION_ATTEMPTS = 16
 
 
 class StudentImportService:
@@ -125,6 +129,7 @@ class StudentImportService:
     def _process_streaming(self, job_id: str) -> str | None:
         settings = self.settings
         start_time = datetime.utcnow()
+        used_temporary_passwords: set[str] = set()
 
         with SessionLocal() as db:
             repo = ImportRepository(db)
@@ -201,10 +206,13 @@ class StudentImportService:
                     )
                 else:
                     transformed["raw_row_data"] = raw_row_data
-                    self._attach_import_password_credentials(transformed)
                     row_buffer.append(transformed)
 
                 if len(row_buffer) >= settings.import_chunk_size:
+                    self._attach_import_password_credentials_batch(
+                        row_buffer,
+                        used_temporary_passwords=used_temporary_passwords,
+                    )
                     batch_success_count, batch_failed_count, batch_errors = self._flush_batch(
                         job_id=job_id,
                         row_buffer=row_buffer,
@@ -239,6 +247,10 @@ class StudentImportService:
                     )
 
             if row_buffer:
+                self._attach_import_password_credentials_batch(
+                    row_buffer,
+                    used_temporary_passwords=used_temporary_passwords,
+                )
                 batch_success_count, batch_failed_count, batch_errors = self._flush_batch(
                     job_id=job_id,
                     row_buffer=row_buffer,
@@ -288,6 +300,7 @@ class StudentImportService:
         start_time: datetime,
     ) -> str | None:
         settings = self.settings
+        used_temporary_passwords: set[str] = set()
         failed_report_dir = Path(settings.import_storage_dir) / "reports"
         failed_report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -325,11 +338,14 @@ class StudentImportService:
             raw_row_data = processed_row.get("raw_row_data") or {}
 
             processed_row["raw_row_data"] = raw_row_data
-            self._attach_import_password_credentials(processed_row)
             row_buffer.append(processed_row)
             processed_rows += 1
 
             if len(row_buffer) >= settings.import_chunk_size:
+                self._attach_import_password_credentials_batch(
+                    row_buffer,
+                    used_temporary_passwords=used_temporary_passwords,
+                )
                 batch_success_count, batch_failed_count, batch_errors = self._flush_batch(
                     job_id=job_id,
                     row_buffer=row_buffer,
@@ -365,6 +381,10 @@ class StudentImportService:
                 )
 
         if row_buffer:
+            self._attach_import_password_credentials_batch(
+                row_buffer,
+                used_temporary_passwords=used_temporary_passwords,
+            )
             batch_success_count, batch_failed_count, batch_errors = self._flush_batch(
                 job_id=job_id,
                 row_buffer=row_buffer,
@@ -573,10 +593,60 @@ class StudentImportService:
             )
             db.commit()
 
-    def _attach_import_password_credentials(self, row: dict) -> None:
-        temporary_password = generate_secure_password(min_length=10, max_length=14)
+    def _generate_unique_import_password(self, used_temporary_passwords: set[str] | None = None) -> str:
+        seen_passwords = used_temporary_passwords if used_temporary_passwords is not None else set()
+        for _ in range(_MAX_IMPORT_PASSWORD_GENERATION_ATTEMPTS):
+            candidate = generate_secure_password(min_length=10, max_length=14)
+            if candidate not in seen_passwords:
+                seen_passwords.add(candidate)
+                return candidate
+
+        while True:
+            candidate = f"{generate_secure_password(min_length=10, max_length=14)}{os.urandom(2).hex()}"
+            if candidate not in seen_passwords:
+                seen_passwords.add(candidate)
+                return candidate
+
+    def _resolve_password_hash_workers(self, row_count: int) -> int:
+        if row_count <= 1:
+            return 1
+        return max(
+            1,
+            min(
+                _MAX_IMPORT_PASSWORD_HASH_WORKERS,
+                row_count,
+                os.cpu_count() or 1,
+            ),
+        )
+
+    def _attach_import_password_credentials(self, row: dict, *, used_temporary_passwords: set[str] | None = None) -> None:
+        temporary_password = self._generate_unique_import_password(used_temporary_passwords)
         row["temporary_password"] = temporary_password
         row["password_hash"] = hash_password_bcrypt(temporary_password)
+
+    def _attach_import_password_credentials_batch(
+        self,
+        rows: List[dict],
+        *,
+        used_temporary_passwords: set[str] | None = None,
+    ) -> None:
+        if not rows:
+            return
+
+        passwords = [
+            self._generate_unique_import_password(used_temporary_passwords)
+            for _ in rows
+        ]
+        worker_count = self._resolve_password_hash_workers(len(rows))
+        if worker_count == 1:
+            hashes = [hash_password_bcrypt(password) for password in passwords]
+        else:
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                hashes = list(executor.map(hash_password_bcrypt, passwords))
+
+        for row, temporary_password, password_hash in zip(rows, passwords, hashes):
+            row["temporary_password"] = temporary_password
+            row["password_hash"] = password_hash
 
     def _build_validation_context(self, target_school_id: int) -> ValidationContext:
         with SessionLocal() as db:

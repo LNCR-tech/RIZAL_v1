@@ -72,21 +72,30 @@ LAST_NAMES = [
     "Rizal", "Mercado", "Alonso", "Realonda", "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Dela Cruz"
 ]
 
+DEFAULT_ROLE_NAMES = [
+    "student",
+    "campus_admin",
+    "admin",
+    "ssg",
+    "sg",
+    "org",
+]
+
 
 def create_tables() -> None:
     """Create all tables."""
+    import app.models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
     print("Database tables created")
 
 
-def seed_roles(db: Session) -> None:
+def seed_roles(db: Session, role_names: list[str] | None = None) -> None:
     """Seed roles table with required roles."""
-    # Note: Governance permissions are managed via governance tables; these are the auth roles
-    # used for API access + login.
-    role_names = ["student", "campus_admin", "admin"]
+    required_role_names = role_names or DEFAULT_ROLE_NAMES
     existing_role_names = {role.name for role in db.query(Role).all()}
 
-    for role_name in role_names:
+    for role_name in required_role_names:
         if role_name not in existing_role_names:
             db.add(Role(name=role_name))
 

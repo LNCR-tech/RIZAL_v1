@@ -239,6 +239,32 @@ export function normalizeEventAttendanceReport(payload = {}) {
     }
 }
 
+export function normalizeAttendanceOverviewItem(item = {}) {
+    return {
+        ...item,
+        id: toOptionalNumber(item.id, 0),
+        student_id: toOptionalString(item.student_id, null),
+        full_name: toOptionalString(item.full_name ?? item.student_name, 'Unknown Student'),
+        department_name: toOptionalString(item.department_name, null),
+        program_name: toOptionalString(item.program_name, null),
+        year_level: toOptionalNumber(item.year_level, null),
+        total_events: toOptionalNumber(item.total_events, 0),
+        attended_events: toOptionalNumber(item.attended_events, null),
+        late_events: toOptionalNumber(item.late_events, 0),
+        incomplete_events: toOptionalNumber(item.incomplete_events, 0),
+        absent_events: toOptionalNumber(item.absent_events, 0),
+        excused_events: toOptionalNumber(item.excused_events, 0),
+        attendance_rate: typeof item.attendance_rate === 'number'
+            ? item.attendance_rate
+            : toOptionalNumber(item.attendance_rate, 0),
+        last_attendance: toOptionalString(item.last_attendance, null),
+    }
+}
+
+export function normalizeAttendanceOverviewCollection(payload = null) {
+    return Array.isArray(payload) ? payload.map(normalizeAttendanceOverviewItem) : []
+}
+
 export function normalizeStudentProfile(profile = null) {
     if (!profile || typeof profile !== 'object') return null
 

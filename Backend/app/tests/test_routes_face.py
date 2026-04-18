@@ -37,6 +37,27 @@ def _embedding(seed: int) -> np.ndarray:
     return vector / np.linalg.norm(vector)
 
 
+def _runtime_status(
+    *,
+    state: str = "ready",
+    ready: bool = True,
+    reason: str | None = None,
+    mode: str = "mfa",
+) -> dict[str, object]:
+    effective_reason = reason or ("ready" if ready else "insightface_warming_up")
+    return {
+        "state": state,
+        "ready": ready,
+        "reason": effective_reason,
+        "last_error": None,
+        "provider_target": "CPUExecutionProvider",
+        "mode": mode,
+        "initialized_at": None,
+        "warmup_started_at": None,
+        "warmup_finished_at": None,
+    }
+
+
 def _create_school(test_db, *, code: str, name: str) -> School:
     school = School(
         name=name,
@@ -149,6 +170,11 @@ def test_student_registration_upload_stores_canonical_metadata(client, test_db, 
         "extract_encoding_from_bytes",
         lambda *_args, **_kwargs: (_embedding(17), LivenessResult(label="Real", score=0.99)),
     )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="single"),
+    )
 
     response = client.post(
         "/api/face/register-upload",
@@ -184,6 +210,11 @@ def test_face_scan_with_recognition_records_student_attendance(client, test_db, 
         face_recognition.face_service,
         "extract_encoding_from_bytes",
         lambda *_args, **_kwargs: (_embedding(23), LivenessResult(label="Real", score=0.98)),
+    )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="single"),
     )
     monkeypatch.setattr(face_recognition, "verify_event_geolocation_for_attendance", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(face_recognition, "find_attendance_geolocation_travel_risk", lambda *_args, **_kwargs: None)
@@ -236,6 +267,11 @@ def test_admin_face_verify_route_accepts_canonical_reference(client, test_db, mo
         lambda *_args, **_kwargs: (_embedding(41), LivenessResult(label="Real", score=0.99)),
     )
     monkeypatch.setattr(
+        security_center.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="mfa"),
+    )
+    monkeypatch.setattr(
         security_center,
         "decode_token_to_token_data",
         lambda _token: SimpleNamespace(face_pending=False),
@@ -273,8 +309,13 @@ def test_face_status_separates_face_runtime_and_anti_spoof_readiness(
     )
     monkeypatch.setattr(
         security_center.face_service,
-        "face_recognition_status",
-        lambda mode="mfa": (False, "insightface_unavailable"),
+        "face_runtime_status",
+        lambda mode="mfa": _runtime_status(
+            state="failed",
+            ready=False,
+            reason="insightface_unavailable",
+            mode=mode,
+        ),
     )
     monkeypatch.setattr(
         security_center.face_service,
@@ -290,6 +331,7 @@ def test_face_status_separates_face_runtime_and_anti_spoof_readiness(
     body = response.json()
     assert body["face_runtime_ready"] is False
     assert body["face_runtime_reason"] == "insightface_unavailable"
+    assert body["face_runtime_state"] == "failed"
     assert body["anti_spoof_ready"] is True
     assert body["anti_spoof_reason"] is None
 
@@ -314,13 +356,13 @@ def test_face_status_times_out_runtime_probe_without_hanging_route(
     )
     monkeypatch.setattr(security_center, "FACE_STATUS_TIMEOUT_SECONDS", 0.05)
 
-    def _slow_face_runtime(mode: str = "mfa") -> tuple[bool, str | None]:
+    def _slow_face_runtime(mode: str = "mfa") -> dict[str, object]:
         time.sleep(0.2)
-        return True, None
+        return _runtime_status(mode=mode)
 
     monkeypatch.setattr(
         security_center.face_service,
-        "face_recognition_status",
+        "face_runtime_status",
         _slow_face_runtime,
     )
     monkeypatch.setattr(
@@ -335,5 +377,6 @@ def test_face_status_times_out_runtime_probe_without_hanging_route(
     body = response.json()
     assert body["face_runtime_ready"] is False
     assert body["face_runtime_reason"] == "insightface_warming_up"
+    assert body["face_runtime_state"] == "initializing"
     assert body["anti_spoof_ready"] is True
     assert body["anti_spoof_reason"] is None

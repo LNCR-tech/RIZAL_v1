@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from jose import jwt
 
 from app.models import (
+    Attendance,
     Department,
     Event,
     PasswordResetRequest,
@@ -23,6 +24,7 @@ from app.models import (
     UserRole,
     UserSession,
 )
+from app.routers import health as health_router
 from app.routers import security_center
 from app.routers import users as users_router
 from app.core.security import ALGORITHM, SECRET_KEY, create_access_token, verify_password
@@ -469,8 +471,35 @@ def test_health_endpoint_reports_pool_status(client):
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["database"]["ok"] is True
+    assert "face_runtime" in payload
+    assert "readiness" in payload
     assert "pool" in payload
     assert "pool_class" in payload["pool"]
+
+
+def test_health_readiness_endpoint_reports_not_ready_when_face_runtime_initializing(client, monkeypatch):
+    monkeypatch.setattr(
+        health_router.face_service,
+        "face_runtime_status",
+        lambda mode="single": {
+            "state": "initializing",
+            "ready": False,
+            "reason": "insightface_warming_up",
+            "last_error": None,
+            "provider_target": "CPUExecutionProvider",
+            "mode": mode,
+            "initialized_at": None,
+            "warmup_started_at": None,
+            "warmup_finished_at": None,
+        },
+    )
+
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "not_ready"
+    assert payload["database"]["ok"] is True
+    assert payload["face_runtime"]["state"] == "initializing"
 
 
 def test_student_login_rejects_inactive_school(client, test_db):
@@ -1382,6 +1411,231 @@ def test_get_all_users_returns_paged_student_profiles(client, test_db):
     assert listed_student["student_profile"]["year_level"] == 3
 
 
+def test_users_endpoints_do_not_expand_student_attendance_history(client, test_db):
+    school = _create_school(test_db, code="USER-LIST-SLIM")
+    admin_user = _create_user_with_role(
+        test_db,
+        email="slim.admin@example.com",
+        role_name="admin",
+        password="AdminPass123!",
+        school_id=school.id,
+    )
+    student_user = _create_user_with_role(
+        test_db,
+        email="slim.student@misamisu.seed.local",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+    )
+
+    department = Department(school_id=school.id, name="School of Computing Slim")
+    program = Program(school_id=school.id, name="BSIT Slim")
+    department.programs.append(program)
+    test_db.add_all([department, program])
+    test_db.commit()
+
+    student_profile = StudentProfile(
+        user_id=student_user.id,
+        school_id=school.id,
+        student_id="BSIT-SLIM-001",
+        department_id=department.id,
+        program_id=program.id,
+        year_level=2,
+    )
+    test_db.add(student_profile)
+    test_db.commit()
+    test_db.refresh(student_profile)
+
+    event = Event(
+        school_id=school.id,
+        name="Slim Payload Event",
+        location="Main Hall",
+        start_datetime=datetime.utcnow() - timedelta(hours=2),
+        end_datetime=datetime.utcnow() - timedelta(hours=1),
+    )
+    test_db.add(event)
+    test_db.commit()
+    test_db.refresh(event)
+
+    # Intentionally use a non-API attendance method value to mirror large seed rows.
+    test_db.add(
+        Attendance(
+            student_id=student_profile.id,
+            event_id=event.id,
+            method="seed_core",
+            status="present",
+            time_in=event.start_datetime,
+            time_out=event.end_datetime,
+        )
+    )
+    test_db.commit()
+
+    list_response = client.get(
+        "/api/users/?skip=0&limit=10",
+        headers=_auth_headers(admin_user),
+    )
+    assert list_response.status_code == 200
+    list_payload = list_response.json()
+    listed_student = next(user for user in list_payload if user["id"] == student_user.id)
+    assert listed_student["student_profile"]["attendances"] == []
+
+    me_response = client.get(
+        "/api/users/me/",
+        headers=_auth_headers(student_user),
+    )
+    assert me_response.status_code == 200
+    me_payload = me_response.json()
+    assert me_payload["student_profile"]["attendances"] == []
+
+
+def test_attendance_with_students_normalizes_legacy_seed_method_values(client, test_db):
+    school = _create_school(test_db, code="ATT-LGCY")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="attendance.legacy.admin@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+    )
+    student_user = _create_user_with_role(
+        test_db,
+        email="attendance.legacy.student@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+    )
+
+    department = Department(school_id=school.id, name="Attendance Legacy Department")
+    program = Program(school_id=school.id, name="Attendance Legacy Program")
+    department.programs.append(program)
+    test_db.add_all([department, program])
+    test_db.commit()
+
+    student_profile = StudentProfile(
+        user_id=student_user.id,
+        school_id=school.id,
+        student_id="ATT-LGCY-001",
+        department_id=department.id,
+        program_id=program.id,
+        year_level=2,
+    )
+    test_db.add(student_profile)
+    test_db.commit()
+    test_db.refresh(student_profile)
+
+    event = Event(
+        school_id=school.id,
+        name="Attendance Legacy Event",
+        location="Legacy Hall",
+        start_datetime=datetime.utcnow() - timedelta(hours=2),
+        end_datetime=datetime.utcnow() - timedelta(hours=1),
+    )
+    test_db.add(event)
+    test_db.commit()
+    test_db.refresh(event)
+
+    test_db.add(
+        Attendance(
+            student_id=student_profile.id,
+            event_id=event.id,
+            method="seed_duplicate_2",
+            status="present",
+            check_in_status="present",
+            check_out_status="present",
+            time_in=event.start_datetime,
+            time_out=event.end_datetime,
+        )
+    )
+    test_db.commit()
+
+    response = client.get(
+        f"/api/attendance/events/{event.id}/attendances-with-students",
+        headers=_auth_headers(campus_admin),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    assert payload[0]["attendance"]["method"] == "manual"
+    assert payload[0]["attendance"]["status"] == "present"
+
+
+def test_student_attendance_stats_returns_200_without_event_type_column(client, test_db, monkeypatch):
+    school = _create_school(test_db, code="ATT-STATS")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="attendance.stats.admin@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+    )
+    student_user = _create_user_with_role(
+        test_db,
+        email="attendance.stats.student@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+    )
+
+    department = Department(school_id=school.id, name="Attendance Stats Department")
+    program = Program(school_id=school.id, name="Attendance Stats Program")
+    department.programs.append(program)
+    test_db.add_all([department, program])
+    test_db.commit()
+
+    student_profile = StudentProfile(
+        user_id=student_user.id,
+        school_id=school.id,
+        student_id="ATT-STATS-001",
+        department_id=department.id,
+        program_id=program.id,
+        year_level=3,
+    )
+    test_db.add(student_profile)
+    test_db.commit()
+    test_db.refresh(student_profile)
+
+    event = Event(
+        school_id=school.id,
+        name="Attendance Stats Event",
+        location="Stats Hall",
+        start_datetime=datetime.utcnow() - timedelta(days=3),
+        end_datetime=datetime.utcnow() - timedelta(days=3, hours=-2),
+    )
+    test_db.add(event)
+    test_db.commit()
+    test_db.refresh(event)
+
+    test_db.add(
+        Attendance(
+            student_id=student_profile.id,
+            event_id=event.id,
+            method="manual",
+            status="present",
+            check_in_status="present",
+            check_out_status="present",
+            time_in=event.start_datetime,
+            time_out=event.end_datetime,
+        )
+    )
+    test_db.commit()
+
+    monkeypatch.setattr(
+        "app.reports.student.queries.list_student_trend_results",
+        lambda *args, **kwargs: [],
+    )
+
+    response = client.get(
+        f"/api/attendance/students/{student_profile.id}/stats?group_by=month",
+        headers=_auth_headers(campus_admin),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "event_type_breakdown" in payload
+    assert payload["event_type_breakdown"][0]["event_type"] == "Regular Events"
+
+
 def test_change_password_accepts_current_password_for_model_hashed_user(client, test_db):
     school = _create_school(test_db, code="CHG-MODEL")
     role = Role(name="student")
@@ -1694,8 +1948,18 @@ def test_face_pending_user_can_check_face_status_before_password_change(
 
     monkeypatch.setattr(
         security_center.face_service,
-        "face_recognition_status",
-        lambda mode="mfa": (True, None),
+        "face_runtime_status",
+        lambda mode="mfa": {
+            "state": "ready",
+            "ready": True,
+            "reason": "ready",
+            "last_error": None,
+            "provider_target": "CPUExecutionProvider",
+            "mode": mode,
+            "initialized_at": None,
+            "warmup_started_at": None,
+            "warmup_finished_at": None,
+        },
     )
     monkeypatch.setattr(
         security_center.face_service,

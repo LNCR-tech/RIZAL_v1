@@ -14,6 +14,618 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-18 - Prevent student stats/report 500s when `events.event_type` is absent
+
+### Purpose
+
+Fix `500` errors on student attendance stats/report queries in databases where the `events` table does not include an `event_type` column.
+
+### Main files
+
+- `Backend/app/reports/student/queries.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_REPORTS_MODULE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a schema-compatibility helper in student report queries to detect whether `Event.event_type` exists
+- updated student report event-type filter behavior:
+  - if `event_type` column exists, filtering/grouping uses that column
+  - if `event_type` column is absent, queries no longer reference it
+- updated student stats event-type breakdown behavior:
+  - when `event_type` is absent, stats return a single bucket label `Regular Events` grouped by attendance status
+- added regression test coverage for:
+  - `GET /api/attendance/students/{student_id}/stats?group_by=month`
+  - verifies route returns `200` and includes `Regular Events` breakdown without requiring schema changes
+
+### Route or schema impact
+
+- no route path changes
+- no request schema changes
+- runtime behavior change:
+  - `GET /api/attendance/students/{student_id}/stats` no longer crashes on missing `event_type` column
+  - `GET /api/attendance/students/{student_id}/report` ignores `event_type` filtering when the column is unavailable
+
+### Migration impact
+
+- no database migration required for this fix
+- optional future schema enhancement remains possible (adding `events.event_type`) but is not required for report endpoints to function
+
+### How to test
+
+1. Run focused test:
+   - `python -m pytest -q Backend/app/tests/test_api.py -k "student_attendance_stats_returns_200_without_event_type_column"`
+2. Manual API check:
+   - `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
+   - confirm `200` and `event_type_breakdown` entries are returned.
+
+## 2026-04-18 - Normalize legacy attendance method markers in report responses
+
+### Purpose
+
+Fix `500` errors on attendance report endpoints when historical seed rows contain non-enum method markers such as `seed_core` and `seed_duplicate_*`.
+
+### Main files
+
+- `Backend/app/routers/attendance/shared.py`
+- `Backend/app/reports/attendance/service.py`
+- `Backend/app/misamis_university_seeder.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_REPORTS_MODULE_GUIDE.md`
+- `Backend/docs/BACKEND_LARGE_DATA_SEED_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added response-side normalization for attendance method values in shared attendance serializers:
+  - valid values remain `face_scan` and `manual`
+  - unsupported/legacy stored values now normalize to `manual` instead of raising a schema validation error
+- added defensive status normalization in the same serializer path to keep report payloads schema-safe
+- updated Misamis large seed generation so future attendance rows are created with `method='manual'`
+- added API regression coverage for:
+  - `GET /api/attendance/events/{event_id}/attendances-with-students`
+  - verifies legacy `seed_duplicate_2` stored method serializes as `manual` and endpoint returns `200`
+
+### Route or schema impact
+
+- no route path changes
+- no request schema changes
+- runtime behavior change for attendance responses using shared attendance serialization:
+  - legacy invalid stored method markers no longer cause `500`
+  - responses now emit schema-valid method values
+
+### Migration impact
+
+- no database migration required
+- no environment/configuration changes required
+- optional operational cleanup for existing data:
+  - `UPDATE attendances SET method = 'manual' WHERE method LIKE 'seed_%';`
+
+### How to test
+
+1. Run focused backend tests:
+   - `python -m pytest -q Backend/app/tests/test_api.py -k "attendance_with_students_normalizes_legacy_seed_method_values"`
+2. Call:
+   - `GET /api/attendance/events/{event_id}/attendances-with-students`
+   with an event that includes historical `seed_*` attendance methods and confirm `200`.
+3. Optional DB cleanup:
+   - run `UPDATE attendances SET method = 'manual' WHERE method LIKE 'seed_%';`
+   - restart backend and verify attendance report endpoints still return `200`.
+
+## 2026-04-18 - Prevent users endpoint 500s from reserved-domain seed emails
+
+### Purpose
+
+Fix runtime `500` errors on user profile/list routes when seeded accounts contain reserved-domain emails (for example `*.seed.local`) that fail strict response `EmailStr` validation.
+
+### Main files
+
+- `Backend/app/schemas/user.py`
+- `Backend/app/routers/users/shared.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/app/misamis_university_seeder.py`
+- `Backend/docs/BACKEND_LARGE_DATA_SEED_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed output user schema typing so response payloads treat `email` as a string instead of re-validating with `EmailStr`
+- kept input validation strict for account-creation flows:
+  - `UserCreate.email` remains `EmailStr`
+  - `StudentAccountCreate.email` remains `EmailStr`
+- retained users payload slimming behavior (`student_profile.attendances` remains `[]` on users endpoints)
+- updated Misamis large-seed generated email domain from `misamisu.seed.local` to `misamisu.seed.edu.ph` for future seed compatibility with strict validators
+- extended regression coverage to ensure `/api/users/` and `/api/users/me/` succeed with seeded-style `.local` addresses already present in the database
+
+### Route or schema impact
+
+- no route path changes
+- response schema behavior update on users endpoints:
+  - `User*` response payloads now expose `email` as a plain string field
+- request validation remains unchanged for create/update routes that already enforce email format
+
+### Migration impact
+
+- no database migration required
+- no environment/configuration changes required
+- existing databases with previously seeded `.local` emails now work on users endpoints without data cleanup
+
+### How to test
+
+1. Run focused tests:
+   - `python -m pytest -q Backend/app/tests/test_api.py -k "users_endpoints_do_not_expand_student_attendance_history or get_all_users_returns_paged_student_profiles"`
+2. Login as a user seeded with a `.local` email and call:
+   - `GET /api/users/me/`
+   - `GET /api/users/` (admin/campus_admin)
+   confirm both return `200`.
+
+## 2026-04-18 - Keep users API payloads summary-only for student profiles
+
+### Purpose
+
+Prevent `/api/users/` and `/api/users/me/` from failing on large seeded datasets and reduce response size by avoiding full attendance-history expansion inside user profile payloads.
+
+### Main files
+
+- `Backend/app/routers/users/shared.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- changed user serialization so `student_profile` is built from explicit profile fields only
+- stopped loading/serializing `student_profile.attendances` in users endpoints
+- kept response compatibility by returning `student_profile.attendances` as an empty list in users payloads
+- added regression coverage that inserts attendance rows with non-API method markers (for example `seed_core`) and verifies users endpoints still return `200`
+
+### Route or schema impact
+
+- no route path changes
+- no request schema changes
+- runtime response behavior update for:
+  - `GET /api/users/`
+  - `GET /api/users/me/`
+  - `GET /api/users/{user_id}`
+  - `PATCH /api/users/{user_id}`
+  - `PUT /api/users/{user_id}/roles`
+  these routes now return student profile summary fields only and do not embed historical attendance rows
+
+### Migration impact
+
+- no database migration required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run focused regression tests:
+   - `python -m pytest -q Backend/app/tests/test_api.py -k "users_endpoints_do_not_expand_student_attendance_history or get_all_users_returns_paged_student_profiles"`
+2. Login and call:
+   - `GET /api/users/`
+   - `GET /api/users/me/`
+   confirm responses are `200` and `student_profile.attendances` is `[]` in these user payloads.
+
+## 2026-04-18 - Add a dedicated Misamis University large dataset seed workflow
+
+### Purpose
+
+Provide a repeatable backend seed script for generating one heavy school dataset with 15,000 students, 33 events, 1,000,000 attendance rows, sanctions coverage, and preconfigured SSG/SG/ORG governance memberships.
+
+### Main files
+
+- `Backend/app/misamis_university_seeder.py`
+- `Backend/seed_misamis_university.py`
+- `Backend/app/seeder.py`
+- `Backend/app/utils/passwords.py`
+- `Backend/docs/BACKEND_LARGE_DATA_SEED_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added a dedicated bulk seed module for a Misamis University dataset instead of overloading the default lightweight seed path
+- added CLI support for:
+  - dry runs
+  - replace-existing school recreation
+  - configurable bcrypt rounds
+  - configurable batching
+- seeded one school-scoped `campus_admin`
+- seeded `15,000` student users with randomized names, student IDs, and passwords
+- seeded a full governance tree with:
+  - `1` SSG unit
+  - `5` SG units
+  - `15` ORG units
+- assigned governance members and permissions directly so SSG, SG, and ORG users are usable immediately after seeding
+- seeded `33` completed events with active sanction configs
+- generated `1,000,000` attendance rows by combining:
+  - one core attendance row per student per event
+  - extra duplicate history rows to hit the requested total exactly
+- created sanction records for every core absent attendance row and added sanction items per record
+- extended the password helper so callers can choose bcrypt rounds explicitly for large seed workloads
+- expanded default role seeding to include governance role names:
+  - `ssg`
+  - `sg`
+  - `org`
+
+### Route or schema impact
+
+- no route path changes
+- no request or response schema changes
+- no database schema changes
+- added a new operational seed entry point:
+  - `python Backend/seed_misamis_university.py`
+
+### Migration impact
+
+- no new migration required
+- requires the existing migrated schema to already be present before running the large seed script
+- no new environment variables required
+
+### How to test
+
+1. Run a compile check:
+   - `python -m compileall Backend/app/misamis_university_seeder.py Backend/seed_misamis_university.py Backend/app/seeder.py Backend/app/utils/passwords.py`
+2. Run a dry run:
+   - `python Backend/seed_misamis_university.py --dry-run`
+3. Run the seed against a migrated database:
+   - `python Backend/seed_misamis_university.py`
+4. Verify counts and artifacts:
+   - confirm `15,000` student profiles exist for `Misamis University`
+   - confirm `33` events exist for that school
+   - confirm total attendance rows for the seeded school equal `1,000,000`
+   - confirm sanction records exist for absent rows
+   - confirm the credential CSV and summary JSON were written under `storage/seed_outputs/`
+
+## 2026-04-17 - Speed up bulk import credential preparation and enforce unique per-student temporary passwords
+
+### Purpose
+
+Reduce bulk student import wall-clock time in the worker and guarantee that each imported student receives a distinct random temporary password.
+
+### Main files
+
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/tests/test_student_import_email_delivery.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- moved import credential attachment to batch preparation instead of hashing each password immediately during row collection
+- added batch password hashing with a bounded thread pool so large imports spend less time blocked on serial bcrypt work
+- added import-run duplicate protection for generated temporary passwords:
+  - each student row now gets a freshly generated password
+  - the importer tracks passwords already issued during the current import run
+  - if a generated password collides, the importer regenerates before continuing
+- kept the existing onboarding email flow aligned with the row-specific temporary password returned from the successful insert batch
+
+### Route or schema impact
+
+- no route path changes
+- no request or response schema changes
+- runtime behavior change:
+  - bulk import workers now prepare unique per-row temporary passwords in batch before insert
+
+### Migration impact
+
+- no database migration required
+- no configuration or environment variable changes
+
+### How to test
+
+1. Run focused tests:
+   - `python -m pytest -q Backend/app/tests/test_student_import_email_delivery.py Backend/app/tests/test_import_repository.py`
+2. Manual bulk import smoke:
+   - preview and import a file with at least two new student rows
+   - confirm the created students do not share the same temporary password
+   - confirm onboarding emails or captured queued task arguments show different passwords per student
+3. Performance sanity check:
+   - run a larger import batch than the previous repro case
+   - confirm the worker spends less time in credential preparation than the prior serial hashing behavior
+
+## 2026-04-17 - Add student login access reporting to campus admin school reports
+
+### Purpose
+
+Let campus admins see which students have successfully signed in and which students still have no successful login history from the existing reports dashboard.
+
+### Main files
+
+- `Backend/app/reports/school/service.py`
+- `Backend/app/reports/school/queries.py`
+- `Backend/app/tests/test_school_reports.py`
+- `Backend/docs/BACKEND_REPORTS_MODULE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended `GET /api/attendance/summary` to include a school-scoped student login access block alongside the existing attendance totals
+- added `student_login_summary` with:
+  - `total_students`
+  - `logged_in_students`
+  - `not_logged_in_students`
+  - `login_coverage_rate`
+- added `student_login_rows` so campus admin dashboards can render a detailed roster-level access report with:
+  - student identity/scope fields
+  - `has_logged_in`
+  - `successful_login_count`
+  - `last_login_at`
+- applied the same school/department/program scope to the login report and used the summary route's `start_date` and `end_date` window for successful login history counts
+- added backend regression coverage for the new summary payload and date-window behavior
+
+### Route or schema impact
+
+- no route path changes
+- `GET /api/attendance/summary` response now includes additional compatible top-level fields:
+  - `student_login_summary`
+  - `student_login_rows`
+
+### Migration impact
+
+- no database migration required
+- no configuration or environment variable changes
+
+### How to test
+
+1. Run focused backend tests:
+   - `python -m pytest -q Backend/app/tests/test_school_reports.py Backend/app/tests/test_attendance_schemas.py`
+2. Run a compile check:
+   - `python -m compileall Backend/app/reports/school`
+3. Manual smoke:
+   - log in as a campus admin
+   - open the reports dashboard school summary view
+   - confirm the student login report shows logged-in vs not-yet-logged-in counts and a roster table
+   - apply a date filter and confirm the login report updates to reflect successful logins inside the selected window
+
+## 2026-04-17 - Extend student attendance overview rows for advanced report dashboards
+
+### Purpose
+
+Support the new recommended attendance report catalog UI with exact student-level status counts from the existing overview endpoint instead of frontend-only estimates.
+
+### Main files
+
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/reports/student/service.py`
+- `Backend/app/tests/test_attendance_schemas.py`
+- `Backend/docs/BACKEND_REPORTS_MODULE_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- extended `StudentListItem` with additional per-student counters:
+  - `attended_events`
+  - `late_events`
+  - `incomplete_events`
+  - `absent_events`
+  - `excused_events`
+- updated `get_students_attendance_overview` to compute these counters from the same attendance rows already used for overview totals/rates
+- centralized per-student attendance counting in `app.reports.student.service._summarize_attendances(...)`
+- reused the same summary helper inside `get_student_attendance_report` so overview/report counters follow the same display-status logic
+
+### Route or schema impact
+
+- no route path changes
+- `GET /api/attendance/students/overview` now returns additional optional-compatible fields per row:
+  - `attended_events`
+  - `late_events`
+  - `incomplete_events`
+  - `absent_events`
+  - `excused_events`
+
+### Migration impact
+
+- no database migration required
+- no configuration or environment variable changes
+
+### How to test
+
+1. Run focused backend schema checks:
+   - `python -m pytest -q Backend/app/tests/test_attendance_schemas.py`
+2. Call `GET /api/attendance/students/overview` with an authenticated report-capable account and confirm each row now includes the added count fields.
+3. Open the reports dashboard and verify advanced student ranking/intervention views can render exact absent/late/incomplete totals without extra per-student fetches.
+
+## 2026-04-17 - Limit InsightFace startup module load to detection and recognition
+
+### Purpose
+
+Reduce InsightFace startup memory pressure on constrained deployments by loading only the modules required for face detection and embedding generation.
+
+### Main files
+
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added explicit `allowed_modules=("detection", "recognition")` in the InsightFace adapter runtime construction path
+- runtime model construction now uses a small compatibility wrapper:
+  - tries `FaceAnalysis(..., allowed_modules=[...])`
+  - falls back to default constructor if the installed InsightFace version does not support `allowed_modules`
+- startup/init logs now include which module-set target is being used
+
+### Route or schema impact
+
+- no route path changes
+- no response schema changes
+
+### Migration impact
+
+- no database migration required
+- no provider/GPU changes; runtime remains CPU-only
+- operationally, this lowers startup model-loading footprint before warm-up
+
+### How to test
+
+1. Run focused tests:
+   - `python -m pytest -q Backend/app/tests/test_face_engines.py`
+2. Deploy backend and inspect logs during runtime initialization:
+   - confirm InsightFace model construction starts with `allowed_modules=detection,recognition`
+   - verify runtime reaches stable state instead of repeated cold-restart loops during model load.
+
+## 2026-04-17 - Add explicit InsightFace warm-up inference and startup timing metrics
+
+### Purpose
+
+Reduce cold-start ambiguity by explicitly warming the InsightFace pipeline during initialization and exposing precise startup timing data in runtime status/readiness surfaces.
+
+### Main files
+
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/schemas/face_recognition.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added explicit warm-up inference stage after `FaceAnalysis(...)` construction and `prepare(...)`
+- warm-up now uses a safe dummy RGB frame and runs `face_analysis.get(...)` so startup primes the same inference entrypoint used by real face registration/detection
+- runtime now transitions to `ready` only after warm-up inference succeeds
+- captured and logged timing metrics:
+  - model construction time
+  - `prepare(...)` time
+  - warm-up inference time
+  - total initialization time
+- extended shared runtime state/status payload with timing metrics:
+  - `model_construction_duration_ms`
+  - `prepare_duration_ms`
+  - `warmup_duration_ms`
+  - `init_duration_ms`
+- warm-up failures now set explicit failed reason `insightface_warmup_failed` (with `last_error`) and keep structured runtime failure responses
+
+### Route or schema impact
+
+- no route path changes
+- `GET /api/auth/security/face-status` response now includes optional runtime timing fields:
+  - `face_runtime_model_construction_duration_ms`
+  - `face_runtime_prepare_duration_ms`
+  - `face_runtime_warmup_duration_ms`
+  - `face_runtime_init_duration_ms`
+- existing `GET /health` and `GET /health/readiness` runtime payloads now include timing metrics through `face_runtime`
+
+### Migration impact
+
+- no database migrations required
+- no GPU/provider changes; runtime remains CPU-only (`CPUExecutionProvider`)
+
+### How to test
+
+1. Run focused tests:
+   - `python -m pytest -q Backend/app/tests/test_face_engines.py`
+2. Start backend and verify logs include model construction, prepare, warm-up, and total init timings.
+3. Call:
+   - `GET /health`
+   - `GET /health/readiness`
+   - `GET /api/auth/security/face-status`
+   and confirm runtime state/reason and duration fields are populated after successful startup warm-up.
+
+## 2026-04-17 - Refactor InsightFace runtime lifecycle into explicit stateful readiness flow
+
+### Purpose
+
+Remove ambiguous request-time runtime initialization behavior and replace it with explicit InsightFace runtime lifecycle management, structured status reporting, and readiness coverage.
+
+### Main files
+
+- `Backend/app/services/face_engine/insightface_adapter.py`
+- `Backend/app/services/face_engine/base.py`
+- `Backend/app/services/face_engine/factory.py`
+- `Backend/app/services/face_recognition.py`
+- `Backend/app/main.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/public_attendance.py`
+- `Backend/app/routers/security_center.py`
+- `Backend/app/routers/health.py`
+- `Backend/app/schemas/face_recognition.py`
+- `Backend/app/tests/test_face_engines.py`
+- `Backend/app/tests/test_routes_face.py`
+- `Backend/app/tests/test_public_attendance.py`
+- `Backend/app/tests/test_api.py`
+- `Backend/docs/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- added explicit InsightFace runtime state machine in shared adapter runtime:
+  - `initializing`
+  - `ready`
+  - `failed`
+- added tracked lifecycle metadata:
+  - `initialized_at`
+  - `last_error`
+  - `warmup_started_at`
+  - `warmup_finished_at`
+- centralized runtime lifecycle responsibilities in `insightface_adapter.py`:
+  - config/construction
+  - initialization request + execution
+  - state/status payload reporting
+  - inference access with structured readiness failure
+- added explicit runtime initialization entrypoint:
+  - `FaceRecognitionService.initialize_face_runtime(...)`
+  - startup now calls this intentionally (`trigger="startup"`) instead of probing runtime status through request-style side effects
+- removed request-time lazy startup behavior from inference access:
+  - request handlers now consume runtime state
+  - routes return structured `503` details when runtime is `initializing` or `failed`
+- expanded face runtime status surface (service + security route payload usage):
+  - `state`
+  - `ready`
+  - `reason`
+  - `last_error`
+  - `provider_target`
+  - `mode`
+  - lifecycle timestamps
+- added health/readiness face-runtime signal:
+  - `GET /health` now includes `face_runtime` and `readiness`
+  - new `GET /health/readiness` returns readiness-oriented status code/body
+- added concise transition logging:
+  - initialization requested
+  - initialization started
+  - runtime ready
+  - runtime failed
+
+### Route or schema impact
+
+- updated route behavior:
+  - `POST /api/face/register`
+  - `POST /api/face/register-upload`
+  - `POST /api/face/verify`
+  - `POST /api/face/face-scan-with-recognition`
+  - `POST /public-attendance/events/{event_id}/multi-face-scan`
+  - `POST /api/auth/security/face-liveness`
+  - `POST /api/auth/security/face-reference`
+  - `POST /api/auth/security/face-verify`
+  now fail fast with structured runtime state when InsightFace is not ready
+- updated `GET /api/auth/security/face-status` response with additional runtime lifecycle fields:
+  - `face_runtime_state`
+  - `face_runtime_last_error`
+  - `face_runtime_provider_target`
+  - `face_runtime_mode`
+  - `face_runtime_initialized_at`
+  - `face_runtime_warmup_started_at`
+  - `face_runtime_warmup_finished_at`
+- health endpoints:
+  - existing `GET /health` payload expanded with `face_runtime` + `readiness`
+  - added `GET /health/readiness`
+
+### Migration impact
+
+- no database migrations required
+- no GPU/provider configuration changes (runtime remains CPU-safe with `CPUExecutionProvider`)
+- existing `FACE_WARMUP_ON_STARTUP` behavior is preserved, but startup now explicitly requests runtime initialization through lifecycle API when enabled
+
+### How to test
+
+1. Run focused tests:
+   - `python -m pytest -q Backend/app/tests/test_face_engines.py`
+   - `python -m pytest -q Backend/app/tests/test_routes_face.py`
+   - `python -m pytest -q Backend/app/tests/test_public_attendance.py`
+   - `python -m pytest -q Backend/app/tests/test_api.py -k "health_endpoint_reports_pool_status or health_readiness_endpoint_reports_not_ready_when_face_runtime_initializing or face_pending_user_can_check_face_status_before_password_change"`
+2. Verify startup logs include runtime initialization lifecycle transitions.
+3. Verify `GET /health` and `GET /health/readiness` clearly report DB and face runtime readiness states.
+
 ## 2026-04-17 - Add Railway-friendly backend runtime supervisor and use `alembic upgrade heads`
 
 ### Purpose

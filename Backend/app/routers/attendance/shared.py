@@ -17,6 +17,7 @@ from app.models.program import Program
 from app.models.user import StudentProfile, User, User as UserModel
 from app.schemas.attendance import (
     Attendance,
+    AttendanceMethod,
     AttendanceReportResponse,
     AttendanceStatus,
     AttendanceWithStudent,
@@ -44,6 +45,47 @@ from app.services.event_time_status import get_attendance_decision, get_sign_out
 from app.services.event_workflow_status import sync_event_workflow_status
 
 logger = logging.getLogger(__name__)
+_SEEN_UNSUPPORTED_ATTENDANCE_METHODS: set[str] = set()
+_SEEN_UNSUPPORTED_ATTENDANCE_STATUSES: set[str] = set()
+_ALLOWED_ATTENDANCE_METHOD_VALUES = {
+    AttendanceMethod.FACE_SCAN.value,
+    AttendanceMethod.MANUAL.value,
+}
+_ALLOWED_ATTENDANCE_STATUS_VALUES = {status.value for status in AttendanceStatus}
+
+
+def _normalize_attendance_method_for_response(method_value: Any) -> str:
+    """Map legacy/unknown stored method markers into API-safe enum values."""
+    normalized_method = str(method_value or "").strip().lower()
+    if normalized_method in _ALLOWED_ATTENDANCE_METHOD_VALUES:
+        return normalized_method
+
+    method_key = normalized_method or "<empty>"
+    if method_key not in _SEEN_UNSUPPORTED_ATTENDANCE_METHODS:
+        _SEEN_UNSUPPORTED_ATTENDANCE_METHODS.add(method_key)
+        logger.warning(
+            "Unsupported attendance method '%s' encountered; normalizing response method to '%s'.",
+            method_value,
+            AttendanceMethod.MANUAL.value,
+        )
+    return AttendanceMethod.MANUAL.value
+
+
+def _normalize_attendance_status_for_response(status_value: Any) -> str:
+    """Map unexpected status values into API-safe attendance status enums."""
+    normalized_status = normalize_attendance_status(status_value)
+    if normalized_status in _ALLOWED_ATTENDANCE_STATUS_VALUES:
+        return normalized_status
+
+    status_key = normalized_status or "<empty>"
+    if status_key not in _SEEN_UNSUPPORTED_ATTENDANCE_STATUSES:
+        _SEEN_UNSUPPORTED_ATTENDANCE_STATUSES.add(status_key)
+        logger.warning(
+            "Unsupported attendance status '%s' encountered; normalizing response status to '%s'.",
+            status_value,
+            AttendanceStatus.ABSENT.value,
+        )
+    return AttendanceStatus.ABSENT.value
 
 
 def _get_attendance_governance_units(
@@ -236,9 +278,19 @@ def _attendance_matches_status_filter(
 
 def _serialize_attendance_model(attendance: AttendanceModel) -> Attendance:
     """Serialize an attendance ORM row with computed display fields."""
-    payload = Attendance.model_validate(attendance, from_attributes=True)
-    return payload.model_copy(
-        update={
+    return Attendance.model_validate(
+        {
+            "id": attendance.id,
+            "student_id": attendance.student_id,
+            "event_id": attendance.event_id,
+            "time_in": attendance.time_in,
+            "time_out": attendance.time_out,
+            "method": _normalize_attendance_method_for_response(attendance.method),
+            "status": _normalize_attendance_status_for_response(attendance.status),
+            "check_in_status": attendance.check_in_status,
+            "check_out_status": attendance.check_out_status,
+            "verified_by": attendance.verified_by,
+            "notes": attendance.notes,
             "display_status": _attendance_display_status_value(attendance),
             "completion_state": _attendance_completion_state_value(attendance),
             "is_valid_attendance": _attendance_is_valid_value(attendance),
@@ -282,7 +334,7 @@ def _build_student_attendance_record(
         display_status=_attendance_display_status_value(attendance),
         completion_state=_attendance_completion_state_value(attendance),
         is_valid_attendance=_attendance_is_valid_value(attendance),
-        method=attendance.method,
+        method=_normalize_attendance_method_for_response(attendance.method),
         notes=attendance.notes,
         duration_minutes=duration,
     )
@@ -308,7 +360,7 @@ def _build_student_attendance_detail(attendance: AttendanceModel) -> StudentAtte
         display_status=_attendance_display_status_value(attendance),
         completion_state=_attendance_completion_state_value(attendance),
         is_valid_attendance=_attendance_is_valid_value(attendance),
-        method=attendance.method,
+        method=_normalize_attendance_method_for_response(attendance.method),
         notes=attendance.notes,
         duration_minutes=duration,
     )

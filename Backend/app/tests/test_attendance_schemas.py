@@ -57,3 +57,8 @@ def test_student_list_item_allows_missing_student_id() -> None:
     )
 
     assert item.student_id is None
+    assert item.attended_events == 0
+    assert item.late_events == 0
+    assert item.incomplete_events == 0
+    assert item.absent_events == 0
+    assert item.excused_events == 0

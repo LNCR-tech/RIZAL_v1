@@ -17,7 +17,7 @@ def _build_engine(mode: str):
     if mode not in {"single", "group", "mfa"}:
         raise ValueError(f"Unsupported face engine mode: {mode}")
 
-    return InsightFaceEngine(settings=settings, liveness_checker=liveness_checker)
+    return InsightFaceEngine(settings=settings, liveness_checker=liveness_checker, mode=mode)
 
 
 def get_engine(mode: str):

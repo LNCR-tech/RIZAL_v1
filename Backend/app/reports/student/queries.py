@@ -5,13 +5,18 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import String, func, literal, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event
 from app.models.user import StudentProfile, User
 from app.routers.attendance.shared import _apply_student_scope_filters
+
+
+def _event_type_column():
+    """Return the event type ORM column when available in this schema version."""
+    return getattr(Event, "event_type", None)
 
 
 def build_students_overview_base_query(
@@ -162,8 +167,9 @@ def list_student_attendances_for_report(
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
         attendance_query = attendance_query.filter(Event.start_datetime <= end_datetime)
-    if event_type:
-        attendance_query = attendance_query.filter(Event.event_type == event_type)
+    event_type_column = _event_type_column()
+    if event_type and event_type_column is not None:
+        attendance_query = attendance_query.filter(event_type_column == event_type)
 
     return attendance_query.order_by(Event.start_datetime.desc()).all()
 
@@ -241,13 +247,25 @@ def list_student_trend_results(base_query, *, trunc_period: str):
 
 
 def list_student_event_type_breakdown(base_query):
+    event_type_column = _event_type_column()
+    if event_type_column is None:
+        return (
+            base_query.with_entities(
+                literal("Regular Events", type_=String).label("type"),
+                AttendanceModel.status,
+                func.count(AttendanceModel.id).label("count"),
+            )
+            .group_by(AttendanceModel.status)
+            .all()
+        )
+
     return (
         base_query.with_entities(
-            Event.event_type.label("type"),
+            event_type_column.label("type"),
             AttendanceModel.status,
             func.count(AttendanceModel.id).label("count"),
         )
-        .group_by(Event.event_type, AttendanceModel.status)
+        .group_by(event_type_column, AttendanceModel.status)
         .all()
     )
 
@@ -339,4 +357,3 @@ def list_student_record_rows(
         .limit(limit)
         .all()
     )
-

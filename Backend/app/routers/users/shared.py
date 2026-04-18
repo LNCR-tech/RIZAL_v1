@@ -80,9 +80,20 @@ def _serialize_user(user: UserModel) -> UserWithRelations:
     }
 
     if user.student_profile is not None:
+        student_profile = user.student_profile
+        # Keep user payloads lean and stable: attendance records are exposed by
+        # dedicated attendance/report endpoints, not user directory/profile routes.
         payload["student_profile"] = StudentProfileSchema.model_validate(
-            user.student_profile,
-            from_attributes=True,
+            {
+                "id": student_profile.id,
+                "student_id": student_profile.student_id,
+                "department_id": student_profile.department_id,
+                "program_id": student_profile.program_id,
+                "year_level": student_profile.year_level,
+                "is_face_registered": bool(student_profile.is_face_registered),
+                "registration_complete": bool(student_profile.registration_complete),
+                "attendances": [],
+            }
         )
 
     return UserWithRelations.model_validate(payload)

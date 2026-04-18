@@ -99,9 +99,43 @@ Legacy router files were reduced to thin composition/wrapper behavior:
 ## Schema, Migration, and Config Impact
 
 - No request/response schema contracts were renamed.
+- `GET /api/attendance/students/overview` now includes richer per-student counters in each row:
+  - `attended_events`
+  - `late_events`
+  - `incomplete_events`
+  - `absent_events`
+  - `excused_events`
+  These fields were added compatibly so existing consumers can ignore them while newer dashboards can build intervention/ranking reports without per-student follow-up calls.
+- `GET /api/attendance/summary` now also includes a school-scoped student login access report:
+  - `student_login_summary`
+    - `total_students`
+    - `logged_in_students`
+    - `not_logged_in_students`
+    - `login_coverage_rate`
+  - `student_login_rows`
+    - `student_profile_id`
+    - `user_id`
+    - `student_id`
+    - `full_name`
+    - `department_name`
+    - `program_name`
+    - `year_level`
+    - `has_logged_in`
+    - `successful_login_count`
+    - `last_login_at`
+  The login block reuses the same school/department/program scope as the summary route and applies the route's `start_date` and `end_date` filters to successful login history.
 - No database migrations were added.
 - No environment variable or runtime config key changes were introduced.
 - Import preview validation now tolerates trailing blank header columns in Excel uploads while still enforcing the expected header names and order.
+- Attendance event-report serializers now normalize legacy invalid attendance method markers (for example `seed_core`, `seed_duplicate_*`) to `manual` in API responses so historical seed rows do not cause `500` errors on:
+  - `GET /api/attendance/events/{event_id}/attendances`
+  - `GET /api/attendance/events/{event_id}/attendees`
+  - `GET /api/attendance/events/{event_id}/attendances/{status}`
+  - `GET /api/attendance/events/{event_id}/attendances-with-students`
+  - student attendance record endpoints that reuse shared attendance record serializers
+- Student stats/report queries are now schema-compatible when `events.event_type` is missing:
+  - `GET /api/attendance/students/{student_id}/stats` falls back to `event_type_breakdown` label `Regular Events`
+  - `GET /api/attendance/students/{student_id}/report` skips `event_type` filtering when that column is unavailable
 
 ## How To Test
 
@@ -113,5 +147,14 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - `python -m pytest -q Backend/app/tests`
 4. Optional manual API smoke:
    - call each report endpoint listed above with an authenticated account and verify response shape/HTTP status parity with pre-refactor behavior.
+   - for `GET /api/attendance/students/overview`, verify each row contains the added `*_events` counters and that they align with the selected date/department/program filters.
+   - for `GET /api/attendance/summary`, verify `student_login_summary` and `student_login_rows` are present and that successful-login counts reflect the selected date and department/program filters.
 5. Import preview regression:
    - upload an `.xlsx` file whose header row matches the template plus trailing blank columns and verify `POST /api/admin/import-students/preview` returns a successful preview when row data is valid.
+6. Legacy seed attendance compatibility:
+   - insert or retain attendance rows with `method LIKE 'seed_%'`
+   - call `GET /api/attendance/events/{event_id}/attendances-with-students`
+   - verify the endpoint returns `200` and response `attendance.method` values are schema-valid (`manual`/`face_scan`).
+7. Student stats compatibility without `events.event_type`:
+   - call `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
+   - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Regular Events` when the column is missing.

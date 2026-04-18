@@ -70,6 +70,23 @@ Routes:
 - `GET /api/users/preferences/me`
 - `PUT /api/users/preferences/me`
 
+### User profile payload scope
+
+Routes:
+
+- `GET /api/users/`
+- `GET /api/users/me/`
+- `GET /api/users/{user_id}`
+
+Behavior:
+
+- `student_profile` in users responses is summary-only (identity and academic scope fields)
+- users endpoints do not embed full attendance-history rows
+- `student_profile.attendances` is always returned as `[]` on users endpoints
+- use attendance/report routes for attendance history:
+  - `/api/attendance/*`
+  - `/api/reports/*`
+
 Request body for `PUT`:
 
 ```json

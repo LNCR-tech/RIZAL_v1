@@ -42,6 +42,31 @@ from . import queries
 logger = logging.getLogger(__name__)
 
 
+def _summarize_attendances(attendances) -> dict[str, Any]:
+    display_counts = empty_attendance_display_status_counts()
+    attended = 0
+    last_attendance = None
+
+    for attendance in attendances:
+        display_status = _attendance_display_status_value(attendance)
+        display_counts[display_status] = display_counts.get(display_status, 0) + 1
+
+        if _attendance_is_valid_value(attendance):
+            attended += 1
+
+        if attendance.time_in and (last_attendance is None or attendance.time_in > last_attendance):
+            last_attendance = attendance.time_in
+
+    return {
+        "attended": attended,
+        "late": int(display_counts.get(AttendanceStatus.LATE.value, 0)),
+        "incomplete": int(display_counts.get(AttendanceStatus.INCOMPLETE.value, 0)),
+        "absent": int(display_counts.get(AttendanceStatus.ABSENT.value, 0)),
+        "excused": int(display_counts.get(AttendanceStatus.EXCUSED.value, 0)),
+        "last_attendance": last_attendance,
+    }
+
+
 def get_students_attendance_overview(
     db: Session,
     *,
@@ -129,15 +154,7 @@ def get_students_attendance_overview(
                 grouped_attendances.setdefault(attendance.student_id, []).append(attendance)
 
             for student_id_value, student_attendances in grouped_attendances.items():
-                attendance_stats[student_id_value] = {
-                    "attended": sum(
-                        1 for attendance in student_attendances if _attendance_is_valid_value(attendance)
-                    ),
-                    "last_attendance": max(
-                        (attendance.time_in for attendance in student_attendances if attendance.time_in),
-                        default=None,
-                    ),
-                }
+                attendance_stats[student_id_value] = _summarize_attendances(student_attendances)
                 event_counts[student_id_value] = len(student_attendances)
         except Exception:
             logger.exception("Attendance overview aggregate query failed")
@@ -147,7 +164,17 @@ def get_students_attendance_overview(
         result: list[StudentListItem] = []
         for student in students:
             try:
-                stats = attendance_stats.get(student.id, {"attended": 0, "last_attendance": None})
+                stats = attendance_stats.get(
+                    student.id,
+                    {
+                        "attended": 0,
+                        "late": 0,
+                        "incomplete": 0,
+                        "absent": 0,
+                        "excused": 0,
+                        "last_attendance": None,
+                    },
+                )
                 attended = int(stats["attended"])
                 last_attendance = stats["last_attendance"]
                 total_events = int(event_counts.get(student.id, 0))
@@ -168,6 +195,11 @@ def get_students_attendance_overview(
                         program_name=getattr(student.program, "name", None) if student.program else None,
                         year_level=student.year_level,
                         total_events=total_events,
+                        attended_events=attended,
+                        late_events=int(stats["late"]),
+                        incomplete_events=int(stats["incomplete"]),
+                        absent_events=int(stats["absent"]),
+                        excused_events=int(stats["excused"]),
                         attendance_rate=attendance_rate,
                         last_attendance=last_attendance,
                     )
@@ -241,28 +273,16 @@ def get_student_attendance_report(
     if status is not None:
         attendances = [attendance for attendance in attendances if _attendance_matches_status_filter(attendance, status)]
 
-    total_attended = len([attendance for attendance in attendances if _attendance_is_valid_value(attendance)])
-    total_late = len(
-        [
-            attendance
-            for attendance in attendances
-            if _attendance_display_status_value(attendance) == AttendanceStatus.LATE.value
-            and _attendance_is_valid_value(attendance)
-        ]
-    )
-    total_incomplete = len(
-        [attendance for attendance in attendances if _attendance_display_status_value(attendance) == AttendanceStatus.INCOMPLETE.value]
-    )
-    total_absent = len(
-        [attendance for attendance in attendances if _attendance_display_status_value(attendance) == AttendanceStatus.ABSENT.value]
-    )
-    total_excused = len(
-        [attendance for attendance in attendances if _attendance_display_status_value(attendance) == AttendanceStatus.EXCUSED.value]
-    )
+    attendance_summary = _summarize_attendances(attendances)
+    total_attended = int(attendance_summary["attended"])
+    total_late = int(attendance_summary["late"])
+    total_incomplete = int(attendance_summary["incomplete"])
+    total_absent = int(attendance_summary["absent"])
+    total_excused = int(attendance_summary["excused"])
     total_events = len(attendances)
 
     attendance_rate = (total_attended / total_events * 100) if total_events > 0 else 0
-    last_attendance = max([attendance.time_in for attendance in attendances if attendance.time_in]) if attendances else None
+    last_attendance = attendance_summary["last_attendance"]
 
     middle_name = student.user.middle_name
     full_name = f"{student.user.first_name} {middle_name + ' ' if middle_name else ''}{student.user.last_name}"
@@ -535,4 +555,3 @@ def get_my_attendance_records(
             attendances=attendances,
         )
     ]
-

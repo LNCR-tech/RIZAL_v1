@@ -227,16 +227,38 @@ def test_attach_import_password_credentials_generates_unique_values_per_row(monk
     )
 
     service = StudentImportService()
-    first_row: dict[str, object] = {}
-    second_row: dict[str, object] = {}
+    rows = [{}, {}]
 
-    service._attach_import_password_credentials(first_row)
-    service._attach_import_password_credentials(second_row)
+    service._attach_import_password_credentials_batch(rows)
 
-    assert first_row["temporary_password"] == "ImportPass111A"
-    assert first_row["password_hash"] == "hash::ImportPass111A"
-    assert second_row["temporary_password"] == "ImportPass222B"
-    assert second_row["password_hash"] == "hash::ImportPass222B"
+    assert rows[0]["temporary_password"] == "ImportPass111A"
+    assert rows[0]["password_hash"] == "hash::ImportPass111A"
+    assert rows[1]["temporary_password"] == "ImportPass222B"
+    assert rows[1]["password_hash"] == "hash::ImportPass222B"
+
+
+def test_attach_import_password_credentials_batch_retries_duplicate_passwords(monkeypatch) -> None:
+    generated_passwords = iter(["ImportPass111A", "ImportPass111A", "ImportPass222B"])
+
+    monkeypatch.setattr(
+        "app.services.student_import_service.generate_secure_password",
+        lambda min_length=10, max_length=14: next(generated_passwords),
+    )
+    monkeypatch.setattr(
+        "app.services.student_import_service.hash_password_bcrypt",
+        lambda password: f"hash::{password}",
+    )
+
+    service = StudentImportService()
+    rows = [{}, {}]
+
+    service._attach_import_password_credentials_batch(rows, used_temporary_passwords=set())
+
+    assert rows[0]["temporary_password"] == "ImportPass111A"
+    assert rows[1]["temporary_password"] == "ImportPass222B"
+    assert rows[0]["temporary_password"] != rows[1]["temporary_password"]
+    assert rows[0]["password_hash"] == "hash::ImportPass111A"
+    assert rows[1]["password_hash"] == "hash::ImportPass222B"
 
 
 def test_flush_batch_queues_email_with_each_row_temporary_password(monkeypatch) -> None:

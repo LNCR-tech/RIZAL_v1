@@ -7,7 +7,11 @@ import {
   getEventAttendance as fetchEventAttendance,
   getEventAttendanceReport as fetchEventAttendanceReport,
   getEvents as fetchEvents,
+  getGovernanceDashboardOverview as fetchGovernanceDashboardOverview,
+  getMyAttendance as fetchMyAttendance,
+  getMySanctions as fetchMySanctions,
   getNotificationLogs as fetchNotificationLogs,
+  getSanctionsDashboard as fetchSanctionsDashboard,
   getStudentAttendanceReport as fetchStudentAttendanceReport,
   getStudentAttendanceStats as fetchStudentAttendanceStats,
   getStudentImportStatus as fetchStudentImportStatus,
@@ -146,6 +150,35 @@ export async function getNotificationLogs(options = {}) {
   }, 'Unable to load notification logs.')
 }
 
+export async function getGovernanceOverview(governanceUnitId, options = {}) {
+  return runWithReportErrorHandling(async () => {
+    const { baseUrl, token } = normalizeContext(options)
+    const normalizedGovernanceUnitId = normalizeId(governanceUnitId, 'governanceUnitId')
+    return fetchGovernanceDashboardOverview(baseUrl, token, normalizedGovernanceUnitId)
+  }, 'Unable to load governance dashboard overview.')
+}
+
+export async function getSanctionsDashboard(options = {}) {
+  return runWithReportErrorHandling(async () => {
+    const { baseUrl, token } = normalizeContext(options)
+    return fetchSanctionsDashboard(baseUrl, token)
+  }, 'Unable to load sanctions dashboard.')
+}
+
+export async function getMyAttendanceRecords(options = {}) {
+  return runWithReportErrorHandling(async () => {
+    const { baseUrl, token } = normalizeContext(options)
+    return fetchMyAttendance(baseUrl, token, options?.params || {})
+  }, 'Unable to load personal attendance records.')
+}
+
+export async function getMySanctionsReport(options = {}) {
+  return runWithReportErrorHandling(async () => {
+    const { baseUrl, token } = normalizeContext(options)
+    return fetchMySanctions(baseUrl, token)
+  }, 'Unable to load personal sanctions report.')
+}
+
 export async function getImportReports(options = {}) {
   return runWithReportErrorHandling(async () => {
     const { baseUrl, token } = normalizeContext(options)
@@ -213,5 +246,9 @@ export default {
   getAttendanceOverview,
   getAuditLogs,
   getNotificationLogs,
+  getGovernanceOverview,
+  getSanctionsDashboard,
+  getMyAttendanceRecords,
+  getMySanctionsReport,
   getImportReports,
 }

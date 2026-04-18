@@ -27,15 +27,19 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27
     restart: always
+    environment:
+      - MP_DATABASE=/data/mailpit.db
     ports:
       - "1025:1025"
       - "8025:8025"
+    volumes:
+      - mailpit_data:/data
 
   migrate:
     build:
       context: ./Backend
     image: rizal-backend:local
-    command: alembic upgrade head
+    command: alembic upgrade heads
     env_file:
       - ./.env
     environment:
@@ -169,6 +173,7 @@ services:
     ports:
       - "5173:80"
     environment:
+      - PORT=80
       - BACKEND_ORIGIN=${BACKEND_ORIGIN:-http://backend:8000}
       - ASSISTANT_ORIGIN=${ASSISTANT_ORIGIN:-http://assistant:8500}
       - AURA_API_BASE_URL=${AURA_API_BASE_URL:-/__backend__}
@@ -230,3 +235,4 @@ volumes:
   import_storage:
   branding_storage:
   insightface_models:
+  mailpit_data:

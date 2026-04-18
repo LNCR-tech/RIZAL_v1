@@ -341,6 +341,83 @@
         </section>
       </div>
 
+      <div v-else-if="section === 'reports'" class="admin-view__stack">
+        <section class="admin-view__metrics">
+          <article v-for="card in reportSummaryCards" :key="card.id" class="admin-view__metric" :class="{ 'admin-view__metric--primary': card.primary }">
+            <p>{{ card.label }}</p>
+            <strong>{{ card.value }}</strong>
+            <span>{{ card.meta }}</span>
+          </article>
+        </section>
+
+        <section class="admin-view__grid admin-view__grid--reports">
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div><p class="admin-view__mini">Subscriptions</p><h2>School Spread</h2></div>
+            </div>
+            <div v-if="subscriptionChartData.labels.length" class="admin-view__chart">
+              <ReportsBarChart :data="subscriptionChartData" :options="chartOptions.bar" />
+            </div>
+            <p v-else class="admin-view__muted">No school subscription data yet.</p>
+          </article>
+
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div><p class="admin-view__mini">Operations</p><h2>Audit + Notification Trend</h2></div>
+            </div>
+            <div v-if="activityTrendChartData.labels.length" class="admin-view__chart">
+              <ReportsLineChart :data="activityTrendChartData" :options="chartOptions.line" />
+            </div>
+            <p v-else class="admin-view__muted">Recent operational activity will appear here.</p>
+          </article>
+
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div><p class="admin-view__mini">Governance</p><h2>Queue Status</h2></div>
+            </div>
+            <div v-if="requestStatusChartData.labels.length" class="admin-view__chart">
+              <ReportsPieChart :data="requestStatusChartData" :options="chartOptions.pie" />
+            </div>
+            <p v-else class="admin-view__muted">No governance requests are waiting right now.</p>
+          </article>
+        </section>
+
+        <section class="admin-view__grid">
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div><p class="admin-view__mini">School Report</p><h2>School health table</h2></div>
+            </div>
+            <div class="admin-view__list">
+              <article v-for="row in schoolHealthRows" :key="row.school_id" class="admin-view__row">
+                <div>
+                  <h3>{{ row.school_name }}</h3>
+                  <p>{{ row.meta }}</p>
+                </div>
+                <div class="admin-view__badges">
+                  <span class="admin-view__badge">{{ row.subscription_label }}</span>
+                  <span class="admin-view__badge admin-view__badge--muted">{{ row.active_label }}</span>
+                </div>
+              </article>
+            </div>
+          </article>
+
+          <article class="admin-view__card">
+            <div class="admin-view__card-head">
+              <div><p class="admin-view__mini">Activity Feed</p><h2>Recent platform activity</h2></div>
+            </div>
+            <div class="admin-view__list">
+              <article v-for="item in recentPlatformActivity" :key="item.key" class="admin-view__row">
+                <div>
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ item.meta }}</p>
+                </div>
+                <span class="admin-view__badge admin-view__badge--muted">{{ item.badge }}</span>
+              </article>
+            </div>
+          </article>
+        </section>
+      </div>
+
       <div v-else class="admin-view__grid">
         <article class="admin-view__card">
           <div class="admin-view__card-head">
@@ -455,6 +532,7 @@ const sectionMetaMap = {
   schools: { title: 'Schools', description: 'Provision campuses, create school accounts, and control activation and subscription states.', searchPlaceholder: 'Search schools', actionLabel: 'Create School', actionIcon: Plus },
   accounts: { title: 'Campus Admin Accounts', description: 'Manage school-scoped admin accounts and rotate credentials cleanly.', searchPlaceholder: 'Search campus-admin accounts', actionLabel: 'Oversight', actionIcon: ShieldCheck },
   oversight: { title: 'Oversight', description: 'Review audit activity, dispatch notifications, and manage governance retention.', searchPlaceholder: 'Search logs and requests', actionLabel: 'Refresh', actionIcon: RefreshCw },
+  reports: { title: 'Reports', description: 'Review platform-wide school health, operational trends, and governance queue reporting in one place.', searchPlaceholder: 'Search schools and activity', actionLabel: 'Refresh', actionIcon: RefreshCw },
   profile: { title: 'Admin Profile', description: 'Review the current platform-admin session and module coverage.', searchPlaceholder: 'Search summary', actionLabel: 'Schools', actionIcon: Building2 },
 }
 
@@ -488,6 +566,44 @@ const oversightLogFeed = computed(() => [
   ...filteredAuditLogs.value.slice(0, 4).map((item) => ({ kind: 'audit', id: item.id, title: prettify(item.action), meta: `${resolveSchoolName(item.school_id)} • ${formatDateTime(item.created_at)}`, badge: prettify(item.status) })),
   ...filteredNotificationLogs.value.slice(0, 4).map((item) => ({ kind: 'notification', id: item.id, title: item.subject, meta: `${resolveSchoolName(item.school_id)} • ${formatDateTime(item.created_at)}`, badge: prettify(item.status) })),
 ])
+const reportSummaryCards = computed(() => [
+  { id: 'schools', label: 'Schools In Scope', value: filteredSchools.value.length, meta: 'School records after the current scope and search filters.', primary: true },
+  { id: 'active-campuses', label: 'Active Campuses', value: activeSchoolCount.value, meta: 'Schools currently marked active.' },
+  { id: 'campus-admins', label: 'Campus Admins', value: activeCampusAccountCount.value, meta: 'Active school-scoped admin accounts.' },
+  { id: 'audit-logs', label: 'Audit Logs', value: scopedAuditLogs.value.length, meta: 'Operational audit rows in the current scope.' },
+  { id: 'notifications', label: 'Notifications', value: scopedNotificationLogs.value.length, meta: 'Notification log entries available for reporting.' },
+  { id: 'pending-queue', label: 'Pending Requests', value: pendingRequestCount.value, meta: 'Governance requests still awaiting review.' },
+])
+const schoolHealthRows = computed(() => filteredSchools.value.map((school) => {
+  const relatedCampusAdmins = campusAccounts.value.filter((item) => Number(item?.school_id) === Number(school.school_id))
+  return {
+    school_id: school.school_id,
+    school_name: school.school_name,
+    subscription_label: formatSubscriptionLabel(school.subscription_status),
+    active_label: school.active_status ? 'Active' : 'Inactive',
+    meta: `${school.school_code || 'No code'} • ${relatedCampusAdmins.length} campus admin${relatedCampusAdmins.length === 1 ? '' : 's'} • ${resolveCampusAdminEmail(school.school_id)}`,
+  }
+}))
+const recentPlatformActivity = computed(() => {
+  return [
+    ...scopedAuditLogs.value.map((item) => ({
+      key: `audit-${item.id}`,
+      timestamp: new Date(item?.created_at || 0).getTime(),
+      title: prettify(item.action),
+      meta: `${resolveSchoolName(item.school_id)} • ${formatDateTime(item.created_at)}`,
+      badge: prettify(item.status),
+    })),
+    ...scopedNotificationLogs.value.map((item) => ({
+      key: `notification-${item.id}`,
+      timestamp: new Date(item?.created_at || 0).getTime(),
+      title: item.subject || prettify(item.category),
+      meta: `${resolveSchoolName(item.school_id)} • ${formatDateTime(item.created_at)}`,
+      badge: prettify(item.status),
+    })),
+  ]
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .slice(0, 10)
+})
 
 const scopedAuditLogs = computed(() => selectedSchoolId.value
   ? auditLogs.value.filter((item) => Number(item?.school_id) === Number(selectedSchoolId.value))
@@ -613,7 +729,7 @@ onMounted(async () => {
 })
 
 async function handleLogout() { await logout() }
-function handlePrimaryAction() { if (props.section === 'schools') { showCreateForm.value = !showCreateForm.value; return }; if (props.section === 'accounts') { goToSection('oversight'); return }; if (props.section === 'oversight') { initializeAdminWorkspaceData({ force: true }).catch(() => null); return }; goToSection('schools') }
+function handlePrimaryAction() { if (props.section === 'schools') { showCreateForm.value = !showCreateForm.value; return }; if (props.section === 'accounts') { goToSection('oversight'); return }; if (props.section === 'oversight' || props.section === 'reports') { initializeAdminWorkspaceData({ force: true }).catch(() => null); return }; goToSection('schools') }
 function goToSection(section) { const base = props.preview ? '/exposed/admin' : '/admin'; const next = section === 'overview' ? base : `${base}/${section}`; if (route.path !== next) router.push(next) }
 async function submitCreateSchool() { try { const created = await createAdminSchool({ ...createForm, school_code: createForm.school_code || undefined, school_it_middle_name: createForm.school_it_middle_name || undefined, school_it_password: createForm.school_it_password || undefined }); pushFeedback('success', `Created ${created?.school?.school_name || createForm.school_name}.`); Object.assign(createForm, createDefaultSchoolForm()); showCreateForm.value = false } catch (error) { pushFeedback('error', error?.message || 'Unable to create the school.') } }
 function handleCreateLogoChange(event) { createForm.logo = event?.target?.files?.[0] || null }

@@ -7,6 +7,7 @@ import {
 } from '@/services/backendBaseUrl.js'
 import {
     normalizeAuditLogResponse,
+    normalizeAttendanceOverviewCollection,
     normalizeClearanceDeadlineResponse,
     normalizeCreateSchoolWithSchoolItResponse,
     normalizeAttendanceRecord,
@@ -388,7 +389,7 @@ export async function deleteProgram(baseUrl, token, programId) {
 }
 
 export async function getSchoolSettings(baseUrl, token, requestOptions = {}) {
-    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me', '/api/school-settings/me', '/school-settings/me'], {
+    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me'], {
         method: 'GET',
         token,
         ...requestOptions,
@@ -1397,7 +1398,7 @@ export async function getAttendanceOverview(baseUrl, token, params = {}) {
         token,
         params,
     }, [404, 405])
-    return Array.isArray(payload) ? payload : []
+    return normalizeAttendanceOverviewCollection(payload)
 }
 
 export async function getStudentAttendanceReport(baseUrl, token, studentId, params = {}) {
@@ -1586,3 +1587,5 @@ function appendFormValue(formData, key, value) {
     if (value == null || value === '') return
     formData.append(key, String(value))
 }
+
+

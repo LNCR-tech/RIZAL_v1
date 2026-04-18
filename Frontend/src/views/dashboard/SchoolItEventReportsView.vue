@@ -311,6 +311,536 @@
                   </tbody>
                 </table>
               </div>
+
+              <header class="school-it-reports__detail-header">
+                <div>
+                  <h2 class="school-it-reports__section-title">Student Login Access Report</h2>
+                  <p class="school-it-reports__section-subtitle">{{ studentLoginWindowLabel }}</p>
+                </div>
+              </header>
+
+              <div class="school-it-reports__stats-grid school-it-reports__stats-grid--dense">
+                <article v-for="card in studentLoginCards" :key="card.id" class="school-it-reports__stat-card">
+                  <span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ card.meta }}</small>
+                </article>
+              </div>
+
+              <div class="school-it-reports__chart-grid">
+                <article class="school-it-reports__panel">
+                  <h3>Login Status Distribution</h3>
+                  <div v-if="studentLoginPieChartData.labels.length" class="school-it-reports__chart-scroll">
+                    <ReportsPieChart class="school-it-reports__chart-canvas" :data="studentLoginPieChartData" :options="chartOptions.pie" />
+                  </div>
+                  <p v-else class="school-it-reports__panel-empty">No login data available.</p>
+                </article>
+              </div>
+
+              <div class="school-it-reports__toolbar">
+                <div class="school-it-reports__search-shell">
+                  <input v-model="studentLoginQuery" class="school-it-reports__search-input" type="text" placeholder="Search student login access">
+                  <span class="school-it-reports__search-icon"><Search :size="16" /></span>
+                </div>
+              </div>
+
+              <div class="school-it-reports__table-wrap">
+                <table class="school-it-reports__table">
+                  <thead><tr><th>Student ID</th><th>Name</th><th>Department</th><th>Program</th><th>Status</th><th>Successful Logins</th><th>Last Login</th></tr></thead>
+                  <tbody>
+                    <tr v-for="row in filteredStudentLoginRows" :key="row.student_profile_id || row.student_id || row.full_name">
+                      <td>{{ row.student_id || 'N/A' }}</td>
+                      <td>{{ row.full_name }}</td>
+                      <td>{{ row.department_name || 'Unassigned' }}</td>
+                      <td>{{ row.program_name || 'Unassigned' }}</td>
+                      <td>
+                        <span
+                          class="school-it-reports__status-chip"
+                          :class="row.has_logged_in ? 'school-it-reports__status-chip--success' : 'school-it-reports__status-chip--muted'"
+                        >
+                          {{ row.status_label }}
+                        </span>
+                      </td>
+                      <td>{{ formatWhole(row.successful_login_count) }}</td>
+                      <td>{{ formatDateTime(row.last_login_at, 'Never') }}</td>
+                    </tr>
+                    <tr v-if="!filteredStudentLoginRows.length"><td colspan="7" class="school-it-reports__empty">No student login rows match the current filters.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </template>
+
+          <template v-else-if="activeTab === 'insights'">
+            <header class="school-it-reports__detail-header">
+              <div>
+                <h2 class="school-it-reports__section-title">Recommended Additional Reports</h2>
+                <p class="school-it-reports__section-subtitle">Derived from the current filters and aligned with the report catalog recommendations.</p>
+              </div>
+              <div class="school-it-reports__insight-controls">
+                <label class="school-it-reports__field">
+                  <span>At-Risk Threshold</span>
+                  <input v-model.number="insightControls.atRiskThreshold" class="school-it-reports__field-input" type="number" min="1" max="100">
+                </label>
+                <label class="school-it-reports__field">
+                  <span>Minimum Events</span>
+                  <input v-model.number="insightControls.minimumEvents" class="school-it-reports__field-input" type="number" min="1" max="50">
+                </label>
+                <label class="school-it-reports__field">
+                  <span>Decline Alert</span>
+                  <input v-model.number="insightControls.declineThreshold" class="school-it-reports__field-input" type="number" min="1" max="100">
+                </label>
+              </div>
+            </header>
+
+            <p class="school-it-reports__banner">Comparison window: {{ insightComparisonSummary }}</p>
+            <p v-if="insightComparisonError" class="school-it-reports__banner school-it-reports__banner--error">{{ insightComparisonError }}</p>
+            <p v-else-if="isLoadingInsightComparisons" class="school-it-reports__banner">Loading comparison ranges for recovery and decline reports...</p>
+
+            <div class="school-it-reports__stats-grid">
+              <article v-for="card in insightSummaryCards" :key="card.id" class="school-it-reports__stat-card">
+                <span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ card.meta }}</small>
+              </article>
+            </div>
+
+            <article class="school-it-reports__panel">
+              <div class="school-it-reports__panel-header">
+                <div>
+                  <h3>School KPI Dashboard Report</h3>
+                  <p class="school-it-reports__panel-subtitle">Executive snapshot of attendance quality, delay burden, incomplete flows, and participation reach.</p>
+                </div>
+              </div>
+              <div class="school-it-reports__stats-grid school-it-reports__stats-grid--dense">
+                <article v-for="card in schoolKpiCards" :key="card.id" class="school-it-reports__stat-card">
+                  <span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ card.meta }}</small>
+                </article>
+              </div>
+            </article>
+
+            <div class="school-it-reports__chart-grid">
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Attendance by Day of Week</h3>
+                    <p class="school-it-reports__panel-subtitle">Shows which weekdays deliver the weakest attendance rates.</p>
+                  </div>
+                </div>
+                <div v-if="attendanceByWeekdayChartData.labels.length" class="school-it-reports__chart-scroll">
+                  <ReportsBarChart class="school-it-reports__chart-canvas" :data="attendanceByWeekdayChartData" :options="chartOptions.barPercent" />
+                </div>
+                <p v-else class="school-it-reports__panel-empty">No weekday attendance data.</p>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Attendance by Time Block</h3>
+                    <p class="school-it-reports__panel-subtitle">Highlights late-frequency concentration by scheduled start time.</p>
+                  </div>
+                </div>
+                <div v-if="attendanceByTimeBlockChartData.labels.length" class="school-it-reports__chart-scroll">
+                  <ReportsBarChart class="school-it-reports__chart-canvas" :data="attendanceByTimeBlockChartData" :options="chartOptions.bar" />
+                </div>
+                <p v-else class="school-it-reports__panel-empty">No time block data.</p>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Year Level Attendance Distribution</h3>
+                    <p class="school-it-reports__panel-subtitle">Compares cohort performance using weighted attendance rate.</p>
+                  </div>
+                </div>
+                <div v-if="yearLevelChartData.labels.length" class="school-it-reports__chart-scroll">
+                  <ReportsBarChart class="school-it-reports__chart-canvas" :data="yearLevelChartData" :options="chartOptions.barPercent" />
+                </div>
+                <p v-else class="school-it-reports__panel-empty">No year level data.</p>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Event Completion vs Cancellation Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Tracks closure quality across completed, cancelled, and still-open events.</p>
+                  </div>
+                </div>
+                <div v-if="eventOutcomeChartData.labels.length" class="school-it-reports__chart-scroll">
+                  <ReportsPieChart class="school-it-reports__chart-canvas" :data="eventOutcomeChartData" :options="chartOptions.pie" />
+                </div>
+                <div class="school-it-reports__metric-list">
+                  <div class="school-it-reports__metric-pill">
+                    <span>Completed</span>
+                    <strong>{{ formatWhole(eventOutcomeSummary.completed) }}</strong>
+                  </div>
+                  <div class="school-it-reports__metric-pill">
+                    <span>Cancelled</span>
+                    <strong>{{ formatWhole(eventOutcomeSummary.cancelled) }}</strong>
+                  </div>
+                  <div class="school-it-reports__metric-pill">
+                    <span>Completion Rate</span>
+                    <strong>{{ formatPercent(eventOutcomeSummary.completionRate) }}%</strong>
+                  </div>
+                  <div class="school-it-reports__metric-pill">
+                    <span>Cancellation Rate</span>
+                    <strong>{{ formatPercent(eventOutcomeSummary.cancellationRate) }}%</strong>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="school-it-reports__insights-grid">
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>At-Risk Attendance List</h3>
+                    <p class="school-it-reports__panel-subtitle">Students below the threshold after meeting the minimum event count.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Student</th><th>Department</th><th>Events</th><th>Absent</th><th>Rate</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in atRiskRows" :key="`risk-${row.id}`">
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ row.department_name || row.program_name || 'Unassigned' }}</td>
+                        <td>{{ formatWhole(row.total_events) }}</td>
+                        <td>{{ formatWhole(row.absent_events) }}</td>
+                        <td>{{ formatPercent(row.attendance_rate) }}%</td>
+                      </tr>
+                      <tr v-if="!atRiskRows.length"><td colspan="5" class="school-it-reports__empty">No students currently meet the at-risk threshold.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Attendance Leaderboard</h3>
+                    <p class="school-it-reports__panel-subtitle">Ranks the highest performers once the minimum event requirement is met.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Student</th><th>Program</th><th>Events</th><th>Late</th><th>Rate</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in attendanceLeaderboardRows" :key="`leaderboard-${row.id}`">
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ row.program_name || row.department_name || 'Unassigned' }}</td>
+                        <td>{{ formatWhole(row.total_events) }}</td>
+                        <td>{{ formatWhole(row.late_events) }}</td>
+                        <td>{{ formatPercent(row.attendance_rate) }}%</td>
+                      </tr>
+                      <tr v-if="!attendanceLeaderboardRows.length"><td colspan="5" class="school-it-reports__empty">No leaderboard rows yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <div class="school-it-reports__insights-grid">
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Top Absentees</h3>
+                    <p class="school-it-reports__panel-subtitle">Prioritizes follow-up using exact absent counts from the student overview.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Student</th><th>Department</th><th>Absent</th><th>Events</th><th>Absent Rate</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in topAbsenteesRows" :key="`absent-${row.id}`">
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ row.department_name || row.program_name || 'Unassigned' }}</td>
+                        <td>{{ formatWhole(row.absent_events) }}</td>
+                        <td>{{ formatWhole(row.total_events) }}</td>
+                        <td>{{ formatPercent(row.absence_rate) }}%</td>
+                      </tr>
+                      <tr v-if="!topAbsenteesRows.length"><td colspan="5" class="school-it-reports__empty">No absentee rows available.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Top Late Students</h3>
+                    <p class="school-it-reports__panel-subtitle">Shows where punctuality interventions are most likely needed.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Student</th><th>Program</th><th>Late</th><th>Events</th><th>Late Rate</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in topLateRows" :key="`late-${row.id}`">
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ row.program_name || row.department_name || 'Unassigned' }}</td>
+                        <td>{{ formatWhole(row.late_events) }}</td>
+                        <td>{{ formatWhole(row.total_events) }}</td>
+                        <td>{{ formatPercent(row.late_rate) }}%</td>
+                      </tr>
+                      <tr v-if="!topLateRows.length"><td colspan="5" class="school-it-reports__empty">No late rows available.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <div class="school-it-reports__insights-grid">
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Attendance Recovery Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Highlights the strongest positive rate changes between the current and previous comparison windows.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Student</th><th>Previous</th><th>Current</th><th>Delta</th><th>Events</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in recoveryRows" :key="`recovery-${row.id}`">
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ formatPercent(row.previousRate) }}%</td>
+                        <td>{{ formatPercent(row.currentRate) }}%</td>
+                        <td class="school-it-reports__trend-cell school-it-reports__trend-cell--up">+{{ formatPercent(row.delta) }} pts</td>
+                        <td>{{ formatWhole(Math.max(row.currentEvents, row.previousEvents)) }}</td>
+                      </tr>
+                      <tr v-if="!recoveryRows.length"><td colspan="5" class="school-it-reports__empty">No recovery movements for the current comparison window.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Attendance Decline Alert</h3>
+                    <p class="school-it-reports__panel-subtitle">Flags students whose attendance rate dropped beyond the configured alert threshold.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Student</th><th>Previous</th><th>Current</th><th>Delta</th><th>Events</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in declineRows" :key="`decline-${row.id}`">
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ formatPercent(row.previousRate) }}%</td>
+                        <td>{{ formatPercent(row.currentRate) }}%</td>
+                        <td class="school-it-reports__trend-cell school-it-reports__trend-cell--down">{{ formatPercent(row.delta) }} pts</td>
+                        <td>{{ formatWhole(Math.max(row.currentEvents, row.previousEvents)) }}</td>
+                      </tr>
+                      <tr v-if="!declineRows.length"><td colspan="5" class="school-it-reports__empty">No decline alerts at the current threshold.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <div class="school-it-reports__insights-grid">
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>No-Show Event Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Ranks the weakest event turnouts by absent share.</p>
+                  </div>
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Event</th><th>Date</th><th>Participants</th><th>Absent</th><th>No-Show Rate</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in noShowEventRows" :key="`no-show-${row.id}`">
+                        <td>{{ row.name }}</td>
+                        <td>{{ formatDate(row.date) }}</td>
+                        <td>{{ formatWhole(row.total) }}</td>
+                        <td>{{ formatWhole(row.absent) }}</td>
+                        <td>{{ formatPercent(row.noShowRate) }}%</td>
+                      </tr>
+                      <tr v-if="!noShowEventRows.length"><td colspan="5" class="school-it-reports__empty">No event attendance summaries available.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Repeat Participation Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Measures how deeply students stay engaged across multiple events.</p>
+                  </div>
+                </div>
+                <div v-if="repeatParticipationChartData.labels.length" class="school-it-reports__chart-scroll">
+                  <ReportsBarChart class="school-it-reports__chart-canvas" :data="repeatParticipationChartData" :options="chartOptions.bar" />
+                </div>
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table school-it-reports__table--compact">
+                    <thead><tr><th>Bucket</th><th>Students</th><th>Total Events</th><th>Average Rate</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in repeatParticipationRows" :key="row.id">
+                        <td>{{ row.label }}</td>
+                        <td>{{ formatWhole(row.totalStudents) }}</td>
+                        <td>{{ formatWhole(row.totalEvents) }}</td>
+                        <td>{{ formatPercent(row.averageRate) }}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <div class="school-it-reports__insights-grid">
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>First-Time vs Repeat Attendee Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Uses the selected event together with the current student overview scope.</p>
+                  </div>
+                </div>
+                <template v-if="selectedEvent">
+                  <p class="school-it-reports__panel-note">Selected event: {{ selectedEvent.name }}</p>
+                  <div v-if="firstTimeVsRepeatChartData.labels.length" class="school-it-reports__chart-scroll">
+                    <ReportsPieChart class="school-it-reports__chart-canvas" :data="firstTimeVsRepeatChartData" :options="chartOptions.pie" />
+                  </div>
+                  <div class="school-it-reports__metric-list">
+                    <div class="school-it-reports__metric-pill">
+                      <span>First-Time</span>
+                      <strong>{{ formatWhole(firstTimeVsRepeatSummary.firstTime) }}</strong>
+                    </div>
+                    <div class="school-it-reports__metric-pill">
+                      <span>Repeat</span>
+                      <strong>{{ formatWhole(firstTimeVsRepeatSummary.repeat) }}</strong>
+                    </div>
+                    <div class="school-it-reports__metric-pill">
+                      <span>Matched Attendees</span>
+                      <strong>{{ formatWhole(firstTimeVsRepeatSummary.attendees - firstTimeVsRepeatSummary.unmatched) }}</strong>
+                    </div>
+                    <div class="school-it-reports__metric-pill">
+                      <span>Unmatched</span>
+                      <strong>{{ formatWhole(firstTimeVsRepeatSummary.unmatched) }}</strong>
+                    </div>
+                  </div>
+                </template>
+                <p v-else class="school-it-reports__panel-empty">Select an event from the filter panel or Event Reports tab to populate this report.</p>
+              </article>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Event Execution Quality Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Focuses on late burden and incomplete sign-out patterns for the selected event.</p>
+                  </div>
+                </div>
+                <template v-if="selectedEventReport">
+                  <p class="school-it-reports__panel-note">Selected event: {{ selectedEventReport.event_name || selectedEvent?.name }}</p>
+                  <div class="school-it-reports__stats-grid school-it-reports__stats-grid--dense">
+                    <article v-for="card in selectedEventExecutionCards" :key="card.id" class="school-it-reports__stat-card">
+                      <span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ card.meta }}</small>
+                    </article>
+                  </div>
+                  <div class="school-it-reports__table-wrap">
+                    <table class="school-it-reports__table school-it-reports__table--compact">
+                      <thead><tr><th>Program</th><th>Total</th><th>Present</th><th>Late</th><th>Waiting</th><th>Absent</th></tr></thead>
+                      <tbody>
+                        <tr v-for="row in selectedEventReport.program_breakdown" :key="`execution-${row.program}`">
+                          <td>{{ row.program }}</td>
+                          <td>{{ formatWhole(row.total) }}</td>
+                          <td>{{ formatWhole(row.present) }}</td>
+                          <td>{{ formatWhole(row.late) }}</td>
+                          <td>{{ formatWhole(row.incomplete) }}</td>
+                          <td>{{ formatWhole(row.absent) }}</td>
+                        </tr>
+                        <tr v-if="!selectedEventReport.program_breakdown?.length"><td colspan="6" class="school-it-reports__empty">No program breakdown data for this event.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </template>
+                <p v-else class="school-it-reports__panel-empty">Select an event to inspect execution quality and no-show detail.</p>
+              </article>
+            </div>
+          </template>
+
+          <template v-else-if="activeTab === 'compliance'">
+            <header class="school-it-reports__detail-header">
+              <div>
+                <h2 class="school-it-reports__section-title">Compliance Reports</h2>
+                <p class="school-it-reports__section-subtitle">Absence-triggered sanctions, follow-up status, and export-ready event compliance summaries.</p>
+              </div>
+              <button class="school-it-reports__btn school-it-reports__btn--view" type="button" @click="loadSanctionsSummary">Refresh</button>
+            </header>
+
+            <div v-if="isLoadingSanctionsSummary" class="school-it-reports__skeleton-grid">
+              <div v-for="index in 3" :key="`compliance-skeleton-${index}`" class="school-it-reports__skeleton-card" />
+            </div>
+            <p v-else-if="sanctionsSummaryError" class="school-it-reports__banner school-it-reports__banner--error">{{ sanctionsSummaryError }}</p>
+            <template v-else>
+              <div class="school-it-reports__stats-grid">
+                <article v-for="card in complianceSummaryCards" :key="card.id" class="school-it-reports__stat-card">
+                  <span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ card.meta }}</small>
+                </article>
+              </div>
+
+              <div class="school-it-reports__chart-grid">
+                <article class="school-it-reports__panel">
+                  <div class="school-it-reports__panel-header">
+                    <div>
+                      <h3>Sanction Resolution Status</h3>
+                      <p class="school-it-reports__panel-subtitle">Shows how many issued sanctions still need action versus already complied items.</p>
+                    </div>
+                  </div>
+                  <div v-if="complianceStatusChartData.labels.length" class="school-it-reports__chart-scroll">
+                    <ReportsPieChart class="school-it-reports__chart-canvas" :data="complianceStatusChartData" :options="chartOptions.pie" />
+                  </div>
+                  <p v-else class="school-it-reports__panel-empty">No sanctions dashboard data available.</p>
+                </article>
+
+                <article class="school-it-reports__panel">
+                  <div class="school-it-reports__panel-header">
+                    <div>
+                      <h3>Highest Sanction Load</h3>
+                      <p class="school-it-reports__panel-subtitle">Prioritizes events with the heaviest absence and pending-sanction burden.</p>
+                    </div>
+                  </div>
+                  <div v-if="complianceLoadChartData.labels.length" class="school-it-reports__chart-scroll">
+                    <ReportsBarChart class="school-it-reports__chart-canvas" :data="complianceLoadChartData" :options="chartOptions.bar" />
+                  </div>
+                  <p v-else class="school-it-reports__panel-empty">No sanction-heavy events to chart yet.</p>
+                </article>
+              </div>
+
+              <article class="school-it-reports__panel">
+                <div class="school-it-reports__panel-header">
+                  <div>
+                    <h3>Sanction Events Report</h3>
+                    <p class="school-it-reports__panel-subtitle">Operational list of events with absences, pending items, compliance counts, and export actions.</p>
+                  </div>
+                </div>
+
+                <p v-if="selectedComplianceEvent" class="school-it-reports__panel-note">
+                  Selected event summary: {{ selectedComplianceEvent.event_name }} with {{ formatWhole(selectedComplianceEvent.pending_sanctions) }} pending sanctions and {{ formatPercent(selectedComplianceEvent.absence_rate_percent) }}% absence rate.
+                </p>
+
+                <div class="school-it-reports__table-wrap">
+                  <table class="school-it-reports__table">
+                    <thead><tr><th>Event</th><th>Participants</th><th>Absent</th><th>Absence Rate</th><th>Pending</th><th>Complied</th><th>Export</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in complianceEventRows" :key="`compliance-${row.event_id}`">
+                        <td>{{ row.event_name }}</td>
+                        <td>{{ formatWhole(row.participant_count) }}</td>
+                        <td>{{ formatWhole(row.absent_count) }}</td>
+                        <td>{{ formatPercent(row.absence_rate_percent) }}%</td>
+                        <td>{{ formatWhole(row.pending_sanctions) }}</td>
+                        <td>{{ formatWhole(row.complied_sanctions) }}</td>
+                        <td>
+                          <button class="school-it-reports__btn school-it-reports__btn--view" type="button" @click="downloadSanctionsExport(row)">
+                            <FileSpreadsheet :size="16" />
+                            <span>Export</span>
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="!complianceEventRows.length"><td colspan="7" class="school-it-reports__empty">No sanction-bearing events were returned by the dashboard.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
             </template>
           </template>
 
@@ -396,7 +926,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, BarChart3, Building2, Download, FileSpreadsheet, FileText, Search, SlidersHorizontal, UserRound, X } from 'lucide-vue-next'
+import { ArrowLeft, BarChart3, Building2, Download, FileSpreadsheet, FileText, Layers3, Search, ShieldAlert, SlidersHorizontal, UserRound, X } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import ReportsBarChart from '@/components/reports/ReportsBarChart.vue'
 import ReportsLineChart from '@/components/reports/ReportsLineChart.vue'
@@ -404,11 +934,13 @@ import ReportsPieChart from '@/components/reports/ReportsPieChart.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
+import { downloadEventSanctionsExport } from '@/services/backendApi.js'
 import {
   getAttendanceOverview,
   getAuditLogs,
   getEventAttendanceRecords,
   getEventAttendanceReport as fetchEventReport,
+  getSanctionsDashboard as fetchSanctionsDashboard,
   getImportReports,
   getNotificationLogs,
   getReportDepartments,
@@ -437,6 +969,8 @@ const tabs = [
   { id: 'event', label: 'Event Reports', icon: BarChart3 },
   { id: 'student', label: 'Student Reports', icon: UserRound },
   { id: 'school', label: 'School Summary', icon: Building2 },
+  { id: 'insights', label: 'Additional Reports', icon: Layers3 },
+  { id: 'compliance', label: 'Compliance', icon: ShieldAlert },
   { id: 'system', label: 'System Logs', icon: FileText },
 ]
 const validTabs = new Set(tabs.map((tab) => tab.id))
@@ -453,6 +987,7 @@ const filters = reactive({
 const searchQuery = ref('')
 const attendeeQuery = ref('')
 const studentRecordQuery = ref('')
+const studentLoginQuery = ref('')
 
 const events = ref([])
 const departments = ref([])
@@ -473,21 +1008,33 @@ const schoolSummary = ref(null)
 const auditLogs = ref({ total: 0, items: [] })
 const notificationLogs = ref([])
 const importReport = ref(null)
+const sanctionsSummary = ref(null)
 
 const isLoadingOverview = ref(false)
 const isLoadingSchoolSummary = ref(false)
 const isLoadingSystemLogs = ref(false)
 const isLoadingImport = ref(false)
+const isLoadingSanctionsSummary = ref(false)
 
 const attendanceOverviewError = ref('')
 const schoolSummaryError = ref('')
 const systemLogsError = ref('')
 const importError = ref('')
+const sanctionsSummaryError = ref('')
 
 const importJobId = ref('')
 const importPreviewToken = ref('')
 const isMobileViewport = ref(false)
 const mobileFiltersOpen = ref(false)
+const insightControls = reactive({
+  atRiskThreshold: 75,
+  minimumEvents: 3,
+  declineThreshold: 10,
+})
+const comparisonCurrentRows = ref([])
+const comparisonPreviousRows = ref([])
+const isLoadingInsightComparisons = ref(false)
+const insightComparisonError = ref('')
 
 let mobileMediaQuery = null
 
@@ -528,34 +1075,12 @@ const filteredEvents = computed(() => {
 
 const selectedEvent = computed(() => scopedEvents.value.find((event) => Number(event.id) === Number(selectedEventId.value)) || null)
 
+const selectedEventAttendanceRows = computed(() => buildEventAttendanceRows(selectedEventRecords.value))
+
 const filteredAttendanceRows = computed(() => {
   const query = String(attendeeQuery.value || '').trim().toLowerCase()
-  const latestByStudent = new Map()
-
-  for (const record of Array.isArray(selectedEventRecords.value) ? selectedEventRecords.value : []) {
-    const key = String(record?.student_id || record?.student_name || record?.attendance?.student_id || '')
-    const existing = latestByStudent.get(key)
-    const ts = new Date(record?.attendance?.time_out || record?.attendance?.time_in || 0).getTime()
-    const existingTs = new Date(existing?.attendance?.time_out || existing?.attendance?.time_in || 0).getTime()
-    if (!existing || ts > existingTs) latestByStudent.set(key, record)
-  }
-
-  const rows = Array.from(latestByStudent.values()).map((record) => {
-    const attendance = record?.attendance || {}
-    const status = resolveAttendanceStatus(attendance)
-    return {
-      key: `${record?.student_id || record?.student_name || 'student'}:${attendance.id || attendance.time_in || 'row'}`,
-      studentId: String(record?.student_id || 'N/A'),
-      studentName: String(record?.student_name || 'Unknown Student'),
-      statusLabel: formatStatusLabel(status),
-      timeInLabel: formatDateTime(attendance.time_in, 'N/A'),
-      timeOutLabel: formatDateTime(attendance.time_out, status === 'waiting' ? 'Waiting' : 'N/A'),
-      methodLabel: formatMethod(attendance.method),
-    }
-  })
-
-  if (!query) return rows
-  return rows.filter((row) => [row.studentId, row.studentName, row.statusLabel, row.methodLabel].join(' ').toLowerCase().includes(query))
+  if (!query) return selectedEventAttendanceRows.value
+  return selectedEventAttendanceRows.value.filter((row) => [row.studentId, row.studentName, row.statusLabel, row.methodLabel].join(' ').toLowerCase().includes(query))
 })
 
 const filteredStudentRecords = computed(() => {
@@ -566,6 +1091,43 @@ const filteredStudentRecords = computed(() => {
 })
 
 const schoolSummaryPayload = computed(() => schoolSummary.value?.summary || null)
+const studentLoginRows = computed(() => {
+  const rows = Array.isArray(schoolSummary.value?.student_login_rows) ? schoolSummary.value.student_login_rows : []
+  return rows.map((row) => buildStudentLoginRow(row))
+})
+const studentLoginSummary = computed(() => {
+  const summary = schoolSummary.value?.student_login_summary || {}
+  const totalStudents = toWholeNumber(summary.total_students ?? studentLoginRows.value.length)
+  const loggedInStudents = clampWholeNumber(
+    summary.logged_in_students ?? studentLoginRows.value.filter((row) => row.has_logged_in).length,
+    0,
+    totalStudents,
+  )
+  const notLoggedInStudents = clampWholeNumber(
+    summary.not_logged_in_students ?? Math.max(totalStudents - loggedInStudents, 0),
+    0,
+    totalStudents,
+  )
+  const loginCoverageRate = readFiniteNumber(summary.login_coverage_rate)
+
+  return {
+    total_students: totalStudents,
+    logged_in_students: loggedInStudents,
+    not_logged_in_students: notLoggedInStudents,
+    login_coverage_rate: loginCoverageRate != null
+      ? loginCoverageRate
+      : (totalStudents > 0 ? (loggedInStudents / totalStudents) * 100 : 0),
+  }
+})
+const studentLoginWindowLabel = computed(() => {
+  if (!filters.startDate && !filters.endDate) {
+    return 'Successful student logins across all recorded login history in the current school scope.'
+  }
+
+  const startLabel = filters.startDate ? formatDate(filters.startDate) : 'the beginning of recorded history'
+  const endLabel = filters.endDate ? formatDate(filters.endDate) : 'today'
+  return `Successful student logins from ${startLabel} to ${endLabel}.`
+})
 
 const eventSummaryCards = computed(() => {
   const report = selectedEventReport.value
@@ -605,11 +1167,412 @@ const schoolSummaryCards = computed(() => {
     { id: 'excused', label: 'Excused', value: formatWhole(summary.excused_count), meta: 'Excused rows.' },
   ]
 })
+const studentLoginCards = computed(() => {
+  const summary = studentLoginSummary.value
+  return [
+    { id: 'scope', label: 'Students In Scope', value: formatWhole(summary.total_students), meta: 'Student accounts covered by the current report filters.' },
+    { id: 'logged-in', label: 'Logged In', value: formatWhole(summary.logged_in_students), meta: 'Students with at least one successful login in this report window.' },
+    { id: 'not-logged-in', label: 'No Login Yet', value: formatWhole(summary.not_logged_in_students), meta: 'Students without a successful login in this report window.' },
+    { id: 'coverage', label: 'Login Coverage', value: `${formatPercent(summary.login_coverage_rate)}%`, meta: 'Successful-login coverage across the scoped student roster.' },
+  ]
+})
 
-const topStudentsRows = computed(() => [...overviewRows.value].sort((a, b) => Number(b.attendance_rate || 0) - Number(a.attendance_rate || 0)).slice(0, 20))
+const overviewAnalyticsRows = computed(() => (Array.isArray(overviewRows.value) ? overviewRows.value : []).map((row) => buildOverviewAnalyticsRow(row)))
+const comparisonCurrentAnalyticsRows = computed(() => (Array.isArray(comparisonCurrentRows.value) ? comparisonCurrentRows.value : []).map((row) => buildOverviewAnalyticsRow(row)))
+const comparisonPreviousAnalyticsRows = computed(() => (Array.isArray(comparisonPreviousRows.value) ? comparisonPreviousRows.value : []).map((row) => buildOverviewAnalyticsRow(row)))
+const insightComparisonWindow = computed(() => buildComparisonWindow(filters.startDate, filters.endDate))
+const insightComparisonSummary = computed(() => {
+  const window = insightComparisonWindow.value
+  return `${formatDate(window.current.start)} to ${formatDate(window.current.end)} compared with ${formatDate(window.previous.start)} to ${formatDate(window.previous.end)}`
+})
+const overviewLookup = computed(() => {
+  const lookup = new Map()
+  for (const row of overviewAnalyticsRows.value) {
+    if (row.id) lookup.set(`profile:${row.id}`, row)
+    if (row.student_id) lookup.set(`student:${normalizeLookupKey(row.student_id)}`, row)
+    if (row.full_name) lookup.set(`name:${normalizeLookupKey(row.full_name)}`, row)
+  }
+  return lookup
+})
+const overviewTotals = computed(() => overviewAnalyticsRows.value.reduce((accumulator, row) => {
+  accumulator.totalEvents += row.total_events
+  accumulator.attended += row.attended_events
+  accumulator.late += row.late_events
+  accumulator.absent += row.absent_events
+  accumulator.incomplete += row.incomplete_events
+  accumulator.excused += row.excused_events
+  return accumulator
+}, {
+  totalEvents: 0,
+  attended: 0,
+  late: 0,
+  absent: 0,
+  incomplete: 0,
+  excused: 0,
+}))
+const schoolKpiCards = computed(() => {
+  const totals = overviewTotals.value
+  const denominator = totals.totalEvents || 0
+  const uniqueStudents = Number(schoolSummaryPayload.value?.unique_students ?? overviewAnalyticsRows.value.length)
+  const uniqueEvents = Number(schoolSummaryPayload.value?.unique_events ?? 0)
+  return [
+    { id: 'attendance-rate', label: 'Attendance Rate', value: `${formatPercent(denominator > 0 ? (totals.attended / denominator) * 100 : 0)}%`, meta: 'Valid attended events across the filtered student scope.' },
+    { id: 'late-rate', label: 'Late Rate', value: `${formatPercent(denominator > 0 ? (totals.late / denominator) * 100 : 0)}%`, meta: 'Late events as a share of tracked events.' },
+    { id: 'absent-rate', label: 'Absent Rate', value: `${formatPercent(denominator > 0 ? (totals.absent / denominator) * 100 : 0)}%`, meta: 'Absent events inside the selected report scope.' },
+    { id: 'incomplete-rate', label: 'Incomplete Rate', value: `${formatPercent(denominator > 0 ? (totals.incomplete / denominator) * 100 : 0)}%`, meta: 'Open or unfinished attendance records.' },
+    { id: 'reach', label: 'Participation Reach', value: formatWhole(uniqueStudents), meta: 'Students covered by the current report filters.' },
+    { id: 'events', label: 'Event Coverage', value: formatWhole(uniqueEvents), meta: 'Distinct events contributing to these KPIs.' },
+  ]
+})
+const atRiskRows = computed(() => {
+  const threshold = Number(insightControls.atRiskThreshold || 0)
+  const minimumEvents = Number(insightControls.minimumEvents || 0)
+  return overviewAnalyticsRows.value
+    .filter((row) => row.total_events >= minimumEvents && row.attendance_rate < threshold)
+    .sort((a, b) => {
+      if (a.attendance_rate !== b.attendance_rate) return a.attendance_rate - b.attendance_rate
+      if (a.absent_events !== b.absent_events) return b.absent_events - a.absent_events
+      return String(a.full_name || '').localeCompare(String(b.full_name || ''))
+    })
+    .slice(0, 12)
+})
+const topAbsenteesRows = computed(() => overviewAnalyticsRows.value
+  .filter((row) => row.total_events > 0)
+  .sort((a, b) => {
+    if (a.absent_events !== b.absent_events) return b.absent_events - a.absent_events
+    if (a.absence_rate !== b.absence_rate) return b.absence_rate - a.absence_rate
+    return a.attendance_rate - b.attendance_rate
+  })
+  .slice(0, 10))
+const topLateRows = computed(() => overviewAnalyticsRows.value
+  .filter((row) => row.total_events > 0)
+  .sort((a, b) => {
+    if (a.late_events !== b.late_events) return b.late_events - a.late_events
+    if (a.late_rate !== b.late_rate) return b.late_rate - a.late_rate
+    return a.attendance_rate - b.attendance_rate
+  })
+  .slice(0, 10))
+const attendanceLeaderboardRows = computed(() => overviewAnalyticsRows.value
+  .filter((row) => row.total_events >= Number(insightControls.minimumEvents || 0))
+  .sort((a, b) => {
+    if (a.attendance_rate !== b.attendance_rate) return b.attendance_rate - a.attendance_rate
+    if (a.total_events !== b.total_events) return b.total_events - a.total_events
+    return a.late_events - b.late_events
+  })
+  .slice(0, 10))
+const yearLevelRows = computed(() => {
+  const buckets = new Map()
+  for (const row of overviewAnalyticsRows.value) {
+    const key = row.year_level == null ? 'Unspecified' : `Year ${row.year_level}`
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        label: key,
+        studentCount: 0,
+        totalEvents: 0,
+        attended: 0,
+        late: 0,
+        absent: 0,
+        incomplete: 0,
+        excused: 0,
+        sortOrder: row.year_level == null ? Number.POSITIVE_INFINITY : Number(row.year_level),
+      })
+    }
+    const bucket = buckets.get(key)
+    bucket.studentCount += 1
+    bucket.totalEvents += row.total_events
+    bucket.attended += row.attended_events
+    bucket.late += row.late_events
+    bucket.absent += row.absent_events
+    bucket.incomplete += row.incomplete_events
+    bucket.excused += row.excused_events
+  }
+
+  return Array.from(buckets.values())
+    .map((bucket) => ({
+      ...bucket,
+      attendanceRate: bucket.totalEvents > 0 ? (bucket.attended / bucket.totalEvents) * 100 : 0,
+    }))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+})
+const yearLevelChartData = computed(() => ({
+  labels: yearLevelRows.value.map((row) => row.label),
+  datasets: [{ label: 'Attendance Rate (%)', data: yearLevelRows.value.map((row) => roundPercent(row.attendanceRate)), backgroundColor: 'rgba(0,87,184,0.88)', borderRadius: 10 }],
+}))
+const repeatParticipationRows = computed(() => {
+  const ranges = [
+    { id: 'once', label: '1 event', min: 1, max: 1 },
+    { id: 'few', label: '2-3 events', min: 2, max: 3 },
+    { id: 'steady', label: '4-6 events', min: 4, max: 6 },
+    { id: 'engaged', label: '7+ events', min: 7, max: Number.POSITIVE_INFINITY },
+  ]
+
+  return ranges.map((range) => {
+    const matchedRows = overviewAnalyticsRows.value.filter((row) => row.total_events >= range.min && row.total_events <= range.max)
+    const totalStudents = matchedRows.length
+    const totalEvents = matchedRows.reduce((sum, row) => sum + row.total_events, 0)
+    return {
+      ...range,
+      totalStudents,
+      totalEvents,
+      averageRate: totalStudents > 0 ? matchedRows.reduce((sum, row) => sum + row.attendance_rate, 0) / totalStudents : 0,
+    }
+  })
+})
+const repeatParticipationChartData = computed(() => ({
+  labels: repeatParticipationRows.value.map((row) => row.label),
+  datasets: [{ label: 'Students', data: repeatParticipationRows.value.map((row) => row.totalStudents), backgroundColor: ['rgba(0,87,184,0.88)', 'rgba(245,158,11,0.88)', 'rgba(16,185,129,0.88)', 'rgba(15,23,42,0.88)'], borderRadius: 10 }],
+}))
+const comparisonDeltaRows = computed(() => {
+  const currentRows = new Map(comparisonCurrentAnalyticsRows.value.map((row) => [String(row.id), row]))
+  const previousRows = new Map(comparisonPreviousAnalyticsRows.value.map((row) => [String(row.id), row]))
+  const keys = new Set([...currentRows.keys(), ...previousRows.keys()])
+  const minimumEvents = Number(insightControls.minimumEvents || 0)
+  const rows = []
+
+  for (const key of keys) {
+    const current = currentRows.get(key) || null
+    const previous = previousRows.get(key) || null
+    const totalEvents = Math.max(Number(current?.total_events || 0), Number(previous?.total_events || 0))
+    if (totalEvents < minimumEvents) continue
+
+    const currentRate = Number(current?.attendance_rate || 0)
+    const previousRate = Number(previous?.attendance_rate || 0)
+    rows.push({
+      id: Number(current?.id ?? previous?.id ?? 0),
+      student_id: current?.student_id || previous?.student_id || null,
+      full_name: current?.full_name || previous?.full_name || 'Unknown Student',
+      department_name: current?.department_name || previous?.department_name || null,
+      program_name: current?.program_name || previous?.program_name || null,
+      currentRate,
+      previousRate,
+      currentEvents: Number(current?.total_events || 0),
+      previousEvents: Number(previous?.total_events || 0),
+      delta: roundToTwo(currentRate - previousRate),
+    })
+  }
+
+  return rows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+})
+const recoveryRows = computed(() => comparisonDeltaRows.value.filter((row) => row.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 10))
+const declineRows = computed(() => comparisonDeltaRows.value.filter((row) => row.delta <= -Number(insightControls.declineThreshold || 0)).sort((a, b) => a.delta - b.delta).slice(0, 10))
+const eventInsightRows = computed(() => filteredEvents.value.map((event) => {
+  const cachedReport = eventCache.get(Number(event.id))?.report || null
+  const liveReport = Number(event.id) === Number(selectedEventId.value) ? selectedEventReport.value : null
+  const report = liveReport || cachedReport
+  const summary = event?.attendance_summary && typeof event.attendance_summary === 'object' ? event.attendance_summary : {}
+  const total = toWholeNumber(report?.total_participants ?? summary.total_attendance_records ?? 0)
+  const late = toWholeNumber(report?.late_attendees ?? summary.late_count ?? 0)
+  const absent = toWholeNumber(report?.absentees ?? summary.absent_count ?? 0)
+  const excused = toWholeNumber(report?.excused_attendees ?? summary.excused_count ?? 0)
+  const attended = toWholeNumber(report?.attendees ?? summary.attended_count ?? (toWholeNumber(summary.present_count ?? 0) + late))
+  const incomplete = toWholeNumber(report?.incomplete_attendees ?? 0)
+  return {
+    id: Number(event.id || 0),
+    name: event.name,
+    date: event.start_datetime,
+    status: String(event.status || 'upcoming').toLowerCase(),
+    total,
+    attended,
+    late,
+    absent,
+    excused,
+    incomplete,
+    attendanceRate: total > 0 ? (attended / total) * 100 : 0,
+    noShowRate: total > 0 ? (absent / total) * 100 : 0,
+    lateRate: total > 0 ? (late / total) * 100 : 0,
+    incompleteRate: total > 0 ? (incomplete / total) * 100 : 0,
+    weekday: getWeekdayLabel(event.start_datetime),
+    timeBlock: getTimeBlockLabel(event.start_datetime),
+  }
+}))
+const noShowEventRows = computed(() => eventInsightRows.value
+  .filter((row) => row.total > 0)
+  .sort((a, b) => {
+    if (a.noShowRate !== b.noShowRate) return b.noShowRate - a.noShowRate
+    return b.absent - a.absent
+  })
+  .slice(0, 10))
+const attendanceByWeekdayRows = computed(() => {
+  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const buckets = new Map(weekdays.map((label) => [label, { label, total: 0, attended: 0, late: 0, absent: 0 }]))
+  for (const row of eventInsightRows.value) {
+    const bucket = buckets.get(row.weekday)
+    if (!bucket) continue
+    bucket.total += row.total
+    bucket.attended += row.attended
+    bucket.late += row.late
+    bucket.absent += row.absent
+  }
+  return weekdays.map((label) => {
+    const bucket = buckets.get(label)
+    return {
+      ...bucket,
+      attendanceRate: bucket.total > 0 ? (bucket.attended / bucket.total) * 100 : 0,
+    }
+  })
+})
+const attendanceByWeekdayChartData = computed(() => ({
+  labels: attendanceByWeekdayRows.value.map((row) => row.label),
+  datasets: [{ label: 'Attendance Rate (%)', data: attendanceByWeekdayRows.value.map((row) => roundPercent(row.attendanceRate)), backgroundColor: 'rgba(0,87,184,0.88)', borderRadius: 10 }],
+}))
+const attendanceByTimeBlockRows = computed(() => {
+  const blocks = ['Before 8 AM', '8 AM - 12 PM', '12 PM - 4 PM', '4 PM and later']
+  const buckets = new Map(blocks.map((label) => [label, { label, late: 0, total: 0, attended: 0 }]))
+  for (const row of eventInsightRows.value) {
+    const bucket = buckets.get(row.timeBlock)
+    if (!bucket) continue
+    bucket.late += row.late
+    bucket.total += row.total
+    bucket.attended += row.attended
+  }
+  return blocks.map((label) => {
+    const bucket = buckets.get(label)
+    return {
+      ...bucket,
+      lateRate: bucket.total > 0 ? (bucket.late / bucket.total) * 100 : 0,
+    }
+  })
+})
+const attendanceByTimeBlockChartData = computed(() => ({
+  labels: attendanceByTimeBlockRows.value.map((row) => row.label),
+  datasets: [{ label: 'Late Count', data: attendanceByTimeBlockRows.value.map((row) => row.late), backgroundColor: 'rgba(245,158,11,0.88)', borderRadius: 10 }],
+}))
+const eventOutcomeSummary = computed(() => {
+  const counts = { completed: 0, cancelled: 0, ongoing: 0, upcoming: 0 }
+  for (const event of filteredEvents.value) {
+    const status = String(event?.status || '').toLowerCase()
+    if (Object.hasOwn(counts, status)) counts[status] += 1
+  }
+  const trackedClosed = counts.completed + counts.cancelled
+  return {
+    ...counts,
+    completionRate: trackedClosed > 0 ? (counts.completed / trackedClosed) * 100 : 0,
+    cancellationRate: trackedClosed > 0 ? (counts.cancelled / trackedClosed) * 100 : 0,
+  }
+})
+const eventOutcomeChartData = computed(() => ({
+  labels: ['Completed', 'Cancelled', 'Open / Upcoming'],
+  datasets: [{ data: [eventOutcomeSummary.value.completed, eventOutcomeSummary.value.cancelled, eventOutcomeSummary.value.ongoing + eventOutcomeSummary.value.upcoming], backgroundColor: ['rgba(16,185,129,0.88)', 'rgba(239,68,68,0.88)', 'rgba(0,87,184,0.88)'], borderWidth: 0 }],
+}))
+const firstTimeVsRepeatSummary = computed(() => {
+  const summary = { firstTime: 0, repeat: 0, unmatched: 0, attendees: 0 }
+  for (const row of selectedEventAttendanceRows.value) {
+    if (row.status === 'absent') continue
+    summary.attendees += 1
+    const matchedOverview = overviewLookup.value.get(`student:${normalizeLookupKey(row.studentId)}`) || overviewLookup.value.get(`name:${normalizeLookupKey(row.studentName)}`) || null
+    if (!matchedOverview) {
+      summary.unmatched += 1
+      continue
+    }
+    if (matchedOverview.total_events <= 1) summary.firstTime += 1
+    else summary.repeat += 1
+  }
+  return {
+    ...summary,
+    firstTimeRate: summary.attendees > 0 ? (summary.firstTime / summary.attendees) * 100 : 0,
+    repeatRate: summary.attendees > 0 ? (summary.repeat / summary.attendees) * 100 : 0,
+  }
+})
+const firstTimeVsRepeatChartData = computed(() => ({
+  labels: ['First-Time', 'Repeat'],
+  datasets: [{ data: [firstTimeVsRepeatSummary.value.firstTime, firstTimeVsRepeatSummary.value.repeat], backgroundColor: ['rgba(0,87,184,0.88)', 'rgba(245,158,11,0.88)'], borderWidth: 0 }],
+}))
+const selectedEventExecutionCards = computed(() => {
+  const report = selectedEventReport.value
+  if (!report) return []
+  const total = Number(report.total_participants || 0)
+  return [
+    { id: 'selected-no-show', label: 'No-Show Rate', value: `${formatPercent(total > 0 ? (Number(report.absentees || 0) / total) * 100 : 0)}%`, meta: 'Absences for the selected event.' },
+    { id: 'selected-late', label: 'Late Burden', value: `${formatPercent(total > 0 ? (Number(report.late_attendees || 0) / total) * 100 : 0)}%`, meta: 'Late attendees as a share of participants.' },
+    { id: 'selected-waiting', label: 'Incomplete Rate', value: `${formatPercent(total > 0 ? (Number(report.incomplete_attendees || 0) / total) * 100 : 0)}%`, meta: 'Students still waiting for sign-out.' },
+    { id: 'selected-attendance', label: 'Attendance Rate', value: `${formatPercent(report.attendance_rate || 0)}%`, meta: 'Completed attended rows vs participants.' },
+  ]
+})
+const insightSummaryCards = computed(() => {
+  const totals = overviewTotals.value
+  const denominator = totals.totalEvents || 0
+  const atRiskCount = atRiskRows.value.length
+  const declineCount = declineRows.value.length
+  const flaggedNoShowEvents = noShowEventRows.value.filter((row) => row.noShowRate >= 25).length
+  const repeatEngagement = repeatParticipationRows.value.find((row) => row.id === 'engaged')?.totalStudents || 0
+  return [
+    { id: 'risk-count', label: 'At-Risk Students', value: formatWhole(atRiskCount), meta: `Below ${formatWhole(insightControls.atRiskThreshold)}% with ${formatWhole(insightControls.minimumEvents)}+ events.` },
+    { id: 'decline-count', label: 'Decline Alerts', value: formatWhole(declineCount), meta: `Drop of ${formatWhole(insightControls.declineThreshold)} points or more.` },
+    { id: 'avg-rate', label: 'Average Attendance', value: `${formatPercent(denominator > 0 ? (totals.attended / denominator) * 100 : 0)}%`, meta: 'Current filtered overview performance.' },
+    { id: 'late-cases', label: 'Late Cases', value: formatWhole(totals.late), meta: 'Late events across students in scope.' },
+    { id: 'no-show-events', label: 'No-Show Events', value: formatWhole(flaggedNoShowEvents), meta: 'Events with at least 25% no-show rate.' },
+    { id: 'repeat-engagement', label: 'Deep Engagement', value: formatWhole(repeatEngagement), meta: 'Students with seven or more tracked events.' },
+  ]
+})
+const topStudentsRows = computed(() => [...overviewAnalyticsRows.value].sort((a, b) => Number(b.attendance_rate || 0) - Number(a.attendance_rate || 0)).slice(0, 20))
+const filteredStudentLoginRows = computed(() => {
+  const query = String(studentLoginQuery.value || '').trim().toLowerCase()
+  const rows = [...studentLoginRows.value].sort((a, b) => {
+    if (a.has_logged_in !== b.has_logged_in) return Number(a.has_logged_in) - Number(b.has_logged_in)
+    const loginDelta = new Date(b.last_login_at || 0).getTime() - new Date(a.last_login_at || 0).getTime()
+    if (Number.isFinite(loginDelta) && loginDelta !== 0) return loginDelta
+    return String(a.full_name || '').localeCompare(String(b.full_name || ''))
+  })
+  if (!query) return rows
+  return rows.filter((row) => [
+    row.student_id,
+    row.full_name,
+    row.department_name,
+    row.program_name,
+    row.status_label,
+  ].filter(Boolean).join(' ').toLowerCase().includes(query))
+})
 const auditRows = computed(() => Array.isArray(auditLogs.value?.items) ? auditLogs.value.items : [])
 const notificationRows = computed(() => Array.isArray(notificationLogs.value) ? notificationLogs.value : [])
 const importErrors = computed(() => Array.isArray(importReport.value?.jobStatus?.errors) ? importReport.value.jobStatus.errors : [])
+const complianceEventRows = computed(() => {
+  const rows = Array.isArray(sanctionsSummary.value?.events) ? sanctionsSummary.value.events : []
+  return [...rows].sort((a, b) => {
+    if (Number(a.pending_sanctions || 0) !== Number(b.pending_sanctions || 0)) return Number(b.pending_sanctions || 0) - Number(a.pending_sanctions || 0)
+    if (Number(a.absent_count || 0) !== Number(b.absent_count || 0)) return Number(b.absent_count || 0) - Number(a.absent_count || 0)
+    return Number(b.absence_rate_percent || 0) - Number(a.absence_rate_percent || 0)
+  })
+})
+const selectedComplianceEvent = computed(() => {
+  const selectedId = Number(selectedEventId.value)
+  if (!Number.isFinite(selectedId)) return complianceEventRows.value[0] || null
+  return complianceEventRows.value.find((row) => Number(row.event_id) === selectedId) || complianceEventRows.value[0] || null
+})
+const complianceSummaryCards = computed(() => {
+  const summary = sanctionsSummary.value || {}
+  const totalEvents = Number(summary.total_events || complianceEventRows.value.length || 0)
+  const totalParticipants = Number(summary.total_participants || 0)
+  const totalAbsent = Number(summary.total_absent || 0)
+  const pending = Number(summary.total_pending_sanctions || 0)
+  const complied = Number(summary.total_complied_sanctions || 0)
+  const absenceRate = Number(summary.overall_absence_rate_percent || 0)
+  return [
+    { id: 'compliance-events', label: 'Sanctioned Events', value: formatWhole(totalEvents), meta: 'Events that currently contribute to sanctions reporting.' },
+    { id: 'compliance-participants', label: 'Tracked Participants', value: formatWhole(totalParticipants), meta: 'Participants covered by the sanctions dashboard.' },
+    { id: 'compliance-absent', label: 'Absent Students', value: formatWhole(totalAbsent), meta: 'Absences that can trigger sanction workflows.' },
+    { id: 'compliance-pending', label: 'Pending Sanctions', value: formatWhole(pending), meta: 'Issued sanctions still waiting for compliance.' },
+    { id: 'compliance-complied', label: 'Complied Sanctions', value: formatWhole(complied), meta: 'Resolved sanction records across the current school scope.' },
+    { id: 'compliance-rate', label: 'Overall Absence Rate', value: `${formatPercent(absenceRate)}%`, meta: 'School-wide absence share across sanction-reporting events.' },
+  ]
+})
+const complianceStatusChartData = computed(() => {
+  const summary = sanctionsSummary.value || {}
+  const pending = Number(summary.total_pending_sanctions || 0)
+  const complied = Number(summary.total_complied_sanctions || 0)
+  if (pending <= 0 && complied <= 0) return { labels: [], datasets: [] }
+  return {
+    labels: ['Pending', 'Complied'],
+    datasets: [{ data: [pending, complied], backgroundColor: ['rgba(239,68,68,0.88)', 'rgba(16,185,129,0.88)'], borderWidth: 0 }],
+  }
+})
+const complianceLoadChartData = computed(() => {
+  const rows = complianceEventRows.value.slice(0, 8)
+  if (!rows.length) return { labels: [], datasets: [] }
+  return {
+    labels: rows.map((row) => row.event_name),
+    datasets: [{ label: 'Pending Sanctions', data: rows.map((row) => Number(row.pending_sanctions || 0)), backgroundColor: 'rgba(239,68,68,0.88)', borderRadius: 10 }],
+  }
+})
 
 const eventChartRows = computed(() => filteredEvents.value.slice(0, 10).map((event) => {
   const report = eventCache.get(Number(event.id))?.report
@@ -665,6 +1628,18 @@ const schoolPieChartData = computed(() => {
     datasets: [{ data: [Number(summary.present_count || 0), Number(summary.late_count || 0), Number(summary.absent_count || 0), Number(summary.excused_count || 0)], backgroundColor: ['rgba(0,87,184,0.88)', 'rgba(245,158,11,0.88)', 'rgba(239,68,68,0.88)', 'rgba(16,185,129,0.88)'], borderWidth: 0 }],
   }
 })
+const studentLoginPieChartData = computed(() => {
+  const summary = studentLoginSummary.value
+  if (summary.total_students <= 0) return { labels: [], datasets: [] }
+  return {
+    labels: ['Logged In', 'No Login Recorded'],
+    datasets: [{
+      data: [summary.logged_in_students, summary.not_logged_in_students],
+      backgroundColor: ['rgba(0,87,184,0.88)', 'rgba(148,163,184,0.88)'],
+      borderWidth: 0,
+    }],
+  }
+})
 
 const schoolBarChartData = computed(() => ({
   labels: topStudentsRows.value.slice(0, 8).map((row) => row.full_name),
@@ -683,13 +1658,14 @@ let overviewRequestId = 0
 let studentRequestId = 0
 let summaryRequestId = 0
 let logsRequestId = 0
+let insightComparisonRequestId = 0
 
 onMounted(async () => {
   initializeMobileLayout()
   await initializeDashboardSession().catch(() => null)
   if (!schoolSettings.value) await refreshSchoolSettings().catch(() => null)
   applyTabFromRoute()
-  await Promise.all([loadEvents(), loadDepartments(), loadAttendanceOverview(), loadSchoolSummary(), loadSystemLogs()])
+  await Promise.all([loadEvents(), loadDepartments(), loadAttendanceOverview(), loadSchoolSummary(), loadSystemLogs(), loadInsightComparisons(), loadSanctionsSummary()])
   await syncEventFromRoute()
 })
 
@@ -704,6 +1680,7 @@ watch(() => filters.studentId, () => { loadStudentReport().catch(() => null) })
 watch(() => [filters.startDate, filters.endDate, filters.departmentId], () => {
   loadAttendanceOverview().catch(() => null)
   loadSchoolSummary().catch(() => null)
+  loadInsightComparisons().catch(() => null)
 })
 watch(filteredEvents, () => { prefetchEventReports().catch(() => null) })
 
@@ -909,6 +1886,47 @@ async function loadSchoolSummary() {
   }
 }
 
+async function loadInsightComparisons() {
+  const requestId = ++insightComparisonRequestId
+  const window = insightComparisonWindow.value
+  isLoadingInsightComparisons.value = true
+  insightComparisonError.value = ''
+
+  try {
+    const [currentRows, previousRows] = await Promise.all([
+      getAttendanceOverview({
+        ...resolveApiContext(),
+        params: {
+          start_date: window.current.start,
+          end_date: window.current.end,
+          department_id: toPositiveInt(filters.departmentId),
+          limit: 250,
+        },
+      }),
+      getAttendanceOverview({
+        ...resolveApiContext(),
+        params: {
+          start_date: window.previous.start,
+          end_date: window.previous.end,
+          department_id: toPositiveInt(filters.departmentId),
+          limit: 250,
+        },
+      }),
+    ])
+
+    if (requestId !== insightComparisonRequestId) return
+    comparisonCurrentRows.value = Array.isArray(currentRows) ? currentRows : []
+    comparisonPreviousRows.value = Array.isArray(previousRows) ? previousRows : []
+  } catch (error) {
+    if (requestId !== insightComparisonRequestId) return
+    insightComparisonError.value = error?.message || 'Unable to load comparison ranges for additional reports.'
+    comparisonCurrentRows.value = []
+    comparisonPreviousRows.value = []
+  } finally {
+    if (requestId === insightComparisonRequestId) isLoadingInsightComparisons.value = false
+  }
+}
+
 async function loadSystemLogs() {
   const requestId = ++logsRequestId
   isLoadingSystemLogs.value = true
@@ -963,6 +1981,36 @@ async function loadImportReport() {
     importReport.value = null
   } finally {
     isLoadingImport.value = false
+  }
+}
+
+async function loadSanctionsSummary() {
+  isLoadingSanctionsSummary.value = true
+  sanctionsSummaryError.value = ''
+
+  try {
+    sanctionsSummary.value = await fetchSanctionsDashboard(resolveApiContext())
+  } catch (error) {
+    sanctionsSummaryError.value = error?.message || 'Unable to load sanctions dashboard.'
+    sanctionsSummary.value = null
+  } finally {
+    isLoadingSanctionsSummary.value = false
+  }
+}
+
+async function downloadSanctionsExport(row) {
+  const eventId = Number(row?.event_id)
+  if (!Number.isFinite(eventId)) return
+
+  const key = `sanctions:${eventId}`
+  if (isDownloading.value === key) return
+  isDownloading.value = key
+
+  try {
+    const blob = await downloadEventSanctionsExport(resolveApiContext().baseUrl, resolveApiContext().token, eventId)
+    triggerDownload(blob, `${sanitize(row?.event_name || `event_${eventId}_sanctions`)}.xlsx`)
+  } finally {
+    isDownloading.value = ''
   }
 }
 
@@ -1123,6 +2171,132 @@ function downloadExcel(report, rows) {
   triggerDownload(blob, `${sanitize(report?.event_name || 'event_report')}.xls`)
 }
 
+function buildEventAttendanceRows(records) {
+  const latestByStudent = new Map()
+
+  for (const record of Array.isArray(records) ? records : []) {
+    const key = String(record?.student_id || record?.student_name || record?.attendance?.student_id || '')
+    const existing = latestByStudent.get(key)
+    const timestamp = new Date(record?.attendance?.time_out || record?.attendance?.time_in || 0).getTime()
+    const existingTimestamp = new Date(existing?.attendance?.time_out || existing?.attendance?.time_in || 0).getTime()
+    if (!existing || timestamp > existingTimestamp) latestByStudent.set(key, record)
+  }
+
+  return Array.from(latestByStudent.values()).map((record) => {
+    const attendance = record?.attendance || {}
+    const status = resolveAttendanceStatus(attendance)
+    return {
+      key: `${record?.student_id || record?.student_name || 'student'}:${attendance.id || attendance.time_in || 'row'}`,
+      studentId: String(record?.student_id || 'N/A'),
+      studentName: String(record?.student_name || 'Unknown Student'),
+      status,
+      statusLabel: formatStatusLabel(status),
+      timeInLabel: formatDateTime(attendance.time_in, 'N/A'),
+      timeOutLabel: formatDateTime(attendance.time_out, status === 'waiting' ? 'Waiting' : 'N/A'),
+      methodLabel: formatMethod(attendance.method),
+    }
+  })
+}
+
+function buildOverviewAnalyticsRow(row = {}) {
+  const totalEvents = toWholeNumber(row?.total_events)
+  const explicitAttendanceRate = readFiniteNumber(row?.attendance_rate)
+  const explicitAttended = readFiniteNumber(row?.attended_events)
+  const attendedEvents = clampWholeNumber(
+    explicitAttended != null
+      ? explicitAttended
+      : ((explicitAttendanceRate || 0) / 100) * totalEvents,
+    0,
+    totalEvents,
+  )
+  const lateEvents = clampWholeNumber(row?.late_events, 0, attendedEvents)
+  const incompleteEvents = clampWholeNumber(row?.incomplete_events, 0, totalEvents)
+  const excusedEvents = clampWholeNumber(row?.excused_events, 0, totalEvents)
+  const explicitAbsent = readFiniteNumber(row?.absent_events)
+  const absentEvents = clampWholeNumber(
+    explicitAbsent != null
+      ? explicitAbsent
+      : Math.max(totalEvents - attendedEvents - incompleteEvents - excusedEvents, 0),
+    0,
+    totalEvents,
+  )
+  const attendanceRate = explicitAttendanceRate != null
+    ? explicitAttendanceRate
+    : (totalEvents > 0 ? (attendedEvents / totalEvents) * 100 : 0)
+
+  return {
+    ...row,
+    total_events: totalEvents,
+    attended_events: attendedEvents,
+    late_events: lateEvents,
+    incomplete_events: incompleteEvents,
+    absent_events: absentEvents,
+    excused_events: excusedEvents,
+    attendance_rate: attendanceRate,
+    present_events: Math.max(attendedEvents - lateEvents, 0),
+    late_rate: totalEvents > 0 ? (lateEvents / totalEvents) * 100 : 0,
+    absence_rate: totalEvents > 0 ? (absentEvents / totalEvents) * 100 : 0,
+  }
+}
+
+function buildStudentLoginRow(row = {}) {
+  const successfulLoginCount = toWholeNumber(row?.successful_login_count)
+  const lastLoginAt = typeof row?.last_login_at === 'string' && row.last_login_at.trim()
+    ? row.last_login_at
+    : null
+  const hasLoggedIn = row?.has_logged_in === true || successfulLoginCount > 0 || Boolean(lastLoginAt)
+
+  return {
+    ...row,
+    student_profile_id: toWholeNumber(row?.student_profile_id),
+    student_id: String(row?.student_id || '').trim() || null,
+    full_name: String(row?.full_name || 'Unknown Student').trim() || 'Unknown Student',
+    department_name: String(row?.department_name || '').trim() || null,
+    program_name: String(row?.program_name || '').trim() || null,
+    successful_login_count: successfulLoginCount,
+    last_login_at: lastLoginAt,
+    has_logged_in: hasLoggedIn,
+    status_label: hasLoggedIn ? 'Logged In' : 'No Login Recorded',
+  }
+}
+
+function buildComparisonWindow(startValue, endValue) {
+  let currentStart = parseDateInput(startValue)
+  let currentEnd = parseDateInput(endValue)
+
+  if (currentStart && !currentEnd) currentEnd = shiftDate(currentStart, 29)
+  if (!currentStart && currentEnd) currentStart = shiftDate(currentEnd, -29)
+
+  if (!currentStart && !currentEnd) {
+    currentEnd = new Date()
+    currentEnd.setHours(0, 0, 0, 0)
+    currentStart = shiftDate(currentEnd, -29)
+  }
+
+  if (currentEnd < currentStart) {
+    const swap = currentStart
+    currentStart = currentEnd
+    currentEnd = swap
+  }
+
+  const dayCount = Math.max(1, differenceInDaysInclusive(currentStart, currentEnd))
+  const previousEnd = shiftDate(currentStart, -1)
+  const previousStart = shiftDate(previousEnd, -(dayCount - 1))
+
+  return {
+    current: {
+      start: toIsoDate(currentStart),
+      end: toIsoDate(currentEnd),
+      days: dayCount,
+    },
+    previous: {
+      start: toIsoDate(previousStart),
+      end: toIsoDate(previousEnd),
+      days: dayCount,
+    },
+  }
+}
+
 function buildMonthlyLineData(rows) {
   const byMonth = new Map()
   for (const row of Array.isArray(rows) ? rows : []) {
@@ -1266,6 +2440,64 @@ function formatWhole(value) {
   const normalized = Number(value)
   if (!Number.isFinite(normalized)) return '0'
   return Math.round(normalized).toLocaleString('en-US')
+}
+
+function readFiniteNumber(value) {
+  const normalized = Number(value)
+  return Number.isFinite(normalized) ? normalized : null
+}
+
+function toWholeNumber(value) {
+  const normalized = readFiniteNumber(value)
+  if (normalized == null) return 0
+  return Math.max(0, Math.round(normalized))
+}
+
+function clampWholeNumber(value, min = 0, max = Number.POSITIVE_INFINITY) {
+  return Math.max(min, Math.min(max, toWholeNumber(value)))
+}
+
+function roundToTwo(value) {
+  const normalized = Number(value)
+  if (!Number.isFinite(normalized)) return 0
+  return Math.round(normalized * 100) / 100
+}
+
+function normalizeLookupKey(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function getWeekdayLabel(value) {
+  const date = new Date(value || 0)
+  if (Number.isNaN(date.getTime())) return 'Unscheduled'
+  return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date)
+}
+
+function getTimeBlockLabel(value) {
+  const date = new Date(value || 0)
+  if (Number.isNaN(date.getTime())) return 'Unscheduled'
+  const hour = date.getHours()
+  if (hour < 8) return 'Before 8 AM'
+  if (hour < 12) return '8 AM - 12 PM'
+  if (hour < 16) return '12 PM - 4 PM'
+  return '4 PM and later'
+}
+
+function shiftDate(value, days) {
+  const date = new Date(value)
+  date.setDate(date.getDate() + Number(days || 0))
+  return date
+}
+
+function differenceInDaysInclusive(start, end) {
+  const milliseconds = new Date(end).getTime() - new Date(start).getTime()
+  return Math.floor(milliseconds / 86400000) + 1
+}
+
+function toIsoDate(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function sanitize(value) {
@@ -1625,10 +2857,21 @@ async function handleLogout() {
   flex-wrap: wrap;
 }
 
+.school-it-reports__insight-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 10px;
+  width: min(100%, 520px);
+}
+
 .school-it-reports__stats-grid {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.school-it-reports__stats-grid--dense {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .school-it-reports__stat-card {
@@ -1686,16 +2929,110 @@ async function handleLogout() {
   background: #fff;
 }
 
+.school-it-reports__panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 .school-it-reports__panel h3 {
   margin: 0 0 8px;
   font-size: 16px;
   color: #111827;
 }
 
+.school-it-reports__panel-subtitle,
+.school-it-reports__panel-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .school-it-reports__panel-empty {
   margin: 0;
   color: #64748b;
   font-size: 13px;
+}
+
+.school-it-reports__insights-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.school-it-reports__metric-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin-top: 12px;
+}
+
+.school-it-reports__metric-pill {
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.school-it-reports__metric-pill span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.school-it-reports__metric-pill strong {
+  font-size: 18px;
+  color: #111827;
+}
+
+.school-it-reports__status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.school-it-reports__status-chip--success {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+.school-it-reports__status-chip--muted {
+  background: rgba(148, 163, 184, 0.16);
+  color: #475569;
+}
+
+.school-it-reports__table--compact {
+  min-width: 0;
+}
+
+.school-it-reports__table--compact th,
+.school-it-reports__table--compact td {
+  padding: 12px;
+}
+
+.school-it-reports__trend-cell {
+  font-weight: 800;
+}
+
+.school-it-reports__trend-cell--up {
+  color: #047857;
+}
+
+.school-it-reports__trend-cell--down {
+  color: #b91c1c;
 }
 
 .school-it-reports__import-tools {
@@ -1759,7 +3096,8 @@ async function handleLogout() {
   }
 
   .school-it-reports__stats-grid,
-  .school-it-reports__chart-grid {
+  .school-it-reports__chart-grid,
+  .school-it-reports__insights-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1790,6 +3128,11 @@ async function handleLogout() {
   }
 
   .school-it-reports__import-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .school-it-reports__insight-controls {
+    width: 100%;
     grid-template-columns: 1fr;
   }
 }
