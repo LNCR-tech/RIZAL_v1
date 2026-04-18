@@ -31,6 +31,15 @@ from app.models.program import Program
 from app.models.role import Role
 from app.models.school import School, SchoolSetting
 from app.models.user import StudentProfile, User, UserRole
+from app.models.sanctions import (
+    EventSanctionConfig,
+    SanctionRecord,
+    SanctionItem,
+    SanctionComplianceStatus,
+    SanctionItemStatus,
+    ClearanceDeadline,
+    ClearanceDeadlineStatus,
+)
 
 load_dotenv()
 
@@ -988,6 +997,118 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
             writer.writerow(row)
 
     print(f"Massive seeding completed. {records_target} records added.")
+
+    # 5. Sanction Universe
+    seed_massive_sanctions(db, target_school=target_school, students=student_profiles, events=events_list)
+
+
+def seed_massive_sanctions(db: Session, target_school: School, students: list[StudentProfile], events: list[Event]) -> None:
+    """Generate high-volume sanction records for absentees of major events."""
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    print(f"--- SANCTION UNIVERSE START ---")
+    
+    # 1. Select 'Major Assemblies' to trigger sanctions (approx 10% of events)
+    major_events = random.sample(events, k=max(1, len(events) // 10))
+    print(f"Assigning sanction rules to {len(major_events)} major events...")
+
+    sanction_configs = []
+    for event in major_events:
+        config = EventSanctionConfig(
+            school_id=target_school.id,
+            event_id=event.id,
+            sanctions_enabled=True,
+            item_definitions_json=[
+                {"code": "WARN", "name": "Written Warning", "description": "Formal warning for absence"},
+                {"code": "COMM", "name": "Community Service (4hrs)", "description": "Campus cleaning/maintenance"},
+                {"code": "FINE", "name": "Clearance Fine", "description": "PHP 50.00 administrative fee"}
+            ]
+        )
+        db.add(config)
+        sanction_configs.append(config)
+    db.commit()
+
+    # 2. Generate Sanction Records for absentees
+    # To keep it efficient, we'll pick a subset of students who were 'absent'
+    # In our massive seed, we didn't explicitly track 'attendance' objects for all 5k students per event,
+    # so we'll just simulate the absentees for these major events.
+    print(f"Generating sanction records for absentees...")
+    sanction_records = []
+    
+    for config in sanction_configs:
+        # Assume 15% of students were absent from major events
+        absentees = random.sample(students, k=int(len(students) * 0.15))
+        
+        batch = []
+        for student in absentees:
+            is_complied = random.random() > 0.6
+            record = {
+                "school_id": target_school.id,
+                "event_id": config.event_id,
+                "sanction_config_id": config.id,
+                "student_profile_id": student.id,
+                "status": SanctionComplianceStatus.COMPLIED if is_complied else SanctionComplianceStatus.PENDING,
+                "complied_at": datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30)) if is_complied else None,
+                "notes": "Automatically generated for non-attendance."
+            }
+            batch.append(record)
+        
+        # Batch insert for performance
+        db.bulk_insert_mappings(SanctionRecord, batch)
+        db.commit()
+        
+        # We need the IDs for the SanctionItems, so we'll fetch them back in chunks
+        # This is a bit slower but necessary for the foreign keys
+        records = db.query(SanctionRecord).filter(SanctionRecord.event_id == config.event_id).all()
+        sanction_records.extend(records)
+
+    # 3. Generate Sanction Items
+    print(f"Building {len(sanction_records) * 2} sanction items...")
+    item_batch = []
+    for record in sanction_records:
+        # Every sanction gets a Warning
+        item_batch.append({
+            "sanction_record_id": record.id,
+            "item_code": "WARN",
+            "item_name": "Written Warning",
+            "status": SanctionItemStatus.COMPLIED if record.status == SanctionComplianceStatus.COMPLIED else SanctionItemStatus.PENDING
+        })
+        # 50% also get Community Service
+        if random.random() > 0.5:
+            item_batch.append({
+                "sanction_record_id": record.id,
+                "item_code": "COMM",
+                "item_name": "Community Service (4hrs)",
+                "status": SanctionItemStatus.COMPLIED if record.status == SanctionComplianceStatus.COMPLIED else SanctionItemStatus.PENDING
+            })
+
+    # Massive bulk insert for items
+    chunk_size = 10000
+    for i in range(0, len(item_batch), chunk_size):
+        chunk = item_batch[i:i+chunk_size]
+        db.bulk_insert_mappings(SanctionItem, chunk)
+        db.commit()
+
+    # 4. Add Clearance Deadlines
+    print(f"Setting semester clearance deadlines...")
+    deadlines = [
+        ("End of Semester 1", datetime.now(timezone.utc) + timedelta(days=30)),
+        ("Midterm Clearance", datetime.now(timezone.utc) - timedelta(days=15))
+    ]
+    
+    for name, dt in deadlines:
+        deadline = ClearanceDeadline(
+            school_id=target_school.id,
+            event_id=random.choice(major_events).id,
+            deadline_at=dt,
+            status=ClearanceDeadlineStatus.ACTIVE if dt > datetime.now(timezone.utc) else ClearanceDeadlineStatus.EXPIRED,
+            message=f"Please settle all pending sanctions for {name}."
+        )
+        db.add(deadline)
+    
+    db.commit()
+    print(f"Sanction Universe seeded successfully.")
 
 
 
