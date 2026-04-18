@@ -868,11 +868,15 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
         ("College of Education", ["BSEd Mathematics", "BSEd English"])
     ]
 
-    all_programs = []
+    all_programs_with_depts = []
     for dept_name, progs in colleges:
         dept = _get_or_create_department(db, school_id=target_school.id, name=dept_name)
         for p_name in progs:
-            all_programs.append(_get_or_create_program(db, school_id=target_school.id, name=p_name))
+            prog = _get_or_create_program(db, school_id=target_school.id, name=p_name)
+            # Link them if not already linked (Many-to-Many)
+            if dept not in prog.departments:
+                prog.departments.append(dept)
+            all_programs_with_depts.append((prog, dept.id))
     db.commit()
 
     # 2. Create Students
@@ -900,12 +904,12 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
         
         _ensure_user_role(db, user, "student")
         
-        prog = random.choice(all_programs)
+        prog, dept_id = random.choice(all_programs_with_depts)
         profile = StudentProfile(
             user_id=user.id,
             school_id=target_school.id,
             student_id=f"2024-{i:05d}",
-            department_id=prog.department_id,
+            department_id=dept_id,
             program_id=prog.id,
             year_level=random.randint(1, 4),
             section=f"Section-{random.randint(1, 10)}",
