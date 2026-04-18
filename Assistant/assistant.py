@@ -30,7 +30,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -2547,89 +2547,35 @@ async def assistant_stream(
         {"role": "user", "content": body.message},
     ]
 
-    async def _stream_generator() -> AsyncGenerator[str, None]:
+    # Use a queue to pass events from the background worker to the stream generator
+    queue = asyncio.Queue()
+
+    async def _worker() -> None:
+        """Shielded background worker that finishes AI logic and DB saving even if client disconnects."""
         nonlocal messages
         final_assistant_text: Optional[str] = None
+        # Dedicated session for background worker safety (prevents closed session errors on disconnect)
+        db_bg = SessionLocal() 
         
-        # Handle multiple rounds of tool calls
-        for _ in range(3):
-            response_msg = await _call_openai(messages, tools=TOOLS)
-            messages.append(response_msg)
-            
-            if not response_msg.get("tool_calls"):
-                content = _extract_text_content(response_msg.get("content"))
-                if content.strip():
-                    final_assistant_text = content
-                break
+        try:
+            # Handle multiple rounds of tool calls
+            for _ in range(3):
+                try:
+                    # Implement a timeout for AI calls to prevent indefinite "thinking"
+                    response_msg = await asyncio.wait_for(_call_openai(messages, tools=TOOLS), timeout=90.0)
+                except asyncio.TimeoutError:
+                    await queue.put(_sse_event("error", {"message": "Aura thinking timeout (the task was too complex to finish in time)."}))
+                    return
 
-            for tool_call in response_msg["tool_calls"]:
-                fname = tool_call["function"]["name"]
-                fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
-                if "__parse_error__" in fargs:
-                    result_json = json.dumps({"error": fargs["__parse_error__"]})
-                else:
-                    fargs = _sanitize_tool_args(fname, fargs)
-                    result_json = await execute_tool(
-                        fname,
-                        fargs,
-                        roles=effective_roles,
-                        permissions=effective_permissions,
-                        user_id=request_user_id,
-                        school_id=effective_school_id,
-                        authorization=authorization,
-                    )
+                messages.append(response_msg)
                 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "name": fname,
-                    "content": result_json,
-                })
+                if not response_msg.get("tool_calls"):
+                    content = _extract_text_content(response_msg.get("content"))
+                    if content.strip():
+                        final_assistant_text = content
+                    break
 
-                # INTERCEPTION: Emit visualization events immediately
-                if fname == "mcp_visualize":
-                    try:
-                        parsed_result = json.loads(result_json)
-                        if parsed_result.get("__aura_visual__"):
-                            yield _sse_event("visualization", {
-                                "conversation_id": conversation_id,
-                                "visual": parsed_result
-                            })
-                    except Exception as e:
-                        logger.warning("Failed to parse visual tool result: %s", e)
-
-        # Final cleanup for messages and text generation
-        if final_assistant_text is None and messages and messages[-1].get("role") == "tool":
-            response_msg = await _call_openai(messages, tools=None)
-            messages.append(response_msg)
-            content = _extract_text_content(response_msg.get("content"))
-            if content.strip():
-                final_assistant_text = content
-
-        if final_assistant_text:
-            assistant_text = final_assistant_text
-        elif messages and messages[-1].get("role") == "tool":
-            messages.append({"role": "user", "content": "The tool steps are complete. Summarize the results for me now."})
-            response_msg = await _call_openai(messages, tools=None)
-            messages.pop()
-            assistant_text = _extract_text_content(response_msg.get("content"))
-            if not assistant_text.strip():
-                assistant_text = "I completed the data query but couldn't generate a text summary."
-        else:
-            last_content = _extract_text_content(messages[-1].get("content")) if messages else ""
-            assistant_text = last_content if last_content.strip() else "I'm sorry, I couldn't generate a response."
-
-        # Safety net: if a provider returns pseudo tool markup as plain text,
-        # recover and execute it so raw internals never leak to end users.
-        if isinstance(assistant_text, str) and assistant_text.strip() and _looks_like_tool_markup(assistant_text):
-            recovered_tool_call = _extract_function_markup(assistant_text)
-            if recovered_tool_call is not None:
-                if messages and isinstance(messages[-1], dict) and not messages[-1].get("tool_calls"):
-                    messages[-1] = recovered_tool_call
-                else:
-                    messages.append(recovered_tool_call)
-
-                for tool_call in recovered_tool_call["tool_calls"]:
+                for tool_call in response_msg["tool_calls"]:
                     fname = tool_call["function"]["name"]
                     fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
                     if "__parse_error__" in fargs:
@@ -2653,52 +2599,146 @@ async def assistant_stream(
                         "content": result_json,
                     })
 
-                    # INTERCEPTION: Emit visualization events from recovered markup too
+                    # INTERCEPTION: Emit visualization events immediately
                     if fname == "mcp_visualize":
                         try:
                             parsed_result = json.loads(result_json)
                             if parsed_result.get("__aura_visual__"):
-                                yield _sse_event("visualization", {
+                                await queue.put(_sse_event("visualization", {
                                     "conversation_id": conversation_id,
                                     "visual": parsed_result
-                                })
+                                }))
                         except Exception as e:
-                            logger.warning("Failed to parse visual tool result (recovered): %s", e)
+                            logger.warning("Failed to parse visual tool result: %s", e)
 
-                follow_up = await _call_openai(messages, tools=None)
-                messages.append(follow_up)
-                follow_up_content = _extract_text_content(follow_up.get("content"))
-                if isinstance(follow_up_content, str) and follow_up_content.strip():
-                    assistant_text = follow_up_content
-                else:
-                    assistant_text = (
-                        "I hit a formatting issue while processing your request, "
-                        "but I can continue if you ask me again."
-                    )
+            # Final cleanup for messages and text generation
+            if final_assistant_text is None and messages and messages[-1].get("role") == "tool":
+                response_msg = await _call_openai(messages, tools=None)
+                messages.append(response_msg)
+                content = _extract_text_content(response_msg.get("content"))
+                if content.strip():
+                    final_assistant_text = content
+
+            if final_assistant_text:
+                assistant_text = final_assistant_text
+            elif messages and messages[-1].get("role") == "tool":
+                messages.append({"role": "user", "content": "The tool steps are complete. Summarize the results for me now."})
+                response_msg = await _call_openai(messages, tools=None)
+                messages.pop()
+                assistant_text = _extract_text_content(response_msg.get("content"))
+                if not assistant_text.strip():
+                    assistant_text = "I completed the data query but couldn't generate a text summary."
             else:
-                assistant_text = (
-                    "I hit a formatting issue while processing your request, "
-                    "but I can continue if you ask me again."
-                )
+                last_content = _extract_text_content(messages[-1].get("content")) if messages else ""
+                assistant_text = last_content if last_content.strip() else "I'm sorry, I couldn't generate a response."
 
-        _append_message(db, conversation_id, "assistant", assistant_text)
-        await _update_conversation_title(db, conversation_id)
+            # Safety net: pseudo tool markup recovery
+            if isinstance(assistant_text, str) and assistant_text.strip() and _looks_like_tool_markup(assistant_text):
+                recovered_tool_call = _extract_function_markup(assistant_text)
+                if recovered_tool_call is not None:
+                    if messages and isinstance(messages[-1], dict) and not messages[-1].get("tool_calls"):
+                        messages[-1] = recovered_tool_call
+                    else:
+                        messages.append(recovered_tool_call)
 
-        # Stream final text chunks
-        chunk_size = 160
-        for i in range(0, len(assistant_text), chunk_size):
-            yield _sse_event("message", {
+                    for tool_call in recovered_tool_call["tool_calls"]:
+                        fname = tool_call["function"]["name"]
+                        fargs = _parse_tool_arguments(tool_call["function"].get("arguments", "{}"))
+                        if "__parse_error__" in fargs:
+                            result_json = json.dumps({"error": fargs["__parse_error__"]})
+                        else:
+                            fargs = _sanitize_tool_args(fname, fargs)
+                            result_json = await execute_tool(
+                                fname,
+                                fargs,
+                                roles=effective_roles,
+                                permissions=effective_permissions,
+                                user_id=request_user_id,
+                                school_id=effective_school_id,
+                                authorization=authorization,
+                            )
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "name": fname,
+                            "content": result_json,
+                        })
+
+                        # INTERCEPTION: Emit visualization events from recovered markup too
+                        if fname == "mcp_visualize":
+                            try:
+                                parsed_result = json.loads(result_json)
+                                if parsed_result.get("__aura_visual__"):
+                                    await queue.put(_sse_event("visualization", {
+                                        "conversation_id": conversation_id,
+                                        "visual": parsed_result
+                                    }))
+                            except Exception as e:
+                                logger.warning("Failed to parse visual tool result (recovered): %s", e)
+
+                    follow_up = await _call_openai(messages, tools=None)
+                    messages.append(follow_up)
+                    follow_up_content = _extract_text_content(follow_up.get("content"))
+                    if isinstance(follow_up_content, str) and follow_up_content.strip():
+                        assistant_text = follow_up_content
+
+            # PERSIST: Save to DB using the dedicated background session
+            _append_message(db_bg, conversation_id, "assistant", assistant_text)
+            await _update_conversation_title(db_bg, conversation_id)
+            db_bg.commit()
+
+            # STREAM: Final response chunks
+            chunk_size = 160
+            for i in range(0, len(assistant_text), chunk_size):
+                await queue.put(_sse_event("message", {
+                    "conversation_id": conversation_id,
+                    "content": assistant_text[i : i + chunk_size],
+                }))
+
+            await queue.put(_sse_event("done", {
                 "conversation_id": conversation_id,
-                "content": assistant_text[i : i + chunk_size],
-            })
-            
-        yield _sse_event("done", {
-            "conversation_id": conversation_id,
-            "message_id": str(uuid.uuid4()),
-            "finish_reason": "stop",
-        })
+                "message_id": str(uuid.uuid4()),
+                "finish_reason": "stop",
+            }))
 
-    return StreamingResponse(_stream_generator(), media_type="text/event-stream")
+        except Exception as e:
+            logger.error("Aura Background Worker Error: %s", e, exc_info=True)
+            try:
+                await queue.put(_sse_event("error", {"message": f"Internal assistant error: {str(e)}"}))
+            except:
+                pass
+        finally:
+            db_bg.close()
+            # Sentinel to close the generator
+            await queue.put(None)
+
+    # Start the worker task immediately but don't await it.
+    # We want it to continue even if the StreamingResponse is cancelled.
+    worker_task = asyncio.create_task(_worker())
+
+    async def _stream_generator() -> AsyncGenerator[str, None]:
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+        except asyncio.CancelledError:
+            logger.info("Client disconnected from Aura stream. Processing continues in background.")
+            raise
+        finally:
+            # We explicitly DO NOT cancel worker_task here.
+            pass
+
+    return StreamingResponse(
+        _stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/conversations", response_model=List[ConversationSummary])
