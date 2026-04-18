@@ -25,22 +25,64 @@ Recommended:
 - `EMAIL_REQUIRED_ON_STARTUP=true`
 - `EMAIL_VERIFY_CONNECTION_ON_STARTUP=true`
 
-## Optional Local Mailpit Testing
+## Enable Mailpit for Local Testing (Docker Compose)
 
-If you want inbox testing without sending real Gmail messages:
+Use this when you want to test email flows locally without sending real Gmail messages.
 
-1. Set these local env values:
-   - `EMAIL_TRANSPORT=smtp`
-   - `SMTP_HOST=mailpit`
-   - `SMTP_PORT=1025`
-   - `SMTP_USERNAME=`
-   - `SMTP_PASSWORD=`
-   - `SMTP_USE_TLS=false`
-   - `SMTP_USE_STARTTLS=false`
-2. Start local services:
-   - `docker compose up -d --build backend worker beat mailpit`
-3. Open Mailpit inbox:
-   - `http://localhost:8025`
+1. Update root `.env`:
+
+```env
+EMAIL_TRANSPORT=smtp
+SMTP_HOST=mailpit
+SMTP_PORT=1025
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_USE_TLS=false
+SMTP_USE_STARTTLS=false
+```
+
+2. Start or restart services:
+
+```bash
+docker compose up -d --build mailpit backend worker beat
+```
+
+3. Open Mailpit web UI:
+
+`http://localhost:8025`
+
+4. Trigger any email flow (password reset, import onboarding email, or smoke test below).
+
+## How to Use Mailpit
+
+- SMTP endpoint inside Docker network: `mailpit:1025`
+- Web inbox UI on host machine: `http://localhost:8025`
+- Captured emails stay available across container restarts because `docker-compose.yml` now mounts:
+  - `mailpit_data:/data`
+  - `MP_DATABASE=/data/mailpit.db`
+
+To clear all stored messages, remove the Mailpit volume:
+
+```bash
+docker compose down
+docker volume rm aura_merged_project_mailpit_data
+```
+
+## Switch Back to Gmail Transport
+
+Set `.env` back to Gmail values:
+
+```env
+EMAIL_TRANSPORT=gmail_api
+EMAIL_SENDER_EMAIL=<your_gmail_or_workspace_sender>
+EMAIL_FROM_EMAIL=<same_or_verified_alias>
+```
+
+Then restart services:
+
+```bash
+docker compose up -d --build backend worker beat
+```
 
 ## Backend Smoke Test Command
 
