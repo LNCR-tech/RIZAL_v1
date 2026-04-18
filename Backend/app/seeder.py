@@ -986,12 +986,16 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
         [PermissionCode.ASSIGN_PERMISSIONS, PermissionCode.MANAGE_MEMBERS]
     ]
 
+    # Use the first Campus Admin or the Platform Admin as the assigner
+    assigner = db.query(User).filter(User.school_id == target_school.id).first()
+    assigner_id = assigner.id if assigner else None
+
     for idx, profile in enumerate(officer_pool):
         # Assign to SSG or a random sub-unit
         perms = random.choice(officer_perms)
         _assign_governance_membership(
             db, user=profile.user, governance_unit=ssg, 
-            assigned_by_user_id=target_school.id, # Placeholder
+            assigned_by_user_id=assigner_id,
             permission_codes=perms
         )
         # Update CSV metadata for this student
