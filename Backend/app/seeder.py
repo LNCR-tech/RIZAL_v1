@@ -972,7 +972,7 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
             "school_code": target_school.school_code or "",
             "school_id": str(target_school.id),
             "roles": "campus_admin",
-            "permissions": "CAMPUS_ADMIN_ROLE" # Role-based access
+            "permissions": "" # Role-based access (no individual codes)
         })
 
     # Create Governance Units (SSG, SGs, Orgs)
