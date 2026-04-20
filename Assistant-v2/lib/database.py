@@ -1,7 +1,9 @@
 import os
 import logging
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, create_engine, func, text
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from typing import Generator
 from dotenv import load_dotenv
 from pathlib import Path
@@ -25,6 +27,47 @@ if not ASSISTANT_DB_URL:
 # Assistant storage engine (conversations, messages)
 engine = create_engine(ASSISTANT_DB_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# --- Models ---
+
+class Conversation(Base):
+    __tablename__ = "assistant_conversations"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(128), index=True, nullable=False)
+    user_role = Column(String(64), nullable=False)
+    title = Column(String(255), nullable=True)
+    status = Column(String(32), nullable=False, server_default="active")
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+class Message(Base):
+    __tablename__ = "assistant_messages"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(
+        String(36),
+        ForeignKey("assistant_conversations.id"),
+        index=True,
+        nullable=False,
+    )
+    role = Column(String(32), nullable=False)
+    content = Column(Text, nullable=False)
+    visual_data = Column(Text, nullable=True)  # JSON string for visualization data
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class DailyUsage(Base):
+    __tablename__ = "assistant_daily_usage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(128), index=True, nullable=False)
+    user_role = Column(String(64), index=True, nullable=False)
+    usage_date = Column(Date, index=True, nullable=False)
+    message_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 # Tenant application engine (The data Aura actually queries)
 app_engine = None
@@ -40,6 +83,9 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
 
 def get_app_db() -> Generator[Session, None, None]:
     """Dependency for getting the application/tenant database session."""

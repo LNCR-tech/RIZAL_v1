@@ -23,6 +23,7 @@ const messages   = ref([
 ])
 const inputText  = ref('')
 const isTyping   = ref(false)
+const currentToolCall = ref(null)  // name of the tool currently executing, or null
 const typingConversationId = ref(null)
 const isMiniOpen = ref(false)
 const isFullOpen = ref(false)
@@ -163,8 +164,9 @@ async function copyConversation() {
 }
 
 async function streamAiResponse(userMessage, { token, userMeta } = {}) {
-  const aiMessage = { id: Date.now() + 1, sender: 'ai', text: '' }
-  messages.value.push(aiMessage)
+  const msgId = Date.now() + 1
+  messages.value.push({ id: msgId, sender: 'ai', text: '', visual: null })
+  const msgIdx = messages.value.length - 1
 
   try {
     return await streamAssistantReply({
@@ -174,24 +176,43 @@ async function streamAiResponse(userMessage, { token, userMeta } = {}) {
       conversationId: conversationId.value,
       userMeta,
       onMessageChunk: (chunk, meta) => {
-        aiMessage.text += chunk
+        // Update through the reactive proxy (not the raw object reference)
+        // to ensure Vue 3 detects the change and re-renders mid-stream.
+        if (messages.value[msgIdx] !== undefined) {
+          messages.value[msgIdx] = {
+            ...messages.value[msgIdx],
+            text: (messages.value[msgIdx].text || '') + chunk,
+          }
+        }
         if (meta?.conversationId) {
           storeConversationId(meta.conversationId)
+          // Keep typingConversationId in sync so the dots/spinner
+          // don't disappear when the server assigns a new conversation ID.
+          typingConversationId.value = meta.conversationId
         }
         scrollToBottom()
       },
       onVisualization: (viz, meta) => {
-        // Attach visualization data to the message object
-        aiMessage.visual = viz
+        if (messages.value[msgIdx] !== undefined) {
+          messages.value[msgIdx] = {
+            ...messages.value[msgIdx],
+            visual: viz,
+          }
+        }
         if (meta?.conversationId) {
           storeConversationId(meta.conversationId)
         }
         scrollToBottom()
       },
+      onToolCall: (toolName) => {
+        currentToolCall.value = toolName
+      },
+      onToolDone: () => {
+        currentToolCall.value = null
+      },
     })
   } catch (err) {
-    // If the request fails before any chunks arrive, avoid leaving an empty bubble behind.
-    const idx = messages.value.indexOf(aiMessage)
+    const idx = messages.value.findIndex((m) => m.id === msgId)
     if (idx >= 0) messages.value.splice(idx, 1)
     throw err
   }
@@ -243,6 +264,7 @@ async function selectConversation(targetConversationId) {
       id: idx + 1,
       sender: m?.role === 'user' ? 'user' : 'ai',
       text: String(m?.content ?? ''),
+      visual: m?.visual_data?.visual ?? null,
     }))
 
     messages.value = mapped.length
@@ -347,6 +369,7 @@ async function sendMessage() {
   } finally {
     isTyping.value = false
     typingConversationId.value = null
+    currentToolCall.value = null
     scrollToBottom()
   }
 }
@@ -389,6 +412,7 @@ export function useChat() {
     messages,
     inputText,
     isTyping,
+    currentToolCall,
     typingConversationId,
     isMiniOpen,
     isFullOpen,

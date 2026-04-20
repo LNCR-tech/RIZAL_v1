@@ -9,6 +9,7 @@ class MultiMCPClient:
     def __init__(self):
         self.sessions: Dict[str, ClientSession] = {}
         self.server_params: Dict[str, StdioServerParameters] = {}
+        self.tool_map: Dict[str, str] = {} # tool_name -> server_name
         self._load_config()
 
     def _load_config(self):
@@ -32,32 +33,34 @@ class MultiMCPClient:
 
     async def get_all_tools(self) -> List[Dict[str, Any]]:
         """
-        Connects to all servers momentarily to discover their tools.
-        In a production environment, you might keep these sessions open.
+        Connects to all servers and discovers their tools, building a tool_map.
         """
         all_tools = []
         for name, params in self.server_params.items():
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    tools_result = await session.list_tools()
-                    # Add server name to tool metadata for easy routing
-                    for tool in tools_result.tools:
-                        tool_dict = tool.model_dump()
-                        tool_dict["server"] = name
-                        all_tools.append(tool_dict)
+            try:
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        tools_result = await session.list_tools()
+                        for tool in tools_result.tools:
+                            tool_dict = tool.model_dump()
+                            self.tool_map[tool.name] = name
+                            all_tools.append(tool_dict)
+            except Exception as e:
+                print(f"Failed to load tools from {name}: {e}")
         return all_tools
 
-    async def call_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """
-        Calls a specific tool on a specific server.
+        Calls a specific tool using the internal tool_map for routing.
         """
-        if server_name not in self.server_params:
-            raise ValueError(f"Unknown MCP server: {server_name}")
+        server_name = self.tool_map.get(tool_name)
+        if not server_name:
+            raise ValueError(f"Unknown tool: {tool_name}. Was it registered?")
         
         params = self.server_params[server_name]
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(tool_name, arguments)
-                return result
+                return result.content[0].text if result.content else "{}"

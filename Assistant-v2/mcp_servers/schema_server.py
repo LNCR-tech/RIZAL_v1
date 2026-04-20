@@ -29,14 +29,14 @@ def _serialize_column_type(column_type: Any) -> str:
     return str(column_type)
 
 @mcp.tool()
-async def list_allowed_schema(
+async def mcp_schema(
     roles: List[str], 
     permissions: Optional[List[str]] = None,
     db_schema: str = "public"
 ) -> Dict[str, Any]:
     """
     Returns the database schema (tables and columns) that the user is allowed to see 
-    based on their roles and permissions.
+    based on their roles and permissions. This is capability-scoped.
     """
     if not app_engine:
         return {"error": "Application database is not configured."}

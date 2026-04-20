@@ -110,7 +110,18 @@
                 </div>
               </template>
 
-              <div v-if="isTyping && typingConversationId === conversationId" key="typing" class="bubble bubble--ai bubble--typing">
+              <!-- Tool call indicator -->
+              <div
+                v-if="isTyping && currentToolCall && typingConversationId === conversationId"
+                key="tool-call"
+                class="bubble bubble--ai bubble--tool-call"
+              >
+                <span class="tool-call-spinner" />
+                <span class="tool-call-label">{{ toolCallLabel(currentToolCall) }}</span>
+              </div>
+
+              <!-- Standard typing indicator (shown when no tool is running) -->
+              <div v-else-if="isTyping && typingConversationId === conversationId" key="typing" class="bubble bubble--ai bubble--typing">
                 <span class="dot" style="animation-delay: 0ms" />
                 <span class="dot" style="animation-delay: 150ms" />
                 <span class="dot" style="animation-delay: 300ms" />
@@ -168,6 +179,7 @@ const {
   messages,
   inputText,
   isTyping,
+  currentToolCall,
   conversationId,
   conversations,
   isLoadingConversations,
@@ -184,6 +196,21 @@ const {
   typingConversationId,
   closeAll,
 } = useChat()
+
+// Human-readable labels for known MCP tools
+const TOOL_LABELS = {
+  mcp_query: 'Querying database\u2026',
+  mcp_schema: 'Checking schema\u2026',
+  mcp_visualize: 'Building visualization\u2026',
+  mcp_report: 'Fetching report\u2026',
+  mcp_undo: 'Rolling back change\u2026',
+  school_admin_action: 'Performing admin action\u2026',
+  backend_action: 'Calling backend\u2026',
+}
+
+function toolCallLabel(toolName) {
+  return TOOL_LABELS[toolName] ?? `Running ${toolName}\u2026`
+}
 
 const isRefreshing = ref(false)
 
@@ -483,6 +510,37 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.14);
   color: var(--color-banner-text);
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.bubble--tool-call {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.55);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+}
+
+.tool-call-spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  animation: tool-spin 0.7s linear infinite;
+}
+
+.tool-call-label {
+  white-space: nowrap;
+}
+
+@keyframes tool-spin {
+  to { transform: rotate(360deg); }
 }
 
 .bubble--typing {

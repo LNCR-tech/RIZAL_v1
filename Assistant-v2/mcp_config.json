@@ -13,6 +13,27 @@
       "env": {
         "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
       }
+    },
+    "aura-admin": {
+      "command": "python",
+      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/admin_server.py"],
+      "env": {
+        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
+      }
+    },
+    "aura-import": {
+      "command": "python",
+      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/import_server.py"],
+      "env": {
+        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
+      }
+    },
+    "aura-report": {
+      "command": "python",
+      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/report_server.py"],
+      "env": {
+        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
+      }
     }
   }
 }

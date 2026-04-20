@@ -65,6 +65,8 @@ export async function streamAssistantReply({
   userMeta = null,
   onMessageChunk,
   onVisualization,
+  onToolCall,
+  onToolDone,
 } = {}) {
   const trimmed = String(message || '').trim()
   if (!trimmed) throw new AssistantApiError('Message is required.')
@@ -118,6 +120,20 @@ export async function streamAssistantReply({
       if (parsed) {
         if (parsed?.data?.conversation_id) {
           latestConversationId = parsed.data.conversation_id
+        }
+
+        if (parsed.event === 'tool_call') {
+          const toolName = parsed?.data?.tool
+          if (toolName && typeof onToolCall === 'function') {
+            onToolCall(toolName, { conversationId: latestConversationId })
+          }
+        }
+
+        if (parsed.event === 'tool_done') {
+          const toolName = parsed?.data?.tool
+          if (toolName && typeof onToolDone === 'function') {
+            onToolDone(toolName, { conversationId: latestConversationId })
+          }
         }
 
         if (parsed.event === 'message') {
