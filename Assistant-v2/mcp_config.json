@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "aura-schema": {
+      "command": "python",
+      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/schema_server.py"],
+      "env": {
+        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
+      }
+    },
+    "aura-query": {
+      "command": "python",
+      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/query_server.py"],
+      "env": {
+        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
+      }
+    }
+  }
+}

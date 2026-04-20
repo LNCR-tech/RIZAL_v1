@@ -113,13 +113,13 @@ Verify:
 The assistant auto-loads `.env` from the repo root at startup.
 
 ```powershell
-cd C:\Users\cmpj\dev\work\Collab\aurav3\Assistant
-python -m uvicorn assistant:app --reload --host 127.0.0.1 --port 8501
+cd C:\Users\cmpj\dev\work\Collab\aurav3\Assistant-v1
+python -m uvicorn assistant:app --reload --host 127.0.0.1 --port 8500
 ```
 
 Verify:
-- `http://127.0.0.1:8501/health`
-- `http://127.0.0.1:8501/docs`
+- `http://127.0.0.1:8500/health`
+- `http://127.0.0.1:8500/docs`
 
 ### 6) Run the frontend
 

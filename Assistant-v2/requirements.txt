@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-dotenv
+python-jose[cryptography]
+httpx
+mcp
+fastmcp
+openai
+anthropic
+google-generativeai
+pydantic
+pydantic-settings
