@@ -5,8 +5,9 @@ This guide explains how backend outbound email now works for cloud deployments a
 ## Current Runtime Behavior
 
 - `docker-compose.yml` no longer forces `SMTP_HOST=mailpit` for `backend`, `worker`, and `beat`.
-- backend services now follow `EMAIL_TRANSPORT` from environment (default fallback: `gmail_api`).
+- backend services now follow `EMAIL_TRANSPORT` from environment (default fallback: `disabled`).
 - Mailpit is still available as an optional local SMTP inbox service.
+- When `EMAIL_TRANSPORT=disabled`, the backend will not send outbound emails (password reset, import onboarding, etc.).
 
 ## Cloud (Gmail) Quick Start
 
@@ -88,6 +89,8 @@ docker compose up -d --build backend worker beat
 
 From repo root:
 
+Make sure email delivery is enabled first (set `EMAIL_TRANSPORT` to `smtp` or `gmail_api`).
+
 `python Backend/scripts/send_test_email.py --recipient test@example.com`
 
 Expected result:
@@ -95,4 +98,5 @@ Expected result:
 - command exits `0`
 - for Gmail transport: recipient receives the message
 - for Mailpit transport: message appears in `http://localhost:8025`
+- if `EMAIL_TRANSPORT=disabled`, the command will fail with an error telling you to enable email delivery
 - default subject uses `Aura email transport smoke test ...`

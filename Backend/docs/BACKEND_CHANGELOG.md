@@ -14,6 +14,43 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-20 - Dev-safe default: disable outbound email in Docker Compose unless configured
+
+### Purpose
+
+Avoid forcing Gmail API configuration in local Docker runs. Outbound email is now disabled by default unless `EMAIL_TRANSPORT` is explicitly set.
+
+### Main files
+
+- `docker-compose.yml`
+- `README.md`
+- `Backend/docs/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md`
+
+### Backend changes
+
+- configuration-only change:
+  - `docker-compose.yml` now defaults `EMAIL_TRANSPORT` to `disabled` for `backend`, `worker`, and `beat`
+  - to enable outbound email locally, set `EMAIL_TRANSPORT=smtp` (Mailpit) or `EMAIL_TRANSPORT=gmail_api` (Gmail API) in the root `.env`
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+
+### Migration impact
+
+- no database migrations required
+- runtime configuration impact:
+  - local Docker default no longer attempts to use Gmail API unless configured
+
+### How to test
+
+1. Run `docker compose config` and confirm `backend`, `worker`, and `beat` default `EMAIL_TRANSPORT` to `disabled`.
+2. Enable Mailpit:
+   - set `EMAIL_TRANSPORT=smtp`, `SMTP_HOST=mailpit`, `SMTP_PORT=1025`
+   - run `docker compose up -d --build mailpit backend worker beat`
+   - run `python Backend/scripts/send_test_email.py --recipient test@example.com` and verify message in `http://localhost:8025`
+
 ## 2026-04-18 - Prevent student stats/report 500s when `events.event_type` is absent
 
 ### Purpose

@@ -19,6 +19,7 @@ Before starting, ensure these values in your `.env` are correct:
 - **AI_MODEL**: The model name (e.g., `gpt-4o` or `deepseek-ai/DeepSeek-V3.2`).
 - **ADMIN_EMAIL/PASSWORD**: These will be your login credentials for the first run.
 - **SECRET_KEY**: Change this if you plan to deploy the site publicly.
+- **EMAIL_TRANSPORT**: For local Docker runs, keep this `disabled` (default) unless you have explicitly configured `smtp` or `gmail_api`.
 
 ### 3) Run One-Line Command
 Open your terminal in the project root and run:
@@ -37,6 +38,15 @@ docker compose up --build
 - **Mailpit (Email Test)**: [http://localhost:8025](http://localhost:8025)
 - **Database Port**: `5433` (exposed for tools like DBeaver; internal Postgres is 5432)
 - **AI Visuals**: Aura now supports native, full-screen data visualization (Bar, Pie, Doughnut).
+
+Note: If you want to test outbound email locally with Mailpit, set the following in your root `.env`:
+
+```ini
+EMAIL_TRANSPORT=smtp
+SMTP_HOST=mailpit
+SMTP_PORT=1025
+EMAIL_SENDER_EMAIL=notifications@example.com
+```
 
 ---
 
