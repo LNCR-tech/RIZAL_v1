@@ -37,6 +37,11 @@ Components:
 - [Frontend docs](./docs/frontend/README.md)
 - [Assistant docs](./docs/assistant/README.md)
 
+Product (Non-Developer):
+
+- [Aura Overview](./docs/user/overview.md)
+- [Navigation Map](./docs/user/navigation.md)
+
 Audits:
 
 - [Audit Report](./docs/audits/AUDIT_REPORT.md)
