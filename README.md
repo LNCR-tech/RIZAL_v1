@@ -2,7 +2,7 @@
 
 This repo contains:
 - `Backend/`: FastAPI API + Alembic migrations + Celery tasks
-- `Assistant/`: FastAPI assistant service (MCP tools + chat endpoint) with Postgres-backed storage
+- `Assistant-v2/` & `Assistant-v1/`: FastAPI assistant services (MCP tools + chat endpoint) with Postgres-backed storage. Active development is in v2.
 - `Frontend/`: Vue 3 (Vite) SPA
 
 ## Quick Start (Docker)
@@ -17,6 +17,7 @@ This is the fastest way to get the system running. It handles the database, migr
 Before starting, ensure these values in your `.env` are correct:
 - **AI_API_KEY**: Set this to your OpenAI or SiliconFlow/DeepSeek key for the AI Assistant to work.
 - **AI_MODEL**: The model name (e.g., `gpt-4o` or `deepseek-ai/DeepSeek-V3.2`).
+- **ASSISTANT_VERSION**: Set to `v2` (default) or `v1`. This dynamically controls which assistant container builds.
 - **ADMIN_EMAIL/PASSWORD**: These will be your login credentials for the first run.
 - **SECRET_KEY**: Change this if you plan to deploy the site publicly.
 - **EMAIL_TRANSPORT**: For local Docker runs, keep this `disabled` (default) unless you have explicitly configured `smtp` or `gmail_api`.
@@ -113,8 +114,8 @@ Verify:
 The assistant auto-loads `.env` from the repo root at startup.
 
 ```powershell
-cd C:\Users\cmpj\dev\work\Collab\aurav3\Assistant-v1
-python -m uvicorn assistant:app --reload --host 127.0.0.1 --port 8500
+cd C:\Users\cmpj\dev\work\Collab\aurav3\Assistant-v2
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8500
 ```
 
 Verify:
