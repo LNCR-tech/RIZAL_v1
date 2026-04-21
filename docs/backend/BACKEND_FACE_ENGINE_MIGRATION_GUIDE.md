@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Face Engine Migration Guide
 
@@ -317,3 +317,4 @@ Run compile checks:
 ```powershell
 python -m py_compile Backend/app/core/config.py Backend/app/models/user.py Backend/app/models/platform_features.py Backend/app/services/face_recognition.py Backend/app/services/attendance_face_scan.py Backend/app/services/face_engine/base.py Backend/app/services/face_engine/liveness.py Backend/app/services/face_engine/insightface_adapter.py Backend/app/services/face_engine/factory.py Backend/app/services/face_engine/vector_store.py Backend/app/routers/face_recognition.py Backend/app/routers/public_attendance.py Backend/app/routers/security_center.py
 ```
+

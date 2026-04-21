@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend User Preferences And Auth Session Guide
 
@@ -256,3 +256,4 @@ Covered scenarios:
 5. Call `GET /api/users/preferences/me`
 6. Call `PUT /api/users/preferences/me` with updated `dark_mode_enabled` and `font_size_percent`
 7. Sign in on another device and confirm the same preference values are loaded from the backend
+

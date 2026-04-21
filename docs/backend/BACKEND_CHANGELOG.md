@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Change Log
 
@@ -1957,3 +1957,4 @@ Added governance permission codes for sanctions management and enforced them at 
 2. Run `python -m pytest -q Backend/app/tests/test_sanctions_api.py`.
 3. Verify sanctions endpoints return `403` for governance members lacking new sanctions permissions.
 4. Verify sanctions endpoints succeed after granting the required permission codes.
+

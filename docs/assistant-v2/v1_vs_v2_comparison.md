@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Aura Assistant v1 vs. v2: Architectural Comparison
 
@@ -41,7 +41,7 @@ This document provides a comprehensive side-by-side comparison of the legacy **A
 ### Assistant-v2: Standardized Stdio Servers
 - **Integration:** Adopts the **true MCP architectural pattern**. The servers located in `mcp_servers/` act as independent, isolated processes.
 - **Execution:** Governed by `mcp_config.json`. The assistant spawns native MCP external shell processes via `MultiMCPClient` communicating over robust `stdio` streams (the industry standard for standard MCP connection).
-- **Extensibility:** Adding a new tool server to v2 requires *zero* changes to `main.py`—you simply plug the new entry point into `mcp_config.json`.
+- **Extensibility:** Adding a new tool server to v2 requires *zero* changes to `main.py`-you simply plug the new entry point into `mcp_config.json`.
 
 ---
 
@@ -75,3 +75,5 @@ The transition to Assistant-v2 was a major **architectural maturation**.
 By adopting true stdio-based MCP patterns and strictly segmenting domain operations into a `lib/` core, the application has moved from a fragile "scripted monolith" to a highly robust "framework-agnostic orchestrator". 
 
 This ensures that future work on prompts, new tool integrations, or transitioning LLM providers can be executed surgically without risk of cascading bugs into authentication or runtime governance logic.
+
+

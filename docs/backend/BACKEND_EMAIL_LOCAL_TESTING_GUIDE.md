@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Email Delivery Guide (Gmail + Local Mailpit)
 
@@ -102,3 +102,4 @@ Expected result:
 - for Mailpit transport: message appears in `http://localhost:8025`
 - if `EMAIL_TRANSPORT=disabled`, the command will fail with an error telling you to enable email delivery
 - default subject uses `Aura email transport smoke test ...`
+

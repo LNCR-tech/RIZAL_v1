@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Reports Module Guide
 
@@ -160,3 +160,4 @@ Legacy router files were reduced to thin composition/wrapper behavior:
 7. Student stats compatibility without `events.event_type`:
    - call `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
    - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Regular Events` when the column is missing.
+

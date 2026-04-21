@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Large Data Seed Guide
 
@@ -118,3 +118,4 @@ Override counts or hashing:
    - `SELECT COUNT(*) FROM sanction_records WHERE school_id = <school_id>;`
 4. Check the generated credential files under `storage/seed_outputs/`.
 5. Login with the campus admin or one of the privileged governance users from the privileged CSV and verify the reports, governance, and sanctions screens load against the seeded dataset.
+

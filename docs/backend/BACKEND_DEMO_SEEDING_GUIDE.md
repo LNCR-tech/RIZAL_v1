@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Demo Seeding Guide (Manual UI + Assistant Testing)
 
@@ -53,3 +53,4 @@ Columns:
 4. Open the in-app Aura AI chat.
 
 The assistant reads `roles` and `permissions` from the backend JWT, so different demo users will get different MCP access policies.
+

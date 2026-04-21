@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Assistant API JSON Contract
 
@@ -177,3 +177,4 @@ data: {"conversation_id":"c_9a2f1d3b","message_id":"m_7812","finish_reason":"sto
   "title": "Attendance for March"
 }
 ```
+

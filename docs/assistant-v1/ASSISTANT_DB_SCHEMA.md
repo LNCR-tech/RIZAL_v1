@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Assistant Database Schema (Proposed)
 
@@ -7,7 +7,7 @@ This schema stores assistant conversations, messages, and tool calls separately 
 ## Tables
 
 ### 1) `assistant_conversations`
-Tracks a user’s conversation threads.
+Tracks a user's conversation threads.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -100,3 +100,5 @@ CREATE TABLE assistant_tool_calls (
 CREATE INDEX idx_assistant_tool_calls_message
     ON assistant_tool_calls (message_id);
 ```
+
+

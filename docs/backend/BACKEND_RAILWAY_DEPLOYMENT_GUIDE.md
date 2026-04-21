@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Backend Railway Deployment Guide
 
@@ -67,3 +67,4 @@ Face-runtime note:
    - when face init is enabled, InsightFace initialization logs show `allowed_modules=detection,recognition`
 3. Verify the seeded admin can log in.
 4. Run a backend email smoke test after deployment and confirm Gmail accepts the message.
+

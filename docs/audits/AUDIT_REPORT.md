@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Aura Project Audit Report
 
@@ -404,3 +404,4 @@ These are maintenance warnings, not immediate functional failures.
 ## Final Assessment
 
 Aura is a serious application with real engineering work behind it. The codebase is not in rescue territory. The current gap is that the repository's operational and security posture has not fully caught up to the product's breadth, especially around production defaults, API contract consistency, and assistant-service hardening. If those areas are addressed, the project can move from "feature-rich and functional" to "defensible and maintainable in production."
+

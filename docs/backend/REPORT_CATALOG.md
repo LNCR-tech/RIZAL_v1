@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # Report Catalog
 
@@ -74,4 +74,5 @@ Role labels used below:
   - `ORG`: organization/program-scoped
 - `Student` access is mostly own-data only.
 - Multiple roles can see the same report, with different scope limits.
+
 

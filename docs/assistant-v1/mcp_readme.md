@@ -1,4 +1,4 @@
-[← Back to Main README](../../README.md)
+﻿[<- Back to docs index](../../README.md)
 
 # MCP Folder (Schema + Query Services)
 
@@ -114,3 +114,4 @@ POST /undo
 
 - Raw SQL is validated but still risky. Prefer structured queries.
 - Required filters (like `school_id`) are enforced by policy.
+
