@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sys
 from typing import Any, Dict, List, Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -13,7 +14,8 @@ class MultiMCPClient:
         self._load_config()
 
     def _load_config(self):
-        config_path = os.path.join(os.path.dirname(__file__), "..", "mcp_config.json")
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        config_path = os.path.join(base_dir, "mcp_config.json")
         try:
             with open(config_path, "r") as f:
                 config = json.load(f)
@@ -22,9 +24,19 @@ class MultiMCPClient:
                     if "env" in server:
                         env.update(server["env"])
                     
+                    # Ensure the current venv's python is used instead of system "python"
+                    command = sys.executable if server.get("command") == "python" else server.get("command")
+                    
+                    # Resolve relative paths in args to absolute paths based on Assistant-v2 base dir
+                    args = []
+                    for arg in server.get("args", []):
+                        if arg.startswith("mcp_servers/"):
+                            arg = os.path.join(base_dir, arg)
+                        args.append(arg)
+                    
                     self.server_params[name] = StdioServerParameters(
-                        command=server["command"],
-                        args=server["args"],
+                        command=command,
+                        args=args,
                         env=env
                     )
             print(f"Loaded {len(self.server_params)} MCP servers from config.")

@@ -2,38 +2,23 @@
   "mcpServers": {
     "aura-schema": {
       "command": "python",
-      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/schema_server.py"],
-      "env": {
-        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
-      }
+      "args": ["mcp_servers/schema_server.py"]
     },
     "aura-query": {
       "command": "python",
-      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/query_server.py"],
-      "env": {
-        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
-      }
+      "args": ["mcp_servers/query_server.py"]
     },
     "aura-admin": {
       "command": "python",
-      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/admin_server.py"],
-      "env": {
-        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
-      }
+      "args": ["mcp_servers/admin_server.py"]
     },
     "aura-import": {
       "command": "python",
-      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/import_server.py"],
-      "env": {
-        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
-      }
+      "args": ["mcp_servers/import_server.py"]
     },
     "aura-report": {
       "command": "python",
-      "args": ["c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/mcp_servers/report_server.py"],
-      "env": {
-        "PYTHONPATH": "c:/Users/cmpj/dev/work/Collab/aurav3/Assistant-v2/lib"
-      }
+      "args": ["mcp_servers/report_server.py"]
     }
   }
 }
