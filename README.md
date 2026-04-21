@@ -132,6 +132,35 @@ npm run dev
 
 Open `http://127.0.0.1:5173`.
 
+## 📚 Documentation Directory
+
+For deep technical details, guides, and architecture comparisons, refer to the organized documentation:
+
+### ⚙️ Backend
+- [Backend Changelog](./docs/backend/BACKEND_CHANGELOG.md)
+- [Reports Module Guide](./docs/backend/BACKEND_REPORTS_MODULE_GUIDE.md)
+- [Report Catalog](./docs/backend/REPORT_CATALOG.md)
+- [Sanctions Management](./docs/backend/BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md)
+- [User Preferences & Auth Session](./docs/backend/BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md)
+- [Demo Seeding Guide](./docs/backend/BACKEND_DEMO_SEEDING_GUIDE.md)
+- [Large Data Seed Guide](./docs/backend/BACKEND_LARGE_DATA_SEED_GUIDE.md)
+- [Face Engine Migration Guide](./docs/backend/BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
+- [Email Local Testing Guide](./docs/backend/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
+- [Railway Deployment Guide](./docs/backend/BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
+
+### 🤖 Assistant
+#### [v2 (Active Development)]
+- [v1 vs v2 Full Comparison](./docs/assistant-v2/v1_vs_v2_comparison.md)
+
+#### [v1 (Legacy)]
+- [Assistant API Contract](./docs/assistant-v1/ASSISTANT_API_CONTRACT.md)
+- [Assistant DB Schema](./docs/assistant-v1/ASSISTANT_DB_SCHEMA.md)
+- [Legacy MCP README](./docs/assistant-v1/mcp_readme.md)
+
+### 🔍 Audits
+- [Root Audit Report](./docs/audits/AUDIT_REPORT.md)
+- [Project Audit](./docs/audits/project_audit.md)
+
 ## Notes
 - Redis/Celery: the API can start without Redis, but features that enqueue background jobs will not run until Redis + a Celery worker/beat are running.
 - Alembic error `Can't locate revision identified by 'merge_heads_aur'`: your DB has a stale `alembic_version` value from another migration history. Drop/recreate the DB and re-run `alembic upgrade head`.
