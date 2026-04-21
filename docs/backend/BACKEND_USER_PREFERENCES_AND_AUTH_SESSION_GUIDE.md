@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Backend User Preferences And Auth Session Guide
 
 This guide documents the backend behavior for:

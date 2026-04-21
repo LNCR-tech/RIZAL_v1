@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Assistant Database Schema (Proposed)
 
 This schema stores assistant conversations, messages, and tool calls separately from the main app database.

@@ -132,11 +132,11 @@ npm run dev
 
 Open `http://127.0.0.1:5173`.
 
-## 📚 Documentation Directory
+## Documentation Directory
 
 For deep technical details, guides, and architecture comparisons, refer to the organized documentation:
 
-### ⚙️ Backend
+### Backend
 - [Backend Changelog](./docs/backend/BACKEND_CHANGELOG.md)
 - [Reports Module Guide](./docs/backend/BACKEND_REPORTS_MODULE_GUIDE.md)
 - [Report Catalog](./docs/backend/REPORT_CATALOG.md)
@@ -148,7 +148,7 @@ For deep technical details, guides, and architecture comparisons, refer to the o
 - [Email Local Testing Guide](./docs/backend/BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
 - [Railway Deployment Guide](./docs/backend/BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
 
-### 🤖 Assistant
+### Assistant
 #### [v2 (Active Development)]
 - [v1 vs v2 Full Comparison](./docs/assistant-v2/v1_vs_v2_comparison.md)
 
@@ -157,7 +157,7 @@ For deep technical details, guides, and architecture comparisons, refer to the o
 - [Assistant DB Schema](./docs/assistant-v1/ASSISTANT_DB_SCHEMA.md)
 - [Legacy MCP README](./docs/assistant-v1/mcp_readme.md)
 
-### 🔍 Audits
+### Audits
 - [Root Audit Report](./docs/audits/AUDIT_REPORT.md)
 - [Project Audit](./docs/audits/project_audit.md)
 

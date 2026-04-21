@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Assistant API JSON Contract
 
 This document shows the JSON payloads exchanged between the client and the `assistant.py` API.

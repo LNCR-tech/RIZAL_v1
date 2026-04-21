@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Backend Demo Seeding Guide (Manual UI + Assistant Testing)
 
 This repo includes a demo seeder that creates multiple schools and users so you can test:

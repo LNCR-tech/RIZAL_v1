@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Report Catalog
 
 This catalog lists practical reports for the attendance system.

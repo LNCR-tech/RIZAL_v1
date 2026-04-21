@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Project Audit: Student Attendance System (Aura Project)
 
 This document provides a comprehensive audit of the **Aura Student Attendance System**, detailing its architecture, technology stack, and core modules.

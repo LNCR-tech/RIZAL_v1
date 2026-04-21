@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # Backend Email Delivery Guide (Gmail + Local Mailpit)
 
 This guide explains how backend outbound email now works for cloud deployments and for optional local Mailpit testing.

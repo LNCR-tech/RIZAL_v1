@@ -1,3 +1,5 @@
+[← Back to Main README](../../README.md)
+
 # MCP Folder (Schema + Query Services)
 
 This folder contains two small services that expose:
