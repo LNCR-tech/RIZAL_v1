@@ -189,7 +189,7 @@ services:
     restart: unless-stopped
 
   assistant:
-    build: ./Assistant
+    build: ./Assistant-${ASSISTANT_VERSION:-v2}
     env_file:
       - ./.env
     environment:
