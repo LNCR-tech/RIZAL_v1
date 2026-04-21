@@ -1,4 +1,4 @@
-﻿# Getting Started (Docker)
+# Getting Started (Docker)
 
 [<- Back to docs index](../../README.md)
 
@@ -30,6 +30,8 @@ docker compose up --build
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8000/docs`
 - Assistant (via frontend proxy): `http://localhost:5173/__assistant__/docs`
+- pgAdmin (DB GUI): `http://localhost:5050` (Login: `admin@example.com` / `admin123`)
+- Mailpit (Email Test): `http://localhost:8025`
 
 For the full list, see: [Ports and URLs](../reference/ports.md).
 

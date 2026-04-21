@@ -19,6 +19,8 @@ Open:
 - Frontend: `http://localhost:5173`
 - Backend API docs: `http://localhost:8000/docs`
 - Assistant docs (via frontend proxy): `http://localhost:5173/__assistant__/docs`
+- pgAdmin (DB): `http://localhost:5050` (admin@example.com / admin123)
+- Mailpit (Email): `http://localhost:8025`
 
 ## Documentation
 
