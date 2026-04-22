@@ -1,5 +1,6 @@
 ﻿<template>
-  <section class="sg-sub-page">
+  <div class="sg-events-view">
+    <section class="sg-sub-page">
     <header class="sg-sub-header dashboard-enter dashboard-enter--1">
       <div class="sg-title-row">
         <button class="sg-sub-back" type="button" @click="goBack">
@@ -285,26 +286,27 @@
         <p v-else class="sg-sub-empty">No events found matching your search.</p>
       </div>
     </template>
-  </section>
+    </section>
 
-  <EventEditorSheet
-    :is-open="isEventEditorOpen"
-    :event="editingEvent"
-    title="Edit Governance Event"
-    description="Update the event details using the same backend fields the governance event API accepts."
-    submit-label="Save Event"
-    :saving="isMutatingEvent"
-    :error-message="eventEditorError"
-    :show-sanctions-panels="true"
-    :can-configure-event-sanctions="canConfigureEventSanctions"
-    :sanctions-config="editingSanctionsConfig"
-    :sanctions-delegations="editingSanctionsDelegations"
-    :governance-units="governanceUnits"
-    :sanctions-loading="sanctionsPanelLoading"
-    :sanctions-error-message="sanctionsPanelError"
-    @close="closeEventEditor"
-    @save="saveEventEdits"
-  />
+    <EventEditorSheet
+      :is-open="isEventEditorOpen"
+      :event="editingEvent"
+      title="Edit Governance Event"
+      description="Update the event details using the same backend fields the governance event API accepts."
+      submit-label="Save Event"
+      :saving="isMutatingEvent"
+      :error-message="eventEditorError"
+      :show-sanctions-panels="true"
+      :can-configure-event-sanctions="canConfigureEventSanctions"
+      :sanctions-config="editingSanctionsConfig"
+      :sanctions-delegations="editingSanctionsDelegations"
+      :governance-units="governanceUnits"
+      :sanctions-loading="sanctionsPanelLoading"
+      :sanctions-error-message="sanctionsPanelError"
+      @close="closeEventEditor"
+      @save="saveEventEdits"
+    />
+  </div>
 </template>
 
 <script setup>
@@ -1023,7 +1025,8 @@ function closeAllEventSwipes() {
 
 function handleDocumentPointerDown(event) {
   if (!hasOpenEventSwipe.value) return
-  if (event.target.closest('.sg-event-swipe-container')) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.sg-event-swipe-container')) return
   closeAllEventSwipes()
 }
 
@@ -1524,7 +1527,7 @@ async function submitEvent() {
 watch(
   [apiBaseUrl, () => sgLoading.value, () => route.query?.variant],
   async ([url]) => {
-    if (!_isMounted || !url || sgLoading.value) return
+    if (!url || sgLoading.value) return
     await loadEvents(url)
   },
   { immediate: true }
@@ -1533,7 +1536,6 @@ watch(
 watch(
   [governanceUnitId, governanceContext],
   () => {
-    if (!_isMounted) return
     hydrateCreateSanctionsTemplateFromStorage()
   },
   { immediate: true }
