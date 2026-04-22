@@ -1,70 +1,55 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
-# Backend Railway Deployment Guide
+# Backend Railway / Constrained Deployment Guide
 
-This guide documents the Railway-oriented backend runtime used by this repository.
+The repository now keeps a single compose file (`docker-compose.yml`). This page documents the constrained-platform variant for services such as Railway where you may still need a single backend container to host the web process plus optional worker sidecars.
 
-## Service Layout
+## Current Runtime Behavior
 
-For small Railway plans, the backend can run in a single service with:
+`Backend/scripts/run_runtime_stack.py` now:
 
-- API web server
-- Celery worker
-- Celery beat
-- startup migrations
-- startup seeding
+1. creates import and school-logo storage directories from `Backend/app/core/config.py`
+2. optionally runs `alembic upgrade heads` when `RUN_MIGRATIONS_ON_START=true`
+3. optionally launches Celery worker and beat sidecars
+4. starts `uvicorn`
 
-This is controlled by these environment variables:
+Important change:
 
-- `SERVICE_MODE=web`
-- `RUN_MIGRATIONS_ON_START=true`
-- `RUN_SEED_ON_START=true`
-- `RUN_CELERY_WORKER=true`
-- `RUN_CELERY_BEAT=true`
-- `CELERY_WORKER_POOL=solo`
-- `CELERY_WORKER_CONCURRENCY=1`
-- `FACE_WARMUP_ON_STARTUP=false`
+- automatic demo seeding is no longer supported in the runtime stack
+- `RUN_SEED_ON_START` is obsolete
+- production bootstrap must be run explicitly with `python Backend/bootstrap.py ...`
 
-## Startup Behavior
+## Recommended Platform Variables
 
-When `SERVICE_MODE=web`, the backend now:
-
-1. creates storage directories
-2. runs `alembic upgrade heads` when `RUN_MIGRATIONS_ON_START=true`
-3. runs `python seed.py` when `RUN_SEED_ON_START=true`
-4. starts optional Celery worker and beat sidecars
-5. starts `uvicorn`
-
-`alembic upgrade heads` is required because the repository currently has multiple Alembic heads.
-
-Face-runtime note:
-
-- InsightFace startup now requests only the `detection` and `recognition` modules when constructing `FaceAnalysis(...)` to reduce model-load memory pressure.
-- If your Railway service still restarts while face runtime initializes, keep `FACE_WARMUP_ON_STARTUP=false` and treat face-runtime readiness as a deployment-capacity issue (memory/plan sizing) before enabling startup warm-up.
-
-## Recommended Railway Variables
-
-- `DATABASE_URL=${{Postgres.DATABASE_URL}}`
-- `DATABASE_ADMIN_URL=${{Postgres.DATABASE_URL}}`
-- `CELERY_BROKER_URL=${{Redis.REDIS_URL}}`
-- `CELERY_RESULT_BACKEND=${{Redis.REDIS_URL}}`
+- `DATABASE_URL=<managed postgres url>`
+- `CELERY_BROKER_URL=<managed redis url>`
+- `CELERY_RESULT_BACKEND=<managed redis url>`
+- `SECRET_KEY=<strong secret>`
+- `LOGIN_URL=<public frontend url>`
+- `CORS_ALLOWED_ORIGINS=<public frontend origins>`
+- `EMAIL_TRANSPORT=disabled` or `mailjet_api`
+- `MAILJET_API_KEY=<mailjet key>` when email is enabled
+- `MAILJET_API_SECRET=<mailjet secret>` when email is enabled
 - `UVICORN_WORKERS=1`
 - `CELERY_WORKER_POOL=solo`
 - `CELERY_WORKER_CONCURRENCY=1`
-- `FACE_WARMUP_ON_STARTUP=false`
-- `EMAIL_REQUIRED_ON_STARTUP=true`
-- `EMAIL_VERIFY_CONNECTION_ON_STARTUP=true`
 
-## How To Test
+Non-secret runtime defaults such as face warm-up and import limits now come from `Backend/app/core/app_settings.py`.
 
-1. Deploy the backend service on Railway.
-2. Confirm startup logs show:
-   - migrations completed
-   - seeding completed
-   - Celery worker launch
-   - Celery beat launch
-   - `uvicorn` launch
-   - when face init is enabled, InsightFace initialization logs show `allowed_modules=detection,recognition`
-3. Verify the seeded admin can log in.
-4. Run a backend email smoke test after deployment and confirm Gmail accepts the message.
+## Suggested Release Flow
 
+1. Run migrations:
+   - `alembic upgrade heads`
+2. Run the one-time bootstrap:
+   - `python Backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!`
+3. Start the web process.
+4. Start worker and beat as separate processes or sidecars if the platform allows it.
+
+## How to Test
+
+1. Deploy with `EMAIL_TRANSPORT=disabled`.
+2. Confirm startup logs show the API booted without trying to auto-seed.
+3. Run the bootstrap command once.
+4. Verify the admin can log in.
+5. If Mailjet is enabled, run:
+   - `python Backend/scripts/send_test_email.py --recipient <test inbox> --check-only`

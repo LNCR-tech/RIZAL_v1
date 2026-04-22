@@ -10,11 +10,10 @@ LIB_DIR = str(Path(__file__).resolve().parent.parent / "lib")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
+from app_settings import APP_SETTINGS, get_backend_api_base_url
+
 # Initialize FastMCP Server
 mcp = FastMCP("Aura Reporting Server")
-
-# --- Constants ---
-BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL")
 
 @mcp.tool()
 async def mcp_report(
@@ -29,7 +28,8 @@ async def mcp_report(
     Fetches pre-calculated reports from the backend (attendance, governance).
     Requires a valid 'authorization' bearer token.
     """
-    if not BACKEND_API_BASE_URL:
+    backend_api_base_url = get_backend_api_base_url()
+    if not backend_api_base_url:
         return {"error": "Backend API not configured."}
 
     action_name = action.strip().lower()
@@ -60,9 +60,9 @@ async def mcp_report(
         return {"error": f"Unsupported report action: {action_name}"}
 
     headers = {"Authorization": authorization}
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=APP_SETTINGS.report_request_timeout_seconds) as client:
         try:
-            resp = await client.get(f"{BACKEND_API_BASE_URL}{path}", headers=headers, params=query_params)
+            resp = await client.get(f"{backend_api_base_url}{path}", headers=headers, params=query_params)
             return resp.json()
         except Exception as e:
             return {"error": f"Report request failed: {str(e)}"}

@@ -1,4 +1,4 @@
-"""Use: Seeds backend tables with starter records.
+﻿"""Use: Seeds backend tables with starter records.
 Where to use: Use this from setup scripts or local development when you need sample app data.
 Role: Data setup layer. It prepares initial records for the app.
 """
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 import csv
-import os
+from dataclasses import dataclass
 from pathlib import Path
 import random
 import string
@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from app.utils.passwords import hash_password_bcrypt
 
+from app.core.app_settings import APP_SETTINGS
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
 from app.models.department import Department
@@ -46,7 +47,6 @@ load_dotenv()
 
 LEGACY_PLACEHOLDER_ADMIN_EMAIL = "admin@yourdomain.com"
 DEMO_SEED_RANDOM_SEED = 1337
-DEFAULT_DEMO_EMAIL_DOMAIN = "demo.valid8.dev"
 
 # Generated demo credentials are written to a local file (gitignored).
 DEFAULT_DEMO_CREDENTIALS_PATH = Path(__file__).resolve().parents[1] / "storage" / "seed_credentials.csv"
@@ -73,13 +73,36 @@ LAST_NAMES = [
 ]
 
 DEFAULT_ROLE_NAMES = [
-    "student",
-    "campus_admin",
     "admin",
-    "ssg",
-    "sg",
-    "org",
+    "campus_admin",
+    "student",
 ]
+
+
+@dataclass(frozen=True)
+class BootstrapSeedOptions:
+    admin_email: str = APP_SETTINGS.default_admin_email
+    admin_password: str = APP_SETTINGS.default_admin_password
+    school_name: str = APP_SETTINGS.default_school_name
+    school_code: str = APP_SETTINGS.default_school_code
+    school_address: str = APP_SETTINGS.default_school_address
+    school_logo_url: str = APP_SETTINGS.default_school_logo_url
+    school_primary_color: str = APP_SETTINGS.default_school_primary_color
+    school_secondary_color: str = APP_SETTINGS.default_school_secondary_color
+    subscription_status: str = APP_SETTINGS.default_subscription_status
+    subscription_plan: str = APP_SETTINGS.default_subscription_plan
+
+
+@dataclass(frozen=True)
+class DemoSeedOptions:
+    wipe_existing: bool = False
+    schools_target: int = APP_SETTINGS.demo_seed_schools
+    users_target: int = APP_SETTINGS.demo_seed_users
+    email_domain: str = APP_SETTINGS.demo_seed_email_domain
+    credentials_path: Path = DEFAULT_DEMO_CREDENTIALS_PATH
+    massive_attendance: bool = False
+    massive_students: int = APP_SETTINGS.demo_massive_students
+    massive_records: int = APP_SETTINGS.demo_massive_records
 
 
 def create_tables() -> None:
@@ -134,51 +157,61 @@ def _find_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(User.email == normalized_email).first()
 
 
-def seed_default_school(db: Session) -> School:
+def seed_default_school(
+    db: Session,
+    options: BootstrapSeedOptions | None = None,
+) -> School:
     """Create a default school/settings record if none exists."""
+    resolved_options = options or BootstrapSeedOptions()
     school = db.query(School).order_by(School.id.asc()).first()
     if school:
         if not getattr(school, "school_name", None):
             school.school_name = school.name
             db.commit()
         if not getattr(school, "school_code", None):
-            school.school_code = os.getenv("DEFAULT_SCHOOL_CODE", "DS-001")
+            school.school_code = resolved_options.school_code
             db.commit()
         if not db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first():
-            db.add(SchoolSetting(school_id=school.id))
+            db.add(
+                SchoolSetting(
+                    school_id=school.id,
+                    primary_color=resolved_options.school_primary_color,
+                    secondary_color=resolved_options.school_secondary_color,
+                )
+            )
             db.commit()
         print(f"School already exists: {school.name}")
         return school
 
     school = School(
-        name=os.getenv("DEFAULT_SCHOOL_NAME", "Default School"),
-        school_name=os.getenv("DEFAULT_SCHOOL_NAME", "Default School"),
-        address=os.getenv("DEFAULT_SCHOOL_ADDRESS", "Default Address"),
-        logo_url=os.getenv("DEFAULT_SCHOOL_LOGO_URL"),
-        primary_color=os.getenv("DEFAULT_SCHOOL_PRIMARY_COLOR", "#162F65"),
-        secondary_color=os.getenv("DEFAULT_SCHOOL_SECONDARY_COLOR", "#2C5F9E"),
-        school_code=os.getenv("DEFAULT_SCHOOL_CODE", "DS-001"),
-        subscription_status=os.getenv("DEFAULT_SUBSCRIPTION_STATUS", "trial"),
+        name=resolved_options.school_name,
+        school_name=resolved_options.school_name,
+        address=resolved_options.school_address,
+        logo_url=resolved_options.school_logo_url,
+        primary_color=resolved_options.school_primary_color,
+        secondary_color=resolved_options.school_secondary_color,
+        school_code=resolved_options.school_code,
+        subscription_status=resolved_options.subscription_status,
         active_status=True,
-        subscription_plan=os.getenv("DEFAULT_SUBSCRIPTION_PLAN", "free"),
+        subscription_plan=resolved_options.subscription_plan,
         subscription_start=date.today(),
     )
 
     db.add(school)
     db.flush()
 
-    db.add(SchoolSetting(school_id=school.id))
+    db.add(
+        SchoolSetting(
+            school_id=school.id,
+            primary_color=resolved_options.school_primary_color,
+            secondary_color=resolved_options.school_secondary_color,
+        )
+    )
     db.commit()
     db.refresh(school)
 
     print(f"Default school created: {school.name}")
     return school
-
-
-def _as_bool(value: str | None, default: bool) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_email(value: str) -> str:
@@ -446,13 +479,16 @@ def _assign_governance_membership(
 def seed_demo_data(
     db: Session,
     *,
-    schools_target: int = 5,
-    users_target: int = 100,
+    schools_target: int = APP_SETTINGS.demo_seed_schools,
+    users_target: int = APP_SETTINGS.demo_seed_users,
+    email_domain: str = APP_SETTINGS.demo_seed_email_domain,
     credentials_path: Path = DEFAULT_DEMO_CREDENTIALS_PATH,
 ) -> None:
     """Seed a multi-school demo dataset for manual UI + assistant testing."""
     rng = random.Random(DEMO_SEED_RANDOM_SEED)
-    demo_email_domain = (os.getenv("SEED_DEMO_EMAIL_DOMAIN") or DEFAULT_DEMO_EMAIL_DOMAIN).strip().lstrip("@").lower()
+    demo_email_domain = (email_domain or APP_SETTINGS.demo_seed_email_domain).strip().lstrip("@").lower()
+    if not demo_email_domain:
+        demo_email_domain = APP_SETTINGS.demo_seed_email_domain
 
     # Older demo datasets used `@demo.local` which fails strict email validation. Repair in-place so
     # existing foreign keys stay valid and users can still log in.
@@ -768,10 +804,16 @@ def _apply_admin_defaults(user: User, admin_email: str) -> bool:
     return updated
 
 
-def seed_admin_user(db: Session, school: School) -> None:
+def seed_admin_user(
+    db: Session,
+    school: School | None = None,
+    options: BootstrapSeedOptions | None = None,
+) -> None:
     """Create or repair the initial platform admin user."""
-    admin_email = (os.getenv("ADMIN_EMAIL", "admin@university.edu") or "admin@university.edu").strip().lower()
-    admin_password = os.getenv("ADMIN_PASSWORD", "AdminPass123!")
+    del school  # Bootstrap always creates the admin as a platform-level account.
+    resolved_options = options or BootstrapSeedOptions()
+    admin_email = (resolved_options.admin_email or APP_SETTINGS.default_admin_email).strip().lower()
+    admin_password = resolved_options.admin_password or APP_SETTINGS.default_admin_password
 
     existing_admin = _find_user_by_email(db, admin_email)
     legacy_admin = None
@@ -795,6 +837,7 @@ def seed_admin_user(db: Session, school: School) -> None:
             must_change_password=False,
             should_prompt_password_change=False,
         )
+        existing_admin.set_password(admin_password)
         db.add(existing_admin)
         db.flush()
         created_admin = True
@@ -805,7 +848,7 @@ def seed_admin_user(db: Session, school: School) -> None:
     if _ensure_user_role(db, existing_admin, "admin"):
         updated = True
 
-    if created_admin or reused_legacy_admin or not had_admin_role:
+    if reused_legacy_admin or not had_admin_role:
         existing_admin.set_password(admin_password)
         updated = True
 
@@ -835,7 +878,11 @@ def seed_admin_user(db: Session, school: School) -> None:
     print("Admin user already exists")
 
 
-def wipe_database_records(db: Session) -> None:
+def wipe_database_records(
+    db: Session,
+    *,
+    preserve_admin_email: str | None = None,
+) -> None:
     """Clear all records from application tables without dropping schemas."""
     from app.models.attendance import Attendance
     from app.models.event import Event
@@ -854,7 +901,8 @@ def wipe_database_records(db: Session) -> None:
     db.query(GovernanceUnit).delete()
     db.query(StudentProfile).delete()
     db.query(UserRole).delete()
-    db.query(User).filter(User.email != os.getenv("ADMIN_EMAIL", "admin@university.edu")).delete()
+    admin_email = (preserve_admin_email or APP_SETTINGS.default_admin_email).strip().lower()
+    db.query(User).filter(User.email != admin_email).delete()
     db.query(Event).delete()
     db.query(Program).delete()
     db.query(Department).delete()
@@ -865,7 +913,16 @@ def wipe_database_records(db: Session) -> None:
     print("Database records cleaned.")
 
 
-def seed_massive_attendance_data(db: Session, target_school: School) -> None:
+def seed_massive_attendance_data(
+    db: Session,
+    target_school: School,
+    *,
+    students_target: int = APP_SETTINGS.demo_massive_students,
+    records_target: int = APP_SETTINGS.demo_massive_records,
+    email_domain: str = APP_SETTINGS.demo_seed_email_domain,
+    credentials_path: Path = DEFAULT_DEMO_CREDENTIALS_PATH,
+    overwrite_credentials: bool = False,
+) -> None:
     """Generate 1M attendance records using high-performance bulk insertion."""
     import random
     import csv
@@ -874,8 +931,9 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
     from app.models.event import Event, EventStatus
     from app.models.user import StudentProfile, User
 
-    students_target = int(os.getenv("SEED_MASSIVE_STUDENTS", "5000"))
-    records_target = int(os.getenv("SEED_MASSIVE_RECORDS", "1000000"))
+    resolved_email_domain = (email_domain or APP_SETTINGS.demo_seed_email_domain).strip().lstrip("@").lower()
+    if not resolved_email_domain:
+        resolved_email_domain = APP_SETTINGS.demo_seed_email_domain
     events_count = 500
 
     print(f"--- MASSIVE SEED START ---")
@@ -913,7 +971,7 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
     for i in range(1, students_target + 1):
         first = random.choice(FIRST_NAMES)
         last = random.choice(LAST_NAMES)
-        email = f"student.{i:05d}@massive.{DEFAULT_DEMO_EMAIL_DOMAIN}"
+        email = f"student.{i:05d}@massive.{resolved_email_domain}"
         
         user = User(
             email=email,
@@ -965,7 +1023,7 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
     for i in range(1, 6):
         first = random.choice(FIRST_NAMES)
         last = random.choice(LAST_NAMES)
-        email = f"campus.admin.{i}@massive.{DEFAULT_DEMO_EMAIL_DOMAIN}"
+        email = f"campus.admin.{i}@massive.{resolved_email_domain}"
         user = User(
             email=email,
             school_id=target_school.id,
@@ -1073,8 +1131,9 @@ def seed_massive_attendance_data(db: Session, target_school: School) -> None:
     # Write credentials to storage
     fieldnames = ["email", "password", "school_code", "school_id", "roles", "permissions"]
     # If wiping, overwrite the file to ensure sync. Otherwise append.
-    mode = "w" if _as_bool(os.getenv("SEED_WIPE_EXISTING"), False) else "a"
-    with DEFAULT_DEMO_CREDENTIALS_PATH.open(mode, newline="", encoding="utf-8") as fh:
+    mode = "w" if overwrite_credentials else "a"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    with credentials_path.open(mode, newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         if mode == "w":
             writer.writeheader()
@@ -1196,44 +1255,59 @@ def seed_massive_sanctions(db: Session, target_school: School, students: list[St
     print(f"Sanction Universe seeded successfully.")
 
 
+def bootstrap_database(
+    db: Session,
+    *,
+    options: BootstrapSeedOptions | None = None,
+) -> None:
+    """Seed roles and the platform admin user. School is created via the UI."""
+    resolved_options = options or BootstrapSeedOptions()
+    seed_roles(db)
+    seed_admin_user(db, options=resolved_options)
 
-def run_seeder() -> None:
-    """Main seeder function."""
-    print("Starting database seeding...")
+
+def run_production_bootstrap(
+    options: BootstrapSeedOptions | None = None,
+) -> None:
+    """Create the baseline production data set without any demo records."""
+    print("Starting production bootstrap...")
     db = SessionLocal()
 
     try:
         create_tables()
-
-        if _as_bool(os.getenv("SEED_WIPE_EXISTING"), False):
-            wipe_database_records(db)
-
-        # Basic infra always seeded
-        seed_roles(db)
-        school = seed_default_school(db)
-        seed_admin_user(db, school)
-        
-        # Check both SEED_DATABASE (Cj's preferred) and SEED_DEMO_DATA (legacy)
-        should_seed = os.getenv("SEED_DATABASE")
-        if should_seed is None:
-            should_seed = os.getenv("SEED_DEMO_DATA")
-
-        if _as_bool(should_seed, True):
-            if _as_bool(os.getenv("SEED_MASSIVE_ATTENDANCE"), False):
-                seed_massive_attendance_data(db, target_school=school)
-            else:
-                schools_target = max(1, int(os.getenv("SEED_DEMO_SCHOOLS", "5")))
-                users_target = max(1, int(os.getenv("SEED_DEMO_USERS", "100")))
-                seed_demo_data(db, schools_target=schools_target, users_target=users_target)
-
-        print("Database seeding completed successfully")
+        bootstrap_database(db, options=options)
+        print("Production bootstrap completed successfully")
     except Exception as exc:
-        print(f"Error during seeding: {exc}")
+        print(f"Error during production bootstrap: {exc}")
         db.rollback()
         raise
     finally:
         db.close()
 
 
-if __name__ == "__main__":
-    run_seeder()
+def run_demo_seed(
+    *,
+    options: DemoSeedOptions | None = None,
+    bootstrap_options: BootstrapSeedOptions | None = None,
+) -> None:
+    """Seed the database with only the admin account and default school."""
+    print("Starting database seed...")
+    resolved_options = options or DemoSeedOptions()
+    resolved_bootstrap = bootstrap_options or BootstrapSeedOptions()
+    db = SessionLocal()
+
+    try:
+        create_tables()
+
+        if resolved_options.wipe_existing:
+            wipe_database_records(db, preserve_admin_email=resolved_bootstrap.admin_email)
+
+        bootstrap_database(db, options=resolved_bootstrap)
+
+        print("Database seed completed successfully")
+    except Exception as exc:
+        print(f"Error during seeding: {exc}")
+        db.rollback()
+        raise
+    finally:
+        db.close()

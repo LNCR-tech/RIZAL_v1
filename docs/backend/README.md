@@ -1,4 +1,4 @@
-﻿# Backend Documentation
+# Backend Documentation
 
 [<- Back to docs index](../../README.md)
 
@@ -17,7 +17,5 @@
 - [Demo Seeding Guide](./BACKEND_DEMO_SEEDING_GUIDE.md)
 - [Large Data Seed Guide](./BACKEND_LARGE_DATA_SEED_GUIDE.md)
 - [Face Engine Migration Guide](./BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
-- [Email Delivery Guide (Gmail + Local Mailpit)](./BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
-- [Railway Deployment Guide](./BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
-
-
+- [Email Delivery Guide (Mailjet / Disabled)](./BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
+- [Railway / Constrained Deployment Guide](./BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)

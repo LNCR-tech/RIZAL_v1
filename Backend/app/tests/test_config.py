@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from app.core import config as config_module
+from app.core.app_settings import APP_SETTINGS
 from app.core.config import get_settings
 
 
@@ -35,43 +36,52 @@ def test_normalize_storage_path_preserves_absolute_paths(tmp_path):
     assert Path(resolved) == absolute_path
 
 
-def test_get_settings_exposes_tenant_database_fields(monkeypatch):
+def test_get_settings_exposes_mailjet_and_runtime_fields(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db:5432/app")
     monkeypatch.setenv("DATABASE_ADMIN_URL", "postgresql://admin:pass@db:5432/postgres")
-    monkeypatch.setenv("TENANT_DATABASE_PREFIX", "valid8")
-    monkeypatch.setenv("EMAIL_TRANSPORT", "gmail_api")
+    monkeypatch.setenv("TENANT_DATABASE_PREFIX", "ignored-prefix")
     monkeypatch.setenv("EMAIL_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("EMAIL_TRANSPORT", "mailjet_api")
     monkeypatch.setenv("EMAIL_SENDER_EMAIL", "mailer@example.com")
-    monkeypatch.setenv("EMAIL_FROM_NAME", "Aura Notifications")
-    monkeypatch.setenv("SMTP_HOST", "mailpit")
-    monkeypatch.setenv("SMTP_PORT", "1025")
-    monkeypatch.setenv("SMTP_USE_TLS", "false")
-    monkeypatch.setenv("SMTP_USE_STARTTLS", "false")
+    monkeypatch.setenv("EMAIL_SENDER_NAME", "Aura Notifications")
+    monkeypatch.setenv("EMAIL_REPLY_TO", "reply@example.com")
+    monkeypatch.setenv("MAILJET_API_KEY", "mailjet-key")
+    monkeypatch.setenv("MAILJET_API_SECRET", "mailjet-secret")
+    monkeypatch.setenv("LOGIN_URL", "https://valid8.example/login")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://valid8.example,https://admin.valid8.example")
 
     settings = get_settings()
 
     assert settings.database_url == "postgresql://user:pass@db:5432/app"
     assert settings.database_admin_url == "postgresql://admin:pass@db:5432/postgres"
-    assert settings.tenant_database_prefix == "valid8"
-    assert settings.email_transport == "gmail_api"
-    assert settings.email_timeout_seconds == 45
+    assert settings.tenant_database_prefix == APP_SETTINGS.tenant_database_prefix
+    assert settings.email_transport == "mailjet_api"
+    assert settings.email_timeout_seconds == APP_SETTINGS.email_timeout_seconds
     assert settings.email_sender_email == "mailer@example.com"
-    assert settings.email_from_name == "Aura Notifications"
-    assert settings.smtp_host == "mailpit"
-    assert settings.smtp_port == 1025
-    assert settings.smtp_use_tls is False
-    assert settings.smtp_use_starttls is False
+    assert settings.email_sender_name == "Aura Notifications"
+    assert settings.email_reply_to == "reply@example.com"
+    assert settings.mailjet_api_key == "mailjet-key"
+    assert settings.mailjet_api_secret == "mailjet-secret"
+    assert settings.login_url == "https://valid8.example/login"
+    assert settings.cors_allowed_origins == [
+        "https://valid8.example",
+        "https://admin.valid8.example",
+    ]
 
 
 def test_get_settings_normalizes_relative_storage_paths(monkeypatch):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", "storage/imports")
-    monkeypatch.setenv("SCHOOL_LOGO_STORAGE_DIR", "storage/school_logos")
+    monkeypatch.setenv("IMPORT_STORAGE_DIR", "/tmp/ignored-imports")
+    monkeypatch.setenv("SCHOOL_LOGO_STORAGE_DIR", "/tmp/ignored-school-logos")
 
     settings = get_settings()
     repo_root = config_module._get_repo_root()
 
-    assert Path(settings.import_storage_dir) == (repo_root / "storage" / "imports").resolve()
-    assert Path(settings.school_logo_storage_dir) == (repo_root / "storage" / "school_logos").resolve()
+    assert Path(settings.import_storage_dir) == (
+        repo_root / APP_SETTINGS.import_storage_dir
+    ).resolve()
+    assert Path(settings.school_logo_storage_dir) == (
+        repo_root / APP_SETTINGS.school_logo_storage_dir
+    ).resolve()
 
 
 def test_get_settings_defaults_email_transport_to_disabled_when_unset(monkeypatch):
@@ -80,4 +90,5 @@ def test_get_settings_defaults_email_transport_to_disabled_when_unset(monkeypatc
     settings = get_settings()
 
     assert settings.email_transport == "disabled"
-    assert settings.email_required_on_startup is False
+    assert settings.mailjet_api_key == ""
+    assert settings.mailjet_api_secret == ""

@@ -1,19 +1,17 @@
-﻿# Assistant Documentation
+# Assistant Documentation
 
 [<- Back to docs index](../../README.md)
 
-The repo contains two assistant services:
+The supported assistant service in this repository is:
 
-- v2 (active development): `Assistant-v2/`
-- v1 (legacy): `Assistant-v1/`
+- `Assistant-v2/`
+
+Key configuration notes:
+
+- non-secret assistant defaults now live in `Assistant-v2/lib/app_settings.py`
+- secrets and runtime URLs remain env-driven
+- production compose and main docs target `Assistant-v2` only
 
 ## Existing Docs
 
-- v2:
-  - [v1 vs v2 Comparison](../assistant-v2/v1_vs_v2_comparison.md)
-- v1:
-  - [Assistant API Contract](../assistant-v1/ASSISTANT_API_CONTRACT.md)
-  - [Assistant DB Schema](../assistant-v1/ASSISTANT_DB_SCHEMA.md)
-  - [Legacy MCP README](../assistant-v1/mcp_readme.md)
-
-
+- [v1 vs v2 Comparison](../assistant-v2/v1_vs_v2_comparison.md)

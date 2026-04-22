@@ -6,10 +6,12 @@ import uuid
 import httpx
 from typing import Any, Dict, List, Optional, AsyncGenerator
 
+from .app_settings import APP_SETTINGS
+
 logger = logging.getLogger("uvicorn.error")
 
 # --- AI Configuration (Verbatim from v1) ---
-AI_PROVIDER = (os.getenv("AI_PROVIDER") or "").strip().lower()
+AI_PROVIDER = APP_SETTINGS.ai_provider
 AI_API_KEY = (
     os.getenv("AI_API_KEY")
     or os.getenv("OPENAI_API_KEY")
@@ -23,33 +25,9 @@ AI_API_BASE = (
     or os.getenv("GEMINI_API_BASE")
     or ""
 )
-AI_MODEL = (
-    os.getenv("AI_MODEL")
-    or os.getenv("OPENAI_MODEL")
-    or os.getenv("ANTHROPIC_MODEL")
-    or os.getenv("GEMINI_MODEL")
-    or "gpt-4o-mini"
-)
-try:
-    AI_MAX_TOKENS = max(
-        1,
-        int(
-            os.getenv("AI_MAX_TOKENS")
-            or os.getenv("OPENAI_MAX_TOKENS")
-            or os.getenv("ANTHROPIC_MAX_TOKENS")
-            or os.getenv("GEMINI_MAX_TOKENS")
-            or "1024"
-        ),
-    )
-except (ValueError, TypeError):
-    AI_MAX_TOKENS = 1024
-
-AI_API_VERSION = (
-    os.getenv("AI_API_VERSION")
-    or os.getenv("ANTHROPIC_VERSION")
-    or os.getenv("ANTHROPIC_API_VERSION")
-    or "2023-06-01"
-).strip()
+AI_MODEL = APP_SETTINGS.ai_model
+AI_MAX_TOKENS = APP_SETTINGS.ai_max_tokens
+AI_API_VERSION = APP_SETTINGS.ai_api_version
 
 def _infer_ai_provider() -> str:
     explicit = AI_PROVIDER.strip().lower()
@@ -318,7 +296,7 @@ def _normalize_gemini_response(data: Dict[str, Any]) -> Dict[str, Any]:
 async def call_openai(messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     provider = _infer_ai_provider()
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=APP_SETTINGS.ai_request_timeout_seconds) as client:
             if provider == "anthropic":
                 try:
                     from .tools_logic import convert_tools_for_anthropic
@@ -450,7 +428,7 @@ async def call_llm_stream(messages: List[Dict[str, Any]], tools: Optional[List[D
     full_tool_calls: Dict[int, Dict[str, Any]] = {}
 
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=APP_SETTINGS.ai_request_timeout_seconds) as client:
             async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
                 if response.status_code >= 400:
                     err_body = await response.aread()

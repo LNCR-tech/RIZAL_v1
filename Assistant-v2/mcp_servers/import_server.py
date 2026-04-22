@@ -15,13 +15,12 @@ LIB_DIR = str(Path(__file__).resolve().parent.parent / "lib")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
+from app_settings import APP_SETTINGS, get_backend_api_base_url
 from policy import normalize_role
 
 # Initialize FastMCP Server
 mcp = FastMCP("Aura Import Server")
 
-# --- Constants ---
-BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL")
 EXPECTED_HEADERS = [
     "Student_ID", "Email", "Last Name", "First Name", "Middle Name", "Department", "Course"
 ]
@@ -83,12 +82,13 @@ async def mcp_import_student(
     if not any(r in {"admin", "campus_admin"} for r in norm_roles):
         return {"error": "Permission denied for student imports."}
 
-    if not BACKEND_API_BASE_URL:
+    backend_api_base_url = get_backend_api_base_url()
+    if not backend_api_base_url:
         return {"error": "Backend API not configured."}
 
     headers = {"Authorization": authorization}
     
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=APP_SETTINGS.import_request_timeout_seconds) as client:
         if action == "expected_headers":
             return {"expected_headers": EXPECTED_HEADERS, "formats": ["csv", "json"]}
 
@@ -98,19 +98,19 @@ async def mcp_import_student(
             rows = _parse_dataset(dataset_text, dataset_format)
             xlsx = _build_workbook_bytes(rows)
             files = {"file": ("import.xlsx", xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-            resp = await client.post(f"{BACKEND_API_BASE_URL}/api/admin/import-students/preview", headers=headers, files=files)
+            resp = await client.post(f"{backend_api_base_url}/api/admin/import-students/preview", headers=headers, files=files)
             return resp.json()
 
         if action == "commit_import":
             if not preview_token:
                 return {"error": "preview_token required."}
-            resp = await client.post(f"{BACKEND_API_BASE_URL}/api/admin/import-students", headers=headers, data={"preview_token": preview_token})
+            resp = await client.post(f"{backend_api_base_url}/api/admin/import-students", headers=headers, data={"preview_token": preview_token})
             return resp.json()
 
         if action == "import_status":
             if not job_id:
                 return {"error": "job_id required."}
-            resp = await client.get(f"{BACKEND_API_BASE_URL}/api/admin/import-status/{job_id}", headers=headers)
+            resp = await client.get(f"{backend_api_base_url}/api/admin/import-status/{job_id}", headers=headers)
             return resp.json()
 
     return {"error": f"Unknown action: {action}"}

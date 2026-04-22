@@ -6,11 +6,14 @@ Role: Test layer. It protects the preview-first import contract from regressions
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 import io
 import json
 
 from openpyxl import Workbook, load_workbook
 
+from app.core import config as config_module
+from app.core.app_settings import APP_SETTINGS
 from app.core.security import create_access_token
 from app.models import BulkImportJob, Department, Program, Role, School, StudentProfile, User, UserRole
 
@@ -109,13 +112,21 @@ def _build_csv_bytes(rows: list[list[str]]) -> bytes:
     return output.getvalue().encode("utf-8")
 
 
+def _use_tmp_import_storage(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        config_module,
+        "APP_SETTINGS",
+        replace(APP_SETTINGS, import_storage_dir=str(tmp_path)),
+    )
+
+
 def test_preview_import_students_reports_existing_database_conflicts(
     client,
     test_db,
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-CONFLICT")
     department, program = _create_department_and_program(test_db, school_id=school.id)
@@ -226,7 +237,7 @@ def test_import_students_requires_preview_token_and_queues_preview_manifest_job(
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-QUEUE")
     _create_department_and_program(test_db, school_id=school.id)
@@ -331,7 +342,7 @@ def test_preview_import_students_accepts_csv_uploads(
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-CSV")
     campus_admin = _create_user_with_role(
@@ -376,7 +387,7 @@ def test_preview_import_students_accepts_xlsx_with_trailing_blank_header_columns
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-XLSX-BLANK-HEADER")
     _create_department_and_program(test_db, school_id=school.id)
@@ -435,7 +446,7 @@ def test_remove_invalid_preview_rows_keeps_only_valid_rows_and_allows_import(
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-CLEAN")
     department, program = _create_department_and_program(test_db, school_id=school.id)
@@ -564,7 +575,7 @@ def test_import_students_falls_back_to_in_process_job_when_celery_dispatch_fails
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-FALLBACK")
     _create_department_and_program(test_db, school_id=school.id)
@@ -644,7 +655,7 @@ def test_preview_import_students_accepts_new_department_program_pairings(
     tmp_path,
     monkeypatch,
 ):
-    monkeypatch.setenv("IMPORT_STORAGE_DIR", str(tmp_path))
+    _use_tmp_import_storage(monkeypatch, tmp_path)
 
     school = _create_school(test_db, code="IMPORT-PREVIEW-MISMATCH")
     _create_department_and_program(test_db, school_id=school.id)

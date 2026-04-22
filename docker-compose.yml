@@ -7,7 +7,6 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fastapi_db
     ports:
-      # Expose Postgres on 5433 to avoid conflicts with any local Windows PostgreSQL service.
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -24,47 +23,6 @@ services:
     ports:
       - "6379:6379"
 
-  mailpit:
-    image: axllent/mailpit:v1.27
-    restart: always
-    environment:
-      - MP_DATABASE=/data/mailpit.db
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-    volumes:
-      - mailpit_data:/data
-
-  migrate:
-    build:
-      context: ./Backend
-    image: rizal-backend:local
-    command: alembic upgrade heads
-    env_file:
-      - ./.env
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-    volumes:
-      - ./Backend:/app
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
-  seed:
-    image: rizal-backend:local
-    command: python seed.py
-    env_file:
-      - ./.env
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-    volumes:
-      - ./Backend:/app
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: "no"
-
   backend:
     image: rizal-backend:local
     ports:
@@ -72,26 +30,17 @@ services:
     env_file:
       - ./.env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - AUTH_ENABLE_MFA=false
-      - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
-      - LOGIN_URL=http://localhost:5173
-      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-      - UVICORN_WORKERS=1
-      - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
-      - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
-      - IMPORT_STORAGE_DIR=/tmp/valid8_imports
-      - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
-      - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
-      # Dev-safe default: don't force Gmail API unless the user explicitly configures it in .env.
-      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
-      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      LOGIN_URL: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
     volumes:
       - ./Backend:/app
-      - import_storage:/tmp/valid8_imports
-      - branding_storage:/tmp/valid8_school_logos
+      - import_storage:/app/storage/imports
+      - branding_storage:/app/storage/school_logos
       - insightface_models:/root/.insightface
     restart: unless-stopped
     depends_on:
@@ -99,8 +48,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      seed:
-        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -118,33 +65,22 @@ services:
     env_file:
       - ./.env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - AUTH_ENABLE_MFA=false
-      - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
-      - LOGIN_URL=http://localhost:5173
-      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-      - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
-      - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
-      - IMPORT_STORAGE_DIR=/tmp/valid8_imports
-      - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
-      - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
-      # Dev-safe default: don't force Gmail API unless the user explicitly configures it in .env.
-      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
-      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      LOGIN_URL: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
     volumes:
       - ./Backend:/app
-      - import_storage:/tmp/valid8_imports
-      - branding_storage:/tmp/valid8_school_logos
+      - import_storage:/app/storage/imports
+      - branding_storage:/app/storage/school_logos
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
-      seed:
-        condition: service_completed_successfully
 
   beat:
     image: rizal-backend:local
@@ -152,47 +88,35 @@ services:
     env_file:
       - ./.env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - AUTH_ENABLE_MFA=false
-      - ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING=false
-      - LOGIN_URL=http://localhost:5173
-      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-      - EVENT_STATUS_SYNC_ENABLED=${EVENT_STATUS_SYNC_ENABLED:-true}
-      - EVENT_STATUS_SYNC_INTERVAL_SECONDS=${EVENT_STATUS_SYNC_INTERVAL_SECONDS:-60}
-      - IMPORT_STORAGE_DIR=/tmp/valid8_imports
-      - SCHOOL_LOGO_STORAGE_DIR=/tmp/valid8_school_logos
-      - SCHOOL_LOGO_MAX_FILE_SIZE_MB=2
-      # Dev-safe default: don't force Gmail API unless the user explicitly configures it in .env.
-      - EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-disabled}
-      - EMAIL_TIMEOUT_SECONDS=${EMAIL_TIMEOUT_SECONDS:-20}
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      LOGIN_URL: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
     volumes:
       - ./Backend:/app
-      - import_storage:/tmp/valid8_imports
-      - branding_storage:/tmp/valid8_school_logos
+      - import_storage:/app/storage/imports
+      - branding_storage:/app/storage/school_logos
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
-      seed:
-        condition: service_completed_successfully
 
   frontend:
     build:
       context: ./Frontend
     ports:
-      - "5173:80"
+      - "${FRONTEND_PORT:-5173}:80"
     environment:
-      - PORT=80
-      - BACKEND_ORIGIN=${BACKEND_ORIGIN:-http://backend:8000}
-      - ASSISTANT_ORIGIN=${ASSISTANT_ORIGIN:-http://assistant:8500}
-      - AURA_API_BASE_URL=${AURA_API_BASE_URL:-/__backend__}
-      - AURA_API_TIMEOUT_MS=${AURA_API_TIMEOUT_MS:-15000}
-      - AURA_ASSISTANT_BASE_URL=${AURA_ASSISTANT_BASE_URL:-/__assistant__}
-      - PORT=80
+      PORT: 80
+      BACKEND_ORIGIN: ${BACKEND_ORIGIN:-http://backend:8000}
+      ASSISTANT_ORIGIN: ${ASSISTANT_ORIGIN:-http://assistant:8500}
+      AURA_API_BASE_URL: ${AURA_API_BASE_URL:-/__backend__}
+      AURA_ASSISTANT_BASE_URL: ${AURA_ASSISTANT_BASE_URL:-/__assistant__}
+      AURA_API_TIMEOUT_MS: ${AURA_API_TIMEOUT_MS:-15000}
     depends_on:
       backend:
         condition: service_healthy
@@ -201,16 +125,15 @@ services:
     restart: unless-stopped
 
   assistant:
-    build: ./Assistant-${ASSISTANT_VERSION:-v2}
+    build: ./Assistant-v2
     env_file:
       - ./.env
     environment:
-      - TENANT_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      - APP_DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
-      - ASSISTANT_DB_URL=postgresql://postgres:postgres@db:5432/ai_assistant
-      - ASSISTANT_AUTO_MIGRATE=true
-      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
-      - BACKEND_API_BASE_URL=${BACKEND_API_BASE_URL:-http://backend:8000}
+      APP_DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      ASSISTANT_DB_URL: postgresql://postgres:postgres@db:5432/ai_assistant
+      ASSISTANT_AUTO_MIGRATE: "true"
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      BACKEND_API_BASE_URL: http://backend:8000
     depends_on:
       db:
         condition: service_healthy
@@ -226,38 +149,10 @@ services:
       retries: 12
       start_period: 15s
 
-  pgadmin:
-    image: dpage/pgadmin4
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
-    ports:
-      - "5050:80"
-    depends_on:
-      db:
-        condition: service_healthy
 
-  dashboard:
-    image: alpine
-    depends_on:
-      frontend:
-        condition: service_started
-    command: >
-      sh -c "echo ' ' &&
-             echo '-------------------------------------------------------' &&
-             echo '   🚀 AURA SYSTEM IS READY!' &&
-             echo '-------------------------------------------------------' &&
-             echo 'Frontend:        http://localhost:5173' &&
-             echo 'Backend API:     http://localhost:8000' &&
-             echo 'pgAdmin (DB):    http://localhost:5050 (admin@example.com / admin123)' &&
-             echo 'Mailpit (Email): http://localhost:8025' &&
-             echo 'Database Port:   5433 (for external tools)' &&
-             echo '-------------------------------------------------------'"
 
 volumes:
   postgres_data:
   import_storage:
   branding_storage:
   insightface_models:
-  mailpit_data:

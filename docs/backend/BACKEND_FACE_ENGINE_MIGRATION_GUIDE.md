@@ -308,8 +308,8 @@ python -m pytest -q Backend/app/tests/test_face_recognition_schemas.py Backend/a
 Smoke-check production backend image requirements:
 
 ```powershell
-docker build -t valid8-backend:latest -f Backend/Dockerfile.prod Backend
-docker run --rm valid8-backend:latest python -c "import cv2, insightface; print('ok')"
+docker build -t aura-backend:latest -f Backend/Dockerfile.prod Backend
+docker run --rm aura-backend:latest python -c "import cv2, insightface; print('ok')"
 ```
 
 Run compile checks:

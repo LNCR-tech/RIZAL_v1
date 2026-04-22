@@ -4,6 +4,7 @@ Role: Test layer. It protects the app from regressions.
 """
 
 from collections.abc import Generator
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -59,11 +60,17 @@ def client(test_session_factory) -> Generator[TestClient, None, None]:
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    original_email_transport = os.environ.get("EMAIL_TRANSPORT")
+    os.environ["EMAIL_TRANSPORT"] = "disabled"
     try:
         with TestClient(app) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_db, None)
+        if original_email_transport is None:
+            os.environ.pop("EMAIL_TRANSPORT", None)
+        else:
+            os.environ["EMAIL_TRANSPORT"] = original_email_transport
 
 
 @pytest.fixture

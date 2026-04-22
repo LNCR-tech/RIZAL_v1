@@ -13,6 +13,8 @@ except ImportError:  # pragma: no cover - optional in runtime envs
 
 from dataclasses import dataclass
 
+from app.core.app_settings import APP_SETTINGS
+
 
 def _get_backend_root(config_file: Path | None = None) -> Path:
     resolved_config_file = config_file or Path(__file__).resolve()
@@ -70,29 +72,6 @@ def _as_csv_list(value: str | None, default: list[str]) -> list[str]:
     return parsed or default
 
 
-def _as_scope_list(value: str | None, default: list[str]) -> list[str]:
-    if value is None:
-        return default
-    normalized = value.replace(",", " ").replace("\n", " ")
-    parsed = [item.strip() for item in normalized.split(" ") if item.strip()]
-    return parsed or default
-
-
-def _as_email_list(value: str | None, default: list[str]) -> list[str]:
-    if value is None:
-        return default
-    parsed = [item.strip().lower() for item in value.replace(";", ",").split(",") if item.strip()]
-    return parsed or default
-
-
-def _get_first_env_value(*names: str, default: str = "") -> str:
-    for name in names:
-        value = os.getenv(name)
-        if value is not None:
-            return value
-    return default
-
-
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -138,26 +117,12 @@ class Settings:
 
     email_timeout_seconds: int
     email_sender_email: str
-    email_from_email: str
-    email_from_name: str
+    email_sender_name: str
     email_reply_to: str
-    smtp_host: str
-    smtp_port: int
-    smtp_username: str
-    smtp_password: str
-    smtp_use_tls: bool
-    smtp_use_starttls: bool
-    email_google_account_type: str
-    email_google_allow_custom_from: bool
-    google_oauth_client_id: str
-    google_oauth_client_secret: str
-    google_oauth_refresh_token: str
-    google_oauth_auth_url: str
-    google_oauth_token_url: str
-    google_oauth_scopes: list[str]
-    google_gmail_api_base_url: str
+    mailjet_api_key: str
+    mailjet_api_secret: str
+    mailjet_api_base_url: str
     email_transport: str
-    email_required_on_startup: bool
     email_verify_connection_on_startup: bool
     login_url: str
 
@@ -174,126 +139,59 @@ def get_settings() -> Settings:
     return Settings(
         database_url=os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/fastapi_db"),
         database_admin_url=(os.getenv("DATABASE_ADMIN_URL") or "").strip() or None,
-        db_pool_size=max(1, int(os.getenv("DB_POOL_SIZE", "10"))),
-        db_max_overflow=max(0, int(os.getenv("DB_MAX_OVERFLOW", "10"))),
-        db_pool_timeout_seconds=max(1, int(os.getenv("DB_POOL_TIMEOUT_SECONDS", "15"))),
-        db_pool_recycle_seconds=max(30, int(os.getenv("DB_POOL_RECYCLE_SECONDS", "1800"))),
+        db_pool_size=APP_SETTINGS.db_pool_size,
+        db_max_overflow=APP_SETTINGS.db_max_overflow,
+        db_pool_timeout_seconds=APP_SETTINGS.db_pool_timeout_seconds,
+        db_pool_recycle_seconds=APP_SETTINGS.db_pool_recycle_seconds,
         secret_key=os.getenv("SECRET_KEY", "change-this-secret-in-production"),
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
-        access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
-        face_scan_bypass_all=_as_bool(os.getenv("FACE_SCAN_BYPASS_ALL"), False),
-        face_scan_bypass_emails=_as_email_list(
-            os.getenv("FACE_SCAN_BYPASS_EMAILS"),
-            [],
-        ),
-        face_threshold_single=float(os.getenv("FACE_THRESHOLD_SINGLE", "0.40")),
-        face_threshold_group=float(os.getenv("FACE_THRESHOLD_GROUP", "0.40")),
-        face_threshold_mfa=float(os.getenv("FACE_THRESHOLD_MFA", "0.35")),
-        face_warmup_on_startup=_as_bool(os.getenv("FACE_WARMUP_ON_STARTUP"), True),
-        face_embedding_dim=max(1, int(os.getenv("FACE_EMBEDDING_DIM", "512"))),
-        face_embedding_dtype=(os.getenv("FACE_EMBEDDING_DTYPE", "float32").strip().lower() or "float32"),
-        liveness_threshold=float(os.getenv("LIVENESS_THRESHOLD", "0.85")),
-        allow_liveness_bypass_when_model_missing=_as_bool(
-            os.getenv("ALLOW_LIVENESS_BYPASS_WHEN_MODEL_MISSING"),
-            False,
-        ),
-        anti_spoof_scale=float(os.getenv("ANTI_SPOOF_SCALE", "2.7")),
-        anti_spoof_model_path=os.getenv("ANTI_SPOOF_MODEL_PATH", "").strip(),
-        geo_max_allowed_accuracy_m=float(os.getenv("GEO_MAX_ALLOWED_ACCURACY_M", "30")),
-        geo_max_travel_speed_mps=float(os.getenv("GEO_MAX_TRAVEL_SPEED_MPS", "60")),
-        event_status_sync_enabled=_as_bool(os.getenv("EVENT_STATUS_SYNC_ENABLED"), True),
-        event_status_sync_interval_seconds=max(
-            30,
-            int(os.getenv("EVENT_STATUS_SYNC_INTERVAL_SECONDS", "60")),
-        ),
-        public_attendance_enabled=_as_bool(
-            os.getenv("PUBLIC_ATTENDANCE_ENABLED"),
-            True,
-        ),
-        public_attendance_max_faces_per_frame=max(
-            1,
-            int(os.getenv("PUBLIC_ATTENDANCE_MAX_FACES_PER_FRAME", "10")),
-        ),
-        public_attendance_scan_cooldown_seconds=max(
-            1,
-            int(os.getenv("PUBLIC_ATTENDANCE_SCAN_COOLDOWN_SECONDS", "8")),
-        ),
-        public_attendance_event_lookahead_hours=max(
-            1,
-            int(os.getenv("PUBLIC_ATTENDANCE_EVENT_LOOKAHEAD_HOURS", "12")),
-        ),
-        tenant_database_prefix=(os.getenv("TENANT_DATABASE_PREFIX") or "school").strip() or "school",
-        import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "50")),
-        import_chunk_size=max(1, int(os.getenv("IMPORT_CHUNK_SIZE", "5000"))),
+        access_token_expire_minutes=APP_SETTINGS.access_token_expire_minutes,
+        face_scan_bypass_all=APP_SETTINGS.face_scan_bypass_all,
+        face_scan_bypass_emails=list(APP_SETTINGS.face_scan_bypass_emails),
+        face_threshold_single=APP_SETTINGS.face_threshold_single,
+        face_threshold_group=APP_SETTINGS.face_threshold_group,
+        face_threshold_mfa=APP_SETTINGS.face_threshold_mfa,
+        face_warmup_on_startup=APP_SETTINGS.face_warmup_on_startup,
+        face_embedding_dim=APP_SETTINGS.face_embedding_dim,
+        face_embedding_dtype=APP_SETTINGS.face_embedding_dtype,
+        liveness_threshold=APP_SETTINGS.liveness_threshold,
+        allow_liveness_bypass_when_model_missing=APP_SETTINGS.allow_liveness_bypass_when_model_missing,
+        anti_spoof_scale=APP_SETTINGS.anti_spoof_scale,
+        anti_spoof_model_path=APP_SETTINGS.anti_spoof_model_path,
+        geo_max_allowed_accuracy_m=APP_SETTINGS.geo_max_allowed_accuracy_m,
+        geo_max_travel_speed_mps=APP_SETTINGS.geo_max_travel_speed_mps,
+        event_status_sync_enabled=APP_SETTINGS.event_status_sync_enabled,
+        event_status_sync_interval_seconds=APP_SETTINGS.event_status_sync_interval_seconds,
+        public_attendance_enabled=APP_SETTINGS.public_attendance_enabled,
+        public_attendance_max_faces_per_frame=APP_SETTINGS.public_attendance_max_faces_per_frame,
+        public_attendance_scan_cooldown_seconds=APP_SETTINGS.public_attendance_scan_cooldown_seconds,
+        public_attendance_event_lookahead_hours=APP_SETTINGS.public_attendance_event_lookahead_hours,
+        tenant_database_prefix=APP_SETTINGS.tenant_database_prefix,
+        import_max_file_size_mb=APP_SETTINGS.import_max_file_size_mb,
+        import_chunk_size=APP_SETTINGS.import_chunk_size,
         import_storage_dir=_normalize_storage_path(
-            os.getenv("IMPORT_STORAGE_DIR") or "/tmp/valid8_imports",
+            APP_SETTINGS.import_storage_dir,
         ),
-        import_rate_limit_count=max(1, int(os.getenv("IMPORT_RATE_LIMIT_COUNT", "3"))),
-        import_rate_limit_window_seconds=max(1, int(os.getenv("IMPORT_RATE_LIMIT_WINDOW_SECONDS", "300"))),
+        import_rate_limit_count=APP_SETTINGS.import_rate_limit_count,
+        import_rate_limit_window_seconds=APP_SETTINGS.import_rate_limit_window_seconds,
         celery_broker_url=os.getenv("CELERY_BROKER_URL", redis_url),
         celery_result_backend=os.getenv("CELERY_RESULT_BACKEND", redis_url),
-        celery_task_time_limit_seconds=max(60, int(os.getenv("CELERY_TASK_TIME_LIMIT_SECONDS", "10800"))),
-        email_timeout_seconds=max(
-            5,
-            int(_get_first_env_value("EMAIL_TIMEOUT_SECONDS", "SMTP_TIMEOUT_SECONDS", default="20")),
-        ),
-        email_sender_email=_get_first_env_value("EMAIL_SENDER_EMAIL", "SMTP_USERNAME").strip(),
-        email_from_email=_get_first_env_value("EMAIL_FROM_EMAIL", "SMTP_FROM_EMAIL").strip(),
-        email_from_name=_get_first_env_value(
-            "EMAIL_FROM_NAME",
-            "SMTP_FROM_NAME",
-            default="Aura Notifications",
-        ).strip(),
-        email_reply_to=_get_first_env_value("EMAIL_REPLY_TO", "SMTP_REPLY_TO").strip(),
-        smtp_host=_get_first_env_value("SMTP_HOST", default="localhost").strip(),
-        smtp_port=max(1, int(_get_first_env_value("SMTP_PORT", default="1025"))),
-        smtp_username=_get_first_env_value("SMTP_USERNAME").strip(),
-        smtp_password=_get_first_env_value("SMTP_PASSWORD").strip(),
-        smtp_use_tls=_as_bool(_get_first_env_value("SMTP_USE_TLS"), False),
-        smtp_use_starttls=_as_bool(_get_first_env_value("SMTP_USE_STARTTLS"), False),
-        email_google_account_type=_get_first_env_value(
-            "EMAIL_GOOGLE_ACCOUNT_TYPE",
-            "SMTP_GOOGLE_ACCOUNT_TYPE",
-            default="auto",
-        ).strip().lower(),
-        email_google_allow_custom_from=_as_bool(
-            _get_first_env_value("EMAIL_GOOGLE_ALLOW_CUSTOM_FROM", "SMTP_GOOGLE_ALLOW_CUSTOM_FROM"),
-            False,
-        ),
-        google_oauth_client_id=os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip(),
-        google_oauth_client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip(),
-        google_oauth_refresh_token=os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip(),
-        google_oauth_auth_url=(
-            os.getenv("GOOGLE_OAUTH_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth").strip()
-        ),
-        google_oauth_token_url=(
-            os.getenv("GOOGLE_OAUTH_TOKEN_URL", "https://oauth2.googleapis.com/token").strip()
-        ),
-        google_oauth_scopes=_as_scope_list(
-            os.getenv("GOOGLE_OAUTH_SCOPES"),
-            [
-                "https://www.googleapis.com/auth/gmail.send",
-                "https://www.googleapis.com/auth/gmail.settings.basic",
-            ],
-        ),
-        google_gmail_api_base_url=(
-            os.getenv("GOOGLE_GMAIL_API_BASE_URL", "https://gmail.googleapis.com/gmail/v1").strip()
-        ),
+        celery_task_time_limit_seconds=APP_SETTINGS.celery_task_time_limit_seconds,
+        email_timeout_seconds=APP_SETTINGS.email_timeout_seconds,
+        email_sender_email=os.getenv("EMAIL_SENDER_EMAIL", "").strip(),
+        email_sender_name=os.getenv("EMAIL_SENDER_NAME", "Aura Notifications").strip(),
+        email_reply_to=os.getenv("EMAIL_REPLY_TO", "").strip(),
+        mailjet_api_key=os.getenv("MAILJET_API_KEY", "").strip(),
+        mailjet_api_secret=os.getenv("MAILJET_API_SECRET", "").strip(),
+        mailjet_api_base_url=APP_SETTINGS.mailjet_api_base_url,
         email_transport=email_transport,
-        email_required_on_startup=_as_bool(
-            os.getenv("EMAIL_REQUIRED_ON_STARTUP"),
-            email_transport != "disabled",
-        ),
-        email_verify_connection_on_startup=_as_bool(
-            os.getenv("EMAIL_VERIFY_CONNECTION_ON_STARTUP"),
-            False,
-        ),
+        email_verify_connection_on_startup=APP_SETTINGS.email_verify_connection_on_startup,
         login_url=os.getenv("LOGIN_URL", "http://localhost:5173"),
         school_logo_storage_dir=_normalize_storage_path(
-            os.getenv("SCHOOL_LOGO_STORAGE_DIR") or "/tmp/valid8_school_logos",
+            APP_SETTINGS.school_logo_storage_dir,
         ),
-        school_logo_max_file_size_mb=max(1, int(os.getenv("SCHOOL_LOGO_MAX_FILE_SIZE_MB", "2"))),
-        school_logo_public_prefix=os.getenv("SCHOOL_LOGO_PUBLIC_PREFIX", "/media/school-logos"),
+        school_logo_max_file_size_mb=APP_SETTINGS.school_logo_max_file_size_mb,
+        school_logo_public_prefix=APP_SETTINGS.school_logo_public_prefix,
         cors_allowed_origins=_as_csv_list(
             os.getenv("CORS_ALLOWED_ORIGINS"),
             ["http://localhost:5173", "http://127.0.0.1:5173"],

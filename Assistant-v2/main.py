@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from lib.app_settings import APP_SETTINGS, get_cors_allowed_origins
 from lib.database import get_db, init_db, Conversation, Message, DailyUsage, SessionLocal
 from lib.auth import get_current_identity, get_token_user_id, resolve_runtime_governance_access, get_roles_from_identity
 from lib.mcp_client import MultiMCPClient
@@ -23,7 +24,6 @@ from lib.tools_logic import parse_tool_arguments, sanitize_tool_args, looks_like
 logger = logging.getLogger("uvicorn.error")
 
 # --- Configuration (Verbatim from v1) ---
-ASSISTANT_CONTEXT_MAX_MESSAGES = os.getenv("ASSISTANT_CONTEXT_MAX_MESSAGES")
 ASSISTANT_DIR = os.path.dirname(__file__)
 
 class AssistantRequest(BaseModel):
@@ -53,7 +53,7 @@ class ConversationUpdate(BaseModel):
 app = FastAPI(title="Aura Assistant v2 (MCP-Native)")
 
 # CORS setup
-cors_allowed = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+cors_allowed = get_cors_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allowed,
@@ -199,7 +199,7 @@ async def assistant_stream(
             raise HTTPException(status_code=404, detail="Conversation not found")
 
     # 3. History Loading
-    max_msgs = int(ASSISTANT_CONTEXT_MAX_MESSAGES) if ASSISTANT_CONTEXT_MAX_MESSAGES else 20
+    max_msgs = APP_SETTINGS.context_max_messages
     db_history = db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.desc()).limit(max_msgs).all()
     history = [{"role": m.role, "content": m.content} for m in reversed(db_history)]
     

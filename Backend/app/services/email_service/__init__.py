@@ -1,7 +1,4 @@
-"""Use: Contains the main backend rules for Gmail API email building and sending.
-Where to use: Use this from routers, workers, or other services when email building and sending logic is needed.
-Role: Service package. It splits Gmail API configuration, transport, rendering, and use-case senders while preserving the public import path.
-"""
+"""Mailjet-backed email service package."""
 
 from __future__ import annotations
 
@@ -13,9 +10,8 @@ from app.services.password_change_policy import get_welcome_email_password_notic
 
 from .config import (
     ALLOWED_EMAIL_TRANSPORTS,
-    ALLOWED_GOOGLE_ACCOUNT_TYPES,
-    GOOGLE_GMAIL_API_HOST,
-    TEMPORARY_GMAIL_API_STATUS_CODES,
+    MAILJET_API_HOST,
+    TEMPORARY_MAILJET_STATUS_CODES,
     EmailConfigurationError,
     EmailConnectionStatus,
     EmailDeliveryError,
@@ -30,14 +26,11 @@ from .rendering import (
     build_welcome_email_content,
 )
 from .transport import (
-    _build_gmail_api_headers,
+    _build_mailjet_payload,
     _build_message,
-    _encode_message_for_gmail_api,
-    _extract_google_api_error_detail,
-    _gmail_api_timeout,
-    _request_google_oauth_access_token,
-    _send_via_gmail_api,
-    _verify_gmail_api_sender,
+    _extract_mailjet_error_detail,
+    _mailjet_rest_sender_url,
+    _mailjet_timeout,
     check_email_delivery_connection,
     get_email_delivery_summary,
     send_plain_email,

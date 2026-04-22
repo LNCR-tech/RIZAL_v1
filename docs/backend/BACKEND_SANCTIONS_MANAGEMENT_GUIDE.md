@@ -4,7 +4,7 @@
 
 ## Purpose
 
-This guide documents the sanctions data-model baseline introduced for sanctions management in VALID8/Aura.
+This guide documents the sanctions data-model baseline introduced for sanctions management in Aura.
 
 ## Schema Overview
 

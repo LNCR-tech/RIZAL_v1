@@ -3,6 +3,7 @@ import httpx
 from fastapi import Header, HTTPException, status
 from typing import Dict, Any, Optional, List
 import logging
+from .app_settings import APP_SETTINGS, get_backend_api_base_url
 from .policy import normalize_role
 
 logger = logging.getLogger("uvicorn.error")
@@ -11,8 +12,7 @@ logger = logging.getLogger("uvicorn.error")
 JWT_SECRETS = list(dict.fromkeys(filter(None, [os.getenv("SECRET_KEY"), os.getenv("JWT_SECRET")])))
 JWT_PUBLIC_KEY = os.getenv("JWT_PUBLIC_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-BACKEND_API_BASE_URL = (os.getenv("BACKEND_API_BASE_URL") or "").strip()
-BACKEND_API_TIMEOUT_SECONDS = int(os.getenv("BACKEND_API_TIMEOUT_SECONDS", "30"))
+BACKEND_API_TIMEOUT_SECONDS = APP_SETTINGS.backend_api_timeout_seconds
 
 try:
     from jose import jwt, JWTError
@@ -96,7 +96,7 @@ async def request_backend(
     query: Optional[Dict[str, Any]] = None,
     body: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    candidates = [BACKEND_API_BASE_URL, "http://127.0.0.1:8000", "http://localhost:8000"]
+    candidates = [get_backend_api_base_url(), "http://127.0.0.1:8000", "http://localhost:8000"]
     async with httpx.AsyncClient(timeout=BACKEND_API_TIMEOUT_SECONDS) as client:
         for base_url in filter(None, candidates):
             url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"

@@ -1,4 +1,4 @@
-"""Use: Tests Gmail API email service behavior.
+"""Use: Tests Mailjet-backed email service behavior.
 Where to use: Use this when running `pytest` to check that this backend behavior still works.
 Role: Test layer. It protects the app from regressions.
 """
@@ -9,59 +9,17 @@ from types import SimpleNamespace
 from app.services import email_service
 
 
-def _gmail_api_settings(**overrides):
+def _mailjet_settings(**overrides):
     defaults = {
-        "email_transport": "gmail_api",
-        "email_required_on_startup": True,
+        "email_transport": "mailjet_api",
         "email_verify_connection_on_startup": False,
         "email_timeout_seconds": 20,
         "email_sender_email": "mailer@example.com",
-        "email_from_email": "mailer@example.com",
-        "email_from_name": "Aura Notifications",
+        "email_sender_name": "Aura Notifications",
         "email_reply_to": "",
-        "email_google_account_type": "auto",
-        "email_google_allow_custom_from": False,
-        "google_oauth_client_id": "client-id",
-        "google_oauth_client_secret": "client-secret",
-        "google_oauth_refresh_token": "refresh-token",
-        "google_oauth_auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
-        "google_oauth_token_url": "https://oauth2.googleapis.com/token",
-        "google_oauth_scopes": [
-            "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.settings.basic",
-        ],
-        "google_gmail_api_base_url": "https://gmail.googleapis.com/gmail/v1",
-        "login_url": "https://aura.example/login",
-    }
-    defaults.update(overrides)
-    return SimpleNamespace(**defaults)
-
-
-def _smtp_settings(**overrides):
-    defaults = {
-        "email_transport": "smtp",
-        "email_required_on_startup": True,
-        "email_verify_connection_on_startup": False,
-        "email_timeout_seconds": 20,
-        "email_sender_email": "mailer@example.com",
-        "email_from_email": "mailer@example.com",
-        "email_from_name": "Aura Notifications",
-        "email_reply_to": "",
-        "email_google_account_type": "auto",
-        "email_google_allow_custom_from": False,
-        "smtp_host": "mailpit",
-        "smtp_port": 1025,
-        "smtp_username": "",
-        "smtp_password": "",
-        "smtp_use_tls": False,
-        "smtp_use_starttls": False,
-        "google_oauth_client_id": "",
-        "google_oauth_client_secret": "",
-        "google_oauth_refresh_token": "",
-        "google_oauth_auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
-        "google_oauth_token_url": "https://oauth2.googleapis.com/token",
-        "google_oauth_scopes": [],
-        "google_gmail_api_base_url": "https://gmail.googleapis.com/gmail/v1",
+        "mailjet_api_key": "mailjet-key",
+        "mailjet_api_secret": "mailjet-secret",
+        "mailjet_api_base_url": "https://api.mailjet.com/v3.1/send",
         "login_url": "https://aura.example/login",
     }
     defaults.update(overrides)
@@ -192,123 +150,93 @@ def test_send_import_onboarding_email_matches_welcome_credentials_copy(monkeypat
     assert "Login Credentials" in sent["html_body"]
 
 
-def test_validate_email_delivery_settings_accepts_gmail_api_transport() -> None:
-    resolved = email_service.validate_email_delivery_settings(
-        _gmail_api_settings(),
-    )
+def test_validate_email_delivery_settings_accepts_mailjet_transport() -> None:
+    resolved = email_service.validate_email_delivery_settings(_mailjet_settings())
 
-    assert resolved.transport == "gmail_api"
-    assert resolved.auth_mode == "oauth2"
+    assert resolved.transport == "mailjet_api"
+    assert resolved.auth_mode == "basic"
     assert resolved.sender_email == "mailer@example.com"
-    assert resolved.from_email == "mailer@example.com"
+    assert resolved.sender_name == "Aura Notifications"
 
 
-def test_validate_email_delivery_settings_accepts_smtp_transport() -> None:
-    resolved = email_service.validate_email_delivery_settings(
-        _smtp_settings(),
-    )
-
-    assert resolved.transport == "smtp"
-    assert resolved.auth_mode == "none"
-    assert resolved.sender_email == "mailer@example.com"
-    assert resolved.from_email == "mailer@example.com"
-
-
-def test_validate_email_delivery_settings_falls_back_to_authenticated_personal_gmail_sender() -> None:
-    resolved = email_service.validate_email_delivery_settings(
-        _gmail_api_settings(
-            email_sender_email="person@gmail.com",
-            email_from_email="no-reply@example.com",
-            email_google_account_type="personal",
-        )
-    )
-
-    assert resolved.from_email == "person@gmail.com"
-    assert resolved.warnings
-
-
-def test_validate_email_delivery_settings_rejects_workspace_custom_sender_without_opt_in() -> None:
+def test_validate_email_delivery_settings_rejects_disabled_transport() -> None:
     try:
         email_service.validate_email_delivery_settings(
-            _gmail_api_settings(
-                email_sender_email="mailer@school.edu",
-                email_from_email="no-reply@school.edu",
-                email_google_account_type="workspace",
-                email_google_allow_custom_from=False,
-            )
+            _mailjet_settings(email_transport="disabled"),
         )
     except email_service.EmailConfigurationError as exc:
-        assert "EMAIL_GOOGLE_ALLOW_CUSTOM_FROM=true" in str(exc)
+        assert "EMAIL_TRANSPORT is disabled" in str(exc)
     else:
-        raise AssertionError("Expected EmailConfigurationError for an unapproved Workspace sender")
+        raise AssertionError("Expected EmailConfigurationError for disabled email transport")
 
 
-def test_check_email_delivery_connection_verifies_gmail_api_custom_sender(monkeypatch) -> None:
-    calls: list[str] = []
+def test_validate_email_delivery_settings_rejects_missing_mailjet_credentials() -> None:
+    try:
+        email_service.validate_email_delivery_settings(
+            _mailjet_settings(mailjet_api_secret=""),
+        )
+    except email_service.EmailConfigurationError as exc:
+        assert "MAILJET_API_SECRET" in str(exc)
+    else:
+        raise AssertionError("Expected EmailConfigurationError for missing Mailjet settings")
+
+
+def test_check_email_delivery_connection_verifies_mailjet_transport(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
 
     class FakeResponse:
-        def __init__(self, status_code: int, payload: dict[str, object]):
-            self.status_code = status_code
-            self._payload = payload
-            self.text = json.dumps(payload)
-            self.reason_phrase = "OK"
+        status_code = 200
+        reason_phrase = "OK"
+        text = json.dumps({"Count": 1, "Data": [{"Email": "mailer@example.com"}]})
 
         def json(self):
-            return self._payload
+            return {"Count": 1, "Data": [{"Email": "mailer@example.com"}]}
 
-    settings = _gmail_api_settings(
-        email_sender_email="mailer@school.edu",
-        email_from_email="no-reply@school.edu",
-        email_google_account_type="workspace",
-        email_google_allow_custom_from=True,
-    )
-
-    monkeypatch.setattr(
-        "app.services.email_service.transport._request_google_oauth_access_token",
-        lambda settings: "access-token",
-    )
-
-    def fake_get(url: str, headers=None, timeout=None):
-        calls.append(url)
-        return FakeResponse(
-            200,
-            {"sendAsEmail": "no-reply@school.edu", "isPrimary": False, "verificationStatus": "accepted"},
+    def fake_get(url: str, auth=None, headers=None, timeout=None):
+        calls.append(
+            {
+                "url": url,
+                "auth": auth,
+                "headers": headers,
+                "timeout": timeout,
+            }
         )
+        return FakeResponse()
 
     monkeypatch.setattr(email_service.httpx, "get", fake_get)
 
-    status = email_service.check_email_delivery_connection(settings=settings)
+    status = email_service.check_email_delivery_connection(settings=_mailjet_settings())
 
-    assert status.transport == "gmail_api"
-    assert status.host == "gmail.googleapis.com"
-    assert calls
+    assert status.transport == "mailjet_api"
+    assert status.host == "api.mailjet.com"
+    assert status.port == 443
+    assert calls[0]["url"] == "https://api.mailjet.com/v3/REST/sender"
+    assert calls[0]["auth"] == ("mailjet-key", "mailjet-secret")
 
 
-def test_send_plain_email_uses_gmail_api_transport(monkeypatch) -> None:
+def test_send_plain_email_uses_mailjet_transport(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
     class FakeResponse:
         status_code = 200
         reason_phrase = "OK"
-        text = ""
+        text = json.dumps({"Messages": [{"Status": "success"}]})
 
         def json(self):
-            return {"id": "message-id"}
+            return {"Messages": [{"Status": "success"}]}
 
     monkeypatch.setattr(
         email_service,
         "get_settings",
-        lambda: _gmail_api_settings(),
-    )
-    monkeypatch.setattr(
-        "app.services.email_service.transport._request_google_oauth_access_token",
-        lambda settings: "access-token",
+        lambda: _mailjet_settings(),
     )
 
-    def fake_post(url: str, headers=None, json=None, timeout=None):
+    def fake_post(url: str, auth=None, headers=None, json=None, timeout=None):
         captured["url"] = url
+        captured["auth"] = auth
         captured["headers"] = headers
         captured["json"] = json
+        captured["timeout"] = timeout
         return FakeResponse()
 
     monkeypatch.setattr(email_service.httpx, "post", fake_post)
@@ -319,104 +247,30 @@ def test_send_plain_email_uses_gmail_api_transport(monkeypatch) -> None:
         body="Body",
     )
 
-    assert captured["url"] == "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
-    assert captured["headers"]["Authorization"] == "Bearer access-token"
-    assert isinstance(captured["json"]["raw"], str)
+    assert captured["url"] == "https://api.mailjet.com/v3.1/send"
+    assert captured["auth"] == ("mailjet-key", "mailjet-secret")
+    assert captured["json"]["Messages"][0]["From"] == {
+        "Email": "mailer@example.com",
+        "Name": "Aura Notifications",
+    }
+    assert captured["json"]["Messages"][0]["To"] == [{"Email": "recipient@example.com"}]
+    assert captured["json"]["Messages"][0]["Subject"] == "Subject"
+    assert captured["json"]["Messages"][0]["TextPart"] == "Body"
 
 
-def test_send_plain_email_uses_smtp_transport(monkeypatch) -> None:
-    captured: dict[str, object] = {}
-
-    class FakeSMTP:
-        def __init__(self, host: str, port: int, timeout: float):
-            captured["host"] = host
-            captured["port"] = port
-            captured["timeout"] = timeout
-
-        def ehlo(self):
-            captured["ehlo_called"] = True
-
-        def starttls(self, context=None):
-            captured["starttls_called"] = True
-
-        def login(self, username, password):
-            captured["login"] = (username, password)
-
-        def send_message(self, msg, from_addr=None, to_addrs=None):
-            captured["from_addr"] = from_addr
-            captured["to_addrs"] = to_addrs
-            captured["subject"] = msg.get("Subject")
-            captured["to_header"] = msg.get("To")
-
-        def quit(self):
-            captured["quit_called"] = True
-
-    monkeypatch.setattr(
-        email_service,
-        "get_settings",
-        lambda: _smtp_settings(),
-    )
-    monkeypatch.setattr(
-        "app.services.email_service.transport.smtplib.SMTP",
-        FakeSMTP,
-    )
-
-    email_service.send_plain_email(
-        recipient_email="recipient@example.com",
-        subject="Subject",
-        body="Body",
-    )
-
-    assert captured["host"] == "mailpit"
-    assert captured["port"] == 1025
-    assert captured["from_addr"] == "mailer@example.com"
-    assert captured["to_addrs"] == ["recipient@example.com"]
-    assert captured["subject"] == "Subject"
-    assert captured["to_header"] == "recipient@example.com"
-
-
-def test_check_email_delivery_connection_verifies_smtp_transport(monkeypatch) -> None:
-    class FakeSMTP:
-        def __init__(self, host: str, port: int, timeout: float):
-            self.host = host
-            self.port = port
-            self.timeout = timeout
-
-        def ehlo(self):
-            return None
-
-        def quit(self):
-            return None
-
-    monkeypatch.setattr(
-        "app.services.email_service.transport.smtplib.SMTP",
-        FakeSMTP,
-    )
-
-    status = email_service.check_email_delivery_connection(settings=_smtp_settings())
-
-    assert status.transport == "smtp"
-    assert status.host == "mailpit"
-    assert status.port == 1025
-
-
-def test_send_plain_email_surfaces_gmail_api_scope_errors(monkeypatch) -> None:
+def test_send_plain_email_surfaces_mailjet_credential_errors(monkeypatch) -> None:
     class FakeResponse:
-        status_code = 403
-        reason_phrase = "Forbidden"
-        text = json.dumps({"error": {"status": "PERMISSION_DENIED", "message": "Request had insufficient authentication scopes."}})
+        status_code = 401
+        reason_phrase = "Unauthorized"
+        text = json.dumps({"ErrorMessage": "Unauthorized"})
 
         def json(self):
-            return {"error": {"status": "PERMISSION_DENIED", "message": "Request had insufficient authentication scopes."}}
+            return {"ErrorMessage": "Unauthorized"}
 
     monkeypatch.setattr(
         email_service,
         "get_settings",
-        lambda: _gmail_api_settings(),
-    )
-    monkeypatch.setattr(
-        "app.services.email_service.transport._request_google_oauth_access_token",
-        lambda settings: "access-token",
+        lambda: _mailjet_settings(),
     )
     monkeypatch.setattr(email_service.httpx, "post", lambda *args, **kwargs: FakeResponse())
 
@@ -427,6 +281,6 @@ def test_send_plain_email_surfaces_gmail_api_scope_errors(monkeypatch) -> None:
             body="Body",
         )
     except email_service.EmailDeliveryError as exc:
-        assert "gmail.send" in str(exc)
+        assert "MAILJET_API_KEY" in str(exc)
     else:
-        raise AssertionError("Expected EmailDeliveryError for Gmail API scope failure")
+        raise AssertionError("Expected EmailDeliveryError for Mailjet credential failure")

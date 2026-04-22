@@ -1337,7 +1337,7 @@ def test_create_student_account_api_rolls_back_when_welcome_email_fails(
     )
 
     def failing_send_welcome_email(**kwargs):
-        raise users_router.EmailDeliveryError("Gmail API unavailable")
+        raise users_router.EmailDeliveryError("Mailjet API unavailable")
 
     monkeypatch.setattr(users_router, "send_welcome_email", failing_send_welcome_email)
 

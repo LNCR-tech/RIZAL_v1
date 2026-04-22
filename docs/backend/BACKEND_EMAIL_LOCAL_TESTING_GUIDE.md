@@ -1,105 +1,77 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
-# Backend Email Delivery Guide (Gmail + Local Mailpit)
+# Backend Email Delivery Guide (Mailjet / Disabled)
 
-This guide explains how backend outbound email now works for cloud deployments and for optional local Mailpit testing.
+The backend now supports exactly two outbound email modes:
 
-## Current Runtime Behavior
+- `EMAIL_TRANSPORT=disabled`
+- `EMAIL_TRANSPORT=mailjet_api`
 
-- `docker-compose.yml` no longer forces `SMTP_HOST=mailpit` for `backend`, `worker`, and `beat`.
-- backend services now follow `EMAIL_TRANSPORT` from environment (default fallback: `disabled`).
-- Mailpit is still available as an optional local SMTP inbox service.
-- When `EMAIL_TRANSPORT=disabled`, the backend will not send outbound emails (password reset, import onboarding, etc.).
+Gmail API, SMTP, and Mailpit are no longer part of the supported runtime contract.
 
-## Cloud (Gmail) Quick Start
+## Required Mailjet Settings
 
-Use Gmail API transport in your deployment environment:
-
-- `EMAIL_TRANSPORT=gmail_api`
-- `EMAIL_SENDER_EMAIL=<your_gmail_or_workspace_sender>`
-- `EMAIL_FROM_EMAIL=<same_or_verified_alias>`
-- `GOOGLE_OAUTH_CLIENT_ID=<oauth_client_id>`
-- `GOOGLE_OAUTH_CLIENT_SECRET=<oauth_client_secret>`
-- `GOOGLE_OAUTH_REFRESH_TOKEN=<oauth_refresh_token>`
-- `GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/gmail.settings.basic`
-
-Recommended:
-
-- `EMAIL_REQUIRED_ON_STARTUP=true`
-- `EMAIL_VERIFY_CONNECTION_ON_STARTUP=true`
-
-## Enable Mailpit for Local Testing (Docker Compose)
-
-Use this when you want to test email flows locally without sending real Gmail messages.
-
-1. Update root `.env`:
+Set these in the root `.env` when you want real outbound mail:
 
 ```env
-EMAIL_TRANSPORT=smtp
-SMTP_HOST=mailpit
-SMTP_PORT=1025
-SMTP_USERNAME=
-SMTP_PASSWORD=
-SMTP_USE_TLS=false
-SMTP_USE_STARTTLS=false
+EMAIL_TRANSPORT=mailjet_api
+EMAIL_SENDER_EMAIL=notifications@example.com
+EMAIL_SENDER_NAME=Aura Notifications
+EMAIL_REPLY_TO=notifications@example.com
+MAILJET_API_KEY=your-mailjet-api-key
+MAILJET_API_SECRET=your-mailjet-api-secret
 ```
 
-2. Start or restart services:
+Notes:
 
-```bash
-docker compose up -d --build mailpit backend worker beat
-```
+- `EMAIL_REPLY_TO` is optional.
+- Email timeout and startup connection verification defaults now live in `Backend/app/core/app_settings.py`.
 
-3. Open Mailpit web UI:
+## Default Local Behavior
 
-`http://localhost:8025`
-
-4. Trigger any email flow (password reset, import onboarding email, or smoke test below).
-
-## How to Use Mailpit
-
-- SMTP endpoint inside Docker network: `mailpit:1025`
-- Web inbox UI on host machine: `http://localhost:8025`
-- Captured emails stay available across container restarts because `docker-compose.yml` now mounts:
-  - `mailpit_data:/data`
-  - `MP_DATABASE=/data/mailpit.db`
-
-To clear all stored messages, remove the Mailpit volume:
-
-```bash
-docker compose down
-docker volume rm aura_merged_project_mailpit_data
-```
-
-## Switch Back to Gmail Transport
-
-Set `.env` back to Gmail values:
+For local development, leave email disabled:
 
 ```env
-EMAIL_TRANSPORT=gmail_api
-EMAIL_SENDER_EMAIL=<your_gmail_or_workspace_sender>
-EMAIL_FROM_EMAIL=<same_or_verified_alias>
+EMAIL_TRANSPORT=disabled
 ```
 
-Then restart services:
+That keeps:
 
-```bash
-docker compose up -d --build backend worker beat
-```
+- password-reset flows from attempting a real send
+- onboarding flows from attempting a real send
+- API startup stable when Mailjet is not configured
 
-## Backend Smoke Test Command
+## Mailjet Smoke Test
 
 From repo root:
 
-Make sure email delivery is enabled first (set `EMAIL_TRANSPORT` to `smtp` or `gmail_api`).
+```powershell
+python Backend/scripts/send_test_email.py --recipient test@example.com --check-only
+python Backend/scripts/send_test_email.py --recipient test@example.com
+```
 
-`python Backend/scripts/send_test_email.py --recipient test@example.com`
+What each command does:
 
-Expected result:
+- `--check-only` verifies Mailjet connectivity and sender acceptance without sending the test message.
+- without `--check-only`, the backend performs a real transactional send through Mailjet.
 
-- command exits `0`
-- for Gmail transport: recipient receives the message
-- for Mailpit transport: message appears in `http://localhost:8025`
-- if `EMAIL_TRANSPORT=disabled`, the command will fail with an error telling you to enable email delivery
-- default subject uses `Aura email transport smoke test ...`
+## Startup Validation Behavior
 
+When `EMAIL_TRANSPORT=mailjet_api`, backend startup now:
+
+1. validates the configured sender email and sender name
+2. validates `MAILJET_API_KEY` and `MAILJET_API_SECRET`
+3. logs the active transport summary
+4. verifies Mailjet connectivity when backend app settings keep startup verification enabled
+
+If any of those fail, API startup aborts.
+
+## How to Test
+
+1. Set `EMAIL_TRANSPORT=disabled` and start the backend.
+2. Confirm startup succeeds and logs that outbound mail is disabled.
+3. Set `EMAIL_TRANSPORT=mailjet_api` without credentials and start the backend.
+4. Confirm startup fails fast with a Mailjet configuration error.
+5. Set valid Mailjet credentials and run:
+   - `pytest Backend/app/tests/test_email_service.py`
+   - `python Backend/scripts/send_test_email.py --recipient <your test inbox> --check-only`

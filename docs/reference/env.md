@@ -1,38 +1,49 @@
-﻿# Environment Variables
+# Environment Variables
 
 [<- Back to docs index](../../README.md)
 
 ## Source of Truth
 
-- Use `.env.example` as the authoritative list of supported keys and defaults.
-- Backend settings are parsed in `Backend/app/core/config.py`.
-- Frontend runtime configuration is injected via `Frontend/runtime-config.js.template` and Docker/NGINX templates.
+- `.env.example` now documents only secrets, connection strings, deployment URLs, and a few operational overrides.
+- Backend non-secret defaults now live in `Backend/app/core/app_settings.py`.
+- Assistant non-secret defaults now live in `Assistant-v2/lib/app_settings.py`.
+- Backend env parsing remains in `Backend/app/core/config.py`.
+- Frontend runtime configuration is injected via `Frontend/runtime-config.js.template` and the Docker/NGINX templates.
 
-## Minimum Local Setup (Docker)
+`.env.example` is no longer the source of truth for import limits, email timeouts, face thresholds, school-logo limits, or assistant model defaults.
+
+## Minimum Docker Setup
 
 Copy `.env.example` to `.env` and set at least:
 
 - `SECRET_KEY`
-- `JWT_SECRET`
-- `ADMIN_EMAIL`
-- `ADMIN_PASSWORD`
-- Assistant / AI:
-  - `AI_MODEL`
-  - `AI_API_BASE` (if not using default)
-  - `AI_API_KEY`
+- `DATABASE_URL` when you are not using the local Docker Postgres defaults
+- `ASSISTANT_DB_URL` when you are not using the local Docker Postgres defaults
+- `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` when you are not using the local Docker Redis defaults
+- `AI_API_KEY`
+- `AI_API_BASE` when you are using a non-default provider endpoint
 
-Then run the Docker stack. See: [Getting Started (Docker)](../getting-started/docker.md).
+Optional:
 
-## Minimum Local Setup (No Docker)
+- Mailjet credentials when `EMAIL_TRANSPORT=mailjet_api`
 
-When running services manually, you will also need DB connection strings (see `.env.example` "MANUAL SETUP" section), notably:
+## Minimum Manual Local Setup
 
+When running services directly on your machine, set:
+
+- `SECRET_KEY`
 - `DATABASE_URL`
-- `DATABASE_ADMIN_URL`
 - `ASSISTANT_DB_URL`
-- `TENANT_DATABASE_URL`
-- `APP_DATABASE_URL`
+- `CELERY_BROKER_URL`
+- `CELERY_RESULT_BACKEND`
+- `AI_API_KEY`
+- `BACKEND_API_BASE_URL=http://127.0.0.1:8000`
 
-See: [Getting Started (Local Dev)](../getting-started/local-dev.md).
+## Bootstrap vs Seed
 
+Initial admin and school data are no longer configured through env toggles.
 
+Use commands instead:
+
+- `python Backend/bootstrap.py --admin-email ... --admin-password ...`
+- `python Backend/seed.py ...`

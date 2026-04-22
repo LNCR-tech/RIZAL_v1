@@ -1,25 +1,36 @@
-﻿# Getting Started (Local Dev, no Docker)
+# Getting Started (Local Dev, no Docker)
 
 [<- Back to docs index](../../README.md)
 
-This runs each service directly on your machine (useful for debugging and faster iteration).
+This runs each service directly on your machine for debugging and faster iteration.
 
 ## Prerequisites
 
-- Python (backend + assistant)
-- PostgreSQL (for `fastapi_db` and `ai_assistant`)
-- Node.js + npm (frontend)
+- Python for backend and assistant
+- PostgreSQL with `fastapi_db` and `ai_assistant`
+- Redis
+- Node.js and npm
 
-## Steps (High Level)
+## Steps
 
-1. Create `.env` from `.env.example` and set DB URLs for your local Postgres (see [Environment Variables](../reference/env.md)).
-2. Run backend migrations + seed, then start the API.
-3. Start the assistant service.
-4. Start the frontend dev server.
+1. Create `.env` from `.env.example` and point the connection strings at your local services.
+2. Run backend migrations.
+3. Run the explicit bootstrap command.
+4. Optionally run the explicit demo seed command.
+5. Start backend, assistant, and frontend.
 
-The canonical command list is here: [Common Commands](../reference/common-commands.md).
+The canonical commands are in [Common Commands](../reference/common-commands.md).
+
+## Frontend Local Override
+
+For manual frontend dev, create `Frontend/.env.development.local`:
+
+```env
+VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000
+VITE_ASSISTANT_PROXY_TARGET=http://127.0.0.1:8500
+VITE_ASSISTANT_BASE_URL=http://127.0.0.1:8500
+```
 
 ## Verification URLs
 
 See: [Ports and URLs](../reference/ports.md).
-

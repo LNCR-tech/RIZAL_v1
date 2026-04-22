@@ -1,4 +1,4 @@
-"""Run backend web, optional migrations/seed, and optional Celery sidecars.
+"""Run backend web, optional migrations, and optional Celery sidecars.
 
 This is intended for constrained platforms where multiple backend processes need
 to share a single service allocation, such as a small Railway project.
@@ -13,8 +13,11 @@ import sys
 import time
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.core.config import get_settings
 
 
 def _as_bool(name: str, default: bool = False) -> bool:
@@ -39,16 +42,14 @@ def _start_process(command: list[str], *, label: str) -> subprocess.Popen[str]:
 
 
 def main() -> int:
-    import_dir = Path(os.getenv("IMPORT_STORAGE_DIR", "/tmp/valid8_imports"))
-    logo_dir = Path(os.getenv("SCHOOL_LOGO_STORAGE_DIR", "/tmp/valid8_school_logos"))
+    settings = get_settings()
+    import_dir = Path(settings.import_storage_dir)
+    logo_dir = Path(settings.school_logo_storage_dir)
     import_dir.mkdir(parents=True, exist_ok=True)
     logo_dir.mkdir(parents=True, exist_ok=True)
 
     if _as_bool("RUN_MIGRATIONS_ON_START"):
         _run_step(["alembic", "upgrade", "heads"], label="database migrations")
-
-    if _as_bool("RUN_SEED_ON_START"):
-        _run_step([sys.executable, "seed.py"], label="database seeding")
 
     processes: list[tuple[str, subprocess.Popen[str]]] = []
     celery_pool = os.getenv("CELERY_WORKER_POOL", "solo")

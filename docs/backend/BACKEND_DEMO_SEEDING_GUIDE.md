@@ -1,56 +1,98 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
-# Backend Demo Seeding Guide (Manual UI + Assistant Testing)
+# Backend Demo Seeding Guide
 
-This repo includes a demo seeder that creates multiple schools and users so you can test:
-- UI role behavior (admin vs campus admin vs student)
-- AI assistant behavior per JWT `roles` + `permissions`
+The backend now uses two explicit data-entry commands:
 
-## What It Seeds
+- `Backend/bootstrap.py` for the minimum production baseline
+- `Backend/seed.py` for demo and local-development data
 
-When you run `python Backend/seed.py`, the seeder will (by default):
-- ensure core auth roles exist (`admin`, `campus_admin`, `student`)
-- create a default school + admin (existing behavior)
-- create demo data:
-  - 5 sample schools
-  - 100 sample users (platform admins, campus admins, students)
-  - departments/programs per school
-  - governance units (SSG/SG/ORG) + governance member permissions for a subset of users
+`SEED_*` env toggles are no longer the supported way to control seeding.
 
-## Environment Toggles
+## Production Bootstrap
 
-All toggles are read from your normal env loading (`.env` is used by `seed.py`).
+Create only:
 
-- `SEED_DEMO_DATA` (default: `true`)
-  - set to `false` to disable demo seed.
-- `SEED_DEMO_SCHOOLS` (default: `5`)
-- `SEED_DEMO_USERS` (default: `100`)
-- `SEED_DEMO_EMAIL_DOMAIN` (default: `demo.valid8.dev`)
-  - used for all generated demo emails (avoid special-use domains like `.local` which may fail strict validation).
+- the first platform admin
+- the default school
+- the default school settings record
+- core roles
 
-## Where Credentials Go
+Example:
 
-The seeder writes a local CSV file (gitignored) containing demo login credentials:
+```powershell
+python Backend/bootstrap.py `
+  --admin-email admin@example.com `
+  --admin-password ChangeMe123! `
+  --school-name "Aura University" `
+  --school-code VU-001 `
+  --school-address "1 Demo Way"
+```
+
+The command is idempotent:
+
+- existing roles are reused
+- the default school is reused
+- the admin account is repaired if it already exists under the requested email
+
+## Demo Seed
+
+The demo seeder always bootstraps the baseline first, then adds demo schools, users, departments, programs, governance units, and credentials CSV output.
+
+Example:
+
+```powershell
+python Backend/seed.py `
+  --wipe-existing `
+  --schools 5 `
+  --users 100 `
+  --email-domain demo.aura.dev
+```
+
+Large dataset example:
+
+```powershell
+python Backend/seed.py `
+  --wipe-existing `
+  --massive-attendance `
+  --massive-students 5000 `
+  --massive-records 1000000
+```
+
+## Credentials Output
+
+By default the demo seed writes generated credentials to:
 
 - `Backend/storage/seed_credentials.csv`
 
-Re-running the seeder will reset passwords for the `@demo.local` accounts so the CSV stays accurate.
+Override the output path when needed:
 
-Columns:
-- `email`
-- `password`
-- `school_code`, `school_id`
-- `roles` (includes derived governance roles: `ssg`, `sg`, `org` when applicable)
-- `permissions` (governance permission codes like `manage_students`, `manage_attendance`, etc)
+```powershell
+python Backend/seed.py --credentials-path .\tmp\seed_credentials.csv
+```
 
-## How To Use For Assistant Testing
+## Default Values
 
-1. Run migrations, then seed:
+Default bootstrap and demo seed values now come from:
+
+- `Backend/app/core/app_settings.py`
+
+That file controls defaults such as:
+
+- default school name/code/address
+- default admin email/password
+- demo school and user counts
+- demo email domain
+- large-dataset student and attendance counts
+
+## How to Test
+
+1. Run migrations:
    - `python -m alembic upgrade head`
-   - `python Backend/seed.py`
-2. Start backend + assistant + frontend.
-3. Pick a user from `Backend/storage/seed_credentials.csv`, log into the UI.
-4. Open the in-app Aura AI chat.
-
-The assistant reads `roles` and `permissions` from the backend JWT, so different demo users will get different MCP access policies.
-
+2. Run production bootstrap:
+   - `python Backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!`
+3. Run demo seed:
+   - `python Backend/seed.py --schools 2 --users 20 --email-domain demo.example.test`
+4. Verify `Backend/storage/seed_credentials.csv` was created.
+5. Run:
+   - `pytest Backend/app/tests/test_seeder.py`

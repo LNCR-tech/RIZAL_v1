@@ -2,8 +2,6 @@
 set -eu
 
 mode="${SERVICE_MODE:-web}"
-import_dir="${IMPORT_STORAGE_DIR:-/tmp/valid8_imports}"
-logo_dir="${SCHOOL_LOGO_STORAGE_DIR:-/tmp/valid8_school_logos}"
 
 case "$mode" in
   web)
