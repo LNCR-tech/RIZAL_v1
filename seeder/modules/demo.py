@@ -29,6 +29,7 @@ from modules.core import (
     create_announcement, create_student_note, create_compliance_history
 )
 
+from app.models.user import User, StudentProfile
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.sanctions import SanctionRecord, SanctionItem, SanctionComplianceStatus, SanctionItemStatus
 from app.models.governance_hierarchy import GovernanceUnitType, PermissionCode
@@ -99,11 +100,14 @@ def run_demo(
             writer = csv.writer(f, delimiter=delim)
             writer.writerow(header)
 
-    for i in range(n_schools):
-        school_name = rng.choice(SCHOOL_NAMES)
+    # Sample unique school names to prevent collisions within the loop
+    selected_school_names = rng.sample(SCHOOL_NAMES, k=min(n_schools, len(SCHOOL_NAMES)))
+    
+    for i, school_name in enumerate(selected_school_names):
+        logger.info(f"Generating School {i+1}/{len(selected_school_names)}: {school_name}")
+        
         school_domain = "".join(c for c in school_name if c.isalpha()).lower() + ".edu.ph"
         
-        logger.info(f"Generating School {i+1}/{n_schools}: {school_name}")
         school = get_or_create_school(
             db, 
             name=school_name, 
@@ -126,11 +130,14 @@ def run_demo(
         admin_email = f"admin@{school_domain}"
         admin_pw = "CampusAdmin123!"
         admin_hash = hash_passwords_parallel([admin_pw], rounds=6, workers=1)[0]
-        campus_admin = create_user(
-            db, email=admin_email, school_id=school.id, password_hash=admin_hash, 
-            first_name="Admin", last_name="Campus"
-        )
-        assign_role(db, campus_admin, "campus_admin")
+        
+        campus_admin = db.query(User).filter_by(email=admin_email).first()
+        if not campus_admin:
+            campus_admin = create_user(
+                db, email=admin_email, school_id=school.id, password_hash=admin_hash, 
+                first_name="Admin", last_name="Campus"
+            )
+            assign_role(db, campus_admin, "campus_admin")
         
         with open(admins_file, 'a', newline='') as f:
             csv.writer(f, delimiter=delim).writerow([school.name, "Campus Admin", admin_email, admin_pw, "Admin", "Campus"])
@@ -151,9 +158,17 @@ def run_demo(
                 created_by=campus_admin.id
             )
         
+        from app.models.department import Department
+        
         sg_units = []
         org_units = []
-        for dept in school.departments:
+        # Manually query departments since the relationship is missing in the School model
+        school_depts = db.query(Department).filter_by(school_id=school.id).all()
+        
+        for dept in school_depts:
+            # Calculate a temporary code for display logic since the DB model lacks the 'code' field
+            dept_code = dept.name[:10].upper()
+            
             sg = create_governance_unit(
                 db, school_id=school.id, unit_code=f"SG-{dept.id}", unit_name=f"{dept.name} Student Gov",
                 unit_type=GovernanceUnitType.SG, parent_id=ssg_unit.id, department_id=dept.id
@@ -165,7 +180,7 @@ def run_demo(
                 ann_item = rng.choice(ANNOUNCEMENT_DATA)
                 create_announcement(
                     db, unit_id=sg.id, school_id=school.id,
-                    title=f"[{dept.code}] {ann_item['title']}", body=ann_item["body"],
+                    title=f"[{dept_code}] {ann_item['title']}", body=ann_item["body"],
                     created_by=campus_admin.id
                 )
             
@@ -174,7 +189,7 @@ def run_demo(
             num_orgs = rng.randint(0, 2)
             for j in range(num_orgs):
                 org = create_governance_unit(
-                    db, school_id=school.id, unit_code=f"ORG-{sg.id}-{j}", unit_name=f"{dept.code} Sub-Org {j+1}",
+                    db, school_id=school.id, unit_code=f"ORG-{sg.id}-{j}", unit_name=f"{dept_code} Sub-Org {j+1}",
                     unit_type=GovernanceUnitType.ORG, parent_id=sg.id, department_id=dept.id
                 )
                 assign_unit_permissions(db, org.id, ORG_PERMISSIONS)
@@ -190,6 +205,7 @@ def run_demo(
         student_users = []
         student_profiles = []
         passwords = []
+        used_student_ids = set() # Track used IDs to prevent stochastic collisions
         
         for p in range(n_students):
             if unique_passwords:
@@ -218,8 +234,15 @@ def run_demo(
             assign_role(db, u, "student")
             prog = assigned_progs[k]
             
+            # Ensure unique student_id for this school
+            while True:
+                sid = f"{start_date[2]}-{rng.randint(10000, 99999)}"
+                if sid not in used_student_ids:
+                    used_student_ids.add(sid)
+                    break
+            
             prof = create_student_profile(
-                db, user_id=u.id, school_id=school.id, student_id=f"{start_date[2]}-{rng.randint(10000, 99999)}",
+                db, user_id=u.id, school_id=school.id, student_id=sid,
                 department_id=prog.departments[0].id if prog.departments else None,
                 program_id=prog.id, year_level=rng.randint(1, 4)
             )
@@ -359,8 +382,8 @@ def run_demo(
             scope = rng.choices(list(SCOPE_WEIGHTS.keys()), weights=list(SCOPE_WEIGHTS.values()), k=1)[0]
             if scope == "program":
                 ev.programs.append(rng.choice(program_pool))
-            elif scope == "department" and school.departments:
-                ev.departments.append(rng.choice(school.departments))
+            elif scope == "department" and school_depts:
+                ev.departments.append(rng.choice(school_depts))
             
             events.append(ev)
             
@@ -417,7 +440,8 @@ def run_demo(
 
                 # Deterministic absence logic per student/event
                 absent = is_absent(rng, base_prob=0.25)
-                status = AttendanceStatus.ABSENT if absent else rng.choices([AttendanceStatus.PRESENT, AttendanceStatus.LATE], weights=[80, 20], k=1)[0]
+                # Use .value because the Backend model uses raw strings in PG_ENUM
+                status = AttendanceStatus.ABSENT.value if absent else rng.choices([AttendanceStatus.PRESENT.value, AttendanceStatus.LATE.value], weights=[80, 20], k=1)[0]
                 
                 att = Attendance(
                     student_id=prof.id,

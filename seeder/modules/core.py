@@ -148,7 +148,7 @@ def get_or_create_school(db: Session, **kwargs) -> School:
 def get_or_create_department(db: Session, school_id: int, name: str) -> Department:
     dept = db.query(Department).filter_by(school_id=school_id, name=name).first()
     if not dept:
-        dept = Department(school_id=school_id, name=name, code=name[:10].upper())
+        dept = Department(school_id=school_id, name=name)
         db.add(dept)
         db.commit()
         db.refresh(dept)
@@ -157,7 +157,7 @@ def get_or_create_department(db: Session, school_id: int, name: str) -> Departme
 def get_or_create_program(db: Session, school_id: int, name: str) -> Program:
     prog = db.query(Program).filter_by(school_id=school_id, name=name).first()
     if not prog:
-        prog = Program(school_id=school_id, name=name, code=name[:10].upper())
+        prog = Program(school_id=school_id, name=name)
         db.add(prog)
         db.commit()
         db.refresh(prog)
