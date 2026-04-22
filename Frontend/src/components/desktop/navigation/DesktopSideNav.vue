@@ -229,23 +229,32 @@ function handleOutsideClick(event) {
 
 function isActive(item) {
   const path = item?.route
+  const normalizedPath = String(path || '')
   if (
-    path === '/dashboard' ||
-    path === '/exposed/dashboard' ||
-    path === '/workspace' ||
-    path === '/exposed/workspace' ||
-    path === '/admin' ||
-    path === '/exposed/admin' ||
-    path === '/governance' ||
-    path === '/exposed/governance' ||
-    path === '/sg' ||
-    path === '/exposed/sg'
+    normalizedPath === '/dashboard' ||
+    normalizedPath === '/exposed/dashboard' ||
+    normalizedPath === '/workspace' ||
+    normalizedPath === '/exposed/workspace' ||
+    normalizedPath === '/admin' ||
+    normalizedPath === '/exposed/admin' ||
+    normalizedPath === '/governance' ||
+    normalizedPath === '/exposed/governance' ||
+    normalizedPath === '/sg' ||
+    normalizedPath === '/exposed/sg'
   ) {
-    return route.path === path || route.path === `${path}/`
+    return route.path === normalizedPath || route.path === `${normalizedPath}/`
   }
 
   const matchPrefixes = Array.isArray(item?.matchPrefixes) ? item.matchPrefixes : []
-  return route.path.startsWith(path) || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
+  const excludePrefixes = Array.isArray(item?.excludePrefixes) ? item.excludePrefixes : []
+  if (excludePrefixes.some((prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`))) {
+    return false
+  }
+  return (
+    route.path === normalizedPath
+    || route.path.startsWith(`${normalizedPath}/`)
+    || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
+  )
 }
 
 function navigate(path) {

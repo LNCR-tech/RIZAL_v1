@@ -156,6 +156,7 @@ class ImportRepository:
             .filter(
                 BulkImportJob.created_by_user_id == created_by_user_id,
                 BulkImportJob.created_at >= cutoff,
+                BulkImportJob.status != "failed",
             )
             .scalar()
             or 0

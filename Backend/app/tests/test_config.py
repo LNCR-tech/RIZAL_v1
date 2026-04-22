@@ -28,6 +28,16 @@ def test_normalize_storage_path_resolves_relative_paths_from_repo_root(tmp_path)
     assert Path(resolved) == (tmp_path / "storage" / "imports").resolve()
 
 
+def test_normalize_storage_path_resolves_relative_paths_from_backend_root_in_container_layout(tmp_path):
+    config_file = tmp_path / "app" / "core" / "config.py"
+    config_file.parent.mkdir(parents=True)
+    config_file.touch()
+
+    resolved = config_module._normalize_storage_path("storage/imports", config_file)
+
+    assert Path(resolved) == (tmp_path / "storage" / "imports").resolve()
+
+
 def test_normalize_storage_path_preserves_absolute_paths(tmp_path):
     absolute_path = (tmp_path / "storage" / "imports").resolve()
 
@@ -86,6 +96,8 @@ def test_get_settings_normalizes_relative_storage_paths(monkeypatch):
 
 def test_get_settings_defaults_email_transport_to_disabled_when_unset(monkeypatch):
     monkeypatch.delenv("EMAIL_TRANSPORT", raising=False)
+    monkeypatch.delenv("MAILJET_API_KEY", raising=False)
+    monkeypatch.delenv("MAILJET_API_SECRET", raising=False)
 
     settings = get_settings()
 

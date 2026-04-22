@@ -32,6 +32,26 @@ Behavior:
 - `disabled` logs a warning and lets the API start.
 - `mailjet_api` validates the canonical sender, Mailjet credentials, and optionally verifies connectivity against Mailjet before startup completes.
 
+## Storage Path Resolution
+
+Relative backend storage directories are resolved from the runtime backend root.
+
+- local repository layout:
+  - `Backend/app/core/config.py` resolves `storage/imports` to `<repo>/storage/imports`
+- Docker layout:
+  - `/app/app/core/config.py` resolves `storage/imports` to `/app/storage/imports`
+
+This matters for bulk student imports because the preview manifest and failed-row report must be readable by both the API container and the Celery worker through the shared import storage volume.
+
+## Student Import Rate Limiting
+
+The student import queue is rate-limited per user.
+
+- failed jobs do not count toward the recent-job limit
+- jobs that are still pending, processing, or completed inside the active window still count
+
+This keeps retry behavior practical after backend-side import failures while still protecting the queue from repeated rapid submissions.
+
 Relevant files:
 
 - `Backend/app/core/config.py`
@@ -88,6 +108,7 @@ The backend no longer ships demo or bulk seed entrypoints, and it no longer reli
 
 1. Run `pytest Backend/app/tests/test_config.py Backend/app/tests/test_email_service.py Backend/app/tests/test_seeder.py Backend/app/tests/test_audit_log_timezones.py`.
 2. Run `pytest Backend/app/tests/test_admin_import_preview_flow.py` to confirm import storage still honors the centralized backend settings object.
+3. In Docker, run `python - <<'PY'\nfrom app.core.config import get_settings\nprint(get_settings().import_storage_dir)\nPY` and confirm it prints `/app/storage/imports`.
 3. Start the API and confirm:
    - `EMAIL_TRANSPORT=disabled` allows startup with a warning
    - `EMAIL_TRANSPORT=mailjet_api` fails fast when credentials are incomplete

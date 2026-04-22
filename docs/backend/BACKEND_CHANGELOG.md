@@ -16,6 +16,76 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-23 - Fix Docker import storage path resolution
+
+### Purpose
+
+Fix student import jobs that failed after preview because the worker could not reopen the saved preview manifest inside Docker.
+
+### Main files
+
+- `Backend/app/core/config.py`
+- `Backend/app/tests/test_config.py`
+- `docs/backend/runtime-behavior.md`
+
+### Backend changes
+
+- configuration behavior change:
+  - relative storage directories now resolve from the mounted backend root when the app runs in a container layout such as `/app/app/core/config.py`
+  - this keeps `storage/imports` at `/app/storage/imports` instead of incorrectly resolving to `/storage/imports`
+- added a regression test for the container layout path resolution
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+
+### Migration impact
+
+- no database migrations required
+- runtime configuration impact:
+  - Docker backend and worker now read and write import preview manifests and failed-row reports from the same mounted volume path
+
+### How to test
+
+1. Run `pytest Backend/app/tests/test_config.py`.
+2. Start or rebuild the Docker stack so `backend` and `worker` pick up the config fix.
+3. Preview and import a student file from the Campus Admin screen.
+4. Confirm the queued job no longer fails with `Uploaded file was not found on server`.
+
+## 2026-04-23 - Exclude failed import jobs from rate-limit counting
+
+### Purpose
+
+Prevent unsuccessful student import jobs from consuming the Campus Admin import rate limit.
+
+### Main files
+
+- `Backend/app/repositories/import_repository.py`
+- `Backend/app/tests/test_admin_import_preview_flow.py`
+
+### Backend changes
+
+- rate limiting for `POST /api/admin/import-students` now ignores recent jobs with status `failed`
+- recent successful or still-running jobs still count toward the rate limit window
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+
+### Migration impact
+
+- no database migrations required
+- runtime behavior change:
+  - failed imports no longer block a retry by consuming one of the recent import request slots
+
+### How to test
+
+1. Run `pytest Backend/app/tests/test_admin_import_preview_flow.py -k rate_limit`.
+2. Create several failed import jobs for the same Campus Admin within the rate-limit window.
+3. Start a fresh valid import and confirm the API still returns `200` instead of `429`.
+
 ## 2026-04-20 - Dev-safe default: disable outbound email in Docker Compose unless configured
 
 ### Purpose

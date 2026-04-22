@@ -23,7 +23,10 @@ def _get_backend_root(config_file: Path | None = None) -> Path:
 
 def _get_repo_root(config_file: Path | None = None) -> Path:
     resolved_config_file = config_file or Path(__file__).resolve()
-    return resolved_config_file.parents[3]
+    backend_root = _get_backend_root(resolved_config_file)
+    if backend_root.name.lower() == "backend":
+        return backend_root.parent
+    return backend_root
 
 
 def _get_env_candidate_paths(config_file: Path | None = None) -> list[Path]:

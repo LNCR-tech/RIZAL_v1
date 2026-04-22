@@ -649,6 +649,88 @@ def test_import_students_falls_back_to_in_process_job_when_celery_dispatch_fails
     assert fallback_runs == [import_payload["job_id"]]
 
 
+def test_import_students_rate_limit_ignores_failed_jobs(
+    client,
+    test_db,
+    tmp_path,
+    monkeypatch,
+):
+    _use_tmp_import_storage(monkeypatch, tmp_path)
+
+    school = _create_school(test_db, code="IMPORT-RATE-LIMIT-FAILED")
+    _create_department_and_program(test_db, school_id=school.id)
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="campus.preview.rate-limit@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+    )
+
+    workbook_bytes = _build_workbook_bytes(
+        [
+            [
+                "STU-00021",
+                "ratelimit.student@example.edu",
+                "Rate",
+                "Limit",
+                "B",
+                "Computer Science",
+                "BS Computer Science",
+            ]
+        ]
+    )
+
+    preview_response = client.post(
+        "/api/admin/import-students/preview",
+        headers=_auth_headers(campus_admin),
+        files={
+            "file": (
+                "students.xlsx",
+                workbook_bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert preview_response.status_code == 200
+    preview_token = preview_response.json()["preview_token"]
+    assert preview_token
+
+    failed_jobs = [
+        BulkImportJob(
+            id=f"failed-job-{index}",
+            created_by_user_id=campus_admin.id,
+            target_school_id=school.id,
+            status="failed",
+            original_filename=f"failed-{index}.xlsx",
+            stored_file_path=str(tmp_path / f"failed-{index}.json"),
+        )
+        for index in range(3)
+    ]
+    test_db.add_all(failed_jobs)
+    test_db.commit()
+
+    queued_tasks: list[tuple[str, list[str]]] = []
+
+    def _fake_send_task(name: str, args: list[str]):
+        queued_tasks.append((name, args))
+        return None
+
+    monkeypatch.setattr("app.routers.admin_import.celery_app.send_task", _fake_send_task)
+
+    import_response = client.post(
+        "/api/admin/import-students",
+        headers=_auth_headers(campus_admin),
+        data={"preview_token": preview_token},
+    )
+
+    assert import_response.status_code == 200
+    import_payload = import_response.json()
+    assert import_payload["status"] == "pending"
+    assert len(queued_tasks) == 1
+
+
 def test_preview_import_students_accepts_new_department_program_pairings(
     client,
     test_db,

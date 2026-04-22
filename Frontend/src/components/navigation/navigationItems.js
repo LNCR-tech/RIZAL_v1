@@ -22,7 +22,7 @@ export const dashboardNavigationItems = [
 export const schoolItNavigationItems = [
     { name: 'Home', route: '/workspace', icon: House },
     { name: 'Users', route: '/workspace/users', icon: UsersRound, matchPrefixes: ['/workspace/student-council'] },
-    { name: 'Schedule', route: '/workspace/schedule', icon: CalendarDays },
+    { name: 'Schedule', route: '/workspace/schedule', icon: CalendarDays, excludePrefixes: ['/workspace/schedule/reports'] },
     { name: 'Reports', route: '/workspace/schedule/reports', icon: PieChart },
     { name: 'Settings', route: '/workspace/settings', icon: Settings },
     { name: 'Profile', route: '/workspace/profile', icon: UserRound },
@@ -31,7 +31,7 @@ export const schoolItNavigationItems = [
 export const exposedSchoolItNavigationItems = [
     { name: 'Home', route: '/exposed/workspace', icon: House },
     { name: 'Users', route: '/exposed/workspace/users', icon: UsersRound, matchPrefixes: ['/exposed/workspace/student-council'] },
-    { name: 'Schedule', route: '/exposed/workspace/schedule', icon: CalendarDays },
+    { name: 'Schedule', route: '/exposed/workspace/schedule', icon: CalendarDays, excludePrefixes: ['/exposed/workspace/schedule/reports'] },
     { name: 'Reports', route: '/exposed/workspace/schedule/reports', icon: PieChart },
     { name: 'Settings', route: '/exposed/workspace/settings', icon: Settings },
     { name: 'Profile', route: '/exposed/workspace/profile', icon: UserRound },

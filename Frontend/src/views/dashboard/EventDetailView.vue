@@ -97,12 +97,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowUpRight, Bell } from 'lucide-vue-next'
-import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { hasNavigableHistory, isGovernancePreviewPath, resolveBackFallbackLocation } from '@/services/routeWorkspace.js'
@@ -116,7 +116,7 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
+const { ensureDashboardEvent, getDashboardEventById, schoolSettings } = useDashboardSession()
 const isCouncilPreviewRoute = computed(() => props.preview && isGovernancePreviewPath(route))
 const isSchoolItPreviewRoute = computed(() => props.preview && route.path.startsWith('/exposed/workspace'))
 const { previewBundle } = useSgPreviewBundle(isCouncilPreviewRoute)
@@ -141,7 +141,20 @@ const previewSchoolSettings = computed(() => {
   return studentDashboardPreviewData.schoolSettings
 })
 
-usePreviewTheme(() => props.preview, previewSchoolSettings)
+const activeSchoolSettings = computed(() => (
+  props.preview
+    ? previewSchoolSettings.value
+    : schoolSettings.value
+))
+
+watch(
+  activeSchoolSettings,
+  (nextSchoolSettings) => {
+    if (!nextSchoolSettings) return
+    applyTheme(loadTheme(nextSchoolSettings))
+  },
+  { immediate: true, deep: true }
+)
 
 onMounted(() => {
   if (props.preview) return
@@ -282,8 +295,8 @@ function openInMaps() {
 }
 
 .icon-btn--ghost {
-  background: #ffffff;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-nav) 10%, transparent);
 }
 
 .detail-body {
@@ -305,7 +318,7 @@ function openInMaps() {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.6px;
-  color: var(--color-text-always-dark);
+  color: var(--color-text-primary);
   margin: 0 0 6px;
 }
 
@@ -333,7 +346,7 @@ function openInMaps() {
   border-radius: 28px;
   overflow: hidden;
   background: var(--color-surface);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--color-nav) 8%, transparent);
 }
 
 .map-frame {
@@ -346,7 +359,7 @@ function openInMaps() {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #f6f6f6;
+  background: color-mix(in srgb, var(--color-bg) 72%, var(--color-surface));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -357,8 +370,8 @@ function openInMaps() {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in srgb, var(--color-text-muted) 18%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-text-muted) 18%, transparent) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -366,8 +379,8 @@ function openInMaps() {
   position: relative;
   font-size: 12px;
   font-weight: 600;
-  color: rgba(0,0,0,0.4);
-  background: rgba(255,255,255,0.9);
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   padding: 10px 14px;
   border-radius: 999px;
 }
@@ -376,13 +389,13 @@ function openInMaps() {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 999px;
   padding: 8px 18px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-always-dark);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+  color: var(--color-text-primary);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--color-nav) 10%, transparent);
 }
 
 .status-pill--below {
@@ -395,7 +408,7 @@ function openInMaps() {
   top: 14px;
   right: 14px;
   display: none;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-nav) 10%, transparent);
 }
 
 .status-dot {
@@ -502,8 +515,8 @@ function openInMaps() {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--color-text-always-dark);
-  color: #fff;
+  background: var(--color-nav);
+  color: var(--color-nav-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -524,7 +537,7 @@ function openInMaps() {
 .empty-state {
   text-align: center;
   padding: 60px 0;
-  color: rgba(0,0,0,0.5);
+  color: var(--color-text-secondary);
   font-weight: 600;
 }
 

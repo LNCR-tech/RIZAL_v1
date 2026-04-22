@@ -1,6 +1,7 @@
 <template>
-  <section class="school-it-schedule">
-    <div class="school-it-schedule__shell">
+  <div class="school-it-schedule-view">
+    <section class="school-it-schedule">
+      <div class="school-it-schedule__shell">
       <SchoolItTopHeader
         class="dashboard-enter dashboard-enter--1"
         :avatar-url="avatarUrl"
@@ -159,20 +160,21 @@
           </template>
         </section>
       </div>
-    </div>
-  </section>
+      </div>
+    </section>
 
-  <EventEditorSheet
-    :is-open="isEventEditorOpen"
-    :event="editingEvent"
-    title="Edit Event"
-    description="Update this event using the live backend event fields."
-    submit-label="Save Event"
-    :saving="isSavingEvent"
-    :error-message="eventEditorError"
-    @close="closeEventEditor"
-    @save="saveEventEdits"
-  />
+    <EventEditorSheet
+      :is-open="isEventEditorOpen"
+      :event="editingEvent"
+      title="Edit Event"
+      description="Update this event using the live backend event fields."
+      submit-label="Save Event"
+      :saving="isSavingEvent"
+      :error-message="eventEditorError"
+      @close="closeEventEditor"
+      @save="saveEventEdits"
+    />
+  </div>
 </template>
 
 <script setup>
@@ -531,7 +533,8 @@ function closeAllEventSwipes() {
 
 function handleDocumentPointerDown(event) {
   if (!hasOpenEventSwipe.value) return
-  if (event.target.closest('.school-it-schedule__swipe')) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.school-it-schedule__swipe')) return
   closeAllEventSwipes()
 }
 
