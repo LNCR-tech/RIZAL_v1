@@ -448,101 +448,262 @@
       </template>
 
       <section v-else class="governance-section-grid dashboard-enter dashboard-enter--3">
-        <article class="governance-panel governance-panel--primary">
-          <div class="governance-panel__header">
-            <p class="governance-panel__eyebrow">Temporary View</p>
-            <h2 class="governance-panel__title">{{ currentSection.placeholderTitle }}</h2>
-          </div>
-
-          <div class="governance-placeholder-list">
-            <p
-              v-for="feature in currentSection.featureList"
-              :key="feature"
-              class="governance-placeholder-list__item"
-            >
-              {{ feature }}
-            </p>
-          </div>
-        </article>
-
-        <article class="governance-panel">
-          <template v-if="currentSection.key === 'events'">
+        <template v-if="currentSection.key === 'reports'">
+          <article class="governance-panel governance-panel--primary">
             <div class="governance-panel__header">
-              <p class="governance-panel__eyebrow">Event Snapshot</p>
-              <h2 class="governance-panel__title">Scoped events</h2>
-            </div>
-
-            <div v-if="events.length" class="governance-list">
-              <button
-                v-for="event in upcomingEvents"
-                :key="event.id"
-                type="button"
-                class="governance-list__item"
-                @click="openEvent(event)"
-              >
-                <div class="governance-list__copy">
-                  <strong>{{ event.name || 'Untitled event' }}</strong>
-                  <span>{{ formatEventLine(event) }}</span>
-                </div>
-                <ArrowRight :size="16" :stroke-width="2" />
-              </button>
-            </div>
-            <p v-else class="governance-panel__empty">No governance events are visible for this unit yet.</p>
-          </template>
-
-          <template v-else-if="currentSection.key === 'students'">
-            <div class="governance-panel__header">
-              <p class="governance-panel__eyebrow">Directory Snapshot</p>
-              <h2 class="governance-panel__title">Students in scope</h2>
-            </div>
-
-            <div v-if="studentsPreview.length" class="governance-list">
-              <article
-                v-for="student in studentsPreview"
-                :key="student.id || student.user_id || student.user?.id"
-                class="governance-list__item governance-list__item--static"
-              >
-                <div class="governance-list__copy">
-                  <strong>{{ formatStudentName(student) }}</strong>
-                  <span>{{ formatStudentMeta(student) }}</span>
-                </div>
-              </article>
-            </div>
-            <p v-else class="governance-panel__empty">No students are currently exposed in this governance scope.</p>
-          </template>
-
-          <template v-else>
-            <div class="governance-panel__header">
-              <p class="governance-panel__eyebrow">Governance Scope</p>
-              <h2 class="governance-panel__title">Active unit details</h2>
+              <div>
+                <p class="governance-panel__eyebrow">Reports Center</p>
+                <h2 class="governance-panel__title">Governance reports</h2>
+              </div>
+              <span v-if="reportsLoading" class="governance-card__status">Refreshing</span>
             </div>
 
             <div class="governance-detail-grid">
               <div class="governance-detail-card">
-                <span>Unit type</span>
-                <strong>{{ activeUnitType || 'Governance' }}</strong>
+                <span>Engagement</span>
+                <strong>{{ engagementMetric.valueLabel }}</strong>
               </div>
               <div class="governance-detail-card">
-                <span>Members</span>
-                <strong>{{ formatWholeNumber(membersCount) }}</strong>
+                <span>Students In Scope</span>
+                <strong>{{ activeStudentsMetric.valueLabel }}</strong>
               </div>
               <div class="governance-detail-card">
-                <span>Permissions</span>
-                <strong>{{ formatWholeNumber(permissionCodes.length) }}</strong>
+                <span>Events This Week</span>
+                <strong>{{ eventVolumeMetric.valueLabel }}</strong>
               </div>
               <div class="governance-detail-card">
-                <span>Announcements</span>
-                <strong>{{ formatWholeNumber(announcements.length) }}</strong>
+                <span>Announcement Reach</span>
+                <strong>{{ latestAnnouncementReachMetric.valueLabel }}</strong>
               </div>
             </div>
 
-            <div v-if="permissionBadgeList.length" class="governance-chip-list">
-              <span v-for="permission in permissionBadgeList" :key="permission" class="governance-chip">
-                {{ permission }}
-              </span>
+            <div class="governance-report-actions">
+              <button type="button" class="governance-inline-action" @click="openSection('events')">
+                Open Events
+                <ArrowRight :size="16" :stroke-width="2" />
+              </button>
+              <button type="button" class="governance-inline-action" @click="openSanctionsDashboard">
+                Open Sanctions
+                <ArrowRight :size="16" :stroke-width="2" />
+              </button>
             </div>
-          </template>
-        </article>
+          </article>
+
+          <article class="governance-panel">
+            <div class="governance-panel__header">
+              <div>
+                <p class="governance-panel__eyebrow">Focused Event</p>
+                <h2 class="governance-panel__title">Scoped attendance health</h2>
+              </div>
+
+              <label v-if="analyticsEventOptions.length" class="governance-analytics-picker">
+                <span class="governance-event-select governance-event-select--primary">
+                  <select
+                    class="governance-event-select__input"
+                    :value="selectedAnalyticsEventId || ''"
+                    @change="setSelectedAnalyticsEventId($event.target.value)"
+                  >
+                    <option v-for="option in analyticsEventOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <ChevronDown :size="16" :stroke-width="2" />
+                </span>
+              </label>
+            </div>
+
+            <div class="governance-detail-grid">
+              <div class="governance-detail-card">
+                <span>Event</span>
+                <strong>{{ analyticsFocusEntry?.event?.name || analyticsFocusEntry?.report?.event_name || 'No report yet' }}</strong>
+              </div>
+              <div class="governance-detail-card">
+                <span>Attendance</span>
+                <strong>{{ eventHealthInsight.valueLabel }}</strong>
+              </div>
+              <div class="governance-detail-card">
+                <span>Attended</span>
+                <strong>{{ eventHealthInsight.attendedLabel }}</strong>
+              </div>
+              <div class="governance-detail-card">
+                <span>No-Show</span>
+                <strong>{{ eventHealthInsight.secondaryValueLabel }}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="governance-panel">
+            <div class="governance-panel__header">
+              <div>
+                <p class="governance-panel__eyebrow">Suggested Report</p>
+                <h2 class="governance-panel__title">College reach breakdown</h2>
+              </div>
+            </div>
+
+            <GovernanceBreakdownBars
+              v-if="demographicInsight.items.length"
+              :title="demographicInsight.title"
+              :items="demographicInsight.items"
+            />
+            <p v-else class="governance-panel__empty">Attendance rows have not exposed enough scoped data for a demographic report yet.</p>
+          </article>
+
+          <article class="governance-panel">
+            <div class="governance-panel__header">
+              <div>
+                <p class="governance-panel__eyebrow">Suggested Report</p>
+                <h2 class="governance-panel__title">Peak arrival time</h2>
+              </div>
+            </div>
+
+            <GovernanceArrivalBars
+              v-if="arrivalInsight.items.length"
+              :insight="arrivalInsight"
+            />
+            <p v-else class="governance-panel__empty">No timestamped arrivals are available for the selected event yet.</p>
+          </article>
+
+          <article class="governance-panel">
+            <div class="governance-panel__header">
+              <div>
+                <p class="governance-panel__eyebrow">Suggested Report</p>
+                <h2 class="governance-panel__title">Engagement over time</h2>
+              </div>
+            </div>
+
+            <GovernanceTrendChart
+              v-if="engagementTimeline.points.length > 1"
+              :points="engagementTimeline.points"
+            />
+            <p v-else class="governance-panel__empty">More reported events are needed to build a governance trend line.</p>
+          </article>
+
+          <article class="governance-panel">
+            <div class="governance-panel__header">
+              <div>
+                <p class="governance-panel__eyebrow">Selected Event Report</p>
+                <h2 class="governance-panel__title">Program breakdown</h2>
+              </div>
+            </div>
+
+            <div class="governance-report-table-wrap">
+              <table class="governance-report-table">
+                <thead><tr><th>Program</th><th>Total</th><th>Present</th><th>Late</th><th>Waiting</th><th>Absent</th></tr></thead>
+                <tbody>
+                  <tr v-for="row in analyticsFocusEntry?.report?.program_breakdown || []" :key="`report-program-${row.program}`">
+                    <td>{{ row.program }}</td>
+                    <td>{{ formatWholeNumber(row.total) }}</td>
+                    <td>{{ formatWholeNumber(row.present) }}</td>
+                    <td>{{ formatWholeNumber(row.late) }}</td>
+                    <td>{{ formatWholeNumber(row.incomplete) }}</td>
+                    <td>{{ formatWholeNumber(row.absent) }}</td>
+                  </tr>
+                  <tr v-if="!(analyticsFocusEntry?.report?.program_breakdown || []).length">
+                    <td colspan="6" class="governance-report-table__empty">No program breakdown data is available for the selected event.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </template>
+
+        <template v-else>
+          <article class="governance-panel governance-panel--primary">
+            <div class="governance-panel__header">
+              <p class="governance-panel__eyebrow">Temporary View</p>
+              <h2 class="governance-panel__title">{{ currentSection.placeholderTitle }}</h2>
+            </div>
+
+            <div class="governance-placeholder-list">
+              <p
+                v-for="feature in currentSection.featureList"
+                :key="feature"
+                class="governance-placeholder-list__item"
+              >
+                {{ feature }}
+              </p>
+            </div>
+          </article>
+
+          <article class="governance-panel">
+            <template v-if="currentSection.key === 'events'">
+              <div class="governance-panel__header">
+                <p class="governance-panel__eyebrow">Event Snapshot</p>
+                <h2 class="governance-panel__title">Scoped events</h2>
+              </div>
+
+              <div v-if="events.length" class="governance-list">
+                <button
+                  v-for="event in upcomingEvents"
+                  :key="event.id"
+                  type="button"
+                  class="governance-list__item"
+                  @click="openEvent(event)"
+                >
+                  <div class="governance-list__copy">
+                    <strong>{{ event.name || 'Untitled event' }}</strong>
+                    <span>{{ formatEventLine(event) }}</span>
+                  </div>
+                  <ArrowRight :size="16" :stroke-width="2" />
+                </button>
+              </div>
+              <p v-else class="governance-panel__empty">No governance events are visible for this unit yet.</p>
+            </template>
+
+            <template v-else-if="currentSection.key === 'students'">
+              <div class="governance-panel__header">
+                <p class="governance-panel__eyebrow">Directory Snapshot</p>
+                <h2 class="governance-panel__title">Students in scope</h2>
+              </div>
+
+              <div v-if="studentsPreview.length" class="governance-list">
+                <article
+                  v-for="student in studentsPreview"
+                  :key="student.id || student.user_id || student.user?.id"
+                  class="governance-list__item governance-list__item--static"
+                >
+                  <div class="governance-list__copy">
+                    <strong>{{ formatStudentName(student) }}</strong>
+                    <span>{{ formatStudentMeta(student) }}</span>
+                  </div>
+                </article>
+              </div>
+              <p v-else class="governance-panel__empty">No students are currently exposed in this governance scope.</p>
+            </template>
+
+            <template v-else>
+              <div class="governance-panel__header">
+                <p class="governance-panel__eyebrow">Governance Scope</p>
+                <h2 class="governance-panel__title">Active unit details</h2>
+              </div>
+
+              <div class="governance-detail-grid">
+                <div class="governance-detail-card">
+                  <span>Unit type</span>
+                  <strong>{{ activeUnitType || 'Governance' }}</strong>
+                </div>
+                <div class="governance-detail-card">
+                  <span>Members</span>
+                  <strong>{{ formatWholeNumber(membersCount) }}</strong>
+                </div>
+                <div class="governance-detail-card">
+                  <span>Permissions</span>
+                  <strong>{{ formatWholeNumber(permissionCodes.length) }}</strong>
+                </div>
+                <div class="governance-detail-card">
+                  <span>Announcements</span>
+                  <strong>{{ formatWholeNumber(announcements.length) }}</strong>
+                </div>
+              </div>
+
+              <div v-if="permissionBadgeList.length" class="governance-chip-list">
+                <span v-for="permission in permissionBadgeList" :key="permission" class="governance-chip">
+                  {{ permission }}
+                </span>
+              </div>
+            </template>
+          </article>
+        </template>
       </section>
     </template>
 
@@ -595,6 +756,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   AlertCircle,
   ArrowRight,
@@ -625,12 +787,15 @@ import GovernanceProgressRing from '@/components/governance/GovernanceProgressRi
 import GovernanceTrendChart from '@/components/governance/GovernanceTrendChart.vue'
 import { applyTheme, loadTheme } from '@/config/theme.js'
 import { useGovernanceWorkspace } from '@/composables/useGovernanceWorkspace.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: { type: Boolean, default: false },
   section: { type: String, default: 'overview' },
 })
 
+const route = useRoute()
+const router = useRouter()
 const searchQuery = ref('')
 
 const {
@@ -788,6 +953,15 @@ function handleOpenCreateSheet() {
   }
 
   openCreateSheet()
+}
+
+function openSanctionsDashboard() {
+  if (props.preview) {
+    router.push(withPreservedGovernancePreviewQuery(route, { name: 'PreviewSgSanctionsDashboard' }))
+    return
+  }
+
+  router.push({ name: 'SgSanctionsDashboard' })
 }
 
 watch(
@@ -2477,6 +2651,56 @@ function formatAnnouncementAudienceMeta(announcement) {
 .governance-permission-alert-leave-to .governance-permission-alert {
   transform: translateY(18px) scale(0.98);
   opacity: 0;
+}
+
+.governance-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.governance-report-table-wrap {
+  overflow-x: auto;
+}
+
+.governance-report-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+.governance-report-table thead th {
+  padding: 0 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.governance-report-table tbody td {
+  padding: 12px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--color-text-muted) 16%, transparent);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.governance-report-table__empty {
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 767px) {
+  .governance-report-actions {
+    flex-direction: column;
+  }
+
+  .governance-report-actions .governance-inline-action {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @keyframes governance-spin {

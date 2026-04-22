@@ -170,6 +170,12 @@ const routes = [
                 props: { section: 'oversight' },
             },
             {
+                path: 'reports',
+                name: 'AdminReports',
+                component: AdminWorkspaceView,
+                props: { section: 'reports' },
+            },
+            {
                 path: 'profile',
                 name: 'AdminProfile',
                 component: AdminWorkspaceView,
@@ -216,6 +222,12 @@ const routes = [
                 name: 'PreviewAdminOversight',
                 component: AdminWorkspaceView,
                 props: { preview: true, section: 'oversight' },
+            },
+            {
+                path: 'reports',
+                name: 'PreviewAdminReports',
+                component: AdminWorkspaceView,
+                props: { preview: true, section: 'reports' },
             },
             {
                 path: 'profile',
@@ -541,6 +553,12 @@ const routes = [
                 component: SgEventsView,
             },
             {
+                path: 'reports',
+                name: 'SgReports',
+                component: GovernanceWorkspaceView,
+                props: { section: 'reports' },
+            },
+            {
                 path: 'announcements',
                 redirect: { name: 'SgEvents' },
             },
@@ -634,6 +652,12 @@ const routes = [
                 name: 'PreviewSgEvents',
                 component: SgEventsView,
                 props: { preview: true },
+            },
+            {
+                path: 'reports',
+                name: 'PreviewSgReports',
+                component: GovernanceWorkspaceView,
+                props: { preview: true, section: 'reports' },
             },
             {
                 path: 'announcements',

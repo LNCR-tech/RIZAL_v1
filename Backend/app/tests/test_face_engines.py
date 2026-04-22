@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from pathlib import Path
 
 import numpy as np
+import pytest
 
 from app.core.config import get_settings
 from app.services.face_engine.factory import _build_engine, get_engine
-from app.services.face_engine.insightface_adapter import InsightFaceEngine
+from app.services.face_engine.insightface_adapter import InsightFaceEngine, InsightFaceRuntimeState
 from app.services.face_engine.liveness import LivenessChecker
 
 
@@ -103,39 +103,43 @@ def test_face_engine_factory_returns_expected_engine_per_mode() -> None:
     assert isinstance(get_engine("mfa"), InsightFaceEngine)
 
 
-def test_insightface_runtime_status_reports_model_download_pending(monkeypatch, tmp_path) -> None:
+def test_insightface_runtime_status_reports_model_download_pending(monkeypatch) -> None:
     engine = InsightFaceEngine()
 
     monkeypatch.setattr(InsightFaceEngine, "_shared_face_analysis", None)
-    monkeypatch.setattr(InsightFaceEngine, "_shared_runtime_reason", None)
-    monkeypatch.setattr(InsightFaceEngine, "_shared_warming_thread", None)
-    monkeypatch.setattr(engine, "_load_runtime", lambda: object())
-    monkeypatch.setattr(engine, "_ensure_background_initialization", lambda: None)
-    monkeypatch.setattr(InsightFaceEngine, "_model_bundle_ready", classmethod(lambda cls: False))
     monkeypatch.setattr(
         InsightFaceEngine,
-        "_model_archive_path",
-        classmethod(lambda cls: Path(tmp_path / "buffalo_l.zip")),
+        "_shared_runtime_state",
+        InsightFaceRuntimeState(
+            state="initializing",
+            reason="insightface_model_download_pending",
+        ),
     )
-    (tmp_path / "buffalo_l.zip").write_bytes(b"pending")
 
     assert engine.runtime_status() == (False, "insightface_model_download_pending")
+    payload = engine.runtime_status_payload(mode="single")
+    assert payload["state"] == "initializing"
+    assert payload["ready"] is False
+    assert payload["mode"] == "single"
 
 
 def test_insightface_runtime_status_reports_warming_up_with_local_models(monkeypatch) -> None:
     engine = InsightFaceEngine()
 
     monkeypatch.setattr(InsightFaceEngine, "_shared_face_analysis", None)
-    monkeypatch.setattr(InsightFaceEngine, "_shared_runtime_reason", None)
-    monkeypatch.setattr(InsightFaceEngine, "_shared_warming_thread", None)
-    monkeypatch.setattr(engine, "_load_runtime", lambda: object())
-    monkeypatch.setattr(engine, "_ensure_background_initialization", lambda: None)
-    monkeypatch.setattr(InsightFaceEngine, "_model_bundle_ready", classmethod(lambda cls: True))
+    monkeypatch.setattr(
+        InsightFaceEngine,
+        "_shared_runtime_state",
+        InsightFaceRuntimeState(
+            state="initializing",
+            reason="insightface_warming_up",
+        ),
+    )
 
     assert engine.runtime_status() == (False, "insightface_warming_up")
 
 
-def test_background_initialization_returns_immediately_when_worker_is_alive(monkeypatch) -> None:
+def test_request_runtime_initialization_does_not_spawn_duplicate_worker(monkeypatch) -> None:
     engine = InsightFaceEngine()
 
     class BusyThread:
@@ -143,15 +147,104 @@ def test_background_initialization_returns_immediately_when_worker_is_alive(monk
         def is_alive() -> bool:
             return True
 
-    class ExplodingLock:
-        def __enter__(self):
-            raise AssertionError("status checks should not wait on the warmup lock")
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
     monkeypatch.setattr(InsightFaceEngine, "_shared_face_analysis", None)
     monkeypatch.setattr(InsightFaceEngine, "_shared_warming_thread", BusyThread())
-    monkeypatch.setattr(InsightFaceEngine, "_shared_init_lock", ExplodingLock())
+    monkeypatch.setattr(
+        InsightFaceEngine,
+        "_shared_runtime_state",
+        InsightFaceRuntimeState(
+            state="initializing",
+            reason="insightface_warming_up",
+        ),
+    )
 
-    engine._ensure_background_initialization()
+    payload = engine.request_runtime_initialization(background=True, trigger="test")
+    assert payload["state"] == "initializing"
+    assert payload["reason"] == "insightface_warming_up"
+
+
+def test_initialize_runtime_reports_ready_after_warmup(monkeypatch) -> None:
+    engine = InsightFaceEngine()
+
+    class FakeFaceAnalysis:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def prepare(self, *args, **kwargs) -> None:
+            return None
+
+    class FakeRuntime:
+        class app:
+            FaceAnalysis = FakeFaceAnalysis
+
+    monkeypatch.setattr(InsightFaceEngine, "_shared_face_analysis", None)
+    monkeypatch.setattr(InsightFaceEngine, "_shared_warming_thread", None)
+    monkeypatch.setattr(
+        InsightFaceEngine,
+        "_shared_runtime_state",
+        InsightFaceRuntimeState(
+            state="initializing",
+            reason="insightface_initialization_not_requested",
+        ),
+    )
+    monkeypatch.setattr(engine, "_load_runtime", lambda: FakeRuntime())
+    monkeypatch.setattr(InsightFaceEngine, "_model_bundle_ready", classmethod(lambda cls: True))
+    monkeypatch.setattr(InsightFaceEngine, "_acquire_model_init_lock", classmethod(lambda cls: 1))
+    monkeypatch.setattr(InsightFaceEngine, "_release_model_init_lock", classmethod(lambda cls, lock_fd: None))
+    monkeypatch.setattr(engine, "_run_warmup_inference", lambda _face_analysis: None)
+
+    payload = engine.request_runtime_initialization(background=False, trigger="test", force=True)
+
+    assert payload["state"] == "ready"
+    assert payload["ready"] is True
+    assert payload["reason"] == "ready"
+    assert payload["warmup_started_at"] is not None
+    assert payload["warmup_finished_at"] is not None
+    assert payload["model_construction_duration_ms"] is not None
+    assert payload["prepare_duration_ms"] is not None
+    assert payload["warmup_duration_ms"] is not None
+    assert payload["init_duration_ms"] is not None
+
+
+def test_initialize_runtime_marks_failed_when_warmup_fails(monkeypatch) -> None:
+    engine = InsightFaceEngine()
+
+    class FakeFaceAnalysis:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def prepare(self, *args, **kwargs) -> None:
+            return None
+
+    class FakeRuntime:
+        class app:
+            FaceAnalysis = FakeFaceAnalysis
+
+    monkeypatch.setattr(InsightFaceEngine, "_shared_face_analysis", None)
+    monkeypatch.setattr(InsightFaceEngine, "_shared_warming_thread", None)
+    monkeypatch.setattr(
+        InsightFaceEngine,
+        "_shared_runtime_state",
+        InsightFaceRuntimeState(
+            state="initializing",
+            reason="insightface_initialization_not_requested",
+        ),
+    )
+    monkeypatch.setattr(engine, "_load_runtime", lambda: FakeRuntime())
+    monkeypatch.setattr(InsightFaceEngine, "_model_bundle_ready", classmethod(lambda cls: True))
+    monkeypatch.setattr(InsightFaceEngine, "_acquire_model_init_lock", classmethod(lambda cls: 1))
+    monkeypatch.setattr(InsightFaceEngine, "_release_model_init_lock", classmethod(lambda cls, lock_fd: None))
+    monkeypatch.setattr(
+        engine,
+        "_run_warmup_inference",
+        lambda _face_analysis: (_ for _ in ()).throw(RuntimeError("warmup exploded")),
+    )
+
+    with pytest.raises(Exception):
+        engine.request_runtime_initialization(background=False, trigger="test", force=True)
+
+    payload = engine.runtime_status_payload(mode="single")
+    assert payload["state"] == "failed"
+    assert payload["ready"] is False
+    assert payload["reason"] == "insightface_warmup_failed"
+    assert payload["last_error"] is not None

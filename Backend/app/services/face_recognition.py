@@ -83,6 +83,98 @@ class FaceRecognitionService:
         self._embedding_dtype = np.dtype(self.settings.face_embedding_dtype)
 
     @staticmethod
+    def _fallback_runtime_status(mode: str, *, reason: str) -> dict[str, object]:
+        normalized_mode = mode.strip().lower()
+        return {
+            "state": "failed" if reason == "unsupported_mode" else "initializing",
+            "ready": False,
+            "reason": reason,
+            "last_error": None,
+            "provider_target": "CPUExecutionProvider",
+            "mode": normalized_mode,
+            "initialized_at": None,
+            "warmup_started_at": None,
+            "warmup_finished_at": None,
+            "model_construction_duration_ms": None,
+            "prepare_duration_ms": None,
+            "warmup_duration_ms": None,
+            "init_duration_ms": None,
+        }
+
+    def face_runtime_status(self, mode: str = "single") -> dict[str, object]:
+        normalized_mode = mode.strip().lower()
+        try:
+            payload = get_engine(normalized_mode).runtime_status_payload(mode=normalized_mode)
+            reason_value = payload.get("reason")
+            return {
+                "state": str(payload.get("state", "initializing")),
+                "ready": bool(payload.get("ready")),
+                "reason": (
+                    str(reason_value)
+                    if reason_value is not None
+                    else "insightface_warming_up"
+                ),
+                "last_error": (
+                    str(payload.get("last_error"))
+                    if payload.get("last_error") is not None
+                    else None
+                ),
+                "provider_target": str(payload.get("provider_target", "CPUExecutionProvider")),
+                "mode": str(payload.get("mode") or normalized_mode),
+                "initialized_at": payload.get("initialized_at"),
+                "warmup_started_at": payload.get("warmup_started_at"),
+                "warmup_finished_at": payload.get("warmup_finished_at"),
+                "model_construction_duration_ms": payload.get("model_construction_duration_ms"),
+                "prepare_duration_ms": payload.get("prepare_duration_ms"),
+                "warmup_duration_ms": payload.get("warmup_duration_ms"),
+                "init_duration_ms": payload.get("init_duration_ms"),
+            }
+        except ValueError:
+            return self._fallback_runtime_status(normalized_mode, reason="unsupported_mode")
+
+    def initialize_face_runtime(
+        self,
+        *,
+        mode: str = "single",
+        background: bool = True,
+        trigger: str = "manual",
+        force: bool = False,
+    ) -> dict[str, object]:
+        normalized_mode = mode.strip().lower()
+        try:
+            payload = get_engine(normalized_mode).request_runtime_initialization(
+                background=background,
+                trigger=trigger,
+                force=force,
+            )
+        except ValueError:
+            return self._fallback_runtime_status(normalized_mode, reason="unsupported_mode")
+        reason_value = payload.get("reason")
+        return {
+            "state": str(payload.get("state", "initializing")),
+            "ready": bool(payload.get("ready")),
+            "reason": (
+                str(reason_value)
+                if reason_value is not None
+                else "insightface_warming_up"
+            ),
+            "last_error": (
+                str(payload.get("last_error"))
+                if payload.get("last_error") is not None
+                else None
+            ),
+            "provider_target": str(payload.get("provider_target", "CPUExecutionProvider")),
+            "mode": str(payload.get("mode") or normalized_mode),
+            "initialized_at": payload.get("initialized_at"),
+            "warmup_started_at": payload.get("warmup_started_at"),
+            "warmup_finished_at": payload.get("warmup_finished_at"),
+            "model_construction_duration_ms": payload.get("model_construction_duration_ms"),
+            "prepare_duration_ms": payload.get("prepare_duration_ms"),
+            "warmup_duration_ms": payload.get("warmup_duration_ms"),
+            "init_duration_ms": payload.get("init_duration_ms"),
+        }
+
+    @staticmethod
     def decode_base64_image(image_base64: str) -> bytes:
         """Decode a base64 image string into raw bytes."""
         if not image_base64 or not image_base64.strip():
@@ -122,10 +214,52 @@ class FaceRecognitionService:
 
     def face_recognition_status(self, mode: str = "single") -> tuple[bool, str | None]:
         """Return whether the configured runtime for one mode is available."""
-        try:
-            return get_engine(mode).runtime_status()
-        except ValueError:
-            return False, "unsupported_mode"
+        runtime_status = self.face_runtime_status(mode)
+        if runtime_status["ready"]:
+            return True, None
+        reason = runtime_status.get("reason")
+        return False, str(reason) if reason is not None else None
+
+    def ensure_face_runtime_ready(
+        self,
+        *,
+        mode: str = "single",
+        context: str | None = None,
+    ) -> dict[str, object]:
+        runtime_status = self.face_runtime_status(mode)
+        if runtime_status["ready"]:
+            return runtime_status
+
+        reason = str(runtime_status.get("reason") or "insightface_warming_up")
+        state = str(runtime_status.get("state") or "initializing")
+        if reason == "unsupported_mode":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "unsupported_face_mode",
+                    "message": f"Unsupported face mode: {mode}.",
+                    "face_runtime": runtime_status,
+                },
+            )
+
+        if state == "failed":
+            code = "face_runtime_failed"
+            message = "Face runtime initialization failed."
+        else:
+            code = "face_runtime_initializing"
+            message = "Face runtime is still initializing."
+
+        detail: dict[str, object] = {
+            "code": code,
+            "message": message,
+            "face_runtime": runtime_status,
+        }
+        if context:
+            detail["context"] = context
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=detail,
+        )
 
     def anti_spoof_status(self) -> tuple[bool, str | None]:
         """Return whether the anti-spoof model is ready."""
@@ -218,6 +352,7 @@ class FaceRecognitionService:
 
     def check_liveness(self, rgb_image: np.ndarray, *, mode: str = "single") -> LivenessResult:
         """Run liveness on one detected face and require exactly one face in frame."""
+        self.ensure_face_runtime_ready(mode=mode, context="liveness_check")
         engine = get_engine(mode)
         face_crops = engine.detect(rgb_image)
         if not face_crops:
@@ -241,6 +376,7 @@ class FaceRecognitionService:
         mode: str = "single",
     ) -> list[DetectedFaceProbe]:
         """Detect all faces in one probe image and return per-face liveness and embeddings."""
+        self.ensure_face_runtime_ready(mode=mode, context="face_analysis")
         engine = get_engine(mode)
         rgb_image = self.load_rgb_from_bytes(image_bytes)
         face_crops = engine.detect(rgb_image)

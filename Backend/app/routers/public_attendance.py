@@ -152,6 +152,10 @@ def _enforce_public_scan_throttle(request: Request, event_id: int) -> None:
     _PUBLIC_SCAN_REQUEST_TIMESTAMPS[key] = now
 
 
+def _ensure_face_runtime_ready(mode: str, *, context: str) -> None:
+    face_service.ensure_face_runtime_ready(mode=mode, context=context)
+
+
 @router.post("/events/nearby", response_model=PublicAttendanceNearbyEventsResponse)
 def list_nearby_public_events(
     payload: PublicAttendanceNearbyEventsRequest,
@@ -285,6 +289,7 @@ def scan_public_attendance_event(
         accuracy_m=payload.accuracy_m,
     )
 
+    _ensure_face_runtime_ready(mode="group", context="public_attendance_multi_face_scan")
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     try:
         probes = face_service.analyze_faces_from_bytes(

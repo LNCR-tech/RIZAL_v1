@@ -52,16 +52,16 @@ async def lifespan(_: FastAPI):
         yield
         return
     try:
-        face_runtime_ready, face_runtime_reason = FaceRecognitionService().face_recognition_status(
-            mode="single"
+        runtime_status = FaceRecognitionService().initialize_face_runtime(
+            mode="single",
+            background=True,
+            trigger="startup",
         )
-        if face_runtime_ready:
-            logger.info("InsightFace runtime is ready at startup.")
-        else:
-            logger.info(
-                "InsightFace runtime warm-up started at startup (reason=%s).",
-                face_runtime_reason or "unknown",
-            )
+        logger.info(
+            "InsightFace startup initialization requested (state=%s, reason=%s).",
+            runtime_status.get("state", "unknown"),
+            runtime_status.get("reason", "unknown"),
+        )
     except Exception:
         # Face warm-up should not block API startup; registration endpoints still
         # return explicit runtime errors when the model is not ready yet.

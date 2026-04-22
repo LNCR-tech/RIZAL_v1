@@ -32,6 +32,16 @@
           </button>
           <button
             class="chat-icon-btn"
+            aria-label="Refresh conversation"
+            title="Refresh chat"
+            type="button"
+            :disabled="isRefreshing || !conversationId"
+            @click="refreshChat"
+          >
+            <RotateCw :size="15" :class="{ 'animate-spin': isRefreshing }" />
+          </button>
+          <button
+            class="chat-icon-btn"
             aria-label="Start new chat"
             title="New chat"
             type="button"
@@ -87,14 +97,31 @@
             <TransitionGroup name="bubble" tag="div" class="chat-messages-inner">
               <template v-for="message in messages" :key="message.id">
                 <div
-                  v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0)"
+                  v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0) || message.visual"
                   :class="['bubble', message.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
                 >
-                  <ChatMarkdownMessage :text="message.text" />
+                  <ChatMarkdownMessage v-if="message.text" :text="message.text" />
+                  
+                  <!-- AI Visualizations -->
+                  <AuraVisualization 
+                    v-if="message.visual" 
+                    v-bind="message.visual" 
+                  />
                 </div>
               </template>
 
-              <div v-if="isTyping && typingConversationId === conversationId" key="typing" class="bubble bubble--ai bubble--typing">
+              <!-- Tool call indicator -->
+              <div
+                v-if="isTyping && currentToolCall && typingConversationId === conversationId"
+                key="tool-call"
+                class="bubble bubble--ai bubble--tool-call"
+              >
+                <span class="tool-call-spinner" />
+                <span class="tool-call-label">{{ toolCallLabel(currentToolCall) }}</span>
+              </div>
+
+              <!-- Standard typing indicator (shown when no tool is running) -->
+              <div v-else-if="isTyping && typingConversationId === conversationId" key="typing" class="bubble bubble--ai bubble--typing">
                 <span class="dot" style="animation-delay: 0ms" />
                 <span class="dot" style="animation-delay: 150ms" />
                 <span class="dot" style="animation-delay: 300ms" />
@@ -133,8 +160,9 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Copy, Send, Plus, Trash2, Check } from 'lucide-vue-next'
+import { ArrowLeft, Copy, Send, Plus, Trash2, Check, RotateCw } from 'lucide-vue-next'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
+import AuraVisualization from '@/components/ui/AuraVisualization.vue'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import {
@@ -151,6 +179,7 @@ const {
   messages,
   inputText,
   isTyping,
+  currentToolCall,
   conversationId,
   conversations,
   isLoadingConversations,
@@ -167,6 +196,36 @@ const {
   typingConversationId,
   closeAll,
 } = useChat()
+
+// Human-readable labels for known MCP tools
+const TOOL_LABELS = {
+  mcp_query: 'Querying database\u2026',
+  mcp_schema: 'Checking schema\u2026',
+  mcp_visualize: 'Building visualization\u2026',
+  mcp_report: 'Fetching report\u2026',
+  mcp_undo: 'Rolling back change\u2026',
+  school_admin_action: 'Performing admin action\u2026',
+  backend_action: 'Calling backend\u2026',
+}
+
+function toolCallLabel(toolName) {
+  return TOOL_LABELS[toolName] ?? `Running ${toolName}\u2026`
+}
+
+const isRefreshing = ref(false)
+
+async function refreshChat() {
+  if (!conversationId.value || isRefreshing.value) return
+  isRefreshing.value = true
+  try {
+    await selectConversation(conversationId.value)
+  } finally {
+    // Add a slight delay for visual feedback if it's too fast
+    setTimeout(() => {
+      isRefreshing.value = false
+    }, 600)
+  }
+}
 
 function goBack() {
   if (hasNavigableHistory(route)) {
@@ -451,6 +510,37 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.14);
   color: var(--color-banner-text);
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.bubble--tool-call {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.55);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+}
+
+.tool-call-spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  animation: tool-spin 0.7s linear infinite;
+}
+
+.tool-call-label {
+  white-space: nowrap;
+}
+
+@keyframes tool-spin {
+  to { transform: rotate(360deg); }
 }
 
 .bubble--typing {

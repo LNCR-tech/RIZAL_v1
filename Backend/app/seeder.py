@@ -14,6 +14,7 @@ import string
 
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+from app.utils.passwords import hash_password_bcrypt
 
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
@@ -31,6 +32,15 @@ from app.models.program import Program
 from app.models.role import Role
 from app.models.school import School, SchoolSetting
 from app.models.user import StudentProfile, User, UserRole
+from app.models.sanctions import (
+    EventSanctionConfig,
+    SanctionRecord,
+    SanctionItem,
+    SanctionComplianceStatus,
+    SanctionItemStatus,
+    ClearanceDeadline,
+    ClearanceDeadlineStatus,
+)
 
 load_dotenv()
 
@@ -41,21 +51,51 @@ DEFAULT_DEMO_EMAIL_DOMAIN = "demo.valid8.dev"
 # Generated demo credentials are written to a local file (gitignored).
 DEFAULT_DEMO_CREDENTIALS_PATH = Path(__file__).resolve().parents[1] / "storage" / "seed_credentials.csv"
 
+# Realistic Name Matrix for production-level simulation
+FIRST_NAMES = [
+    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "David", "Elizabeth",
+    "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica", "Thomas", "Sarah", "Christopher", "Karen",
+    "Charles", "Nancy", "Daniel", "Lisa", "Matthew", "Betty", "Anthony", "Margaret", "Mark", "Sandra",
+    "Donald", "Ashley", "Steven", "Kimberly", "Paul", "Emily", "Andrew", "Donna", "Joshua", "Michelle",
+    "Kenneth", "Dorothy", "Kevin", "Carol", "Brian", "Amanda", "George", "Melissa", "Timothy", "Deborah",
+    "Juan", "Maria", "Jose", "Concepcion", "Antonio", "Elena", "Ricardo", "Francisca", "Mateo", "Angela",
+    "Kenji", "Yuki", "Hiroshi", "Sakura", "Wei", "Li", "Min", "Jun", "Arjun", "Ananya",
+    "Cj", "Aura", "Rizal", "Crisostomo", "Ibarra", "Maria Clara", "Elias", "Basilio", "Crispin", "Simoun"
+]
+
+LAST_NAMES = [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+    "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+    "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson",
+    "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
+    "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts",
+    "Rizal", "Mercado", "Alonso", "Realonda", "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Dela Cruz"
+]
+
+DEFAULT_ROLE_NAMES = [
+    "student",
+    "campus_admin",
+    "admin",
+    "ssg",
+    "sg",
+    "org",
+]
+
 
 def create_tables() -> None:
     """Create all tables."""
+    import app.models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
     print("Database tables created")
 
 
-def seed_roles(db: Session) -> None:
+def seed_roles(db: Session, role_names: list[str] | None = None) -> None:
     """Seed roles table with required roles."""
-    # Note: Governance permissions are managed via governance tables; these are the auth roles
-    # used for API access + login.
-    role_names = ["student", "campus_admin", "admin"]
+    required_role_names = role_names or DEFAULT_ROLE_NAMES
     existing_role_names = {role.name for role in db.query(Role).all()}
 
-    for role_name in role_names:
+    for role_name in required_role_names:
         if role_name not in existing_role_names:
             db.add(Role(name=role_name))
 
@@ -101,6 +141,9 @@ def seed_default_school(db: Session) -> School:
         if not getattr(school, "school_name", None):
             school.school_name = school.name
             db.commit()
+        if not getattr(school, "school_code", None):
+            school.school_code = os.getenv("DEFAULT_SCHOOL_CODE", "DS-001")
+            db.commit()
         if not db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first():
             db.add(SchoolSetting(school_id=school.id))
             db.commit()
@@ -114,7 +157,7 @@ def seed_default_school(db: Session) -> School:
         logo_url=os.getenv("DEFAULT_SCHOOL_LOGO_URL"),
         primary_color=os.getenv("DEFAULT_SCHOOL_PRIMARY_COLOR", "#162F65"),
         secondary_color=os.getenv("DEFAULT_SCHOOL_SECONDARY_COLOR", "#2C5F9E"),
-        school_code=os.getenv("DEFAULT_SCHOOL_CODE"),
+        school_code=os.getenv("DEFAULT_SCHOOL_CODE", "DS-001"),
         subscription_status=os.getenv("DEFAULT_SUBSCRIPTION_STATUS", "trial"),
         active_status=True,
         subscription_plan=os.getenv("DEFAULT_SUBSCRIPTION_PLAN", "free"),
@@ -792,6 +835,368 @@ def seed_admin_user(db: Session, school: School) -> None:
     print("Admin user already exists")
 
 
+def wipe_database_records(db: Session) -> None:
+    """Clear all records from application tables without dropping schemas."""
+    from app.models.attendance import Attendance
+    from app.models.event import Event
+    from app.models.governance_hierarchy import GovernanceMember, GovernanceMemberPermission, GovernanceUnit
+    from app.models.user import StudentProfile, User, UserRole
+    from app.models.program import Program
+    from app.models.department import Department
+    from app.models.school import School, SchoolSetting
+    from app.models.role import Role
+
+    print("Cleaning existing database records (Safe Wipe)...")
+    # Order matters for foreign keys
+    db.query(Attendance).delete()
+    db.query(GovernanceMemberPermission).delete()
+    db.query(GovernanceMember).delete()
+    db.query(GovernanceUnit).delete()
+    db.query(StudentProfile).delete()
+    db.query(UserRole).delete()
+    db.query(User).filter(User.email != os.getenv("ADMIN_EMAIL", "admin@university.edu")).delete()
+    db.query(Event).delete()
+    db.query(Program).delete()
+    db.query(Department).delete()
+    db.query(SchoolSetting).delete()
+    db.query(School).delete()
+    db.query(Role).delete()
+    db.commit()
+    print("Database records cleaned.")
+
+
+def seed_massive_attendance_data(db: Session, target_school: School) -> None:
+    """Generate 1M attendance records using high-performance bulk insertion."""
+    import random
+    import csv
+    from datetime import datetime, timedelta, timezone
+    from app.models.attendance import Attendance
+    from app.models.event import Event, EventStatus
+    from app.models.user import StudentProfile, User
+
+    students_target = int(os.getenv("SEED_MASSIVE_STUDENTS", "5000"))
+    records_target = int(os.getenv("SEED_MASSIVE_RECORDS", "1000000"))
+    events_count = 500
+
+    print(f"--- MASSIVE SEED START ---")
+    print(f"Target: {students_target} students, {events_count} events, {records_target} attendances.")
+
+    # 1. Create Colleges/Departments and Programs
+    colleges = [
+        ("College of Engineering", ["BS Civil Engineering", "BS Computer Engineering", "BS Electrical Engineering"]),
+        ("College of Science", ["BS Biology", "BS Mathematics", "BS Physics", "BS Computer Science"]),
+        ("College of Business", ["BS Accountancy", "BS Business Administration", "BS Marketing"]),
+        ("College of Arts & Letters", ["BA Communication", "BA Psychology", "BA Philosophy"]),
+        ("College of Education", ["BSEd Mathematics", "BSEd English"])
+    ]
+
+    all_programs_with_depts = []
+    for dept_name, progs in colleges:
+        dept = _get_or_create_department(db, school_id=target_school.id, name=dept_name)
+        for p_name in progs:
+            prog = _get_or_create_program(db, school_id=target_school.id, name=p_name)
+            # Link them if not already linked (Many-to-Many)
+            if dept not in prog.departments:
+                prog.departments.append(dept)
+            all_programs_with_depts.append((prog, dept.id))
+    db.commit()
+
+    # 2. Create Students
+    print(f"Generating {students_target} realistic students (Password Hashing Optimized)...")
+    student_profiles = []
+    created_creds = []
+    
+    # PRE-CALCULATE HASH ONCE: This eliminates 4,999 expensive Bcrypt operations.
+    common_password = "MassivePass123!"
+    template_hash = hash_password_bcrypt(common_password)
+    
+    for i in range(1, students_target + 1):
+        first = random.choice(FIRST_NAMES)
+        last = random.choice(LAST_NAMES)
+        email = f"student.{i:05d}@massive.{DEFAULT_DEMO_EMAIL_DOMAIN}"
+        
+        user = User(
+            email=email,
+            school_id=target_school.id,
+            first_name=first,
+            last_name=last,
+            password_hash=template_hash, # Direct assignment
+            is_active=True,
+            must_change_password=False
+        )
+        db.add(user)
+        db.flush()
+        
+        _ensure_user_role(db, user, "student")
+        
+        prog, dept_id = random.choice(all_programs_with_depts)
+        profile = StudentProfile(
+            user_id=user.id,
+            school_id=target_school.id,
+            student_id=f"2024-{i:05d}",
+            department_id=dept_id,
+            program_id=prog.id,
+            year_level=random.randint(1, 4),
+            section=f"Section-{random.randint(1, 10)}",
+            is_face_registered=random.random() > 0.2
+        )
+        db.add(profile)
+        student_profiles.append(profile)
+        
+        created_creds.append({
+            "email": email,
+            "password": common_password,
+            "school_code": target_school.school_code or "",
+            "school_id": str(target_school.id),
+            "roles": "student",
+            "permissions": ""
+        })
+        
+        if i % 1000 == 0:
+            db.commit()
+            print(f"  Created {i} students...")
+
+    db.commit()
+
+    # 2.5 Create Multi-Role Personnel (Admins & Officers)
+    print(f"Generating realistic administration and governance layers...")
+    
+    # 5 Campus Admins
+    for i in range(1, 6):
+        first = random.choice(FIRST_NAMES)
+        last = random.choice(LAST_NAMES)
+        email = f"campus.admin.{i}@massive.{DEFAULT_DEMO_EMAIL_DOMAIN}"
+        user = User(
+            email=email,
+            school_id=target_school.id,
+            first_name=first,
+            last_name=last,
+            password_hash=template_hash,
+            is_active=True,
+            must_change_password=False
+        )
+        db.add(user)
+        db.flush()
+        _ensure_user_role(db, user, "campus_admin")
+        created_creds.insert(0, { # Put at top of CSV
+            "email": email,
+            "password": common_password,
+            "school_code": target_school.school_code or "",
+            "school_id": str(target_school.id),
+            "roles": "campus_admin",
+            "permissions": "" # Role-based access (no individual codes)
+        })
+
+    # Create Governance Units (SSG, SGs, Orgs)
+    ssg = _get_or_create_governance_unit(
+        db, school_id=target_school.id, unit_code="SSG-MASSIVE", unit_name="Supreme Student Government",
+        unit_type=GovernanceUnitType.SSG
+    )
+    
+    # Promote 100 Students to Officers across various units
+    officer_pool = random.sample(student_profiles, 100)
+    officer_perms = [
+        [PermissionCode.VIEW_STUDENTS, PermissionCode.MANAGE_ATTENDANCE],
+        [PermissionCode.MANAGE_EVENTS, PermissionCode.VIEW_SANCTIONS_DASHBOARD],
+        [PermissionCode.VIEW_STUDENTS, PermissionCode.MANAGE_ANNOUNCEMENTS],
+        [PermissionCode.ASSIGN_PERMISSIONS, PermissionCode.MANAGE_MEMBERS]
+    ]
+
+    # Use the first Campus Admin or the Platform Admin as the assigner
+    assigner = db.query(User).filter(User.school_id == target_school.id).first()
+    assigner_id = assigner.id if assigner else None
+
+    for idx, profile in enumerate(officer_pool):
+        # Assign to SSG or a random sub-unit
+        perms = random.choice(officer_perms)
+        _assign_governance_membership(
+            db, user=profile.user, governance_unit=ssg, 
+            assigned_by_user_id=assigner_id,
+            permission_codes=perms
+        )
+        # Update CSV metadata for this student
+        for cred in created_creds:
+            if cred["email"] == profile.user.email:
+                cred["roles"] = "student,officer"
+                cred["permissions"] = ",".join([p.value for p in perms])
+                break
+    
+    db.commit()
+
+    # 3. Create Events
+    print(f"Generating {events_count} historical events...")
+    events_list = []
+    start_date = datetime.now(timezone.utc) - timedelta(days=730)
+    
+    for i in range(events_count):
+        e_date = start_date + timedelta(days=random.randint(0, 720), hours=random.randint(7, 18))
+        event = Event(
+            school_id=target_school.id,
+            name=f"Standard Check-in: {e_date.strftime('%B %d, %Y')}",
+            location="University Campus - Hall " + str(random.randint(1, 10)),
+            start_datetime=e_date,
+            end_datetime=e_date + timedelta(hours=2),
+            status=EventStatus.COMPLETED if e_date < datetime.now(timezone.utc) else EventStatus.UPCOMING
+        )
+        db.add(event)
+        events_list.append(event)
+        if i % 100 == 0:
+            db.flush()
+    db.commit()
+
+    # 4. Generate 1M Attendance Records (Optimized Bulk)
+    print(f"Generating {records_target} attendance records (Bulk Insert Mode)...")
+    student_ids = [p.id for p in student_profiles]
+    event_ids = [e.id for e in events_list]
+    
+    batch_size = 50000
+    statuses = ["present", "present", "present", "present", "late", "absent", "excused"]
+    
+    for start_idx in range(0, records_target, batch_size):
+        batch = []
+        current_batch_end = min(start_idx + batch_size, records_target)
+        
+        for _ in range(start_idx, current_batch_end):
+            batch.append({
+                "student_id": random.choice(student_ids),
+                "event_id": random.choice(event_ids),
+                "time_in": datetime.now(timezone.utc) - timedelta(days=random.randint(0, 700)),
+                "status": random.choice(statuses),
+                "method": random.choice(["face_scan", "rfid", "manual"]),
+                "check_in_status": "verified"
+            })
+        
+        db.bulk_insert_mappings(Attendance, batch)
+        db.commit()
+        print(f"  Inserted {current_batch_end} / {records_target} records...")
+
+    # Write credentials to storage
+    fieldnames = ["email", "password", "school_code", "school_id", "roles", "permissions"]
+    # If wiping, overwrite the file to ensure sync. Otherwise append.
+    mode = "w" if _as_bool(os.getenv("SEED_WIPE_EXISTING"), False) else "a"
+    with DEFAULT_DEMO_CREDENTIALS_PATH.open(mode, newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        if mode == "w":
+            writer.writeheader()
+        for row in created_creds:
+            writer.writerow(row)
+
+    print(f"Massive seeding completed. {records_target} records added.")
+
+    # 5. Sanction Universe
+    seed_massive_sanctions(db, target_school=target_school, students=student_profiles, events=events_list)
+
+
+def seed_massive_sanctions(db: Session, target_school: School, students: list[StudentProfile], events: list[Event]) -> None:
+    """Generate high-volume sanction records for absentees of major events."""
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    print(f"--- SANCTION UNIVERSE START ---")
+    
+    # 1. Select 'Major Assemblies' to trigger sanctions (approx 10% of events)
+    major_events = random.sample(events, k=max(1, len(events) // 10))
+    print(f"Assigning sanction rules to {len(major_events)} major events...")
+
+    sanction_configs = []
+    for event in major_events:
+        config = EventSanctionConfig(
+            school_id=target_school.id,
+            event_id=event.id,
+            sanctions_enabled=True,
+            item_definitions_json=[
+                {"code": "WARN", "name": "Written Warning", "description": "Formal warning for absence"},
+                {"code": "COMM", "name": "Community Service (4hrs)", "description": "Campus cleaning/maintenance"},
+                {"code": "FINE", "name": "Clearance Fine", "description": "PHP 50.00 administrative fee"}
+            ]
+        )
+        db.add(config)
+        sanction_configs.append(config)
+    db.commit()
+
+    # 2. Generate Sanction Records for absentees
+    # To keep it efficient, we'll pick a subset of students who were 'absent'
+    # In our massive seed, we didn't explicitly track 'attendance' objects for all 5k students per event,
+    # so we'll just simulate the absentees for these major events.
+    print(f"Generating sanction records for absentees...")
+    sanction_records = []
+    
+    for config in sanction_configs:
+        # Assume 15% of students were absent from major events
+        absentees = random.sample(students, k=int(len(students) * 0.15))
+        
+        batch = []
+        for student in absentees:
+            is_complied = random.random() > 0.6
+            record = {
+                "school_id": target_school.id,
+                "event_id": config.event_id,
+                "sanction_config_id": config.id,
+                "student_profile_id": student.id,
+                "status": SanctionComplianceStatus.COMPLIED if is_complied else SanctionComplianceStatus.PENDING,
+                "complied_at": datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30)) if is_complied else None,
+                "notes": "Automatically generated for non-attendance."
+            }
+            batch.append(record)
+        
+        # Batch insert for performance
+        db.bulk_insert_mappings(SanctionRecord, batch)
+        db.commit()
+        
+        # We need the IDs for the SanctionItems, so we'll fetch them back in chunks
+        # This is a bit slower but necessary for the foreign keys
+        records = db.query(SanctionRecord).filter(SanctionRecord.event_id == config.event_id).all()
+        sanction_records.extend(records)
+
+    # 3. Generate Sanction Items
+    print(f"Building {len(sanction_records) * 2} sanction items...")
+    item_batch = []
+    for record in sanction_records:
+        # Every sanction gets a Warning
+        item_batch.append({
+            "sanction_record_id": record.id,
+            "item_code": "WARN",
+            "item_name": "Written Warning",
+            "status": SanctionItemStatus.COMPLIED if record.status == SanctionComplianceStatus.COMPLIED else SanctionItemStatus.PENDING
+        })
+        # 50% also get Community Service
+        if random.random() > 0.5:
+            item_batch.append({
+                "sanction_record_id": record.id,
+                "item_code": "COMM",
+                "item_name": "Community Service (4hrs)",
+                "status": SanctionItemStatus.COMPLIED if record.status == SanctionComplianceStatus.COMPLIED else SanctionItemStatus.PENDING
+            })
+
+    # Massive bulk insert for items
+    chunk_size = 10000
+    for i in range(0, len(item_batch), chunk_size):
+        chunk = item_batch[i:i+chunk_size]
+        db.bulk_insert_mappings(SanctionItem, chunk)
+        db.commit()
+
+    # 4. Add Clearance Deadlines
+    print(f"Setting semester clearance deadlines...")
+    deadlines = [
+        ("End of Semester 1", datetime.now(timezone.utc) + timedelta(days=30)),
+        ("Midterm Clearance", datetime.now(timezone.utc) - timedelta(days=15))
+    ]
+    
+    for name, dt in deadlines:
+        deadline = ClearanceDeadline(
+            school_id=target_school.id,
+            event_id=random.choice(major_events).id,
+            deadline_at=dt,
+            status=ClearanceDeadlineStatus.ACTIVE if dt > datetime.now(timezone.utc) else ClearanceDeadlineStatus.EXPIRED,
+            message=f"Please settle all pending sanctions for {name}."
+        )
+        db.add(deadline)
+    
+    db.commit()
+    print(f"Sanction Universe seeded successfully.")
+
+
+
 def run_seeder() -> None:
     """Main seeder function."""
     print("Starting database seeding...")
@@ -799,13 +1204,28 @@ def run_seeder() -> None:
 
     try:
         create_tables()
+
+        if _as_bool(os.getenv("SEED_WIPE_EXISTING"), False):
+            wipe_database_records(db)
+
+        # Basic infra always seeded
         seed_roles(db)
         school = seed_default_school(db)
         seed_admin_user(db, school)
-        if _as_bool(os.getenv("SEED_DEMO_DATA"), True):
-            schools_target = max(1, int(os.getenv("SEED_DEMO_SCHOOLS", "5")))
-            users_target = max(1, int(os.getenv("SEED_DEMO_USERS", "100")))
-            seed_demo_data(db, schools_target=schools_target, users_target=users_target)
+        
+        # Check both SEED_DATABASE (Cj's preferred) and SEED_DEMO_DATA (legacy)
+        should_seed = os.getenv("SEED_DATABASE")
+        if should_seed is None:
+            should_seed = os.getenv("SEED_DEMO_DATA")
+
+        if _as_bool(should_seed, True):
+            if _as_bool(os.getenv("SEED_MASSIVE_ATTENDANCE"), False):
+                seed_massive_attendance_data(db, target_school=school)
+            else:
+                schools_target = max(1, int(os.getenv("SEED_DEMO_SCHOOLS", "5")))
+                users_target = max(1, int(os.getenv("SEED_DEMO_USERS", "100")))
+                seed_demo_data(db, schools_target=schools_target, users_target=users_target)
+
         print("Database seeding completed successfully")
     except Exception as exc:
         print(f"Error during seeding: {exc}")

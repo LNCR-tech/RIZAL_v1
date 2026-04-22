@@ -167,6 +167,11 @@ class StudentListItem(BaseModel):
     program_name: Optional[str] = None
     year_level: Optional[int] = None
     total_events: int
+    attended_events: int = 0
+    late_events: int = 0
+    incomplete_events: int = 0
+    absent_events: int = 0
+    excused_events: int = 0
     attendance_rate: float
     last_attendance: Optional[datetime] = None
 

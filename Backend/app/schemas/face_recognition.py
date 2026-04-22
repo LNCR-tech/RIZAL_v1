@@ -68,6 +68,17 @@ class SecurityFaceStatusResponse(BaseModel):
     liveness_enabled: bool
     face_runtime_ready: bool
     face_runtime_reason: Optional[str] = None
+    face_runtime_state: str = "initializing"
+    face_runtime_last_error: Optional[str] = None
+    face_runtime_provider_target: str = "CPUExecutionProvider"
+    face_runtime_mode: Optional[str] = None
+    face_runtime_initialized_at: Optional[datetime] = None
+    face_runtime_warmup_started_at: Optional[datetime] = None
+    face_runtime_warmup_finished_at: Optional[datetime] = None
+    face_runtime_model_construction_duration_ms: Optional[float] = None
+    face_runtime_prepare_duration_ms: Optional[float] = None
+    face_runtime_warmup_duration_ms: Optional[float] = None
+    face_runtime_init_duration_ms: Optional[float] = None
     anti_spoof_ready: bool
     anti_spoof_reason: Optional[str] = None
     live_capture_required: bool

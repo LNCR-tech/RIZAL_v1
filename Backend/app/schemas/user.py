@@ -21,7 +21,7 @@ class RoleEnum(str, Enum):
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     first_name: str
     middle_name: str | None = None
     last_name: str
@@ -74,11 +74,13 @@ class StudentProfileWithAttendances(StudentProfileBase):
 
 
 class UserCreate(UserBase):
+    email: EmailStr
     password: str | None = None
     roles: list[RoleEnum]
 
 
 class StudentAccountCreate(UserBase):
+    email: EmailStr
     student_id: str | None = Field(
         None,
         min_length=3,

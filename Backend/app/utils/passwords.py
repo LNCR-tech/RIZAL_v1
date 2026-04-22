@@ -40,11 +40,13 @@ def ensure_bcrypt_password_supported(password: str) -> None:
         )
 
 
-def hash_password_bcrypt(password: str) -> str:
+def hash_password_bcrypt(password: str, *, rounds: int = _BCRYPT_ROUNDS) -> str:
     ensure_bcrypt_password_supported(password)
+    if rounds < 4:
+        raise ValueError("bcrypt rounds must be at least 4")
     return bcrypt.hashpw(
         password.encode("utf-8"),
-        bcrypt.gensalt(rounds=_BCRYPT_ROUNDS),
+        bcrypt.gensalt(rounds=rounds),
     ).decode("utf-8")
 
 
