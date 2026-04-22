@@ -96,6 +96,16 @@ services:
         condition: service_started
       seed:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5).read()\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   worker:
     image: rizal-backend:local
@@ -176,8 +186,10 @@ services:
       - AURA_ASSISTANT_BASE_URL=${AURA_ASSISTANT_BASE_URL:-/__assistant__}
       - PORT=80
     depends_on:
-      - backend
-      - assistant
+      backend:
+        condition: service_healthy
+      assistant:
+        condition: service_healthy
     restart: unless-stopped
 
   assistant:
@@ -195,6 +207,16 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8500/health', timeout=5).read()\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
   pgadmin:
     image: dpage/pgadmin4
