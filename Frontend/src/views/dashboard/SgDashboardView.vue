@@ -683,7 +683,7 @@ function onMobilePanelAfterLeave(el) {
 }
 
 function toggleMobileAi() {
-  isMobileAiOpen.value = !isMobileAiOpen.value
+  router.push(resolveChatLocation(route))
 }
 
 watch(isMobileAiOpen, (open) => {

@@ -25,7 +25,7 @@ Run migrations:
 docker compose up --build migrate
 ```
 
-Bootstrap the first admin and school:
+Bootstrap the first admin:
 
 ```powershell
 docker compose run --rm backend python bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
@@ -43,7 +43,6 @@ docker compose up -d backend worker beat assistant frontend
 cd .\Backend
 python -m alembic upgrade head
 python .\bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
-python .\seed.py --schools 5 --users 100
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 

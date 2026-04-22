@@ -295,6 +295,7 @@ def scan_public_attendance_event(
         probes = face_service.analyze_faces_from_bytes(
             image_bytes,
             enforce_liveness=True,
+            liveness_threshold_override=settings.public_attendance_liveness_threshold,
             max_faces=settings.public_attendance_max_faces_per_frame,
             mode="group",
         )

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="sg-sub-page">
     <header class="sg-sub-header dashboard-enter dashboard-enter--1">
       <div class="sg-title-row">
@@ -491,23 +491,23 @@ const savedCreateSanctionsTemplateSummary = computed(() => {
 
   if (leadingNames.length) {
     const suffix = items.length > leadingNames.length ? ', ...' : ''
-    return `${summaryBits.join(' • ') || 'Saved sanctions'}: ${leadingNames.join(', ')}${suffix}`
+    return `${summaryBits.join(' â€¢ ') || 'Saved sanctions'}: ${leadingNames.join(', ')}${suffix}`
   }
 
-  return summaryBits.join(' • ') || 'Saved sanctions template from your last event.'
+  return summaryBits.join(' â€¢ ') || 'Saved sanctions template from your last event.'
 })
 
+let _isMounted = false
+
 onMounted(() => {
+  _isMounted = true
   document.addEventListener('pointerdown', handleDocumentPointerDown)
 })
 
 onBeforeUnmount(() => {
+  _isMounted = false
   document.removeEventListener('pointerdown', handleDocumentPointerDown)
-  if (mapInstance) {
-    mapInstance.remove()
-    mapInstance = null
-    markerInstance = null
-  }
+  destroyMap()
 })
 
 function formatDate(d) {
@@ -890,17 +890,33 @@ function openCreateForm() {
   initMap()
 }
 
+function destroyMap() {
+  try {
+    if (markerInstance) {
+      markerInstance.remove()
+      markerInstance = null
+    }
+    if (mapInstance) {
+      mapInstance.off()
+      mapInstance.remove()
+      mapInstance = null
+    }
+  } catch {
+    mapInstance = null
+    markerInstance = null
+  }
+  if (typeof window !== 'undefined') {
+    delete window._sgLeaflet
+  }
+}
+
 function closeCreateForm() {
   isCreating.value = false
   resetCreateSanctionsState()
   isCreateSanctionsEnabled.value = false
   setTimeout(() => {
-    if (mapInstance) {
-      mapInstance.remove()
-      mapInstance = null
-      markerInstance = null
-    }
-  }, 400) // Wait for transition
+    destroyMap()
+  }, 400)
 }
 
 function initMap() {
@@ -1508,7 +1524,7 @@ async function submitEvent() {
 watch(
   [apiBaseUrl, () => sgLoading.value, () => route.query?.variant],
   async ([url]) => {
-    if (!url || sgLoading.value) return
+    if (!_isMounted || !url || sgLoading.value) return
     await loadEvents(url)
   },
   { immediate: true }
@@ -1517,6 +1533,7 @@ watch(
 watch(
   [governanceUnitId, governanceContext],
   () => {
+    if (!_isMounted) return
     hydrateCreateSanctionsTemplateFromStorage()
   },
   { immediate: true }
@@ -1564,7 +1581,7 @@ async function loadEvents(url) {
     }
 
     // 3. Refresh governance access in the background so SSG, SG, and ORG users stay in the right scope.
-    getGovernanceAccess(url, token.value).then((access) => {
+    getGovernanceAccess(url, token.value).then((access) => { if (!_isMounted) return;
       const previousUnitId = governanceUnitId.value
       const previousContext = governanceContext.value
       syncGovernanceEventContext(resolveGovernanceEventUnit(access))
@@ -1574,7 +1591,7 @@ async function loadEvents(url) {
         || governanceContext.value !== previousContext
       ) {
         getEvents(url, token.value, buildEventQueryParams())
-          .then((res) => { events.value = res })
+          .then((res) => { if (_isMounted) events.value = res })
       }
     }).catch(() => {})
 
@@ -2036,7 +2053,7 @@ function resolveNextPreviewEventId() {
   cursor: not-allowed;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .sg-sub-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -2046,6 +2063,15 @@ function resolveNextPreviewEventId() {
   .sg-sub-action--sanctions,
   .sg-create-wrapper {
     width: 100%;
+  }
+
+  .sg-sub-search-input {
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .sg-sub-search-shell {
+    padding: 0 16px;
   }
 
   .sg-sub-action--sanctions,

@@ -14,11 +14,6 @@ from app.models.user import StudentProfile, User
 from app.routers.attendance.shared import _apply_student_scope_filters
 
 
-def _event_type_column():
-    """Return the event type ORM column when available in this schema version."""
-    return getattr(Event, "event_type", None)
-
-
 def build_students_overview_base_query(
     db: Session,
     *,
@@ -145,7 +140,6 @@ def list_student_attendances_for_report(
     allowed_event_ids: list[int],
     start_date: date | None,
     end_date: date | None,
-    event_type: str | None,
 ) -> list[AttendanceModel]:
     attendance_query = (
         db.query(AttendanceModel)
@@ -167,10 +161,6 @@ def list_student_attendances_for_report(
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
         attendance_query = attendance_query.filter(Event.start_datetime <= end_datetime)
-    event_type_column = _event_type_column()
-    if event_type and event_type_column is not None:
-        attendance_query = attendance_query.filter(event_type_column == event_type)
-
     return attendance_query.order_by(Event.start_datetime.desc()).all()
 
 
@@ -247,25 +237,13 @@ def list_student_trend_results(base_query, *, trunc_period: str):
 
 
 def list_student_event_type_breakdown(base_query):
-    event_type_column = _event_type_column()
-    if event_type_column is None:
-        return (
-            base_query.with_entities(
-                literal("Regular Events", type_=String).label("type"),
-                AttendanceModel.status,
-                func.count(AttendanceModel.id).label("count"),
-            )
-            .group_by(AttendanceModel.status)
-            .all()
-        )
-
     return (
         base_query.with_entities(
-            event_type_column.label("type"),
+            literal("Regular Events", type_=String).label("type"),
             AttendanceModel.status,
             func.count(AttendanceModel.id).label("count"),
         )
-        .group_by(event_type_column, AttendanceModel.status)
+        .group_by(AttendanceModel.status)
         .all()
     )
 

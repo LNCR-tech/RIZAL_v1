@@ -92,6 +92,7 @@ class Settings:
     face_embedding_dim: int
     face_embedding_dtype: str
     liveness_threshold: float
+    public_attendance_liveness_threshold: float
     allow_liveness_bypass_when_model_missing: bool
     anti_spoof_scale: float
     anti_spoof_model_path: str
@@ -155,6 +156,7 @@ def get_settings() -> Settings:
         face_embedding_dim=APP_SETTINGS.face_embedding_dim,
         face_embedding_dtype=APP_SETTINGS.face_embedding_dtype,
         liveness_threshold=APP_SETTINGS.liveness_threshold,
+        public_attendance_liveness_threshold=APP_SETTINGS.public_attendance_liveness_threshold,
         allow_liveness_bypass_when_model_missing=APP_SETTINGS.allow_liveness_bypass_when_model_missing,
         anti_spoof_scale=APP_SETTINGS.anti_spoof_scale,
         anti_spoof_model_path=APP_SETTINGS.anti_spoof_model_path,

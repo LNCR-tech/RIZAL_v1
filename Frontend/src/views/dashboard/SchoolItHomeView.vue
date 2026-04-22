@@ -293,6 +293,7 @@ import { hasPrivilegedPendingFace } from '@/services/localAuth.js'
 import { resolveBackendMediaCandidates, resolveLoadableMediaUrl } from '@/services/backendMedia.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
 import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
+import { resolveChatLocation } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
@@ -738,7 +739,7 @@ function openSearchResult(result) {
 }
 
 function toggleAiPanel() {
-  isAiOpen.value = !isAiOpen.value
+  router.push(resolveChatLocation())
 }
 
 function onAiPanelBeforeEnter(element) {

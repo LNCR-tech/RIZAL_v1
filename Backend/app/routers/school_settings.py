@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db
 from app.core.event_defaults import resolve_school_event_default_values
 from app.core.security import get_current_admin_or_campus_admin, get_school_id_with_admin_fallback
+from app.core.timezones import to_philippine_time
 from app.models.school import School, SchoolAuditLog, SchoolSetting
 from app.models.user import User as UserModel
 from app.schemas.school_settings import (
@@ -204,7 +205,17 @@ def list_school_audit_logs(
         .limit(max(1, min(limit, 200)))
         .all()
     )
-    return logs
+    return [
+        SchoolAuditLogResponse(
+            id=log.id,
+            action=log.action,
+            status=log.status,
+            details=log.details,
+            created_at=to_philippine_time(log.created_at),
+            actor_user_id=log.actor_user_id,
+        )
+        for log in logs
+    ]
 
 
 @router.get("/me/users/import-template", deprecated=True)

@@ -29,12 +29,6 @@ def _mailjet_settings(**overrides):
 def test_send_welcome_email_allows_temporary_password_after_login(monkeypatch) -> None:
     sent: dict[str, str] = {}
 
-    monkeypatch.setattr(
-        email_service,
-        "get_settings",
-        lambda: SimpleNamespace(login_url="https://aura.example/login"),
-    )
-
     def fake_send_email(*, subject: str, recipient_email: str, body: str, **kwargs) -> None:
         sent["subject"] = subject
         sent["recipient_email"] = recipient_email
@@ -52,6 +46,7 @@ def test_send_welcome_email_allows_temporary_password_after_login(monkeypatch) -
 
     assert sent["recipient_email"] == "new.user@example.com"
     assert "You can keep using it after login" in sent["body"]
+    assert "https://supervirulently-downless-keven.ngrok-free.dev" in sent["body"]
     assert (
         "You are required to change your password immediately after your first login."
         not in sent["body"]
@@ -61,12 +56,6 @@ def test_send_welcome_email_allows_temporary_password_after_login(monkeypatch) -
 
 def test_send_password_reset_email_still_requires_password_change(monkeypatch) -> None:
     sent: dict[str, str] = {}
-
-    monkeypatch.setattr(
-        email_service,
-        "get_settings",
-        lambda: SimpleNamespace(login_url="https://aura.example/login"),
-    )
 
     def fake_send_email(*, subject: str, recipient_email: str, body: str, **kwargs) -> None:
         sent["subject"] = subject
@@ -85,17 +74,12 @@ def test_send_password_reset_email_still_requires_password_change(monkeypatch) -
 
     assert sent["recipient_email"] == "existing.user@example.com"
     assert "You are required to change this temporary password immediately after login." in sent["body"]
+    assert "https://supervirulently-downless-keven.ngrok-free.dev" in sent["body"]
     assert "Temporary Login Credentials" in sent["html_body"]
 
 
 def test_send_welcome_email_with_user_supplied_password_uses_generic_password_copy(monkeypatch) -> None:
     sent: dict[str, str] = {}
-
-    monkeypatch.setattr(
-        email_service,
-        "get_settings",
-        lambda: SimpleNamespace(login_url="https://aura.example/login"),
-    )
 
     def fake_send_email(*, subject: str, recipient_email: str, body: str, **kwargs) -> None:
         sent["subject"] = subject
@@ -121,12 +105,6 @@ def test_send_welcome_email_with_user_supplied_password_uses_generic_password_co
 def test_send_import_onboarding_email_matches_welcome_credentials_copy(monkeypatch) -> None:
     sent: dict[str, str] = {}
 
-    monkeypatch.setattr(
-        email_service,
-        "get_settings",
-        lambda: SimpleNamespace(login_url="https://aura.example/login"),
-    )
-
     def fake_send_email(*, subject: str, recipient_email: str, body: str, **kwargs) -> None:
         sent["subject"] = subject
         sent["recipient_email"] = recipient_email
@@ -145,7 +123,7 @@ def test_send_import_onboarding_email_matches_welcome_credentials_copy(monkeypat
     assert sent["recipient_email"] == "imported.user@example.com"
     assert "Email: imported.user@example.com" in sent["body"]
     assert "Temporary Password: ImportPass123!" in sent["body"]
-    assert "Login URL: https://aura.example/login" in sent["body"]
+    assert "Login URL: https://supervirulently-downless-keven.ngrok-free.dev" in sent["body"]
     assert "Forgot Password option" not in sent["body"]
     assert "Login Credentials" in sent["html_body"]
 

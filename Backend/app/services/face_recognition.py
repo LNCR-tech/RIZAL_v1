@@ -334,7 +334,7 @@ class FaceRecognitionService:
             return self._normalize_embedding(array)
         return np.asarray(array, dtype=np.float32)
 
-    def _evaluate_liveness(self, face_crop: FaceCrop) -> LivenessResult:
+    def _evaluate_liveness(self, face_crop: FaceCrop, *, threshold_override: float | None = None) -> LivenessResult:
         ready, reason = self.anti_spoof_status()
         if not ready and self.settings.allow_liveness_bypass_when_model_missing:
             return LivenessResult(
@@ -347,7 +347,8 @@ class FaceRecognitionService:
             frame_rgb=face_crop.frame_rgb,
             location=face_crop.location,
         )
-        label = "Real" if self.liveness_checker.is_real(score) else "Fake"
+        effective_threshold = threshold_override if threshold_override is not None else self.settings.liveness_threshold
+        label = "Real" if float(score) >= effective_threshold else "Fake"
         return LivenessResult(label=label, score=score, reason=reason if label == "Bypassed" else None)
 
     def check_liveness(self, rgb_image: np.ndarray, *, mode: str = "single") -> LivenessResult:
@@ -372,6 +373,7 @@ class FaceRecognitionService:
         image_bytes: bytes,
         *,
         enforce_liveness: bool = False,
+        liveness_threshold_override: float | None = None,
         max_faces: int | None = None,
         mode: str = "single",
     ) -> list[DetectedFaceProbe]:
@@ -394,7 +396,7 @@ class FaceRecognitionService:
         probes: list[DetectedFaceProbe] = []
         for index, face_crop in enumerate(face_crops):
             if enforce_liveness:
-                liveness = self._evaluate_liveness(face_crop)
+                liveness = self._evaluate_liveness(face_crop, threshold_override=liveness_threshold_override)
             else:
                 liveness = LivenessResult(
                     label="Bypassed",

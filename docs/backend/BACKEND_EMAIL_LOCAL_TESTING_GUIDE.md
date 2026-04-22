@@ -26,6 +26,7 @@ Notes:
 
 - `EMAIL_REPLY_TO` is optional.
 - Email timeout and startup connection verification defaults now live in `Backend/app/core/app_settings.py`.
+- Transactional email templates now use the fixed login URL `https://supervirulently-downless-keven.ngrok-free.dev` unless a specific sender call overrides it explicitly.
 
 ## Default Local Behavior
 

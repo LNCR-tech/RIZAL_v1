@@ -27,6 +27,7 @@ class BackendAppSettings:
     face_embedding_dim: int = 512
     face_embedding_dtype: str = "float32"
     liveness_threshold: float = 0.85
+    public_attendance_liveness_threshold: float = 0.92
     allow_liveness_bypass_when_model_missing: bool = False
     anti_spoof_scale: float = 2.7
     anti_spoof_model_path: str = ""
@@ -46,7 +47,6 @@ class BackendAppSettings:
     import_storage_dir: str = "storage/imports"
     import_rate_limit_count: int = 3
     import_rate_limit_window_seconds: int = 300
-
     celery_task_time_limit_seconds: int = 10800
 
     email_timeout_seconds: int = 20

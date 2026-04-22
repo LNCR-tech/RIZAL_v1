@@ -39,11 +39,10 @@ When running services directly on your machine, set:
 - `AI_API_KEY`
 - `BACKEND_API_BASE_URL=http://127.0.0.1:8000`
 
-## Bootstrap vs Seed
+## Bootstrap
 
-Initial admin and school data are no longer configured through env toggles.
+Initial production data is no longer configured through env toggles.
 
-Use commands instead:
+Use the explicit bootstrap command instead:
 
 - `python Backend/bootstrap.py --admin-email ... --admin-password ...`
-- `python Backend/seed.py ...`

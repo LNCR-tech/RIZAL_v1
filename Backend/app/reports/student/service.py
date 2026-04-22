@@ -222,7 +222,6 @@ def get_student_attendance_report(
     start_date: Optional[date],
     end_date: Optional[date],
     status: Optional[AttendanceStatus],
-    event_type: Optional[str],
     governance_context: Optional[GovernanceUnitType],
     current_user: UserModel,
 ) -> StudentAttendanceReport:
@@ -267,7 +266,6 @@ def get_student_attendance_report(
         allowed_event_ids=allowed_event_ids,
         start_date=start_date,
         end_date=end_date,
-        event_type=event_type,
     )
 
     if status is not None:
@@ -314,7 +312,7 @@ def get_student_attendance_report(
     event_type_stats = {}
     for attendance in attendances:
         if attendance.event:
-            attendance_event_type = getattr(attendance.event, "event_type", "Regular Events")
+            attendance_event_type = "Regular Events"
             event_type_stats[attendance_event_type] = event_type_stats.get(attendance_event_type, 0) + 1
 
     return StudentAttendanceReport(

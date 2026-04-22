@@ -150,7 +150,7 @@ def list_school_governance_announcements(
 
 @router.get("/ssg/setup", response_model=GovernanceSsgSetupResponse)
 def get_campus_ssg_setup(
-    current_user: User = Depends(get_current_admin_or_campus_admin),
+    current_user: User = Depends(get_current_governance_route_user),
     db: Session = Depends(get_db),
 ):
     return governance_hierarchy_service.get_or_create_campus_ssg_setup(

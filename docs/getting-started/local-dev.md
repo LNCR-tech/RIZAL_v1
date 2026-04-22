@@ -16,8 +16,7 @@ This runs each service directly on your machine for debugging and faster iterati
 1. Create `.env` from `.env.example` and point the connection strings at your local services.
 2. Run backend migrations.
 3. Run the explicit bootstrap command.
-4. Optionally run the explicit demo seed command.
-5. Start backend, assistant, and frontend.
+4. Start backend, assistant, and frontend.
 
 The canonical commands are in [Common Commands](../reference/common-commands.md).
 

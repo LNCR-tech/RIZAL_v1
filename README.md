@@ -2,7 +2,7 @@
 
 Aura is a student attendance system with:
 
-- `Backend/`: FastAPI API, Alembic migrations, Celery workers, bootstrap and demo seed scripts
+- `Backend/`: FastAPI API, Alembic migrations, Celery workers, and the production bootstrap script
 - `Assistant-v2/`: the active assistant service backed by Postgres
 - `Frontend/`: Vue 3 (Vite) SPA plus optional Capacitor assets
 
@@ -21,7 +21,7 @@ docker compose up --build -d db redis
 # 3. Run database migrations
 docker compose run --rm -e DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db backend alembic upgrade heads
 
-# 4. Bootstrap admin account (creates only the admin user + default school)
+# 4. Bootstrap admin account
 docker compose run --rm -e DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db backend python bootstrap.py --admin-email admin@yourdomain.com --admin-password YourPassword123!
 
 # 5. Start all services

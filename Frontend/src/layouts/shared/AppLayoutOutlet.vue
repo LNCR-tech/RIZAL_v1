@@ -3,7 +3,7 @@
     <Suspense timeout="0">
       <template #default>
         <Transition name="page-fade" mode="out-in">
-          <component :is="Component" :key="route.fullPath" />
+          <component :is="Component" :key="route.name" />
         </Transition>
       </template>
 
@@ -24,18 +24,16 @@ import AppBootLoader from '@/components/ui/AppBootLoader.vue'
 <style scoped>
 .page-fade-enter-active,
 .page-fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
+  transition: opacity 0.1s ease;
+  will-change: opacity;
 }
 
 .page-fade-enter-from {
   opacity: 0;
-  transform: translateY(12px) scale(0.985);
 }
 
 .page-fade-leave-to {
   opacity: 0;
-  transform: translateY(-6px) scale(0.995);
 }
 
 .app-layout-outlet__boot-wrapper {

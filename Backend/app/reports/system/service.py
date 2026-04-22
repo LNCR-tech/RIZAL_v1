@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import has_any_role
+from app.core.timezones import to_philippine_time
 from app.models.user import User
 from app.schemas.audit import SchoolAuditLogSearchItem, SchoolAuditLogSearchResponse
 from app.schemas.governance_hierarchy import GovernanceDashboardOverviewResponse
@@ -74,7 +75,7 @@ def search_audit_logs(
                 status=row.status,
                 details=row.details,
                 details_json=details_json,
-                created_at=row.created_at,
+                created_at=to_philippine_time(row.created_at),
             )
         )
     return SchoolAuditLogSearchResponse(total=total, items=items)

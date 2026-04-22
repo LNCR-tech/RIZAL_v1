@@ -1285,13 +1285,26 @@ def get_or_create_campus_ssg_setup(
 ) -> GovernanceSsgSetupResponse:
     """Bootstrap the fixed campus SSG record and return its setup summary."""
     school_id = get_school_id_or_403(current_user)
-    if not _is_school_it(current_user):
-        raise HTTPException(status_code=403, detail="Only Campus Admin can manage the campus SSG")
+    
+    # Allow campus_admin to create/manage SSG, but also allow SSG members to view it
+    is_campus_admin = _is_school_it(current_user)
+    if not is_campus_admin:
+        # Check if user is an active SSG member
+        ssg_unit = _get_active_ssg_unit(db, school_id=school_id)
+        if ssg_unit is None:
+            raise HTTPException(status_code=403, detail="Only Campus Admin can create the campus SSG")
+        
+        ssg_membership = _find_active_member(db, governance_unit_id=ssg_unit.id, user_id=current_user.id)
+        if ssg_membership is None:
+            raise HTTPException(status_code=403, detail="Only Campus Admin or SSG members can view SSG setup")
 
     ensure_permission_catalog(db)
 
     governance_unit = _get_active_ssg_unit(db, school_id=school_id)
     if governance_unit is None:
+        if not is_campus_admin:
+            raise HTTPException(status_code=403, detail="Only Campus Admin can create the campus SSG")
+        
         governance_unit = GovernanceUnit(
             unit_code=DEFAULT_SSG_UNIT_CODE,
             unit_name=DEFAULT_SSG_UNIT_NAME,

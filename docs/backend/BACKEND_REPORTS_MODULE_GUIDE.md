@@ -135,9 +135,10 @@ Legacy router files were reduced to thin composition/wrapper behavior:
   - `GET /api/attendance/events/{event_id}/attendances/{status}`
   - `GET /api/attendance/events/{event_id}/attendances-with-students`
   - student attendance record endpoints that reuse shared attendance record serializers
-- Student stats/report queries are now schema-compatible when `events.event_type` is missing:
-  - `GET /api/attendance/students/{student_id}/stats` falls back to `event_type_breakdown` label `Regular Events`
-  - `GET /api/attendance/students/{student_id}/report` skips `event_type` filtering when that column is unavailable
+- `event_type` is no longer part of the backend event model.
+- Student stats/report responses keep the existing chart payload shape for frontend compatibility:
+  - `GET /api/attendance/students/{student_id}/stats` returns a single `event_type_breakdown` bucket labeled `Regular Events`
+  - `GET /api/attendance/students/{student_id}/report` no longer accepts an `event_type` filter
 
 ## How To Test
 
@@ -157,7 +158,7 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - insert or retain attendance rows with `method LIKE 'seed_%'`
    - call `GET /api/attendance/events/{event_id}/attendances-with-students`
    - verify the endpoint returns `200` and response `attendance.method` values are schema-valid (`manual`/`face_scan`).
-7. Student stats compatibility without `events.event_type`:
+7. Student stats compatibility after removing `event_type`:
    - call `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
-   - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Regular Events` when the column is missing.
+   - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Regular Events`.
 

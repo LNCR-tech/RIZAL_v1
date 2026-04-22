@@ -189,6 +189,7 @@ import {
 import { resolveDashboardAiOverview } from '@/services/dashboardAiOverview.js'
 import { primeLocationAccess } from '@/services/devicePermissions.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
+import { resolveChatLocation } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
@@ -314,7 +315,7 @@ watch(searchQuery, (value) => {
 })
 
 function toggleAi() {
-  isAiOpen.value = !isAiOpen.value
+  router.push(resolveChatLocation())
 }
 
 function openEvent(event) {

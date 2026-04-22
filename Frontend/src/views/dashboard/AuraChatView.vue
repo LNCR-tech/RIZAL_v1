@@ -649,12 +649,13 @@ onUnmounted(() => {
 
 @media (max-width: 900px) {
   .aura-chat-page {
-    padding: 14px 12px 16px;
+    padding: 10px;
+    height: 100dvh;
   }
 
   .aura-chat-shell {
-    height: calc(100vh - 30px);
-    border-radius: 24px;
+    border-radius: 20px;
+    /* Removed fixed height so it respects the parent flex container and doesn't overflow */
   }
 
   .chat-body {
@@ -665,15 +666,16 @@ onUnmounted(() => {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-    max-height: 168px;
+    max-height: 110px;
+    flex: 0 0 auto;
   }
 
   .chat-messages {
-    padding: 8px 12px 12px;
+    padding: 8px 10px;
   }
 
   .chat-input-wrap {
-    padding: 10px 10px 12px;
+    padding: 8px 10px 12px;
   }
 }
 </style>

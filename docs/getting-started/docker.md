@@ -2,7 +2,7 @@
 
 [<- Back to docs index](../../README.md)
 
-This is the fastest way to run the full system locally: Postgres, Redis, migrations, demo seed, backend, assistant, frontend, and pgAdmin.
+This is the fastest way to run the full system locally: Postgres, Redis, backend, assistant, frontend, and pgAdmin.
 
 ## Prerequisites
 
@@ -32,6 +32,6 @@ docker compose up --build
 
 ## Notes
 
-- Local Docker automatically runs migrations plus the explicit demo seed command.
+- Use `python Backend/bootstrap.py --admin-email ... --admin-password ...` after migrations to create the first platform admin.
 - Email delivery is disabled by default. If you want real outbound email, configure Mailjet in `.env`.
 - Production uses the same `docker-compose.yml` file with explicit migration and bootstrap commands.

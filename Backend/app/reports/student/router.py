@@ -57,7 +57,6 @@ def get_student_attendance_report(
     start_date: Optional[date] = Query(None, description="Filter events from this date"),
     end_date: Optional[date] = Query(None, description="Filter events until this date"),
     status: Optional[AttendanceStatus] = Query(None, description="Filter by attendance status"),
-    event_type: Optional[str] = Query(None, description="Filter by event type/category"),
     governance_context: Optional[GovernanceUnitType] = Query(None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -68,7 +67,6 @@ def get_student_attendance_report(
         start_date=start_date,
         end_date=end_date,
         status=status,
-        event_type=event_type,
         governance_context=governance_context,
         current_user=current_user,
     )

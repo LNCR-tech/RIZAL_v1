@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+EMAIL_LOGIN_URL = "https://supervirulently-downless-keven.ngrok-free.dev"
+
+
+def _resolve_email_login_url(login_url: str | None) -> str:
+    return (login_url or "").strip() or EMAIL_LOGIN_URL
+
 
 def send_welcome_email(
     recipient_email: str,
@@ -11,14 +17,12 @@ def send_welcome_email(
     login_url: str | None = None,
     password_is_temporary: bool = True,
 ) -> None:
-    from . import get_settings, get_welcome_email_password_notice, _send_email
+    from . import get_welcome_email_password_notice, _send_email
     from .rendering import build_welcome_email_content
-
-    settings = get_settings()
 
     resolved_first_name = (first_name or "").strip() or "User"
     resolved_system_name = (system_name or "").strip() or "Aura"
-    resolved_login_url = (login_url or "").strip() or settings.login_url
+    resolved_login_url = _resolve_email_login_url(login_url)
     password_label = "Temporary Password" if password_is_temporary else "Password"
     credential_subject = "Temporary Login Credentials" if password_is_temporary else "Login Credentials"
     password_notice = get_welcome_email_password_notice(password_is_temporary=password_is_temporary)
@@ -66,14 +70,12 @@ def send_password_reset_email(
     system_name: str | None = None,
     login_url: str | None = None,
 ) -> None:
-    from . import get_settings, _send_email
+    from . import _send_email
     from .rendering import build_password_reset_email_content
-
-    settings = get_settings()
 
     resolved_first_name = (first_name or "").strip() or "User"
     resolved_system_name = (system_name or "").strip() or "Aura"
-    resolved_login_url = (login_url or "").strip() or settings.login_url
+    resolved_login_url = _resolve_email_login_url(login_url)
 
     subject, body, html_body = build_password_reset_email_content(
         recipient_email=recipient_email,

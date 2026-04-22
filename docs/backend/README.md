@@ -14,8 +14,6 @@
 - [Report Catalog](./REPORT_CATALOG.md)
 - [Sanctions Management Guide](./BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md)
 - [User Preferences and Auth Session Guide](./BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md)
-- [Demo Seeding Guide](./BACKEND_DEMO_SEEDING_GUIDE.md)
-- [Large Data Seed Guide](./BACKEND_LARGE_DATA_SEED_GUIDE.md)
 - [Face Engine Migration Guide](./BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
 - [Email Delivery Guide (Mailjet / Disabled)](./BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
 - [Railway / Constrained Deployment Guide](./BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)

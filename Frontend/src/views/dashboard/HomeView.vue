@@ -290,7 +290,7 @@ import { getStudentAttendanceReport, getStudentAttendanceStats } from '@/service
 import { buildLineChartData, buildPieChartData, toCount, toPercent } from '@/services/dashboardReportCharts.js'
 import { primeLocationAccess } from '@/services/devicePermissions.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
-import { resolveAttendanceLocation, resolveEventDetailLocation } from '@/services/routeWorkspace.js'
+import { resolveAttendanceLocation, resolveEventDetailLocation, resolveChatLocation } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
