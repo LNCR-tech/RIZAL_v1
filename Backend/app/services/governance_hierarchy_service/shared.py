@@ -29,9 +29,10 @@ from app.models.governance_hierarchy import (
     PERMISSION_DEFINITIONS,
     PermissionCode,
 )
+from app.models.role import Role
 from app.models.program import Program
 from app.models.school import SchoolSetting
-from app.models.user import StudentProfile, User
+from app.models.user import StudentProfile, User, UserRole
 from app.schemas.governance_hierarchy import (
     GovernanceAccessResponse,
     GovernanceAccessUnitResponse,
@@ -55,6 +56,70 @@ from app.schemas.governance_hierarchy import (
     GovernanceUnitSummaryResponse,
     GovernanceUnitUpdate,
 )
+
+
+GOVERNANCE_DERIVED_ROLE_BY_UNIT_TYPE: dict[GovernanceUnitType, str] = {
+    GovernanceUnitType.SSG: "ssg",
+    GovernanceUnitType.SG: "sg",
+    GovernanceUnitType.ORG: "org",
+}
+
+
+def _get_or_create_role(db: Session, role_name: str) -> Role:
+    role = db.query(Role).filter(Role.name == role_name).first()
+    if role is not None:
+        return role
+    role = Role(name=role_name)
+    db.add(role)
+    db.flush()
+    return role
+
+
+def _sync_governance_derived_roles_for_user(
+    db: Session,
+    *,
+    school_id: int,
+    user_id: int,
+) -> None:
+    """Keep user_roles (ssg/sg/org) in sync with active governance memberships."""
+    memberships = _get_active_governance_memberships(
+        db,
+        school_id=school_id,
+        user_id=user_id,
+    )
+    required_role_names = {
+        GOVERNANCE_DERIVED_ROLE_BY_UNIT_TYPE[member.governance_unit.unit_type]
+        for member in memberships
+        if member.governance_unit is not None
+        and member.governance_unit.unit_type in GOVERNANCE_DERIVED_ROLE_BY_UNIT_TYPE
+    }
+
+    required_roles = {name: _get_or_create_role(db, name) for name in required_role_names}
+
+    derived_role_names = list(GOVERNANCE_DERIVED_ROLE_BY_UNIT_TYPE.values())
+    existing_rows = (
+        db.query(UserRole)
+        .join(Role, Role.id == UserRole.role_id)
+        .filter(UserRole.user_id == user_id, Role.name.in_(derived_role_names))
+        .all()
+    )
+    existing_role_names = {
+        row.role.name
+        for row in existing_rows
+        if getattr(row, "role", None) is not None and getattr(row.role, "name", None)
+    }
+
+    for role_name, role in required_roles.items():
+        if role_name in existing_role_names:
+            continue
+        db.add(UserRole(user_id=user_id, role_id=role.id))
+
+    for row in existing_rows:
+        role_name = getattr(getattr(row, "role", None), "name", None)
+        if role_name and role_name not in required_role_names:
+            db.delete(row)
+
+    db.flush()
 
 
 CHILD_CREATE_PERMISSION_MAP: dict[GovernanceUnitType, PermissionCode] = {
@@ -1858,6 +1923,8 @@ def assign_governance_member(
         granted_by_user_id=current_user.id,
     )
 
+    _sync_governance_derived_roles_for_user(db, school_id=school_id, user_id=target_user.id)
+
     db.commit()
 
     return _get_member_in_school_or_404(
@@ -1956,6 +2023,10 @@ def update_governance_member(
             granted_by_user_id=current_user.id,
         )
 
+    if previous_user_id != governance_member.user_id:
+        _sync_governance_derived_roles_for_user(db, school_id=school_id, user_id=previous_user_id)
+    _sync_governance_derived_roles_for_user(db, school_id=school_id, user_id=governance_member.user_id)
+
     db.commit()
 
     return _get_member_in_school_or_404(
@@ -1989,6 +2060,8 @@ def delete_governance_member(
     governance_member.is_active = False
     governance_member.assigned_by_user_id = current_user.id
     db.flush()
+
+    _sync_governance_derived_roles_for_user(db, school_id=school_id, user_id=governance_member.user_id)
 
     db.commit()
 

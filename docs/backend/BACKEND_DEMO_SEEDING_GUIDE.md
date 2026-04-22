@@ -1,56 +1,70 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
-# Backend Demo Seeding Guide (Manual UI + Assistant Testing)
+# Backend Demo Seeding Guide (Production Grade)
 
-This repo includes a demo seeder that creates multiple schools and users so you can test:
-- UI role behavior (admin vs campus admin vs student)
-- AI assistant behavior per JWT `roles` + `permissions`
+Aura v3 includes a high-fidelity stochastic data engine designed to stress-test governance permissions, attendance reports, and AI assistant reasoning.
 
-## What It Seeds
+## Core Architecture
 
-When you run `python Backend/seed.py`, the seeder will (by default):
-- ensure core auth roles exist (`admin`, `campus_admin`, `student`)
-- create a default school + admin (existing behavior)
-- create demo data:
-  - 5 sample schools
-  - 100 sample users (platform admins, campus admins, students)
-  - departments/programs per school
-  - governance units (SSG/SG/ORG) + governance member permissions for a subset of users
+The new seeder is located in the root `/seeder` directory and is designed to be environment-agnostic. It works by generating a deterministic "Universe" based on your configured RNG seed.
 
-## Environment Toggles
+### Key Logic
+- **Hybrid Roles**: The seeder automatically assigns multiple governance roles (SSG, SG, ORG) to natural student leaders (top 15% of the population).
+- **Stochastic Distribution**: College structures, program counts, and student populations are randomized within your defined ranges.
+- **Deterministic RNG**: Using a fixed `SEED_RANDOMIZER_KEY` ensures that every developer on the team gets the exact same database state.
 
-All toggles are read from your normal env loading (`.env` is used by `seed.py`).
+## Environment Configuration
 
-- `SEED_DEMO_DATA` (default: `true`)
-  - set to `false` to disable demo seed.
-- `SEED_DEMO_SCHOOLS` (default: `5`)
-- `SEED_DEMO_USERS` (default: `100`)
-- `SEED_DEMO_EMAIL_DOMAIN` (default: `demo.valid8.dev`)
-  - used for all generated demo emails (avoid special-use domains like `.local` which may fail strict validation).
+All toggles are read from your root `.env`.
 
-## Where Credentials Go
+### Performance & Safety
+- `SEED_DATABASE` (Required: `true`)
+  - The master kill switch. If `false`, the script will exit without making changes.
+- `SEED_WIPE_EXISTING` (Default: `false`)
+  - Set to `true` to perform a clean-slate seed. **WARNING**: This deletes all existing records except the Platform Admin.
+- `SEED_RANDOMIZER_KEY` (Default: `42`)
+  - Change this to generate a completely different universe.
 
-The seeder writes a local CSV file (gitignored) containing demo login credentials:
+### Platform Admin
+- `SEED_ADMIN_EMAIL`: The email for the global Platform Admin.
+- `SEED_ADMIN_PASSWORD`: The password for the global Platform Admin (will be hashed with Bcrypt).
 
-- `Backend/storage/seed_credentials.csv`
+### Population Controls
+- `SEED_N_SCHOOLS`: Total number of schools to generate.
+- `SEED_MIN_STUDENTS` / `SEED_MAX_STUDENTS`: Range of students per school.
+- `SEED_MIN_COLLEGES` / `SEED_MAX_COLLEGES`: Range of academic departments per school.
+- `SEED_USER_SUFFIX_PROBABILITY`: Probability (0.0 to 1.0) of appending a numeric suffix to usernames to test name collision edge cases.
 
-Re-running the seeder will reset passwords for the `@demo.local` accounts so the CSV stays accurate.
+## How To Execute
 
-Columns:
-- `email`
-- `password`
-- `school_code`, `school_id`
-- `roles` (includes derived governance roles: `ssg`, `sg`, `org` when applicable)
-- `permissions` (governance permission codes like `manage_students`, `manage_attendance`, etc)
+### 1. Unified CLI (Recommended)
+From the repository root, run:
 
-## How To Use For Assistant Testing
+```powershell
+python seeder/seed.py demo
+```
 
-1. Run migrations, then seed:
-   - `python -m alembic upgrade head`
-   - `python Backend/seed.py`
-2. Start backend + assistant + frontend.
-3. Pick a user from `Backend/storage/seed_credentials.csv`, log into the UI.
-4. Open the in-app Aura AI chat.
+### 2. Docker Orchestration
+If running via Docker Compose, the `seed` service will automatically trigger the seeder if `SEED_DATABASE=true` is found in your `.env`.
 
-The assistant reads `roles` and `permissions` from the backend JWT, so different demo users will get different MCP access policies.
+## Credential Outputs
 
+The seeder generates specialized credential files in the following directory:
+`storage/seeder_outputs/`
+
+| File Name | Description |
+| :--- | :--- |
+| `campus_admin_credentials` | Logins for Campus Administrators (School-level). |
+| `student_governance_credentials` | Logins for SSG, SG, and ORG leaders with mixed permissions. |
+| `student_credentials` | Logins for the general student population. |
+
+### Format Toggle
+You can change the file format via `SEED_CREDENTIALS_FORMAT` (`csv`, `tsv`, or `psv`).
+
+## Verification Flow
+
+1. Set `SEED_DATABASE=true` in your `.env`.
+2. Run `python seeder/seed.py demo`.
+3. Check `storage/seeder_outputs/student_governance_credentials.csv`.
+4. Log in as a student leader and open the **Aura Assistant**.
+5. Ask: *"What are my current governance permissions?"* to verify the stochastic role hybridization.

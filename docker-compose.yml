@@ -53,13 +53,13 @@ services:
 
   seed:
     image: rizal-backend:local
-    command: python seed.py
+    command: python seeder/seed.py demo
     env_file:
       - ./.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
     volumes:
-      - ./Backend:/app
+      - .:/app
     depends_on:
       migrate:
         condition: service_completed_successfully

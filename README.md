@@ -21,6 +21,18 @@ Open:
 - Assistant docs (via frontend proxy): `http://localhost:5173/__assistant__/docs`
 - pgAdmin (DB): `http://localhost:5050` (admin@example.com / admin123)
 - Mailpit (Email): `http://localhost:8025`
+- Database Port: `5433` (for external tools like pgAdmin)
+
+## Data Seeding
+
+Initialize your database with stochastic demo data (schools, students, events):
+
+```powershell
+# Run the demo seeder (must set SEED_DATABASE=true in .env first)
+python seeder/seed.py demo
+```
+
+Check [BACKEND_DEMO_SEEDING_GUIDE.md](./docs/backend/BACKEND_DEMO_SEEDING_GUIDE.md) for full details on credential outputs and environment toggles.
 
 ## Documentation
 

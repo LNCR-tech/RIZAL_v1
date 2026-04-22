@@ -65,4 +65,4 @@ class UserCreate(BaseModel):
     password: str
     first_name: str
     last_name: str
-    roles: List[RoleEnum]  # Now includes all possible roles
+    roles: List[RoleEnum]  # Core auth roles only (admin/campus_admin/student)

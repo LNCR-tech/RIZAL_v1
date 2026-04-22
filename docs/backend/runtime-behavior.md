@@ -25,3 +25,13 @@ For migrations and model-related notes, see:
 
 - [Face Engine Migration Guide](./BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
 
+## Governance Membership Derived Roles (SSG/SG/ORG)
+
+Some backend access rules use coarse role checks (ex: `has_any_role(user, ["ssg"])`) while governance scope is stored as governance memberships.
+
+To keep behavior consistent, the backend syncs `user_roles` entries for `ssg`/`sg`/`org` based on a user's active governance memberships whenever governance membership records are assigned/updated/deactivated.
+
+How to test:
+
+1. Assign a student to an `SSG`/`SG`/`ORG` governance unit via the governance membership endpoints.
+2. Confirm the user now has the matching DB role (`ssg`/`sg`/`org`) and that sanctions access behaves as expected for that governance scope.

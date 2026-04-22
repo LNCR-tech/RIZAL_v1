@@ -141,6 +141,12 @@ class EventBase(BaseModel):
     start_datetime: datetime
     end_datetime: datetime
     status: EventStatus = EventStatus.upcoming
+    event_type: str = Field(
+        default="Regular Event",
+        min_length=1,
+        max_length=50,
+        description="The category of the event (e.g., Seminar, Assembly)."
+    )
 
     @model_validator(mode="after")
     def validate_sign_out_window(self) -> "EventBase":
@@ -169,6 +175,7 @@ class EventUpdate(BaseModel):
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None
+    event_type: Optional[str] = Field(None, min_length=1, max_length=50)
     department_ids: Optional[List[int]] = None
     program_ids: Optional[List[int]] = None
 

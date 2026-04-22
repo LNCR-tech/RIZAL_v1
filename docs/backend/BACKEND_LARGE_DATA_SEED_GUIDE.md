@@ -1,121 +1,74 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
 # Backend Large Data Seed Guide
 
-## Purpose
+The Aura Seeder supports high-performance data generation designed for stress-testing the report engine and database performance. It can generate tens of thousands of records naturally via stochastic density controls.
 
-This guide documents the dedicated Misamis University large-data seed script for generating one school with a heavy attendance and sanctions dataset for local or staging validation.
+## Execution Entry Point
 
-## Seed Entry Points
+All seeding operations now run through the unified CLI:
 
-- `Backend/seed_misamis_university.py`
-- `Backend/app/misamis_university_seeder.py`
+```powershell
+python seeder/seed.py demo
+```
 
-## Default Dataset
+Seeding volume is driven by the density of students and events configured in your `.env`.
 
-Running the script with defaults creates:
+## Massive Environment Configuration
 
-- `1` school named `Misamis University`
-- `1` `campus_admin` account for that school
-- `15,000` student users with:
-  - randomized names
-  - randomized student IDs
-  - randomized passwords
-  - generated emails under `@misamisu.seed.edu.ph`
-- `33` completed school events
-- `1,000,000` total attendance rows
-  - all seeded attendance rows use API-compatible `method='manual'`
-- sanctions for every core absent attendance row
-- pre-created governance structure with memberships and permissions:
-  - `1` SSG unit
-  - `5` SG units
-  - `15` ORG units
+### Target Populations
+- `SEED_MIN_STUDENTS` / `SEED_MAX_STUDENTS`: Student population per school.
+- `SEED_MIN_EVENTS` / `SEED_MAX_EVENTS`: Range for randomized event generation.
+- `SEED_N_SCHOOLS`: Total number of schools to generate.
 
-## Important Attendance Volume Note
+### Temporal Engine (The New Format)
+Legacy year/month toggles have been replaced by a unified "MM,DD,YYYY" window:
 
-`1,000,000` attendance rows is implemented as:
+- `SEED_START_MMDDYY`: The beginning of the attendance window (e.g., `1,1,2024`).
+- `SEED_END_MMDDYY`: The end of the attendance window (e.g., `12,31,2026`).
 
-- one core attendance row per seeded student per event
-- additional duplicate history rows to reach the requested total volume exactly
+The seeder will stochastically distribute events and attendances proportionally within this specific window.
 
-This keeps:
+## Sanction Universe
 
-- every student represented on every seeded event
-- sanctions tied to the core absent record for each event
-- enough attendance history volume for performance testing
+Massive mode automatically generates a linked "Sanction Universe" derived from the attendance data:
+- **Major Events**: Approx 10% of generated events are flagged as major assemblies.
+- **Auto-Sanctions**: Students with `ABSENT` statuses for these events receive a `SanctionRecord`.
+- **Integrity**: Every `SanctionRecord` is explicitly linked to its triggering `Attendance` record via `attendance_id`.
 
-## Governance and Sanctions Seeded
+## High-Performance Features
 
-The seed script also prepares governance and sanctions data:
+### 1. Bulk Insertion Logic
+The seeder utilizes `db.bulk_insert_mappings` for attendance and sanction records, bypassing SQLAlchemy ORM overhead to handle hundreds of thousands of rows in seconds.
 
-- one seeded SSG student member with full SSG member permissions
-- one seeded SG member per department with SG member permissions
-- one seeded ORG member per program with ORG member permissions
-- matching `governance_unit_permissions` and `governance_member_permissions`
-- `EventSanctionConfig` rows for every seeded event
-- `SanctionRecord` rows for every core absent attendance row
-- `SanctionItem` rows for each sanction record
-- SG delegations on a subset of school-wide events so SG members have delegated sanction coverage immediately
+### 2. Multi-Threaded Hashing
+When `SEED_UNIQUE_PASSWORDS=true`, the seeder utilizes available CPU cores (`ProcessPoolExecutor`) to pre-hash thousands of passwords in parallel.
 
-## Password Hashing
+### 3. Deterministic RNG
+The `SEED_RANDOMIZER_KEY` controls the entire universe. Changing this key will change the IDs, names, and event distributions while maintaining the requested volumes.
 
-The script accepts a configurable bcrypt cost for bulk seed speed:
+## massive Stress Test Example (.env)
 
-- default: `--password-hash-rounds 6`
-- helper updated: `app.utils.passwords.hash_password_bcrypt(password, *, rounds=...)`
+```env
+SEED_DATABASE=true
+SEED_WIPE_EXISTING=true
+SEED_MIN_STUDENTS=500
+SEED_MAX_STUDENTS=1000
+SEED_MIN_EVENTS=100
+SEED_MAX_EVENTS=200
+SEED_N_SCHOOLS=10
+SEED_RANDOMIZER_KEY=42
+SEED_START_MMDDYY=1,1,2024
+SEED_END_MMDDYY=12,31,2025
+```
 
-This lower default is intended for large non-production seed runs where insertion time matters more than password hash cost.
+## Verification
 
-## Credentials Artifacts
+After seeding, verify cumulative counts via SQL:
 
-By default the script writes:
-
-- `storage/seed_outputs/misamis_university_credentials.csv`
-- `storage/seed_outputs/misamis_university_privileged_credentials.csv`
-- `storage/seed_outputs/misamis_university_seed_summary.json`
-
-The privileged CSV contains the campus admin plus the seeded SSG, SG, and ORG member accounts.
-
-## Prerequisites
-
-Before running the seed:
-
-1. Apply backend migrations so the schema and enum types already exist.
-2. Point `DATABASE_URL` at the target database.
-3. Make sure the target database can handle a large write workload.
-
-The script checks for required tables and fails fast if the migrated schema is missing.
-
-## How To Run
-
-Dry run:
-
-- `python Backend/seed_misamis_university.py --dry-run`
-
-Default full seed:
-
-- `python Backend/seed_misamis_university.py`
-
-Recreate the Misamis University dataset if it already exists:
-
-- `python Backend/seed_misamis_university.py --replace-existing`
-
-Override counts or hashing:
-
-- `python Backend/seed_misamis_university.py --student-count 15000 --event-count 33 --attendance-target 1000000 --password-hash-rounds 6`
-
-## How To Test
-
-1. Run a dry run first:
-   - `python Backend/seed_misamis_university.py --dry-run`
-2. Run the seed against a migrated database:
-   - `python Backend/seed_misamis_university.py`
-3. Verify generated counts in SQL:
-   - `SELECT COUNT(*) FROM schools WHERE school_name = 'Misamis University';`
-   - `SELECT COUNT(*) FROM student_profiles WHERE school_id = <school_id>;`
-   - `SELECT COUNT(*) FROM events WHERE school_id = <school_id>;`
-   - `SELECT COUNT(*) FROM attendances a JOIN events e ON e.id = a.event_id WHERE e.school_id = <school_id>;`
-   - `SELECT COUNT(*) FROM sanction_records WHERE school_id = <school_id>;`
-4. Check the generated credential files under `storage/seed_outputs/`.
-5. Login with the campus admin or one of the privileged governance users from the privileged CSV and verify the reports, governance, and sanctions screens load against the seeded dataset.
-
+```sql
+SELECT (SELECT COUNT(*) FROM student_profiles) AS students,
+       (SELECT COUNT(*) FROM events) AS events,
+       (SELECT COUNT(*) FROM attendances) AS attendances,
+       (SELECT COUNT(*) FROM sanction_records) AS sanctions;
+```

@@ -1,4 +1,4 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
 # Backend Railway Deployment Guide
 
@@ -31,7 +31,7 @@ When `SERVICE_MODE=web`, the backend now:
 
 1. creates storage directories
 2. runs `alembic upgrade heads` when `RUN_MIGRATIONS_ON_START=true`
-3. runs `python seed.py` when `RUN_SEED_ON_START=true`
+3. runs `python seeder/seed.py demo` when `RUN_SEED_ON_START=true`
 4. starts optional Celery worker and beat sidecars
 5. starts `uvicorn`
 

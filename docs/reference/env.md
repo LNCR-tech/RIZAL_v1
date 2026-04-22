@@ -1,4 +1,4 @@
-﻿# Environment Variables
+# Environment Variables
 
 [<- Back to docs index](../../README.md)
 
@@ -12,16 +12,25 @@
 
 Copy `.env.example` to `.env` and set at least:
 
-- `SECRET_KEY`
-- `JWT_SECRET`
-- `ADMIN_EMAIL`
-- `ADMIN_PASSWORD`
+- `SECRET_KEY`, `JWT_SECRET`
+- `SEED_DATABASE=true` (If you want to initialize demo data)
+- `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` (For platform admin creation)
 - Assistant / AI:
-  - `AI_MODEL`
-  - `AI_API_BASE` (if not using default)
-  - `AI_API_KEY`
+  - `AI_MODEL`, `AI_API_BASE`, `AI_API_KEY`
 
 Then run the Docker stack. See: [Getting Started (Docker)](../getting-started/docker.md).
+
+## Seeding & Development
+
+The following variables govern the stochastic data engine:
+
+- `SEED_RANDOMIZER_KEY`: Master seed for 100% deterministic, reproducible runs.
+- `SEED_WIPE_EXISTING`: If true, wipes existing records before seeding.
+- `SEED_N_SCHOOLS`: Number of schools to generate.
+- `SEED_USER_SUFFIX_PROBABILITY`: Probability of adding a random suffix to usernames (test collisions).
+- `SEED_CREDENTIALS_FORMAT`: `csv` | `tsv` | `psv` (Output format for generated logins).
+
+See: [Backend Demo Seeding Guide](../backend/BACKEND_DEMO_SEEDING_GUIDE.md).
 
 ## Minimum Local Setup (No Docker)
 

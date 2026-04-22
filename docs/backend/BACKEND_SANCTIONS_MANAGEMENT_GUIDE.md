@@ -153,6 +153,7 @@ Route-level permission guards enforce sanctions actions in `Backend/app/routers/
 Role fallback guardrails for governance sanctions routes:
 
 - role fallback now uses active governance membership first (`SSG`/`SG`/`ORG` unit types), then legacy role aliases (`student_council`, `student council`) as compatibility fallback
+- governance membership changes also sync DB role names (`ssg`/`sg`/`org`) onto `user_roles` so services that still use `has_any_role(...)` checks behave consistently with membership scope
 - when fallback mode is enabled on a route, governance users can access sanctions features without explicit sanctions permission grants
 - governance-role fallback is enabled on:
   - `GET /events/{event_id}/config`

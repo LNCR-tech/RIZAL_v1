@@ -1,4 +1,4 @@
-﻿# Common Commands
+# Common Commands
 
 [<- Back to docs index](../../README.md)
 
@@ -24,8 +24,14 @@ docker compose down
 ```powershell
 cd .\\Backend
 python -m alembic upgrade head
-python .\\seed.py
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+## Data Seeding (Local)
+
+```powershell
+# From repository root (Ensure SEED_DATABASE=true in .env)
+python seeder/seed.py demo
 ```
 
 ## Assistant v2 (Local)

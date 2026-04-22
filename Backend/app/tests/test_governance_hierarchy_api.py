@@ -22,7 +22,7 @@ from app.models.governance_hierarchy import (
     GovernanceUnitType,
     PermissionCode,
 )
-from app.schemas.governance_hierarchy import GovernanceUnitCreate
+from app.schemas.governance_hierarchy import GovernanceMemberAssign, GovernanceUnitCreate
 from app.services import governance_hierarchy_service
 
 
@@ -4977,5 +4977,93 @@ def test_campus_admin_update_event_can_add_and_clear_near_start_attendance_overr
     clear_override_payload = clear_override_response.json()
     assert clear_override_payload["present_until_override_at"] is None
     assert clear_override_payload["late_until_override_at"] is None
+
+
+def test_assigning_governance_membership_syncs_derived_db_roles(test_db):
+    school = _create_school(test_db, code="SYNC")
+
+    campus_admin_role = _create_role(test_db, name="campus_admin")
+    student_role = _create_role(test_db, name="student")
+
+    campus_admin = _create_user(
+        test_db,
+        email="campus.admin@sync.example.com",
+        school_id=school.id,
+        role_ids=[campus_admin_role.id],
+    )
+    student = _create_user(
+        test_db,
+        email="student@sync.example.com",
+        school_id=school.id,
+        role_ids=[student_role.id],
+    )
+
+    department, program = _create_academic_scope(
+        test_db,
+        department_name="Sync Dept",
+        program_name="Sync Program",
+        school_id=school.id,
+    )
+    _create_student_profile(
+        test_db,
+        user_id=student.id,
+        school_id=school.id,
+        student_id="SYNC-0001",
+        department_id=department.id,
+        program_id=program.id,
+    )
+
+    ssg_unit = GovernanceUnit(
+        unit_code="SSG",
+        unit_name="Supreme Students Government",
+        unit_type=GovernanceUnitType.SSG,
+        school_id=school.id,
+        created_by_user_id=campus_admin.id,
+        is_active=True,
+    )
+    test_db.add(ssg_unit)
+    test_db.commit()
+    test_db.refresh(ssg_unit)
+
+    membership = governance_hierarchy_service.assign_governance_member(
+        test_db,
+        current_user=campus_admin,
+        governance_unit_id=ssg_unit.id,
+        payload=GovernanceMemberAssign(
+            user_id=student.id,
+            position_title="Officer",
+            permission_codes=[],
+        ),
+    )
+
+    role_names = {
+        name
+        for (name,) in (
+            test_db.query(Role.name)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .filter(UserRole.user_id == student.id)
+            .all()
+        )
+    }
+    assert "ssg" in role_names
+    assert "student" in role_names
+
+    governance_hierarchy_service.delete_governance_member(
+        test_db,
+        current_user=campus_admin,
+        governance_member_id=membership.id,
+    )
+
+    role_names_after = {
+        name
+        for (name,) in (
+            test_db.query(Role.name)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .filter(UserRole.user_id == student.id)
+            .all()
+        )
+    }
+    assert "ssg" not in role_names_after
+    assert "student" in role_names_after
 
 
