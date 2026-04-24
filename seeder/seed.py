@@ -19,7 +19,9 @@ if str(repo_root) not in sys.path:
 from app.core.database import SessionLocal
 from modules.core import ensure_tables, wipe_records, seed_roles, seed_permission_catalog, seed_platform_admin
 from modules.demo import run_demo
-import variables as cfg
+from config import load_config
+
+cfg = load_config()
 
 
 def main():
