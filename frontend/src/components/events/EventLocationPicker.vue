@@ -2,9 +2,9 @@
   <section class="event-location-picker">
     <div class="event-location-picker__header">
       <div class="event-location-picker__copy">
-        <p class="event-location-picker__eyebrow">Geofence Picker</p>
+        <p class="event-location-picker__eyebrow">Location</p>
         <p class="event-location-picker__summary">
-          {{ hasCoordinates ? 'Marker ready. Click elsewhere or drag the pin to refine it.' : 'Click anywhere on the map to place the event geofence.' }}
+          {{ hasCoordinates ? 'Pin selected.' : 'Tap map or use current.' }}
         </p>
       </div>
 
@@ -22,7 +22,7 @@
             class="event-location-picker__spinner"
           />
           <LocateFixed v-else :size="15" :stroke-width="2" />
-          <span>{{ locating ? 'Locating...' : 'Use Current Location' }}</span>
+          <span>{{ locating ? 'Locating' : 'Current' }}</span>
         </button>
 
         <button
@@ -53,7 +53,7 @@
           class="event-location-picker__spinner"
         />
         <MapPin v-else :size="18" :stroke-width="2" />
-        <span>{{ loadingMap ? 'Preparing map...' : 'Tap the map to drop the event marker.' }}</span>
+        <span>{{ loadingMap ? 'Loading map' : 'Tap to pin' }}</span>
       </div>
 
       <div v-if="loadError" class="event-location-picker__map-error" role="alert">
@@ -63,24 +63,20 @@
 
     <div class="event-location-picker__stats">
       <article class="event-location-picker__stat">
-        <span>Latitude</span>
+        <span>Lat</span>
         <strong>{{ formattedLatitude }}</strong>
       </article>
 
       <article class="event-location-picker__stat">
-        <span>Longitude</span>
+        <span>Lng</span>
         <strong>{{ formattedLongitude }}</strong>
       </article>
 
       <article class="event-location-picker__stat">
-        <span>Radius Preview</span>
+        <span>Radius</span>
         <strong>{{ formattedRadius }}</strong>
       </article>
     </div>
-
-    <p class="event-location-picker__note">
-      Select the pin from the map instead of typing raw coordinates. The radius field below still controls the allowed attendance area.
-    </p>
 
     <p
       v-if="statusMessage"
@@ -149,7 +145,6 @@ let mapInstance = null
 let markerInstance = null
 let radiusPreview = null
 let resizeObserver = null
-let resizeRafId = 0
 let invalidateTimeoutId = 0
 let mapInitSequence = 0
 let isComponentUnmounted = false
@@ -243,11 +238,6 @@ function cleanupMap() {
     resizeObserver = null
   }
 
-  if (resizeRafId) {
-    window.cancelAnimationFrame(resizeRafId)
-    resizeRafId = 0
-  }
-
   removeMarkerFromMap()
   removeRadiusPreview()
 
@@ -266,19 +256,7 @@ function observeMapResize() {
   if (!mapEl.value || typeof ResizeObserver === 'undefined') return
 
   resizeObserver = new ResizeObserver(() => {
-    if (!mapInstance) return
-
-    if (resizeRafId) {
-      window.cancelAnimationFrame(resizeRafId)
-    }
-
-    resizeRafId = window.requestAnimationFrame(() => {
-      resizeRafId = 0
-      mapInstance?.invalidateSize({
-        pan: false,
-        debounceMoveend: true,
-      })
-    })
+    mapInstance?.invalidateSize()
   })
   resizeObserver.observe(mapEl.value)
 }
@@ -297,12 +275,12 @@ function scheduleMapInvalidate() {
 
 function handleMapClick(event) {
   if (props.disabled) return
-  applyCoordinates(event.latlng.lat, event.latlng.lng, 'Geofence center updated from the map.')
+  applyCoordinates(event.latlng.lat, event.latlng.lng, 'Pin updated.')
 }
 
 function handleMarkerDragEnd(event) {
   const latLng = event.target.getLatLng()
-  applyCoordinates(latLng.lat, latLng.lng, 'Geofence center moved.')
+  applyCoordinates(latLng.lat, latLng.lng, 'Pin moved.')
 }
 
 async function handleUseCurrentLocation() {
@@ -341,7 +319,7 @@ function clearSelection() {
 
   emit('update:latitude', '')
   emit('update:longitude', '')
-  setStatus('Geofence marker cleared.', 'info')
+  setStatus('Pin cleared.', 'info')
   syncSelectionOnMap({ focus: true, latitude: null, longitude: null })
 }
 
@@ -522,12 +500,11 @@ function formatCoordinate(value) {
 .event-location-picker {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .event-location-picker__header,
-.event-location-picker__actions,
-.event-location-picker__stats {
+.event-location-picker__actions {
   display: flex;
 }
 
@@ -553,7 +530,6 @@ function formatCoordinate(value) {
 }
 
 .event-location-picker__summary,
-.event-location-picker__note,
 .event-location-picker__status,
 .event-location-picker__map-error {
   margin: 0;
@@ -561,8 +537,7 @@ function formatCoordinate(value) {
   line-height: 1.5;
 }
 
-.event-location-picker__summary,
-.event-location-picker__note {
+.event-location-picker__summary {
   color: var(--color-text-secondary, #6b7280);
 }
 
@@ -576,7 +551,7 @@ function formatCoordinate(value) {
 .event-location-picker__action {
   min-height: 40px;
   border: 1px solid rgba(17, 24, 39, 0.1);
-  border-radius: 999px;
+  border-radius: 8px;
   background: #fff;
   color: var(--color-text-always-dark, #111827);
   padding: 0 14px;
@@ -608,15 +583,13 @@ function formatCoordinate(value) {
 .event-location-picker__map-shell {
   position: relative;
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: 8px;
   border: 1px solid rgba(17, 24, 39, 0.1);
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 38%),
-    linear-gradient(180deg, rgba(248, 250, 252, 1), rgba(241, 245, 249, 1));
+  background: #f8fafc;
 }
 
 .event-location-picker__map {
-  min-height: 300px;
+  min-height: 220px;
 }
 
 .event-location-picker__map-overlay,
@@ -626,8 +599,8 @@ function formatCoordinate(value) {
   right: 16px;
   top: 16px;
   z-index: 500;
-  padding: 12px 14px;
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-radius: 8px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
@@ -658,15 +631,15 @@ function formatCoordinate(value) {
 }
 
 .event-location-picker__stats {
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .event-location-picker__stat {
-  min-width: 140px;
-  flex: 1 1 0;
-  padding: 13px 14px;
-  border-radius: 18px;
+  min-width: 0;
+  padding: 10px 11px;
+  border-radius: 8px;
   background: rgba(248, 250, 252, 0.9);
   border: 1px solid rgba(17, 24, 39, 0.08);
   display: flex;
@@ -683,14 +656,15 @@ function formatCoordinate(value) {
 }
 
 .event-location-picker__stat strong {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
   color: var(--color-text-always-dark, #111827);
+  overflow-wrap: anywhere;
 }
 
 .event-location-picker__status {
-  padding: 12px 14px;
-  border-radius: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
   background: rgba(37, 99, 235, 0.08);
   color: #1d4ed8;
   font-weight: 700;
@@ -708,7 +682,7 @@ function formatCoordinate(value) {
 .event-location-picker__map :deep(.leaflet-container) {
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 220px;
   font: inherit;
 }
 
@@ -753,6 +727,7 @@ function formatCoordinate(value) {
 
 @media (max-width: 760px) {
   .event-location-picker__header {
+    align-items: stretch;
     flex-direction: column;
   }
 
@@ -767,7 +742,13 @@ function formatCoordinate(value) {
 
   .event-location-picker__map,
   .event-location-picker__map :deep(.leaflet-container) {
-    min-height: 260px;
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 520px) {
+  .event-location-picker__stats {
+    grid-template-columns: 1fr;
   }
 }
 </style>

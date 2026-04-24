@@ -7,6 +7,8 @@
     "allowNavigation": [
       "ragweed-exemplary-sultry.ngrok-free.dev",
       "*.railway.app",
+      "*.ngrok-free.dev",
+      "*.ngrok.dev",
       "*.ngrok-free.app",
       "*.ngrok.app"
     ]
@@ -35,6 +37,10 @@
     "Keyboard": {
       "resize": "none",
       "resizeOnFullScreen": false
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_aura",
+      "iconColor": "#76FF03"
     }
   }
 }

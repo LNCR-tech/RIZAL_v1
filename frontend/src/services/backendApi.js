@@ -32,6 +32,7 @@ import {
     normalizeSchoolSettings,
     normalizeSchoolSummary,
     normalizeSchoolItAccount,
+    normalizeStudentAttendanceReport,
     normalizeStudentFaceRegistrationResponse,
     normalizeTokenPayload,
     normalizeRetentionRunResult,
@@ -559,18 +560,6 @@ export async function getGovernanceUnitDetail(baseUrl, token, governanceUnitId) 
         method: 'GET',
         token,
     }))
-}
-
-export async function getGovernanceDashboardOverview(baseUrl, token, governanceUnitId) {
-    const payload = await request(baseUrl, `/api/governance/units/${governanceUnitId}/dashboard-overview`, {
-        method: 'GET',
-        token,
-    })
-
-    return {
-        ...(payload && typeof payload === 'object' ? payload : {}),
-        child_units: Array.isArray(payload?.child_units) ? payload.child_units : [],
-    }
 }
 
 export async function getGovernanceUnits(baseUrl, token, params = {}) {
@@ -1273,6 +1262,22 @@ export async function getMyAttendance(baseUrl, token, params = {}, requestOption
         ...requestOptions,
     }, [404, 405])
     return normalizeAttendanceCollectionPayload(payload)
+}
+
+export async function getStudentAttendanceReport(baseUrl, token, studentProfileId, params = {}) {
+    const normalizedStudentProfileId = Number(studentProfileId)
+    if (!Number.isFinite(normalizedStudentProfileId) || normalizedStudentProfileId <= 0) {
+        throw new BackendApiError('A valid student profile is required for attendance details.')
+    }
+
+    return normalizeStudentAttendanceReport(await requestWithFallback(baseUrl, [
+        `/api/attendance/students/${normalizedStudentProfileId}/report`,
+        `/attendance/students/${normalizedStudentProfileId}/report`,
+    ], {
+        method: 'GET',
+        token,
+        params,
+    }, [404, 405]))
 }
 
 export async function createAnnouncement(baseUrl, token, payload) {

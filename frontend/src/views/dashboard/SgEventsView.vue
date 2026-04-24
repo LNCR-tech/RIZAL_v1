@@ -50,45 +50,73 @@
         </div>
         
         <div class="sg-create-wrapper" :class="{ 'is-expanded': isCreating }">
-          <button v-show="!isCreating" class="sg-create-event-btn" type="button" @click="openCreateForm">
+          <button v-if="!isCreating" class="sg-create-event-btn" type="button" @click="openCreateForm">
             <Plus :size="20" />
             <span style="margin-top: 1px;">Create<br>Event</span>
           </button>
           
-          <div class="sg-create-form" v-show="isCreating">
+          <div v-if="isCreating" class="sg-create-form">
             <header class="sg-create-form-header">
-              <button class="sg-create-event-btn sg-create-event-btn--inner" type="button" @click="closeCreateForm">
-                <Plus :size="20" />
-                <span style="margin-top: 1px;">Create<br>Event</span>
+              <div>
+                <p class="sg-create-eyebrow">New governance event</p>
+                <h2 class="sg-create-heading">Create Event</h2>
+                <p class="sg-create-copy">Set the event schedule, venue, and optional attendance geofence.</p>
+              </div>
+
+              <button
+                class="sg-create-close"
+                type="button"
+                aria-label="Close create event form"
+                :disabled="isSubmitting"
+                @click="closeCreateForm"
+              >
+                <X :size="18" />
               </button>
             </header>
             
             <form class="sg-event-fields" @submit.prevent="submitEvent">
-              <label class="sg-field-label">
-                Event Name
-                <input v-model="form.name" type="text" placeholder="e.g. Orientation" required />
-              </label>
+              <div class="sg-event-fields-grid">
+                <label class="sg-field-label sg-field-label--wide">
+                  <span>Event Name</span>
+                  <input v-model="form.name" type="text" placeholder="e.g. Campus Orientation" required />
+                </label>
+
+                <label class="sg-field-label sg-field-label--wide">
+                  <span>Venue Name</span>
+                  <input v-model="form.location_name" type="text" placeholder="e.g. University Gymnasium" required />
+                </label>
+
+                <label class="sg-field-label">
+                  <span>Start date & time</span>
+                  <input v-model="form.start_time" type="datetime-local" required />
+                </label>
+
+                <label class="sg-field-label">
+                  <span>End date & time</span>
+                  <input v-model="form.end_time" type="datetime-local" required />
+                </label>
+              </div>
               
-              <label class="sg-field-label">
-                Location
-                <input v-model="form.location_name" type="text" placeholder="e.g. University Campus" required />
-              </label>
-              
-              <label class="sg-field-label">
-                Start date & time
-                <input v-model="form.start_time" type="datetime-local" required />
-              </label>
-              
-              <label class="sg-field-label">
-                End date & time
-                <input v-model="form.end_time" type="datetime-local" required />
-              </label>
-              
-              <div class="sg-map-section">
-                <p class="sg-field-label">Please Select Location for Attendance</p>
+              <section class="sg-map-section" :class="{ 'is-required': form.require_geofence }">
+                <header class="sg-map-section-header">
+                  <div class="sg-map-section-title">
+                    <span class="sg-map-section-icon">
+                      <MapPin :size="18" />
+                    </span>
+                    <div>
+                      <h3>Attendance Location</h3>
+                      <p>{{ geofenceSummary }}</p>
+                    </div>
+                  </div>
+
+                  <label class="sg-toggle-label">
+                    <input v-model="form.require_geofence" type="checkbox" />
+                    <span class="sg-toggle-track"></span>
+                    <span>Require geofence</span>
+                  </label>
+                </header>
 
                 <EventLocationPicker
-                  v-if="isCreating"
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
                   :radius-m="form.radius_meters"
@@ -97,34 +125,41 @@
                 
                 <div class="sg-coord-grid">
                   <label class="sg-field-label">
-                    Latitude
-                    <input v-model="form.latitude" type="number" step="any" placeholder="0.00000" />
+                    <span>Latitude</span>
+                    <input v-model="form.latitude" type="number" step="any" placeholder="Not selected" />
                   </label>
                   <label class="sg-field-label">
-                    Longitude
-                    <input v-model="form.longitude" type="number" step="any" placeholder="0.00000" />
+                    <span>Longitude</span>
+                    <input v-model="form.longitude" type="number" step="any" placeholder="Not selected" />
                   </label>
                   <label class="sg-field-label">
-                    Allowed Radius
-                    <input v-model="form.radius_meters" type="number" placeholder="100 meters" />
+                    <span>Allowed Radius</span>
+                    <input v-model="form.radius_meters" type="number" min="1" max="5000" step="1" placeholder="100 meters" />
                   </label>
                   <label class="sg-field-label">
-                    Max GPS Accuracy
-                    <input v-model="form.gps_accuracy" type="number" placeholder="50 meters" />
+                    <span>Max GPS Accuracy</span>
+                    <input v-model="form.gps_accuracy" type="number" min="1" max="1000" step="1" placeholder="50 meters" />
                   </label>
                 </div>
-                
-                <label class="sg-checkbox-label">
-                  <input v-model="form.require_geofence" type="checkbox" />
-                  <span class="sg-checkbox-custom"></span>
-                  Require students to be inside this geofence when signing in.
-                </label>
-              </div>
+
+                <p class="sg-geofence-note">
+                  {{ geofenceHelperText }}
+                </p>
+              </section>
+
+              <p v-if="createError" class="sg-create-feedback" role="alert">
+                <AlertCircle :size="16" />
+                <span>{{ createError }}</span>
+              </p>
               
-              <button type="submit" class="sg-submit-event" :disabled="isSubmitting">
-                {{ isSubmitting ? 'Creating...' : 'Create Event' }}
-              </button>
-              <p class="sg-form-note">New governance events are created with the default upcoming status.</p>
+              <div class="sg-form-actions">
+                <button class="sg-cancel-event" type="button" :disabled="isSubmitting" @click="closeCreateForm">
+                  Cancel
+                </button>
+                <button type="submit" class="sg-submit-event" :disabled="isSubmitting">
+                  {{ isSubmitting ? 'Creating...' : 'Create Event' }}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -214,7 +249,7 @@ const props = defineProps({
     default: false,
   },
 })
-import { ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2 } from 'lucide-vue-next'
+import { AlertCircle, ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2, MapPin, X } from 'lucide-vue-next'
 import EventEditorSheet from '@/components/events/EventEditorSheet.vue'
 import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -262,6 +297,7 @@ const eventEditorError = ref('')
 
 const isCreating = ref(false)
 const isSubmitting = ref(false)
+const createError = ref('')
 const form = ref({
   name: '',
   location_name: '',
@@ -299,6 +335,41 @@ const hasOpenEventSwipe = computed(() => Object.values(eventSwipeOffsets.value).
 const upcomingCount = computed(() => events.value.filter(e => String(e.status).toLowerCase() === 'upcoming').length)
 const ongoingCount = computed(() => events.value.filter(e => ['ongoing', 'active'].includes(String(e.status).toLowerCase())).length)
 const completedCount = computed(() => events.value.filter(e => String(e.status).toLowerCase() === 'completed').length)
+const formGeofence = computed(() => getFormGeofenceValues())
+const hasCompleteGeofence = computed(() => formGeofence.value.complete)
+const geofenceSummary = computed(() => {
+  if (form.value.require_geofence) {
+    return hasCompleteGeofence.value
+      ? 'Students must be inside the selected radius to sign in.'
+      : 'Select a map point before saving a required geofence.'
+  }
+
+  return hasCompleteGeofence.value
+    ? 'A map location will be saved, but attendance can proceed without geofence enforcement.'
+    : 'Optional. Leave blank when this event does not need location-locked attendance.'
+})
+const geofenceHelperText = computed(() => {
+  if (!hasCompleteGeofence.value) {
+    return 'The app will not send radius-only data to the backend. Pick a map point to save geofence fields.'
+  }
+
+  const radius = Math.round(formGeofence.value.radius)
+  const accuracy = formGeofence.value.maxAccuracy != null
+    ? ` Devices must report ${Math.round(formGeofence.value.maxAccuracy)} m accuracy or better.`
+    : ''
+
+  return `Students inside ${radius} m of the marker are treated as inside the event area.${accuracy}`
+})
+
+watch(
+  form,
+  () => {
+    if (createError.value) {
+      createError.value = ''
+    }
+  },
+  { deep: true }
+)
 
 onMounted(() => {
   document.addEventListener('pointerdown', handleDocumentPointerDown)
@@ -444,10 +515,13 @@ async function deleteManagedEvent(event) {
 }
 
 function openCreateForm() {
+  createError.value = ''
   isCreating.value = true
 }
 
-function closeCreateForm() {
+function closeCreateForm(force = false) {
+  if (isSubmitting.value && !force) return
+  createError.value = ''
   isCreating.value = false
 }
 
@@ -661,6 +735,34 @@ function toOptionalFiniteNumber(value) {
   return Number.isFinite(normalized) ? normalized : null
 }
 
+function isValidLatitude(value) {
+  return Number.isFinite(value) && value >= -90 && value <= 90
+}
+
+function isValidLongitude(value) {
+  return Number.isFinite(value) && value >= -180 && value <= 180
+}
+
+function getFormGeofenceValues() {
+  const latitude = toOptionalFiniteNumber(form.value.latitude)
+  const longitude = toOptionalFiniteNumber(form.value.longitude)
+  const radius = toOptionalFiniteNumber(form.value.radius_meters)
+  const maxAccuracy = toOptionalFiniteNumber(form.value.gps_accuracy)
+  const hasLatitude = latitude != null
+  const hasLongitude = longitude != null
+  const hasAnyCoordinate = hasLatitude || hasLongitude
+  const complete = hasLatitude && hasLongitude && radius != null
+
+  return {
+    latitude,
+    longitude,
+    radius,
+    maxAccuracy,
+    hasAnyCoordinate,
+    complete,
+  }
+}
+
 function toBackendDateTimeValue(value) {
   return String(value || '').trim()
 }
@@ -747,6 +849,7 @@ function buildEventQueryParams() {
 function validateEventForm() {
   const startTime = new Date(form.value.start_time)
   const endTime = new Date(form.value.end_time)
+  const geofence = getFormGeofenceValues()
 
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
     throw new Error('Please provide valid start and end dates.')
@@ -754,23 +857,46 @@ function validateEventForm() {
   if (endTime <= startTime) {
     throw new Error('The event end time must be later than the start time.')
   }
-  if (form.value.require_geofence && (form.value.latitude == null || form.value.longitude == null)) {
+  if (geofence.latitude != null && !isValidLatitude(geofence.latitude)) {
+    throw new Error('Latitude must be between -90 and 90.')
+  }
+  if (geofence.longitude != null && !isValidLongitude(geofence.longitude)) {
+    throw new Error('Longitude must be between -180 and 180.')
+  }
+  if (geofence.hasAnyCoordinate && !geofence.complete) {
+    throw new Error('Latitude, longitude, and allowed radius are required together for the event geofence.')
+  }
+  if (geofence.complete && geofence.radius <= 0) {
+    throw new Error('Allowed radius must be greater than 0 meters.')
+  }
+  if (geofence.complete && geofence.radius > 5000) {
+    throw new Error('Allowed radius cannot be greater than 5000 meters.')
+  }
+  if (geofence.complete && geofence.maxAccuracy != null && geofence.maxAccuracy <= 0) {
+    throw new Error('Max GPS accuracy must be greater than 0 meters.')
+  }
+  if (geofence.complete && geofence.maxAccuracy != null && geofence.maxAccuracy > 1000) {
+    throw new Error('Max GPS accuracy cannot be greater than 1000 meters.')
+  }
+  if (form.value.require_geofence && !geofence.complete) {
     throw new Error('Select a map location before requiring geofence attendance.')
   }
 }
 
 function buildCreateEventPayload() {
+  const geofence = getFormGeofenceValues()
+  const shouldSendGeofence = geofence.complete
   const payload = {
     name: String(form.value.name || '').trim(),
     location: String(form.value.location_name || '').trim(),
     start_datetime: toBackendDateTimeValue(form.value.start_time),
     end_datetime: toBackendDateTimeValue(form.value.end_time),
     status: 'upcoming',
-    geo_required: Boolean(form.value.require_geofence),
-    geo_latitude: toOptionalFiniteNumber(form.value.latitude),
-    geo_longitude: toOptionalFiniteNumber(form.value.longitude),
-    geo_radius_m: toOptionalFiniteNumber(form.value.radius_meters),
-    geo_max_accuracy_m: toOptionalFiniteNumber(form.value.gps_accuracy),
+    geo_required: shouldSendGeofence ? Boolean(form.value.require_geofence) : false,
+    geo_latitude: shouldSendGeofence ? geofence.latitude : null,
+    geo_longitude: shouldSendGeofence ? geofence.longitude : null,
+    geo_radius_m: shouldSendGeofence ? geofence.radius : null,
+    geo_max_accuracy_m: shouldSendGeofence ? geofence.maxAccuracy : null,
     department_ids: [],
     program_ids: [],
   }
@@ -922,6 +1048,7 @@ async function createEventWithResolvedScope(url, payload) {
 
 async function submitEvent() {
   isSubmitting.value = true
+  createError.value = ''
   try {
     validateEventForm()
 
@@ -935,20 +1062,20 @@ async function submitEvent() {
         },
         ...events.value,
       ]
-      closeCreateForm()
+      closeCreateForm(true)
       resetEventForm()
       return
     }
 
     await createEventWithResolvedScope(apiBaseUrl.value, buildCreateEventPayload())
-    closeCreateForm()
+    closeCreateForm(true)
     resetEventForm()
 
     // Refresh events
     await loadEvents(apiBaseUrl.value)
     
   } catch (err) {
-    alert(err?.message || 'Error creating event.')
+    createError.value = err?.message || 'Error creating event.'
   } finally {
     isSubmitting.value = false
   }
@@ -1076,21 +1203,20 @@ function resolveNextPreviewEventId() {
   color: var(--color-text-muted);
 }
 
-/* Expanding Form Wrapper Styling */
 .sg-create-wrapper {
   position: relative;
-  background: var(--color-primary); /* Lime Green form base */
+  background: var(--color-primary);
   border-radius: 999px;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-  max-height: 52px; /* matches toolbar height */
+  max-height: 52px;
   transform-origin: top right;
   flex-shrink: 0;
   width: auto;
 }
 .sg-create-wrapper.is-expanded {
-  max-height: 1200px;
-  border-radius: 44px;
+  max-height: 1600px;
+  border-radius: 28px;
   width: 100%;
 }
 .sg-sub-toolbar.is-creating {
@@ -1118,17 +1244,13 @@ function resolveNextPreviewEventId() {
 .sg-create-event-btn:hover {
   filter: brightness(1.04);
 }
-.sg-create-event-btn--inner {
-  padding: 0;
-  min-height: auto;
-}
 
 .sg-create-form {
-  padding: 0 24px 32px 24px;
+  padding: 24px;
   color: var(--color-primary-text);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   animation: fade-in 0.4s ease forwards;
 }
 @keyframes fade-in {
@@ -1138,47 +1260,161 @@ function resolveNextPreviewEventId() {
 
 .sg-create-form-header {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.sg-create-eyebrow,
+.sg-create-copy {
+  margin: 0;
+}
+.sg-create-eyebrow {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.sg-create-heading {
+  margin: 4px 0 0;
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 900;
+  color: var(--color-primary-text);
+}
+.sg-create-copy {
+  max-width: 620px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.78;
+}
+.sg-create-close {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  color: var(--color-text-primary);
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  height: 52px; /* matches the original button height exactly */
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.sg-create-close:hover:not(:disabled),
+.sg-create-close:focus-visible {
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-surface) 24%, transparent);
+  outline: none;
 }
 
 .sg-event-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
+}
+.sg-event-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 .sg-field-label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--color-primary-text);
   padding-left: 2px;
 }
-.sg-field-label input {
+.sg-field-label--wide {
+  grid-column: 1 / -1;
+}
+.sg-field-label input,
+.sg-field-label select {
   background: var(--color-surface);
-  border: none;
-  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  border-radius: 16px;
   padding: 14px 20px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 650;
   color: var(--color-text-primary);
   outline: none;
   width: 100%;
   box-sizing: border-box;
 }
+.sg-field-label input:focus {
+  border-color: color-mix(in srgb, var(--color-primary-dark, #111827) 28%, white);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-surface) 28%, transparent);
+}
 .sg-field-label input::placeholder {
   color: var(--color-text-muted);
 }
 
-/* Map specific styling */
 .sg-map-section {
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  color: var(--color-text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+.sg-map-section.is-required {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-primary-dark, #111827) 20%, transparent),
+    0 18px 36px rgba(15, 23, 42, 0.1);
+}
+.sg-map-section .sg-field-label {
+  color: var(--color-text-secondary);
+}
+.sg-map-section-header,
+.sg-map-section-title,
+.sg-toggle-label,
+.sg-form-actions,
+.sg-create-feedback {
+  display: flex;
+}
+.sg-map-section-header {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sg-map-section-title {
+  align-items: flex-start;
   gap: 12px;
-  margin-top: 8px;
+  min-width: 0;
+}
+.sg-map-section-title h3,
+.sg-map-section-title p,
+.sg-geofence-note {
+  margin: 0;
+}
+.sg-map-section-title h3 {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--color-text-primary);
+}
+.sg-map-section-title p,
+.sg-geofence-note {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.sg-map-section-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .sg-coord-grid {
@@ -1187,53 +1423,99 @@ function resolveNextPreviewEventId() {
   gap: 12px;
 }
 
-.sg-checkbox-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-primary-text);
+.sg-toggle-label {
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text-primary);
   cursor: pointer;
-  margin-top: 12px;
-  margin-bottom: 24px;
+  white-space: nowrap;
 }
-.sg-checkbox-label input {
-  display: none;
+.sg-toggle-label input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
-.sg-checkbox-custom {
-  width: 24px;
+.sg-toggle-track {
+  position: relative;
+  width: 44px;
   height: 24px;
-  border-radius: 50%;
-  background: var(--color-surface);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.14);
   display: inline-block;
   flex-shrink: 0;
-  position: relative;
+  transition: background 180ms ease;
 }
-.sg-checkbox-label input:checked + .sg-checkbox-custom::after {
+.sg-toggle-track::after {
   content: '';
   position: absolute;
-  top: 6px; left: 6px; right: 6px; bottom: 6px;
-  background: var(--color-primary-dark);
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+  transition: transform 180ms ease;
+}
+.sg-toggle-label input:checked + .sg-toggle-track {
+  background: var(--color-primary);
+}
+.sg-toggle-label input:checked + .sg-toggle-track::after {
+  transform: translateX(20px);
+}
+.sg-toggle-label input:focus-visible + .sg-toggle-track {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
+.sg-create-feedback {
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(220, 38, 38, 0.12);
+  color: #7f1d1d;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.sg-form-actions {
+  justify-content: flex-end;
+  gap: 12px;
+}
+.sg-submit-event,
+.sg-cancel-event {
+  border: none;
+  border-radius: 999px;
+  padding: 15px 22px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: filter 160ms ease, box-shadow 160ms ease;
+}
 .sg-submit-event {
   background: var(--color-surface);
   color: var(--color-text-primary);
-  border: none;
-  border-radius: 999px;
-  padding: 18px;
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
-  width: 100%;
 }
-.sg-form-note {
-  font-size: 11px;
-  text-align: center;
-  color: color-mix(in srgb, var(--color-primary-text) 70%, transparent);
-  margin: 0;
+.sg-cancel-event {
+  background: color-mix(in srgb, var(--color-surface) 28%, transparent);
+  color: var(--color-primary-text);
+}
+.sg-submit-event:hover:not(:disabled),
+.sg-cancel-event:hover:not(:disabled),
+.sg-submit-event:focus-visible,
+.sg-cancel-event:focus-visible {
+  filter: brightness(1.03);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-surface) 24%, transparent);
+  outline: none;
+}
+.sg-submit-event:disabled,
+.sg-cancel-event:disabled,
+.sg-create-close:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
 }
 
 .sg-summary-grid {
@@ -1270,6 +1552,36 @@ function resolveNextPreviewEventId() {
 @media (max-width: 600px) {
   .sg-summary-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .sg-create-form {
+    padding: 18px;
+  }
+  .sg-create-form-header,
+  .sg-map-section-header {
+    flex-direction: column;
+  }
+  .sg-create-form-header {
+    padding-right: 52px;
+  }
+  .sg-create-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+  .sg-event-fields-grid,
+  .sg-coord-grid {
+    grid-template-columns: 1fr;
+  }
+  .sg-toggle-label,
+  .sg-form-actions {
+    width: 100%;
+  }
+  .sg-form-actions {
+    flex-direction: column-reverse;
+  }
+  .sg-submit-event,
+  .sg-cancel-event {
+    width: 100%;
   }
 }
 
@@ -1362,7 +1674,7 @@ function resolveNextPreviewEventId() {
   justify-content: center;
 }
 .sg-event-name { 
-  font-size: clamp(16px, 4vw, 19px); 
+  font-size: 18px;
   font-weight: 800; 
   color: var(--color-primary); /* The lime green from the request */
   margin: 0 0 2px 0; 
@@ -1406,6 +1718,6 @@ function resolveNextPreviewEventId() {
   font-size: 13px;
   font-weight: 800;
   color: var(--color-nav, #000); /* Black text */
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 </style>

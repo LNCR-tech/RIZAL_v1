@@ -30,51 +30,7 @@ function isChunkLoadError(error) {
     ''
   )
 
-  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk [\d]+ failed|error loading dynamically imported module|Failed to load app asset:\s.+\.(?:m?js|css)(?:[\?#].*)?$/i.test(message)
-}
-
-function isIgnorableNonFatalError(error) {
-  const message = String(
-    error?.message ||
-    error?.reason?.message ||
-    error?.reason ||
-    error ||
-    ''
-  )
-
-  return /Failed to load animation with id:|ResizeObserver loop limit exceeded|ResizeObserver loop completed with undelivered notifications/i.test(message)
-}
-
-function resolveWindowErrorPayload(event) {
-  const runtimeError = event?.error
-  if (runtimeError) {
-    return { shouldHandle: true, error: runtimeError }
-  }
-
-  const target = event?.target
-  if (target && target !== window) {
-    const tagName = String(target?.tagName || '').toUpperCase()
-    const source = String(target?.src || target?.href || '').trim()
-    const isScriptOrStylesheet = tagName === 'SCRIPT' || tagName === 'LINK'
-
-    if (isScriptOrStylesheet) {
-      return {
-        shouldHandle: true,
-        error: new Error(`Failed to load app asset: ${source || tagName.toLowerCase()}`),
-      }
-    }
-
-    // Ignore generic resource failures (e.g., map tile images) so transient network hiccups
-    // do not force the global fatal refresh screen.
-    return { shouldHandle: false, error: null }
-  }
-
-  const message = String(event?.message || '').trim()
-  if (message) {
-    return { shouldHandle: true, error: message }
-  }
-
-  return { shouldHandle: false, error: null }
+  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk [\d]+ failed|error loading dynamically imported module/i.test(message)
 }
 
 function clearChunkReloadTarget() {
@@ -128,10 +84,6 @@ export function installAppErrorHandling(app, router) {
   handlersInstalled = true
 
   const handleError = async (error, context = '', targetPath = '') => {
-    if (isIgnorableNonFatalError(error)) {
-      return
-    }
-
     if (isChunkLoadError(error) && await attemptChunkRecovery(targetPath)) {
       return
     }
@@ -156,10 +108,8 @@ export function installAppErrorHandling(app, router) {
 
   if (typeof window !== 'undefined') {
     window.addEventListener('error', (event) => {
-      const { shouldHandle, error } = resolveWindowErrorPayload(event)
-      if (!shouldHandle) return
-      console.error('Aura window error:', error)
-      handleError(error, 'starting the app', window.location.pathname)
+      console.error('Aura window error:', event.error || event.message)
+      handleError(event.error || event.message, 'starting the app', window.location.pathname)
     })
 
     window.addEventListener('unhandledrejection', (event) => {

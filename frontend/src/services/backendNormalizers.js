@@ -242,6 +242,48 @@ export function normalizeEventAttendanceReport(payload = {}) {
     }
 }
 
+export function normalizeStudentAttendanceSummary(payload = {}) {
+    return {
+        ...payload,
+        student_id: toOptionalString(payload?.student_id, null),
+        student_name: toOptionalString(payload?.student_name, 'Student'),
+        total_events: toOptionalNumber(payload?.total_events, 0),
+        attended_events: toOptionalNumber(payload?.attended_events, 0),
+        late_events: toOptionalNumber(payload?.late_events, 0),
+        incomplete_events: toOptionalNumber(payload?.incomplete_events, 0),
+        absent_events: toOptionalNumber(payload?.absent_events, 0),
+        excused_events: toOptionalNumber(payload?.excused_events, 0),
+        attendance_rate: typeof payload?.attendance_rate === 'number'
+            ? payload.attendance_rate
+            : toOptionalNumber(payload?.attendance_rate, 0),
+        last_attendance: toOptionalString(payload?.last_attendance, null),
+    }
+}
+
+export function normalizeStudentAttendanceDetail(payload = {}) {
+    return {
+        ...normalizeAttendanceRecord(payload),
+        event_location: toOptionalString(payload?.event_location, null),
+        event_date: toOptionalString(payload?.event_date, null),
+    }
+}
+
+export function normalizeStudentAttendanceReport(payload = {}) {
+    return {
+        ...payload,
+        student: normalizeStudentAttendanceSummary(payload?.student),
+        attendance_records: Array.isArray(payload?.attendance_records)
+            ? payload.attendance_records.map(normalizeStudentAttendanceDetail)
+            : [],
+        monthly_stats: payload?.monthly_stats && typeof payload.monthly_stats === 'object'
+            ? payload.monthly_stats
+            : {},
+        event_type_stats: payload?.event_type_stats && typeof payload.event_type_stats === 'object'
+            ? payload.event_type_stats
+            : {},
+    }
+}
+
 export function normalizeStudentProfile(profile = null) {
     if (!profile || typeof profile !== 'object') return null
 

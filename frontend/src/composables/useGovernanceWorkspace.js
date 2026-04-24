@@ -10,10 +10,8 @@ import {
   getEvents,
   getGovernanceAccess,
   getGovernanceAnnouncements,
-  getGovernanceDashboardOverview,
   getGovernanceStudents,
   getGovernanceUnitDetail,
-  getGovernanceUnits,
 } from '@/services/backendApi.js'
 import {
   downloadGovernanceMasterlistCsv,
@@ -1348,44 +1346,6 @@ export function useGovernanceWorkspace(options = {}) {
     hasLoadedWorkspace.value = true
   }
 
-  async function resolveActiveUnitChildUnits(url, authToken, governanceUnitId) {
-    if (!Number.isFinite(governanceUnitId)) return []
-
-    let overviewChildUnits = []
-    let hasOverviewChildUnits = false
-
-    try {
-      const overview = await getGovernanceDashboardOverview(url, authToken, governanceUnitId)
-      if (Array.isArray(overview?.child_units)) {
-        overviewChildUnits = cloneArray(overview.child_units)
-        hasOverviewChildUnits = true
-        if (overviewChildUnits.length > 0) {
-          return overviewChildUnits
-        }
-      }
-    } catch {
-      // Fall through to list query fallback.
-    }
-
-    try {
-      const fallbackChildUnits = await getGovernanceUnits(url, authToken, {
-        parent_unit_id: governanceUnitId,
-        include_inactive: false,
-      })
-      const normalizedFallbackChildUnits = cloneArray(
-        (Array.isArray(fallbackChildUnits) ? fallbackChildUnits : [])
-          .filter((unit) => unit?.is_active !== false)
-      )
-      if (normalizedFallbackChildUnits.length > 0) {
-        return normalizedFallbackChildUnits
-      }
-    } catch {
-      // Keep existing empty state when fallback cannot be resolved.
-    }
-
-    return hasOverviewChildUnits ? overviewChildUnits : []
-  }
-
   async function loadGovernanceWorkspace(url, authToken) {
     supplementalLoading.value = true
     attendanceReportsByEventId.value = {}
@@ -1406,13 +1366,10 @@ export function useGovernanceWorkspace(options = {}) {
 
       activeUnit.value = resolvedUnit
 
-      const [detailResult, childUnitsResult, studentsResult, eventsResult, announcementsResult, ssgSetupResult] = await Promise.allSettled([
+      const [detailResult, studentsResult, eventsResult, announcementsResult, ssgSetupResult] = await Promise.allSettled([
         Number.isFinite(normalizedUnitId)
           ? getGovernanceUnitDetail(url, authToken, normalizedUnitId)
           : Promise.resolve(null),
-        Number.isFinite(normalizedUnitId)
-          ? resolveActiveUnitChildUnits(url, authToken, normalizedUnitId)
-          : Promise.resolve([]),
         getGovernanceStudents(
           url,
           authToken,
@@ -1427,28 +1384,10 @@ export function useGovernanceWorkspace(options = {}) {
           : Promise.resolve(null),
       ])
 
-      const resolvedChildUnits = (
-        childUnitsResult.status === 'fulfilled' && Array.isArray(childUnitsResult.value)
-      )
-        ? cloneArray(childUnitsResult.value)
-        : []
-
       if (detailResult.status === 'fulfilled' && detailResult.value) {
-        const detailUnit = detailResult.value
-        const detailChildUnits = Array.isArray(detailUnit?.child_units)
-          ? cloneArray(detailUnit.child_units)
-          : []
-
-        activeUnit.value = {
-          ...detailUnit,
-          child_units: detailChildUnits.length > 0 ? detailChildUnits : resolvedChildUnits,
-        }
-        membersCount.value = Array.isArray(detailUnit?.members) ? detailUnit.members.length : 0
+        activeUnit.value = detailResult.value
+        membersCount.value = Array.isArray(detailResult.value?.members) ? detailResult.value.members.length : 0
       } else {
-        activeUnit.value = {
-          ...(activeUnit.value || {}),
-          child_units: resolvedChildUnits,
-        }
         membersCount.value = 0
       }
 
