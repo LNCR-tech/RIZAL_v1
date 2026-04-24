@@ -42,6 +42,9 @@ Backend/storage/school_logos/
 Backend/storage/seed_credentials.csv
 Backend/storage/seed_credentials.json
 
+# Seeder outputs
+seeder/storage/seeder_outputs/
+
 # Project-specific generated files
 Backend/face_encodings.pkl
 Backend/.alembic.ini.swp
