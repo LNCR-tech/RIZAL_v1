@@ -561,6 +561,18 @@ export async function getGovernanceUnitDetail(baseUrl, token, governanceUnitId) 
     }))
 }
 
+export async function getGovernanceDashboardOverview(baseUrl, token, governanceUnitId) {
+    const payload = await request(baseUrl, `/api/governance/units/${governanceUnitId}/dashboard-overview`, {
+        method: 'GET',
+        token,
+    })
+
+    return {
+        ...(payload && typeof payload === 'object' ? payload : {}),
+        child_units: Array.isArray(payload?.child_units) ? payload.child_units : [],
+    }
+}
+
 export async function getGovernanceUnits(baseUrl, token, params = {}) {
     const payload = await request(baseUrl, '/api/governance/units', {
         method: 'GET',
