@@ -39,7 +39,9 @@ Update these variables in `.env` before deploying to a server:
 - `LOGIN_URL` / `CORS_ALLOWED_ORIGINS` — your frontend's public URL
 - `BACKEND_ORIGIN` / `BACKEND_API_BASE_URL` — your backend's public URL
 - `ASSISTANT_ORIGIN` — your assistant's public URL
-- `EMAIL_TRANSPORT` — enable `smtp` or `mailjet_api`
+- `EMAIL_TRANSPORT` — set to `mailjet_api`
+- `MAILJET_API_KEY` — your Mailjet API key
+- `MAILJET_API_SECRET` — your Mailjet API secret
 - `UVICORN_WORKERS` — increase for production
 - `FRONTEND_PORT` — change to `80` or `443`
 

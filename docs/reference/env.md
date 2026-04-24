@@ -139,7 +139,9 @@ Required — change these from local defaults for production:
 Optional:
 
 - `FRONTEND_PORT` — change to `80` or `443`
-- `EMAIL_TRANSPORT` — enable smtp or mailjet_api
+- `EMAIL_TRANSPORT` — set to `mailjet_api`
+- `MAILJET_API_KEY` — your Mailjet API key
+- `MAILJET_API_SECRET` — your Mailjet API secret
 - `SMTP_*` / `MAILJET_*`
 - `UVICORN_WORKERS` — increase for production
 

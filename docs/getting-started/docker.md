@@ -68,7 +68,7 @@ db (healthy)
 ## Notes
 
 - Running `docker compose up --build` multiple times is safe — migrations and bootstrap are both idempotent.
-- Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). Configure SMTP or Mailjet in `.env` to enable it.
+- Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). For local email capture, set `EMAIL_TRANSPORT=smtp` with `SMTP_HOST=mailpit` and open Mailpit at `http://localhost:8025`. For production, use `EMAIL_TRANSPORT=mailjet_api` with `MAILJET_API_KEY` and `MAILJET_API_SECRET`.
 - The default admin credentials are set in `backend/app/core/app_settings.py` (`default_admin_email` / `default_admin_password`).
 - The repo-root `docker-compose.yml` is local-stack oriented and hardcodes internal container URLs. For external production infra, update those URLs or use a Compose override.
 
@@ -86,6 +86,8 @@ Change these variables in `.env` before deploying:
 | `BACKEND_API_BASE_URL` | Your backend's public URL |
 | `BACKEND_ORIGIN` | Same — used by the frontend container |
 | `ASSISTANT_ORIGIN` | Your assistant's public URL |
-| `EMAIL_TRANSPORT` | Change from `disabled` to `smtp` or `mailjet_api` |
+| `EMAIL_TRANSPORT` | Set to `mailjet_api` for production |
+| `MAILJET_API_KEY` | Your Mailjet API key |
+| `MAILJET_API_SECRET` | Your Mailjet API secret |
 | `UVICORN_WORKERS` | Increase to match your CPU count |
 | `FRONTEND_PORT` | Change from `5173` to `80` or `443` |
