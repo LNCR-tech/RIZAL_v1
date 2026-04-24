@@ -88,6 +88,7 @@
                 <p class="sg-field-label">Please Select Location for Attendance</p>
 
                 <EventLocationPicker
+                  v-if="isCreating"
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
                   :radius-m="form.radius_meters"

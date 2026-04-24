@@ -149,6 +149,7 @@ let mapInstance = null
 let markerInstance = null
 let radiusPreview = null
 let resizeObserver = null
+let resizeRafId = 0
 let invalidateTimeoutId = 0
 let mapInitSequence = 0
 let isComponentUnmounted = false
@@ -242,6 +243,11 @@ function cleanupMap() {
     resizeObserver = null
   }
 
+  if (resizeRafId) {
+    window.cancelAnimationFrame(resizeRafId)
+    resizeRafId = 0
+  }
+
   removeMarkerFromMap()
   removeRadiusPreview()
 
@@ -260,7 +266,19 @@ function observeMapResize() {
   if (!mapEl.value || typeof ResizeObserver === 'undefined') return
 
   resizeObserver = new ResizeObserver(() => {
-    mapInstance?.invalidateSize()
+    if (!mapInstance) return
+
+    if (resizeRafId) {
+      window.cancelAnimationFrame(resizeRafId)
+    }
+
+    resizeRafId = window.requestAnimationFrame(() => {
+      resizeRafId = 0
+      mapInstance?.invalidateSize({
+        pan: false,
+        debounceMoveend: true,
+      })
+    })
   })
   resizeObserver.observe(mapEl.value)
 }
