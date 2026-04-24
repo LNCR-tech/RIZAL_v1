@@ -84,7 +84,7 @@ Change these variables in `.env` before deploying:
 | `LOGIN_URL` | Your frontend's public URL |
 | `CORS_ALLOWED_ORIGINS` | Same as `LOGIN_URL` |
 | `BACKEND_API_BASE_URL` | Your backend's public URL |
-| `BACKEND_ORIGIN` | Same — used by the frontend container |
+| `BACKEND_ORIGIN` | Your backend's public URL — used by the frontend NGINX container to proxy `/__backend__/` requests |
 | `ASSISTANT_ORIGIN` | Your assistant's public URL |
 | `EMAIL_TRANSPORT` | Set to `mailjet_api` for production |
 | `MAILJET_API_KEY` | Your Mailjet API key |
