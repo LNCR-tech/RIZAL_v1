@@ -40,6 +40,7 @@ Open:
 - Backend API docs: `http://localhost:8000/docs`
 - Assistant docs (via frontend proxy): `http://localhost:5173/__assistant__/docs`
 Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). Set to `mailjet_api` and provide `MAILJET_API_KEY` / `MAILJET_API_SECRET` in `.env` to enable it.
+For local capture testing, set `EMAIL_TRANSPORT=smtp` with `SMTP_HOST=mailpit` and open Mailpit at `http://localhost:8025`.
 
 ## Production Path
 

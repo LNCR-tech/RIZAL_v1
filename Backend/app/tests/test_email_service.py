@@ -7,6 +7,7 @@ import json
 from types import SimpleNamespace
 
 from app.services import email_service
+from app.services.email_service import transport as email_transport
 
 
 def _mailjet_settings(**overrides):
@@ -17,8 +18,37 @@ def _mailjet_settings(**overrides):
         "email_sender_email": "mailer@example.com",
         "email_sender_name": "Aura Notifications",
         "email_reply_to": "",
+        "smtp_host": "",
+        "smtp_port": 587,
+        "smtp_username": "",
+        "smtp_password": "",
+        "smtp_use_tls": False,
+        "smtp_use_starttls": False,
         "mailjet_api_key": "mailjet-key",
         "mailjet_api_secret": "mailjet-secret",
+        "mailjet_api_base_url": "https://api.mailjet.com/v3.1/send",
+        "login_url": "https://aura.example/login",
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+def _smtp_settings(**overrides):
+    defaults = {
+        "email_transport": "smtp",
+        "email_verify_connection_on_startup": False,
+        "email_timeout_seconds": 20,
+        "email_sender_email": "mailer@example.com",
+        "email_sender_name": "Aura Notifications",
+        "email_reply_to": "",
+        "smtp_host": "mailpit",
+        "smtp_port": 1025,
+        "smtp_username": "",
+        "smtp_password": "",
+        "smtp_use_tls": False,
+        "smtp_use_starttls": False,
+        "mailjet_api_key": "",
+        "mailjet_api_secret": "",
         "mailjet_api_base_url": "https://api.mailjet.com/v3.1/send",
         "login_url": "https://aura.example/login",
     }
@@ -137,6 +167,38 @@ def test_validate_email_delivery_settings_accepts_mailjet_transport() -> None:
     assert resolved.sender_name == "Aura Notifications"
 
 
+def test_validate_email_delivery_settings_accepts_smtp_transport() -> None:
+    resolved = email_service.validate_email_delivery_settings(_smtp_settings())
+
+    assert resolved.transport == "smtp"
+    assert resolved.auth_mode == "none"
+    assert resolved.sender_email == "mailer@example.com"
+    assert resolved.sender_name == "Aura Notifications"
+    assert resolved.warnings
+
+
+def test_validate_email_delivery_settings_rejects_conflicting_smtp_tls_modes() -> None:
+    try:
+        email_service.validate_email_delivery_settings(
+            _smtp_settings(smtp_use_tls=True, smtp_use_starttls=True),
+        )
+    except email_service.EmailConfigurationError as exc:
+        assert "SMTP_USE_TLS and SMTP_USE_STARTTLS" in str(exc)
+    else:
+        raise AssertionError("Expected EmailConfigurationError for conflicting SMTP TLS settings")
+
+
+def test_validate_email_delivery_settings_rejects_partial_smtp_auth() -> None:
+    try:
+        email_service.validate_email_delivery_settings(
+            _smtp_settings(smtp_username="mailer", smtp_password=""),
+        )
+    except email_service.EmailConfigurationError as exc:
+        assert "SMTP_USERNAME and SMTP_PASSWORD" in str(exc)
+    else:
+        raise AssertionError("Expected EmailConfigurationError for partial SMTP auth settings")
+
+
 def test_validate_email_delivery_settings_rejects_disabled_transport() -> None:
     try:
         email_service.validate_email_delivery_settings(
@@ -234,6 +296,67 @@ def test_send_plain_email_uses_mailjet_transport(monkeypatch) -> None:
     assert captured["json"]["Messages"][0]["To"] == [{"Email": "recipient@example.com"}]
     assert captured["json"]["Messages"][0]["Subject"] == "Subject"
     assert captured["json"]["Messages"][0]["TextPart"] == "Body"
+
+
+def test_send_plain_email_uses_smtp_transport(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeSMTPClient:
+        def __enter__(self):
+            captured["entered"] = True
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            captured["exited"] = True
+            return False
+
+        def send_message(self, message):
+            captured["from"] = message["From"]
+            captured["to"] = message["To"]
+            captured["subject"] = message["Subject"]
+            captured["body"] = message.get_content().strip()
+
+    monkeypatch.setattr(
+        email_service,
+        "get_settings",
+        lambda: _smtp_settings(),
+    )
+    monkeypatch.setattr(email_transport, "_open_smtp_connection", lambda settings: FakeSMTPClient())
+
+    email_service.send_plain_email(
+        recipient_email="recipient@example.com",
+        subject="Subject",
+        body="Body",
+    )
+
+    assert captured["entered"] is True
+    assert captured["exited"] is True
+    assert captured["to"] == "recipient@example.com"
+    assert captured["subject"] == "Subject"
+    assert captured["body"] == "Body"
+
+
+def test_check_email_delivery_connection_verifies_smtp_transport(monkeypatch) -> None:
+    captured: dict[str, bool] = {}
+
+    class FakeSMTPClient:
+        def __enter__(self):
+            captured["entered"] = True
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            captured["exited"] = True
+            return False
+
+    monkeypatch.setattr(email_transport, "_open_smtp_connection", lambda settings: FakeSMTPClient())
+
+    status = email_service.check_email_delivery_connection(settings=_smtp_settings())
+
+    assert status.transport == "smtp"
+    assert status.host == "mailpit"
+    assert status.port == 1025
+    assert captured["entered"] is True
+    assert captured["exited"] is True
 
 
 def test_send_plain_email_surfaces_mailjet_credential_errors(monkeypatch) -> None:

@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Prepare env file
-        run: cp .env.example .env
+        run: cp .env .env
       - name: Validate local compose config
         run: docker compose config --quiet
       - name: Validate production compose config

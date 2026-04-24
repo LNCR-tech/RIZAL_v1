@@ -25,6 +25,12 @@ Copy `.env.example` to `.env` and set at least:
 
 Optional:
 
+- SMTP settings when `EMAIL_TRANSPORT=smtp`:
+  - `SMTP_HOST`
+  - `SMTP_PORT`
+  - `SMTP_USE_TLS`
+  - `SMTP_USE_STARTTLS`
+  - `SMTP_USERNAME` and `SMTP_PASSWORD` (only when auth is required)
 - Mailjet credentials when `EMAIL_TRANSPORT=mailjet_api`
 
 ## Minimum Manual Local Setup

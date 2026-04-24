@@ -1,7 +1,9 @@
-"""Transport helpers for the Mailjet-backed email service package."""
+"""Transport helpers for SMTP/Mailjet email delivery."""
 
 from __future__ import annotations
 
+import smtplib
+import ssl
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from urllib.parse import urlparse
@@ -65,6 +67,98 @@ def _extract_mailjet_error_detail(response) -> str:
 
 def _mailjet_auth(settings: Settings) -> tuple[str, str]:
     return (settings.mailjet_api_key, settings.mailjet_api_secret)
+
+
+def _smtp_timeout(settings: Settings) -> float:
+    return float(settings.email_timeout_seconds)
+
+
+def _smtp_host(settings: Settings) -> str:
+    return (settings.smtp_host or "").strip()
+
+
+def _smtp_port(settings: Settings) -> int:
+    return int(settings.smtp_port)
+
+
+def _open_smtp_connection(settings: Settings) -> smtplib.SMTP:
+    timeout = _smtp_timeout(settings)
+    host = _smtp_host(settings)
+    port = _smtp_port(settings)
+    smtp_client: smtplib.SMTP | None = None
+
+    try:
+        if settings.smtp_use_tls:
+            smtp_client = smtplib.SMTP_SSL(
+                host=host,
+                port=port,
+                timeout=timeout,
+            )
+        else:
+            smtp_client = smtplib.SMTP(
+                host=host,
+                port=port,
+                timeout=timeout,
+            )
+
+        smtp_client.ehlo()
+
+        if settings.smtp_use_starttls:
+            smtp_client.starttls(context=ssl.create_default_context())
+            smtp_client.ehlo()
+
+        if settings.smtp_username:
+            smtp_client.login(settings.smtp_username, settings.smtp_password)
+        return smtp_client
+    except smtplib.SMTPAuthenticationError as exc:
+        if smtp_client is not None:
+            try:
+                smtp_client.close()
+            except Exception:
+                pass
+        raise EmailDeliveryError(
+            "SMTP authentication failed. Check SMTP_USERNAME and SMTP_PASSWORD."
+        ) from exc
+    except (TimeoutError, OSError) as exc:
+        if smtp_client is not None:
+            try:
+                smtp_client.close()
+            except Exception:
+                pass
+        raise EmailDeliveryError(
+            "Could not reach the SMTP server. Check SMTP_HOST, SMTP_PORT, and network access."
+        ) from exc
+    except smtplib.SMTPException as exc:
+        if smtp_client is not None:
+            try:
+                smtp_client.close()
+            except Exception:
+                pass
+        raise EmailDeliveryError(f"SMTP connection failed: {exc}") from exc
+
+
+def _send_via_smtp(
+    *,
+    settings: Settings,
+    msg: EmailMessage,
+) -> None:
+    try:
+        with _open_smtp_connection(settings) as smtp_client:
+            smtp_client.send_message(msg)
+    except EmailDeliveryError:
+        raise
+    except smtplib.SMTPRecipientsRefused as exc:
+        raise EmailDeliveryError(f"SMTP rejected recipients: {exc.recipients}") from exc
+    except smtplib.SMTPSenderRefused as exc:
+        raise EmailDeliveryError(
+            f"SMTP rejected sender address {exc.sender!r}: {exc.smtp_error!r}"
+        ) from exc
+    except smtplib.SMTPDataError as exc:
+        raise EmailDeliveryError(
+            f"SMTP server rejected email content: {exc.smtp_error!r}"
+        ) from exc
+    except smtplib.SMTPException as exc:
+        raise EmailDeliveryError(f"SMTP send failed: {exc}") from exc
 
 
 def _extract_message_part(msg: EmailMessage, subtype: str) -> str:
@@ -249,6 +343,12 @@ def send_transactional_email(
             msg=msg,
         )
         return
+    if resolved_delivery.transport == "smtp":
+        _send_via_smtp(
+            settings=settings,
+            msg=msg,
+        )
+        return
     raise EmailDeliveryError(
         f"Unsupported email transport configured: {resolved_delivery.transport}"
     )
@@ -284,6 +384,18 @@ def check_email_delivery_connection(
     for warning in resolved_delivery.warnings:
         logger.warning(warning)
 
+    if resolved_delivery.transport == "smtp":
+        with _open_smtp_connection(resolved_settings):
+            pass
+        return EmailConnectionStatus(
+            host=_smtp_host(resolved_settings),
+            port=_smtp_port(resolved_settings),
+            transport=resolved_delivery.transport,
+            auth_mode=resolved_delivery.auth_mode,
+            sender=resolved_delivery.sender_email,
+            reply_to=resolved_delivery.reply_to,
+            warnings=resolved_delivery.warnings,
+        )
     if resolved_delivery.transport != "mailjet_api":
         raise EmailDeliveryError(
             f"Unsupported email transport configured: {resolved_delivery.transport}"
@@ -339,6 +451,16 @@ def get_email_delivery_summary(settings: Settings | None = None) -> dict[str, ob
     resolved_settings = settings or get_settings()
     resolved_delivery = validate_email_delivery_settings(resolved_settings)
 
+    if resolved_delivery.transport == "smtp":
+        return {
+            "transport": resolved_delivery.transport,
+            "host": _smtp_host(resolved_settings),
+            "port": _smtp_port(resolved_settings),
+            "auth_mode": resolved_delivery.auth_mode,
+            "sender": resolved_delivery.sender_email,
+            "reply_to": resolved_delivery.reply_to,
+            "warnings": list(resolved_delivery.warnings),
+        }
     if resolved_delivery.transport != "mailjet_api":
         raise EmailDeliveryError(
             f"Unsupported email transport configured: {resolved_delivery.transport}"

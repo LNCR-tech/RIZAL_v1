@@ -35,7 +35,7 @@ class Attendance(Base):
         PG_ENUM(
             'present', 'late', 'absent', 'excused',  # Explicit lowercase values
             name='attendancestatus',
-            create_type=False  # Use existing type
+            create_type=True  # Use existing type
         ),
         default='present',  # Lowercase default
         nullable=False

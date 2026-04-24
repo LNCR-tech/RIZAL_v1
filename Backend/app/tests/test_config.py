@@ -55,6 +55,12 @@ def test_get_settings_exposes_mailjet_and_runtime_fields(monkeypatch):
     monkeypatch.setenv("EMAIL_SENDER_EMAIL", "mailer@example.com")
     monkeypatch.setenv("EMAIL_SENDER_NAME", "Aura Notifications")
     monkeypatch.setenv("EMAIL_REPLY_TO", "reply@example.com")
+    monkeypatch.setenv("SMTP_HOST", "mailpit")
+    monkeypatch.setenv("SMTP_PORT", "1025")
+    monkeypatch.setenv("SMTP_USERNAME", "")
+    monkeypatch.setenv("SMTP_PASSWORD", "")
+    monkeypatch.setenv("SMTP_USE_TLS", "false")
+    monkeypatch.setenv("SMTP_USE_STARTTLS", "false")
     monkeypatch.setenv("MAILJET_API_KEY", "mailjet-key")
     monkeypatch.setenv("MAILJET_API_SECRET", "mailjet-secret")
     monkeypatch.setenv("LOGIN_URL", "https://valid8.example/login")
@@ -70,6 +76,12 @@ def test_get_settings_exposes_mailjet_and_runtime_fields(monkeypatch):
     assert settings.email_sender_email == "mailer@example.com"
     assert settings.email_sender_name == "Aura Notifications"
     assert settings.email_reply_to == "reply@example.com"
+    assert settings.smtp_host == "mailpit"
+    assert settings.smtp_port == 1025
+    assert settings.smtp_username == ""
+    assert settings.smtp_password == ""
+    assert settings.smtp_use_tls is False
+    assert settings.smtp_use_starttls is False
     assert settings.mailjet_api_key == "mailjet-key"
     assert settings.mailjet_api_secret == "mailjet-secret"
     assert settings.login_url == "https://valid8.example/login"
@@ -96,11 +108,27 @@ def test_get_settings_normalizes_relative_storage_paths(monkeypatch):
 
 def test_get_settings_defaults_email_transport_to_disabled_when_unset(monkeypatch):
     monkeypatch.delenv("EMAIL_TRANSPORT", raising=False)
+<<<<<<< Updated upstream
     monkeypatch.delenv("MAILJET_API_KEY", raising=False)
     monkeypatch.delenv("MAILJET_API_SECRET", raising=False)
+=======
+    monkeypatch.delenv("SMTP_PORT", raising=False)
+>>>>>>> Stashed changes
 
     settings = get_settings()
 
     assert settings.email_transport == "disabled"
+    assert settings.smtp_port == 587
     assert settings.mailjet_api_key == ""
     assert settings.mailjet_api_secret == ""
+
+
+def test_get_settings_rejects_invalid_smtp_port(monkeypatch):
+    monkeypatch.setenv("SMTP_PORT", "not-a-port")
+
+    try:
+        get_settings()
+    except ValueError as exc:
+        assert "SMTP_PORT" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid SMTP_PORT")

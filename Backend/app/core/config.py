@@ -68,6 +68,15 @@ def _as_bool(value: str | None, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _as_int(value: str | None, default: int, field_name: str) -> int:
+    if value is None or not value.strip():
+        return default
+    try:
+        return int(value.strip())
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a valid integer.") from exc
+
+
 def _as_csv_list(value: str | None, default: list[str]) -> list[str]:
     if value is None:
         return default
@@ -123,6 +132,12 @@ class Settings:
     email_sender_email: str
     email_sender_name: str
     email_reply_to: str
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_use_tls: bool
+    smtp_use_starttls: bool
     mailjet_api_key: str
     mailjet_api_secret: str
     mailjet_api_base_url: str
@@ -186,6 +201,12 @@ def get_settings() -> Settings:
         email_sender_email=os.getenv("EMAIL_SENDER_EMAIL", "").strip(),
         email_sender_name=os.getenv("EMAIL_SENDER_NAME", "Aura Notifications").strip(),
         email_reply_to=os.getenv("EMAIL_REPLY_TO", "").strip(),
+        smtp_host=os.getenv("SMTP_HOST", "").strip(),
+        smtp_port=_as_int(os.getenv("SMTP_PORT"), 587, "SMTP_PORT"),
+        smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
+        smtp_password=os.getenv("SMTP_PASSWORD", "").strip(),
+        smtp_use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), False),
+        smtp_use_starttls=_as_bool(os.getenv("SMTP_USE_STARTTLS"), False),
         mailjet_api_key=os.getenv("MAILJET_API_KEY", "").strip(),
         mailjet_api_secret=os.getenv("MAILJET_API_SECRET", "").strip(),
         mailjet_api_base_url=APP_SETTINGS.mailjet_api_base_url,

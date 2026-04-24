@@ -1,4 +1,4 @@
-"""Mailjet-backed email service package."""
+"""SMTP and Mailjet email service package."""
 
 from __future__ import annotations
 

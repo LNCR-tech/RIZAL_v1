@@ -18,7 +18,7 @@ class BackendAppSettings:
     db_pool_recycle_seconds: int = 1800
     access_token_expire_minutes: int = 30
 
-    face_scan_bypass_all: bool = True
+    face_scan_bypass_all: bool = False
     face_scan_bypass_emails: tuple[str, ...] = ()
     face_threshold_single: float = 0.40
     face_threshold_group: float = 0.40
