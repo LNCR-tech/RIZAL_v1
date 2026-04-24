@@ -35,8 +35,6 @@ Frontend/.env.local
 *.sqlite3
 postgres_data/
 Backend/smoke.db
-storage/imports/
-storage/school_logos/
 Backend/storage/imports/
 Backend/storage/school_logos/
 Backend/storage/seed_credentials.csv
