@@ -5,7 +5,7 @@ Role: Schema layer. It keeps API payloads clear and typed.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -25,6 +25,15 @@ class UserBase(BaseModel):
     first_name: str
     middle_name: str | None = None
     last_name: str
+
+
+def _as_utc_datetime(value):
+    """Normalize naive datetimes as UTC so API responses include an explicit offset."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _normalize_student_id_or_raise(value: str | None) -> str | None:
@@ -200,6 +209,11 @@ class User(UserBase):
     face_scan_bypass_enabled: bool = False
     created_at: datetime
     roles: list[UserRoleResponse] = Field(default_factory=list)
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def normalize_created_at_timezone(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 

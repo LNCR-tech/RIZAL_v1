@@ -3,10 +3,19 @@ Where to use: Use this in routers and services when validating or returning gove
 Role: Schema layer. It keeps API payloads clear and typed.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _as_utc_datetime(value):
+    """Normalize naive datetimes as UTC so API responses include an explicit offset."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class DataGovernanceSettingResponse(BaseModel):
@@ -16,6 +25,11 @@ class DataGovernanceSettingResponse(BaseModel):
     import_file_retention_days: int
     auto_delete_enabled: bool
     updated_at: datetime
+
+    @field_validator("updated_at", mode="before")
+    @classmethod
+    def normalize_updated_at_timezone(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,6 +57,11 @@ class PrivacyConsentItem(BaseModel):
     consent_version: str
     source: str
     created_at: datetime
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def normalize_created_at_timezone(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,6 +92,11 @@ class DataRequestItem(BaseModel):
     handled_by_user_id: Optional[int] = None
     created_at: datetime
     resolved_at: Optional[datetime] = None
+
+    @field_validator("created_at", "resolved_at", mode="before")
+    @classmethod
+    def normalize_request_timestamps(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 

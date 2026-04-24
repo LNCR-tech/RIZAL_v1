@@ -3,10 +3,19 @@ Where to use: Use this in routers and services when validating or returning secu
 Role: Schema layer. It keeps API payloads clear and typed.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+def _as_utc_datetime(value):
+    """Normalize naive datetimes as UTC so API responses include an explicit offset."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class UserSessionItem(BaseModel):
@@ -19,6 +28,11 @@ class UserSessionItem(BaseModel):
     revoked_at: Optional[datetime] = None
     expires_at: datetime
     is_current: bool = False
+
+    @field_validator("created_at", "last_seen_at", "revoked_at", "expires_at", mode="before")
+    @classmethod
+    def normalize_session_timestamps(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -39,5 +53,10 @@ class LoginHistoryItem(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     created_at: datetime
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def normalize_created_at_timezone(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)

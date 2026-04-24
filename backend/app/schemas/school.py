@@ -5,12 +5,21 @@ Role: Schema layer. It keeps API payloads clear and typed.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{6})$"
+
+
+def _as_utc_datetime(value):
+    """Normalize naive datetimes as UTC so API responses include an explicit offset."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class SchoolBrandingResponse(BaseModel):
@@ -27,6 +36,11 @@ class SchoolBrandingResponse(BaseModel):
     active_status: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def normalize_branding_timestamps(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -81,6 +95,11 @@ class SchoolSummaryResponse(BaseModel):
     active_status: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def normalize_summary_timestamps(cls, value):
+        return _as_utc_datetime(value)
 
 
 class SchoolITAccountResponse(BaseModel):

@@ -352,8 +352,32 @@ const programsByDepartment = computed(() => {
 
 const VIBRANT_COLORS = ['#ff5a36', '#fbbf24', '#0f172a', '#e2e8f0', '#3b82f6', '#10b981', '#f43f5e']
 
+function normalizeRoleValue(role) {
+  return String(role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+}
+
+function hasRole(user, targetRole) {
+  const normalizedTarget = normalizeRoleValue(targetRole)
+  if (!normalizedTarget) return false
+
+  if (normalizeRoleValue(user?.role) === normalizedTarget) {
+    return true
+  }
+
+  const roles = Array.isArray(user?.roles) ? user.roles : []
+  return roles.some((entry) => {
+    const roleName = entry?.role?.name ?? entry?.name ?? entry
+    return normalizeRoleValue(roleName) === normalizedTarget
+  })
+}
+
 const collegeDemographics = computed(() => {
-  const students = filteredUsers.value.filter((user) => String(user.role || '').toLowerCase() === 'student')
+  const students = filteredUsers.value.filter((user) => (
+    hasRole(user, 'student') || user?.student_profile != null
+  ))
   
   const countsByDept = new Map()
   students.forEach((student) => {
@@ -364,17 +388,6 @@ const collegeDemographics = computed(() => {
       countsByDept.set('unassigned', (countsByDept.get('unassigned') || 0) + 1)
     }
   })
-
-  if (countsByDept.size === 0 || (countsByDept.size === 1 && countsByDept.has('unassigned'))) {
-    if (filteredDepartments.value.length >= 2) {
-      return filteredDepartments.value.slice(0, 4).map((dept, idx) => ({
-        id: dept.id,
-        shortLabel: dept.acronym || dept.name,
-        count: Math.floor(Math.random() * 500) + 100,
-        color: VIBRANT_COLORS[idx % VIBRANT_COLORS.length]
-      })).sort((a, b) => b.count - a.count)
-    }
-  }
 
   let index = 0
   const result = []
