@@ -12,19 +12,28 @@ npm run dev
 
 Vite will print the dev URL (default `http://localhost:5173`).
 
-## Dev Defaults (`.env.development`)
+## Env File For Vite Dev
 
-This repo includes `frontend/.env.development` so `npm run dev` works out of the box:
+Use `frontend/.env.development.local` for manual frontend development.
+
+Start from the tracked example:
+
+```powershell
+Copy-Item .\.env.development.local.example .\.env.development.local -Force
+```
+
+Required local value:
 
 - `VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000`
-- `VITE_ASSISTANT_PROXY_TARGET=http://127.0.0.1:8500`
-- `VITE_ASSISTANT_BASE_URL=http://127.0.0.1:8500` (bypasses proxy to avoid SSE buffering issues)
 
-## Backend/Assistant Connectivity (Dev)
+Optional local values:
 
-There are two common ways to point the frontend at the backend/assistant during dev:
+- `VITE_API_BASE_URL=/__backend__`
+- `VITE_API_TIMEOUT_MS=15000`
+- `VITE_NATIVE_API_BASE_URL=http://127.0.0.1:8000` for native/mobile builds
 
-1. Use the Vite proxy and keep app URLs relative.
-2. Use absolute URLs (useful for native/Android builds).
+## Backend Connectivity (Dev)
+
+The current Vite dev server only proxies backend requests through `/__backend__`.
 
 Details and the exact environment variables are documented in: [Frontend configuration](./configuration.md).

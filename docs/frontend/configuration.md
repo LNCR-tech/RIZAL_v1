@@ -4,22 +4,31 @@
 
 This frontend supports both:
 
-- Web dev server (Vite) configuration via `VITE_*` variables.
-- Docker/NGINX runtime config via injected `window.__AURA_RUNTIME_CONFIG__`.
+- Vite dev-server configuration via `frontend/.env.development.local`
+- Docker/NGINX runtime configuration via injected `window.__AURA_RUNTIME_CONFIG__`
+
+## Which File To Edit
+
+- Manual `npm run dev`
+  Edit `frontend/.env.development.local`
+- Standalone frontend Docker flow inside `frontend/`
+  Edit `frontend/.env.docker`
+- Repo-root Docker Compose
+  Edit the root `.env`, not the frontend env files
 
 ## Vite Dev Server Proxy
 
 Configured in `frontend/vite.config.js`.
 
-- `VITE_BACKEND_PROXY_TARGET`: proxy target for requests under `/__backend__`.
-- `VITE_ASSISTANT_PROXY_TARGET`: proxy target for requests under `/__assistant__`.
+- `VITE_BACKEND_PROXY_TARGET`: proxy target for requests under `/__backend__`
 
-When set, Vite will rewrite:
+Optional Vite variables used elsewhere in the frontend:
 
-- `/__backend__/...` -> `<VITE_BACKEND_PROXY_TARGET>/...`
-- `/__assistant__/...` -> `<VITE_ASSISTANT_PROXY_TARGET>/...`
+- `VITE_API_BASE_URL`
+- `VITE_API_TIMEOUT_MS`
+- `VITE_NATIVE_API_BASE_URL`
 
-Note: `frontend/.env.development` sets sensible defaults for local dev. It also sets `VITE_ASSISTANT_BASE_URL` to bypass the proxy for the assistant so server-sent events (SSE) streaming is not buffered by the dev proxy.
+Start local dev from `frontend/.env.development.local.example`, then create your own untracked `frontend/.env.development.local`.
 
 ## Runtime Config (Docker/NGINX)
 
@@ -27,21 +36,26 @@ When running in Docker, the frontend container renders `frontend/runtime-config.
 
 - `apiBaseUrl` (default `/__backend__`)
 - `apiTimeoutMs` (default `15000`)
-- `assistantBaseUrl` (default `/__assistant__`)
 
-NGINX reverse-proxy rules live in `frontend/nginx.conf.template` and map:
+NGINX reverse-proxy rules live in `frontend/nginx.conf.template` and currently map:
 
 - `/__backend__/` -> `${BACKEND_ORIGIN}` (default `http://backend:8000`)
-- `/__assistant__/` -> `${ASSISTANT_ORIGIN}` (default `http://assistant:8500`)
 
-## Docker Compose Defaults
+## Repo-Root Docker Compose Defaults
 
 See `docker-compose.yml` service `frontend` for defaults:
 
 - `BACKEND_ORIGIN`
-- `ASSISTANT_ORIGIN`
 - `AURA_API_BASE_URL`
 - `AURA_API_TIMEOUT_MS`
-- `AURA_ASSISTANT_BASE_URL`
+
+These values come from the root `.env`, not `frontend/.env.docker`.
+
+## Standalone Frontend Docker Defaults
+
+The standalone frontend flow inside `frontend/` uses:
+
+- `frontend/.env.docker.example` as the tracked template
+- `frontend/.env.docker` as the local override
 
 For a complete list of env keys, use: [Environment Variables](../reference/env.md).

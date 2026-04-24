@@ -11,8 +11,8 @@ These are the defaults from `docker-compose.yml`.
   - OpenAPI docs: `http://localhost:8000/docs`
   - OpenAPI docs via frontend proxy: `http://localhost:5173/__backend__/docs`
 - Assistant:
-  - OpenAPI docs via frontend proxy: `http://localhost:5173/__assistant__/docs`
-  - Health via frontend proxy: `http://localhost:5173/__assistant__/health`
+  - OpenAPI docs: `http://localhost:8500/docs`
+  - Health: `http://localhost:8500/health`
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433` on the host and `db:5432` inside the Docker network
 - Redis: `localhost:6379`

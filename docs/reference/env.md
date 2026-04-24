@@ -2,53 +2,163 @@
 
 [<- Back to docs index](../../README.md)
 
-## Source of Truth
+## Separation Of Concerns
 
-- `.env.example` now documents only secrets, connection strings, deployment URLs, and a few operational overrides.
-- Backend non-secret defaults now live in `backend/app/core/app_settings.py`.
-- Assistant non-secret defaults now live in `assistant-v2/lib/app_settings.py`.
-- Backend env parsing remains in `backend/app/core/config.py`.
-- Frontend runtime configuration is injected via `frontend/runtime-config.js.template` and the Docker/NGINX templates.
+Use the env file that matches the process you are starting:
 
-`.env.example` is no longer the source of truth for import limits, email timeouts, face thresholds, school-logo limits, or assistant model defaults.
+- Root `.env`
+  Used by backend, assistant, Celery worker/beat, and repo-root `docker compose`.
+- `frontend/.env.development.local`
+  Used by frontend Vite dev when you run `npm run dev`.
+- `frontend/.env.docker`
+  Used only by the standalone frontend Docker setup inside `frontend/`.
 
-## Minimum Docker Setup
+Do not put frontend `VITE_*` local-dev overrides in the root `.env`.
 
-Copy `.env.example` to `.env` and set at least:
+## Local Setup
+
+### Variables That Apply To Both Manual And Docker
+
+Required in root `.env`:
 
 - `SECRET_KEY`
-- `DATABASE_URL` when you are not using the local Docker Postgres defaults
-- `ASSISTANT_DB_URL` when you are not using the local Docker Postgres defaults
-- `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` when you are not using the local Docker Redis defaults
 - `AI_API_KEY`
-- `AI_API_BASE` when you are using a non-default provider endpoint
+- `AI_API_BASE`
+- `AI_MODEL`
 
-Optional:
+Optional in root `.env`:
 
-- SMTP settings when `EMAIL_TRANSPORT=smtp`:
-  - `SMTP_HOST`
-  - `SMTP_PORT`
-  - `SMTP_USE_TLS`
-  - `SMTP_USE_STARTTLS`
-  - `SMTP_USERNAME` and `SMTP_PASSWORD` (only when auth is required)
-- Mailjet credentials when `EMAIL_TRANSPORT=mailjet_api`
+- `JWT_ALGORITHM`
+- `JWT_PUBLIC_KEY`
+- email transport settings
 
-## Minimum Manual Local Setup
+Conditional email rules:
 
-When running services directly on your machine, set:
+- if `EMAIL_TRANSPORT=disabled`, email credentials stay optional
+- if `EMAIL_TRANSPORT=smtp`, `EMAIL_SENDER_EMAIL`, `EMAIL_SENDER_NAME`, and `SMTP_HOST` are required
+- if `EMAIL_TRANSPORT=mailjet_api`, `EMAIL_SENDER_EMAIL`, `EMAIL_SENDER_NAME`, `MAILJET_API_KEY`, and `MAILJET_API_SECRET` are required
 
-- `SECRET_KEY`
+### Manual
+
+Required in root `.env`:
+
 - `DATABASE_URL`
 - `ASSISTANT_DB_URL`
 - `CELERY_BROKER_URL`
 - `CELERY_RESULT_BACKEND`
-- `AI_API_KEY`
 - `BACKEND_API_BASE_URL=http://127.0.0.1:8000`
+
+Optional in root `.env`:
+
+- `ASSISTANT_AUTO_MIGRATE`
+- `LOGIN_URL`
+- `CORS_ALLOWED_ORIGINS`
+- `UVICORN_WORKERS`
+- SMTP auth/TLS settings
+
+Required in `frontend/.env.development.local`:
+
+- `VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000`
+
+Optional in `frontend/.env.development.local`:
+
+- `VITE_API_BASE_URL=/__backend__`
+- `VITE_API_TIMEOUT_MS=15000`
+- native/mobile-only `VITE_NATIVE_API_BASE_URL`
+
+Start from the tracked example:
+
+- `frontend/.env.development.local.example`
+
+### Docker
+
+Required in root `.env`:
+
+- none beyond the shared local values for the current repo-root Docker flow
+
+Optional in root `.env`:
+
+- `FRONTEND_PORT`
+- `EMAIL_TRANSPORT`
+- `SMTP_*`
+- `UVICORN_WORKERS`
+
+Important:
+
+- the current repo-root `docker-compose.yml` hardcodes local container URLs for Postgres, Redis, backend, and assistant
+- root `.env` does not override those infrastructure URLs in the current Compose file
+
+## Production Setup
+
+### Variables That Apply To Both Manual And Docker
+
+Required:
+
+- `SECRET_KEY`
+- `AI_API_KEY`
+- `AI_API_BASE`
+- `AI_MODEL`
+
+Optional:
+
+- `JWT_ALGORITHM`
+- `JWT_PUBLIC_KEY`
+- email transport and sender settings
+
+Conditional email rules:
+
+- if `EMAIL_TRANSPORT=disabled`, email credentials stay optional
+- if `EMAIL_TRANSPORT=smtp`, `EMAIL_SENDER_EMAIL`, `EMAIL_SENDER_NAME`, and `SMTP_HOST` are required
+- if `EMAIL_TRANSPORT=mailjet_api`, `EMAIL_SENDER_EMAIL`, `EMAIL_SENDER_NAME`, `MAILJET_API_KEY`, and `MAILJET_API_SECRET` are required
+
+### Manual
+
+Required:
+
+- production `DATABASE_URL`
+- production `ASSISTANT_DB_URL`
+- production `CELERY_BROKER_URL`
+- production `CELERY_RESULT_BACKEND`
+- production `BACKEND_API_BASE_URL`
+
+Optional:
+
+- `ASSISTANT_AUTO_MIGRATE`
+- `LOGIN_URL`
+- `CORS_ALLOWED_ORIGINS`
+- `UVICORN_WORKERS`
+- SMTP auth/TLS settings
+
+### Docker
+
+Required:
+
+- no additional root `.env` variables are honored for external infra in the current repo-root Compose file because service URLs are hardcoded there
+
+Optional:
+
+- `FRONTEND_PORT`
+- `EMAIL_TRANSPORT`
+- `SMTP_*`
+- `UVICORN_WORKERS`
+
+Important:
+
+- for a real production Docker deployment against external Postgres, Redis, backend, or assistant URLs, update `docker-compose.yml` or use a deployment-specific Compose override
+
+## Source Of Truth
+
+- Backend env parsing: `backend/app/core/config.py`
+- Assistant DB/auth/env loading: `assistant-v2/lib/database.py`, `assistant-v2/lib/auth.py`, `assistant-v2/lib/llm.py`
+- Backend non-secret defaults: `backend/app/core/app_settings.py`
+- Assistant non-secret defaults: `assistant-v2/lib/app_settings.py`
+- Frontend dev env loading: `frontend/vite.config.js`
+- Frontend runtime env rendering: `frontend/runtime-config.js.template`
 
 ## Bootstrap
 
-Initial production data is no longer configured through env toggles.
+Initial admin creation is explicit and not driven by env toggles:
 
-Use the explicit bootstrap command instead:
-
-- `python backend/bootstrap.py --admin-email ... --admin-password ...`
+```powershell
+python backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
+```

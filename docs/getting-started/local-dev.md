@@ -11,24 +11,52 @@ This runs each service directly on your machine for debugging and faster iterati
 - Redis
 - Node.js and npm
 
-## Steps
+## Which Env File Goes Where
 
-1. Create `.env` from `.env.example` and point the connection strings at your local services.
-2. Run backend migrations.
-3. Run the explicit bootstrap command.
-4. Start backend, assistant, and frontend.
+- Root `.env`
+  Backend, assistant, and worker/beat settings.
+- `frontend/.env.development.local`
+  Frontend Vite dev settings only.
 
-The canonical commands are in [Common Commands](../reference/common-commands.md).
+Create them from:
 
-## Frontend Local Override
+- `.env.example`
+- `frontend/.env.development.local.example`
 
-For manual frontend dev, create `frontend/.env.development.local`:
+## Required Root `.env` Values
+
+- `SECRET_KEY`
+- `AI_API_KEY`
+- `AI_API_BASE`
+- `AI_MODEL`
+- `DATABASE_URL`
+- `ASSISTANT_DB_URL`
+- `CELERY_BROKER_URL`
+- `CELERY_RESULT_BACKEND`
+- `BACKEND_API_BASE_URL=http://127.0.0.1:8000`
+
+## Required Frontend Local Override
 
 ```env
 VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000
-VITE_ASSISTANT_PROXY_TARGET=http://127.0.0.1:8500
-VITE_ASSISTANT_BASE_URL=http://127.0.0.1:8500
 ```
+
+Optional frontend local values:
+
+```env
+VITE_API_BASE_URL=/__backend__
+VITE_API_TIMEOUT_MS=15000
+```
+
+## Steps
+
+1. Copy `.env.example` to `.env` and point the connection strings at your local services.
+2. Copy `frontend/.env.development.local.example` to `frontend/.env.development.local`.
+3. Run backend migrations.
+4. Run the explicit bootstrap command.
+5. Start backend, assistant, and frontend.
+
+The canonical commands are in [Common Commands](../reference/common-commands.md).
 
 ## Verification URLs
 
