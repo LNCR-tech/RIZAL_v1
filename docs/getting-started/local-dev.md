@@ -58,6 +58,23 @@ VITE_API_TIMEOUT_MS=15000
 
 The canonical commands are in [Common Commands](../reference/common-commands.md).
 
+## Redis on WSL
+
+If you run Redis inside WSL, the broker URLs in `.env` must point at the WSL IP, not `127.0.0.1`:
+
+```env
+CELERY_BROKER_URL=redis://<wsl-ip>:6379/0
+CELERY_RESULT_BACKEND=redis://<wsl-ip>:6379/0
+```
+
+Get your current WSL IP:
+
+```bash
+wsl hostname -I
+```
+
+This IP changes every time you reboot your laptop. Re-run the command after each reboot and update `.env` if Celery fails to connect.
+
 ## Verification URLs
 
 See: [Ports and URLs](../reference/ports.md).
