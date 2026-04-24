@@ -15,6 +15,8 @@ from app.core.security import (
     get_current_application_user,
     get_current_student_user,
 )
+from app.models.attendance import Attendance as AttendanceModel
+from app.models.department import Department
 from app.main import app
 from app.models.event import Event, EventStatus
 from app.models.face_recognition import UserFaceRecognitionProfile
@@ -73,10 +75,12 @@ def _create_school(test_db, *, code: str, name: str) -> School:
 
 
 def _create_user_with_role(test_db, *, school: School, email: str, role_name: str) -> User:
-    role = Role(name=role_name)
-    test_db.add(role)
-    test_db.commit()
-    test_db.refresh(role)
+    role = test_db.query(Role).filter(Role.name == role_name).first()
+    if role is None:
+        role = Role(name=role_name)
+        test_db.add(role)
+        test_db.commit()
+        test_db.refresh(role)
 
     user = User(
         email=email,
@@ -96,6 +100,26 @@ def _create_user_with_role(test_db, *, school: School, email: str, role_name: st
     return user
 
 
+def _add_role_to_user(test_db, *, user: User, role_name: str) -> None:
+    role = test_db.query(Role).filter(Role.name == role_name).first()
+    if role is None:
+        role = Role(name=role_name)
+        test_db.add(role)
+        test_db.commit()
+        test_db.refresh(role)
+
+    already_assigned = (
+        test_db.query(UserRole)
+        .filter(UserRole.user_id == user.id, UserRole.role_id == role.id)
+        .first()
+    )
+    if already_assigned is not None:
+        return
+
+    test_db.add(UserRole(user_id=user.id, role_id=role.id))
+    test_db.commit()
+
+
 def _load_user_for_override(test_db, user_id: int) -> User:
     return (
         test_db.query(User)
@@ -109,11 +133,21 @@ def _load_user_for_override(test_db, user_id: int) -> User:
     )
 
 
-def _create_student_profile(test_db, *, user: User, seed: int, canonical: bool = True) -> StudentProfile:
+def _create_student_profile(
+    test_db,
+    *,
+    user: User,
+    seed: int,
+    canonical: bool = True,
+    department_id: int | None = None,
+    program_id: int | None = None,
+) -> StudentProfile:
     profile = StudentProfile(
         user_id=user.id,
         school_id=user.school_id,
         student_id=f"STU-{seed:03d}",
+        department_id=department_id,
+        program_id=program_id,
         year_level=1,
         face_encoding=_embedding(seed).tobytes() if canonical else None,
         embedding_provider="arcface" if canonical else None,
@@ -148,6 +182,17 @@ def _create_active_event(test_db, *, school: School) -> Event:
     test_db.commit()
     test_db.refresh(event)
     return event
+
+
+def _create_department(test_db, *, school: School, name: str) -> Department:
+    department = Department(
+        school_id=school.id,
+        name=name,
+    )
+    test_db.add(department)
+    test_db.commit()
+    test_db.refresh(department)
+    return department
 
 
 def test_student_registration_upload_stores_canonical_metadata(client, test_db, monkeypatch) -> None:
@@ -236,6 +281,167 @@ def test_face_scan_with_recognition_records_student_attendance(client, test_db, 
     attendance = profile.attendances[0]
     assert attendance.event_id == event.id
     assert attendance.method == "face_scan"
+
+
+def test_face_scan_with_recognition_rejects_student_outside_event_scope(
+    client,
+    test_db,
+    monkeypatch,
+) -> None:
+    school = _create_school(test_db, code="SCOPE", name="Scope Campus")
+    user = _create_user_with_role(
+        test_db,
+        school=school,
+        email="student.scope@example.com",
+        role_name="student",
+    )
+    _create_student_profile(test_db, user=user, seed=24, canonical=True)
+    event = _create_active_event(test_db, school=school)
+    out_of_scope_department = _create_department(
+        test_db,
+        school=school,
+        name="Out of Scope Department",
+    )
+    event.departments = [out_of_scope_department]
+    test_db.commit()
+    test_db.refresh(event)
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_application_user,
+        lambda db=Depends(get_db): _load_user_for_override(db, user.id),
+    )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="single"),
+    )
+
+    response = client.post(
+        "/api/face/face-scan-with-recognition",
+        json={
+            "event_id": event.id,
+            "image_base64": _frame_payload(),
+            "latitude": 8.1575,
+            "longitude": 123.8431,
+            "accuracy_m": 5,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "The signed-in student is outside this event scope."
+
+
+def test_face_scan_with_recognition_rejects_non_student_operator_accounts(
+    client,
+    test_db,
+    monkeypatch,
+) -> None:
+    school = _create_school(test_db, code="OPR", name="Operator Campus")
+    user = _create_user_with_role(
+        test_db,
+        school=school,
+        email="governance.operator@example.com",
+        role_name="ssg",
+    )
+    _add_role_to_user(test_db, user=user, role_name="admin")
+    event = _create_active_event(test_db, school=school)
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_application_user,
+        lambda db=Depends(get_db): _load_user_for_override(db, user.id),
+    )
+
+    response = client.post(
+        "/api/face/face-scan-with-recognition",
+        json={
+            "event_id": event.id,
+            "image_base64": _frame_payload(),
+            "latitude": 8.1575,
+            "longitude": 123.8431,
+            "accuracy_m": 5,
+        },
+    )
+
+    assert response.status_code == 403
+    assert "Student self-scan access is required" in response.json()["detail"]
+
+
+def test_face_scan_with_recognition_never_records_other_student_for_self_scan(
+    client,
+    test_db,
+    monkeypatch,
+) -> None:
+    school = _create_school(test_db, code="LOCK", name="Account Lock Campus")
+    account_owner = _create_user_with_role(
+        test_db,
+        school=school,
+        email="owner.student@example.com",
+        role_name="student",
+    )
+    _add_role_to_user(test_db, user=account_owner, role_name="ssg")
+    owner_profile = _create_student_profile(test_db, user=account_owner, seed=61, canonical=True)
+
+    friend_user = _create_user_with_role(
+        test_db,
+        school=school,
+        email="friend.student@example.com",
+        role_name="student",
+    )
+    friend_profile = _create_student_profile(test_db, user=friend_user, seed=77, canonical=True)
+
+    event = _create_active_event(test_db, school=school)
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_application_user,
+        lambda db=Depends(get_db): _load_user_for_override(db, account_owner.id),
+    )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "extract_encoding_from_bytes",
+        lambda *_args, **_kwargs: (_embedding(77), LivenessResult(label="Real", score=0.98)),
+    )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="single"),
+    )
+    monkeypatch.setattr(face_recognition, "verify_event_geolocation_for_attendance", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(face_recognition, "find_attendance_geolocation_travel_risk", lambda *_args, **_kwargs: None)
+
+    response = client.post(
+        "/api/face/face-scan-with-recognition",
+        json={
+            "event_id": event.id,
+            "image_base64": _frame_payload(),
+            "latitude": 8.1575,
+            "longitude": 123.8431,
+            "accuracy_m": 5,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "The live face does not match the currently signed-in student account."
+    owner_attendance_count = (
+        test_db.query(AttendanceModel)
+        .filter(
+            AttendanceModel.event_id == event.id,
+            AttendanceModel.student_id == owner_profile.id,
+        )
+        .count()
+    )
+    friend_attendance_count = (
+        test_db.query(AttendanceModel)
+        .filter(
+            AttendanceModel.event_id == event.id,
+            AttendanceModel.student_id == friend_profile.id,
+        )
+        .count()
+    )
+    assert owner_attendance_count == 0
+    assert friend_attendance_count == 0
 
 
 def test_admin_face_verify_route_accepts_canonical_reference(client, test_db, monkeypatch) -> None:

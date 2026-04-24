@@ -20,7 +20,6 @@ from app.core.security import (
 from app.core.dependencies import get_db
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
-from app.models.governance_hierarchy import PermissionCode
 from app.models.user import StudentProfile, User as UserModel
 from app.schemas.event import EventLocationVerificationResponse
 from app.schemas.face_recognition import (
@@ -31,7 +30,6 @@ from app.schemas.face_recognition import (
     FaceVerificationResponse,
 )
 from app.services.attendance_face_scan import (
-    get_registered_face_candidates_for_event,
     get_registered_face_candidates_for_school,
     student_display_name,
 )
@@ -51,7 +49,6 @@ from app.services.event_geolocation import (
 from app.services.notification_center_service import send_attendance_notification
 from app.services.event_time_status import get_attendance_decision, get_sign_out_decision
 from app.services.event_workflow_status import sync_event_workflow_status
-from app.services import governance_hierarchy_service
 
 
 router = APIRouter(prefix="/face", tags=["face-recognition"])
@@ -286,45 +283,31 @@ def record_attendance_from_face_scan(
     current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
-    """Run the full face-scan attendance flow, including scope, location, and sign-in/out rules."""
-    actor_is_staff_scan = has_any_role(
-        current_user,
-        ["admin", "campus_admin"],
-    )
-    if not actor_is_staff_scan and governance_hierarchy_service.get_user_governance_unit_types(
-        db,
-        current_user=current_user,
-    ):
-        governance_hierarchy_service.ensure_governance_permission(
-            db,
-            current_user=current_user,
-            permission_code=PermissionCode.MANAGE_ATTENDANCE,
-            detail=(
-                "This governance account has no attendance features yet. "
-                "Campus Admin must assign manage_attendance to the governance member."
-            ),
-        )
-        actor_is_staff_scan = True
-    actor_is_student_self_scan = (
-        not actor_is_staff_scan and has_any_role(current_user, ["student"])
-    )
-
-    if not actor_is_staff_scan and not actor_is_student_self_scan:
+    """Run a student self-scan attendance flow, bound to the signed-in student account."""
+    actor_is_student_self_scan = has_any_role(current_user, ["student"])
+    if not actor_is_student_self_scan:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Student, governance attendance operator, or admin access is required for face attendance scans.",
+            detail=(
+                "Student self-scan access is required for this endpoint. "
+                "Use Gather public attendance endpoints for multi-person scans."
+            ),
         )
 
     school_id = get_school_id_or_403(current_user)
     event = _get_school_event_or_404(db, payload.event_id, school_id)
-    current_student_profile = (
-        _require_student_profile(current_user) if actor_is_student_self_scan else None
-    )
+    current_student_profile = _require_student_profile(current_user)
     bypass_face_scan = (
         actor_is_student_self_scan
         and current_student_profile is not None
         and is_face_scan_bypass_enabled_for_user(current_user)
     )
+    if actor_is_student_self_scan and current_student_profile is not None:
+        if current_student_profile.id not in set(get_event_participant_student_ids(db, event)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The signed-in student is outside this event scope.",
+            )
     if (
         actor_is_student_self_scan
         and current_student_profile is not None
@@ -351,13 +334,6 @@ def record_attendance_from_face_scan(
         )
 
     if bypass_face_scan:
-        participant_ids = set(get_event_participant_student_ids(db, event))
-        if current_student_profile.id not in participant_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="The signed-in student is outside this event scope.",
-            )
-
         student = current_student_profile
         liveness = LivenessResult(
             label="Bypassed",
@@ -386,50 +362,38 @@ def record_attendance_from_face_scan(
             enforce_liveness=True,
             mode="single",
         )
-
-        candidates = get_registered_face_candidates_for_event(db, event)
-        if not candidates:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No registered student faces found in this event scope.",
+        try:
+            reference_encoding = face_service.encoding_from_bytes(
+                bytes(current_student_profile.face_encoding),
+                dtype=current_student_profile.embedding_dtype,
+                dimension=current_student_profile.embedding_dimension,
+                normalized=bool(current_student_profile.embedding_normalized),
             )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Re-register your student face with the current ArcFace enrollment "
+                    "before using face attendance."
+                ),
+            ) from exc
 
-        match = face_service.find_best_match(
+        match = face_service.compare_encodings(
             encoding,
-            [scoped_candidate.candidate for scoped_candidate in candidates],
+            reference_encoding,
             threshold=payload.threshold,
             mode="single",
         )
-        if not match.matched or match.candidate is None:
+        if not match.matched:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No matching student found.",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The live face does not match the currently signed-in student account.",
             )
 
-        student_lookup = {
-            scoped_candidate.candidate.identifier: scoped_candidate.student
-            for scoped_candidate in candidates
-        }
-        student = student_lookup.get(match.candidate.identifier)
-        if student is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Matched student could not be resolved.",
-            )
-
+        student = current_student_profile
         match_distance = round(match.distance, 6)
         match_confidence = round(match.confidence, 6)
         match_threshold = round(match.threshold, 6)
-
-    if (
-        actor_is_student_self_scan
-        and current_student_profile is not None
-        and student.id != current_student_profile.id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The live face does not match the currently signed-in student account.",
-        )
 
     geo_response = verify_event_geolocation_for_attendance(
         event,

@@ -4573,7 +4573,7 @@ def test_governance_student_notes_require_manage_students_and_stay_scoped(client
     assert blocked_response.json()["detail"] == "Student not found in this governance scope"
 
 
-def test_student_event_list_shows_all_upcoming_events_but_keeps_active_scope_filters(client, test_db):
+def test_student_event_list_enforces_scope_filters_for_all_event_statuses(client, test_db):
     school = _create_school(test_db, code="STU-EVENT-SCOPE")
     student_role = _create_role(test_db, name="student")
     department_a, program_a = _create_academic_scope(
@@ -4674,9 +4674,9 @@ def test_student_event_list_shows_all_upcoming_events_but_keeps_active_scope_fil
         school_event.name,
         department_event.name,
         program_event.name,
-        upcoming_same_department_program_event.name,
-        upcoming_other_department_event.name,
     }
+    assert upcoming_same_department_program_event.name not in names
+    assert upcoming_other_department_event.name not in names
     assert hidden_other_department_ongoing_event.name not in names
 
     detail_response = client.get(

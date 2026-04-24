@@ -310,8 +310,7 @@ def _filter_events_to_student_scope(
     return [
         event
         for event in events
-        if event.status == ModelEventStatus.UPCOMING
-        or _event_is_visible_to_student_profile(event, student_profile)
+        if _event_is_visible_to_student_profile(event, student_profile)
     ]
 
 

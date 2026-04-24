@@ -16,5 +16,6 @@
 - [Sanctions Management Guide](./BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md)
 - [User Preferences and Auth Session Guide](./BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md)
 - [Face Engine Migration Guide](./BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
+- [Face Attendance Mode Policy](./BACKEND_FACE_ATTENDANCE_MODE_POLICY.md)
 - [Email Delivery Guide (Mailjet / Disabled)](./BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
 - [Railway / Constrained Deployment Guide](./BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
