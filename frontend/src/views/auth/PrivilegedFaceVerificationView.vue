@@ -312,7 +312,7 @@ async function loadFaceStatus() {
       return
     }
 
-    if (!nextStatus.face_verification_required && nextStatus.face_reference_enrolled) {
+    if (!nextStatus.face_verification_required) {
       await routeIntoUnlockedSession()
       return
     }

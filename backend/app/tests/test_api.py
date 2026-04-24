@@ -5,6 +5,7 @@ Role: Test layer. It protects the app from regressions.
 
 import json
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 from jose import jwt
 
@@ -28,6 +29,7 @@ from app.models import (
 from app.routers import health as health_router
 from app.routers import security_center
 from app.routers import users as users_router
+from app.services import auth_session
 from app.core.security import ALGORITHM, SECRET_KEY, create_access_token, verify_password
 from app.utils.passwords import hash_password_bcrypt
 
@@ -202,6 +204,75 @@ def test_privileged_login_requires_face_scan_mfa(client, test_db):
     token_payload = jwt.decode(payload["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
     assert token_payload["face_pending"] is True
     assert token_payload["user_id"] == user.id
+
+
+def test_privileged_login_skips_face_scan_when_toggle_disabled(client, test_db, monkeypatch):
+    school = _create_school(test_db, code="LOGIN-NO-FACE")
+    user = _create_user_with_role(
+        test_db,
+        email="campus.face.skip@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+        first_name="Campus",
+        last_name="Admin",
+    )
+    monkeypatch.setattr(
+        auth_session,
+        "get_settings",
+        lambda: SimpleNamespace(privileged_face_verification_enabled=False),
+    )
+
+    response = client.post(
+        "/login",
+        json={
+            "email": user.email,
+            "password": "CampusPass123!",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["face_verification_required"] is False
+    assert payload["face_verification_pending"] is False
+    assert payload["session_id"] is not None
+
+    token_payload = jwt.decode(payload["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
+    assert token_payload["face_pending"] is False
+    assert token_payload.get("jti")
+    assert token_payload["user_id"] == user.id
+
+
+def test_face_pending_token_can_access_protected_route_when_face_toggle_disabled(
+    client,
+    test_db,
+    monkeypatch,
+):
+    school = _create_school(test_db, code="FACE-GATE-OFF")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="campus.face.gate.off@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+        first_name="Campus",
+        last_name="Admin",
+    )
+    token = create_access_token({"sub": campus_admin.email, "face_pending": True})
+
+    monkeypatch.setattr(
+        "app.core.security.get_settings",
+        lambda: SimpleNamespace(privileged_face_verification_enabled=False),
+    )
+
+    response = client.get(
+        "/api/users/me/",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["email"] == campus_admin.email
 
 
 def test_token_login_remember_me_extends_session_lifetime(client, test_db):
