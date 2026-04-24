@@ -64,6 +64,21 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  seed:
+    image: rizal-backend:local
+    command: sh -c "cd /repo/seeder && python seed.py demo"
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      SEED_DATABASE: ${SEED_DATABASE:-false}
+    volumes:
+      - .:/repo
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+
   backend:
     build:
       context: ./backend

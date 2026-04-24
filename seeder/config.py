@@ -6,6 +6,7 @@ Fails fast with a human-readable message on any misconfiguration.
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -106,6 +107,12 @@ def load_config() -> SeederConfig:
     admin_email    = require("SEED_ADMIN_EMAIL",            str,   non_empty_str)
     admin_password = require("SEED_ADMIN_PASSWORD",         str,   non_empty_str)
     seed_db        = require("SEED_DATABASE",               bool)
+
+    # Allow the SEED_DATABASE env var to override variables.py (e.g. when running via Docker)
+    if seed_db is False:
+        env_override = os.environ.get("SEED_DATABASE", "").strip().lower()
+        if env_override in ("true", "1", "yes"):
+            seed_db = True
     wipe           = require("SEED_WIPE_EXISTING",          bool)
     rng_key        = require("SEED_RANDOMIZER_KEY",         int)
     unique_pw      = require("SEED_UNIQUE_PASSWORDS",       bool)
