@@ -79,8 +79,8 @@ Optional in root `.env`:
 
 Important:
 
-- the current repo-root `docker-compose.yml` hardcodes local container URLs for Postgres, Redis, backend, and assistant
-- root `.env` does not override those infrastructure URLs in the current Compose file
+- the repo-root `docker-compose.yml` hardcodes local container URLs for Postgres, Redis, backend, and assistant
+- migrations and bootstrap run automatically on every `docker compose up --build` via the `migrate` and `bootstrap` services
 
 ## Production Setup
 
@@ -125,20 +125,27 @@ Optional:
 
 ### Docker
 
-Required:
+Required — change these from local defaults for production:
 
-- no additional root `.env` variables are honored for external infra in the current repo-root Compose file because service URLs are hardcoded there
+- `SECRET_KEY`
+- `LOGIN_URL`
+- `CORS_ALLOWED_ORIGINS`
+- `BACKEND_ORIGIN`
+- `ASSISTANT_ORIGIN`
+- `BACKEND_API_BASE_URL`
+- `DATABASE_URL` (if using external Postgres)
+- `ASSISTANT_DB_URL` (if using external Postgres)
 
 Optional:
 
-- `FRONTEND_PORT`
-- `EMAIL_TRANSPORT`
-- `SMTP_*`
-- `UVICORN_WORKERS`
+- `FRONTEND_PORT` — change to `80` or `443`
+- `EMAIL_TRANSPORT` — enable smtp or mailjet_api
+- `SMTP_*` / `MAILJET_*`
+- `UVICORN_WORKERS` — increase for production
 
 Important:
 
-- for a real production Docker deployment against external Postgres, Redis, backend, or assistant URLs, update `docker-compose.yml` or use a deployment-specific Compose override
+- for external Postgres or Redis, update the hardcoded container URLs in `docker-compose.yml` or use a Compose override
 
 ## Source Of Truth
 
@@ -151,8 +158,19 @@ Important:
 
 ## Bootstrap
 
-Initial admin creation is explicit and not driven by env toggles:
+When running via Docker, bootstrap runs automatically as part of `docker compose up --build`.
+
+For manual setup, run it explicitly:
 
 ```powershell
-python backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
+cd backend
+python bootstrap.py
 ```
+
+Or with custom credentials:
+
+```powershell
+python bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
+```
+
+Default credentials are configured in `backend/app/core/app_settings.py`.

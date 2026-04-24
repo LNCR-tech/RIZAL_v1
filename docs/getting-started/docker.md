@@ -39,13 +39,53 @@ notepad .\.env
 docker compose up --build
 ```
 
-4. Open the app:
+That's it. Migrations, bootstrap, and all services start automatically in the correct order. When the stack is ready you'll see a summary printed in the logs:
 
-- Frontend: `http://localhost:5173`
-- Backend API docs: `http://localhost:8000/docs`
+```
+-------------------------------------------------------
+   AURA SYSTEM IS READY!
+-------------------------------------------------------
+Frontend:        http://localhost:5173
+Backend API:     http://localhost:8000/docs
+Assistant API:   http://localhost:8500/docs
+pgAdmin (DB):    http://localhost:5050 (admin@example.com / admin123)
+Mailpit (Email): http://localhost:8025
+-------------------------------------------------------
+```
+
+## Startup Order
+
+The compose file handles this automatically:
+
+```
+db (healthy)
+  └── migrate        (alembic upgrade heads)
+        └── bootstrap  (python bootstrap.py — seeds roles, event types, admin)
+              └── backend / worker / beat
+                    └── frontend / assistant
+```
 
 ## Notes
 
-- Use `python backend/bootstrap.py --admin-email ... --admin-password ...` after migrations to create the first platform admin.
-- Email delivery is disabled by default. If you want real outbound email, configure SMTP or Mailjet in the root `.env`.
-- The current repo-root `docker-compose.yml` is local-stack oriented and hardcodes local container URLs for Postgres, Redis, backend, and assistant. For external production infra, use a compose override or edit the compose file.
+- Running `docker compose up --build` multiple times is safe — migrations and bootstrap are both idempotent.
+- Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). Configure SMTP or Mailjet in `.env` to enable it.
+- The default admin credentials are set in `backend/app/core/app_settings.py` (`default_admin_email` / `default_admin_password`).
+- The repo-root `docker-compose.yml` is local-stack oriented and hardcodes internal container URLs. For external production infra, update those URLs or use a Compose override.
+
+## Moving to Production
+
+Change these variables in `.env` before deploying:
+
+| Variable | Why |
+|---|---|
+| `SECRET_KEY` | Use a long random string — never the dev placeholder |
+| `DATABASE_URL` | Point to your production Postgres host |
+| `ASSISTANT_DB_URL` | Same |
+| `LOGIN_URL` | Your frontend's public URL |
+| `CORS_ALLOWED_ORIGINS` | Same as `LOGIN_URL` |
+| `BACKEND_API_BASE_URL` | Your backend's public URL |
+| `BACKEND_ORIGIN` | Same — used by the frontend container |
+| `ASSISTANT_ORIGIN` | Your assistant's public URL |
+| `EMAIL_TRANSPORT` | Change from `disabled` to `smtp` or `mailjet_api` |
+| `UVICORN_WORKERS` | Increase to match your CPU count |
+| `FRONTEND_PORT` | Change from `5173` to `80` or `443` |
