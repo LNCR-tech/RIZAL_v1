@@ -111,12 +111,8 @@
                   </label>
                 </header>
 
-                <label class="sg-field-label sg-field-label--wide">
-                  <span>Location</span>
-                  <input v-model="form.location_name" type="text" placeholder="e.g. University Gymnasium" required />
-                </label>
-
                 <EventLocationPicker
+                  v-model:location-label="form.location_name"
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
                   :radius-m="form.radius_meters"

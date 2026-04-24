@@ -192,18 +192,6 @@
               </label>
             </header>
 
-            <label class="event-editor__field">
-              <span class="event-editor__field-label">Location</span>
-              <input
-                v-model="draft.location"
-                class="event-editor__field-input"
-                type="text"
-                name="event_location"
-                placeholder="University Gymnasium"
-                autocomplete="off"
-              >
-            </label>
-
             <div class="event-editor__grid event-editor__grid--compact">
               <label class="event-editor__field">
                 <span class="event-editor__field-label">Radius</span>
@@ -241,6 +229,7 @@
             </div>
 
             <EventLocationPicker
+              v-model:location-label="draft.location"
               v-model:latitude="draft.latitude"
               v-model:longitude="draft.longitude"
               :radius-m="draft.radiusM"
