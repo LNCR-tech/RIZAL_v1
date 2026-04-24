@@ -10,6 +10,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from app.seeder import BootstrapSeedOptions, run_production_bootstrap
+from app.core.app_settings import APP_SETTINGS
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -18,13 +19,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--admin-email",
-        required=True,
-        help="Email address for the first platform admin.",
+        default=APP_SETTINGS.default_admin_email,
+        help=f"Email address for the first platform admin (default: {APP_SETTINGS.default_admin_email}).",
     )
     parser.add_argument(
         "--admin-password",
-        required=True,
-        help="Password for the first platform admin.",
+        default=APP_SETTINGS.default_admin_password,
+        help=f"Password for the first platform admin (default: {APP_SETTINGS.default_admin_password}).",
     )
     return parser
 
