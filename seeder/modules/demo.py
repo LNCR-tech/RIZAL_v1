@@ -205,7 +205,8 @@ def run_demo(
         student_users = []
         student_profiles = []
         passwords = []
-        used_student_ids = set() # Track used IDs to prevent stochastic collisions
+        used_student_ids = set()
+        used_emails = set()
         
         for p in range(n_students):
             if unique_passwords:
@@ -225,7 +226,13 @@ def run_demo(
             mname = rng.choice(MIDDLE_NAMES)
             name_suffix = apply_suffix(rng, "", SUFFIXES, suffix_probability).strip() or None
             
-            email = f"{fname.split()[0].lower()}.{lname.split()[-1].lower()}{rng.randint(1,99)}@{school_domain}"
+            base_email = f"{fname.split()[0].lower()}.{lname.split()[-1].lower()}"
+            n = rng.randint(1, 99)
+            email = f"{base_email}{n}@{school_domain}"
+            while email in used_emails:
+                n = rng.randint(1, 9999)
+                email = f"{base_email}{n}@{school_domain}"
+            used_emails.add(email)
             
             u = create_user(
                 db, email=email, school_id=school.id, password_hash=hashes[k],
