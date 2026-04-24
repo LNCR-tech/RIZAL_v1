@@ -41,6 +41,7 @@ const SchoolItAttendanceMonitorView = dashboardView('SchoolItAttendanceMonitorVi
 const SchoolItEventReportsView = dashboardView('SchoolItEventReportsView')
 const SchoolItSettingsView = dashboardView('SchoolItSettingsView')
 const GovernanceWorkspaceView = dashboardView('GovernanceWorkspaceView')
+const SgMembersView = dashboardView('SgMembersView')
 const SgCreateUnitView = dashboardView('SgCreateUnitView')
 const GatherWelcomeView = dashboardView('GatherWelcomeView')
 const GatherAttendanceView = dashboardView('GatherAttendanceView')
@@ -529,7 +530,8 @@ const routes = [
             },
             {
                 path: 'members',
-                redirect: { name: 'SgAdmin' },
+                name: 'SgMembers',
+                component: SgMembersView,
             },
             {
                 path: 'events',
@@ -601,7 +603,9 @@ const routes = [
             },
             {
                 path: 'members',
-                redirect: { name: 'PreviewSgAdmin' },
+                name: 'PreviewSgMembers',
+                component: SgMembersView,
+                props: { preview: true },
             },
             {
                 path: 'events',
