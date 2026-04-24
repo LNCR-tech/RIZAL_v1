@@ -15,6 +15,7 @@ from app.core.security import get_current_user, get_school_id_or_403, has_any_ro
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.department import Department as DepartmentModel
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
+from app.models.event_type import EventType as EventTypeModel
 from app.models.governance_hierarchy import GovernanceUnit, GovernanceUnitType, PermissionCode
 from app.models.program import Program as ProgramModel
 from app.models.school import SchoolSetting as SchoolSettingModel
@@ -134,6 +135,35 @@ def _get_school_settings(db: Session, *, school_id: int) -> SchoolSettingModel |
         .filter(SchoolSettingModel.school_id == school_id)
         .first()
     )
+
+
+def _resolve_event_type(
+    db: Session,
+    *,
+    school_id: int,
+    event_type_id: int | None,
+) -> EventTypeModel | None:
+    if event_type_id is None:
+        return None
+
+    event_type = (
+        db.query(EventTypeModel)
+        .filter(
+            EventTypeModel.id == event_type_id,
+            EventTypeModel.is_active.is_(True),
+        )
+        .first()
+    )
+    if event_type is None:
+        raise HTTPException(status_code=404, detail="Event type not found")
+
+    if event_type.school_id not in {None, school_id}:
+        raise HTTPException(
+            status_code=403,
+            detail="This event type is not available for the current school.",
+        )
+
+    return event_type
 
 
 def _persist_scope_status_sync(db: Session, school_id: Optional[int]) -> None:

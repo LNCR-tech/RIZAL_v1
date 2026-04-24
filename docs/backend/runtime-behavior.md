@@ -96,13 +96,15 @@ Production data initialization is now limited to a single explicit command:
 
 The backend no longer ships demo or bulk seed entrypoints, and it no longer relies on `SEED_*` env toggles to decide what data to create.
 
-## Event Type Removal
+## Event Type Lookup
 
-`event_type` is no longer part of the backend event model or event create/update flow.
+Event categorization now uses a dedicated lookup relation instead of a free-text event column.
 
-- `GET /api/events` no longer depends on an `events.event_type` database column.
-- Student attendance report endpoints keep the existing event-type chart payload shape only for frontend compatibility, using the fixed label `Regular Events`.
-- `GET /api/attendance/students/{student_id}/report` no longer supports an `event_type` query filter.
+- `event_types` stores global defaults and future school-specific custom event categories.
+- `events.event_type_id` references `event_types.id`.
+- `GET /api/events` returns `event_type_id` plus a nested `event_type` object when one is assigned.
+- `POST /api/events` and `PATCH /api/events/{event_id}` accept `event_type_id`.
+- student attendance report endpoints still preserve the existing chart payload shape, but now use the related event type name when present and only fall back to `Regular Events` when no type is assigned.
 
 ## How to Test
 
@@ -114,4 +116,5 @@ The backend no longer ships demo or bulk seed entrypoints, and it no longer reli
    - `EMAIL_TRANSPORT=mailjet_api` fails fast when credentials are incomplete
 4. Run `python Backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!` on a clean database and confirm the admin account is created without any demo schools or sample users.
 5. Open the audit log endpoints and confirm returned `created_at` values include a `+08:00` offset.
-6. Open `GET /api/events/` against a database that does not have `events.event_type` and confirm the endpoint still returns `200`.
+6. Run `python -m alembic upgrade head` and confirm the migration creates `event_types`, adds `events.event_type_id`, and backfills legacy `events.event_type` values if they exist.
+7. Open `GET /api/events/` and confirm the endpoint returns `200` plus `event_type_id` / `event_type` fields for typed events.

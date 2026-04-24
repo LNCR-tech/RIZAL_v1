@@ -59,6 +59,7 @@ class Event(Base):
     start_datetime = Column(DateTime, nullable=False)
     end_datetime = Column(DateTime, nullable=False)
     status = Column(Enum(EventStatus), nullable=False, default=EventStatus.UPCOMING)
+    event_type_id = Column(Integer, ForeignKey("event_types.id", ondelete="SET NULL"), nullable=True, index=True)
     # Many-to-many relationships
     departments = relationship(
         "Department", 
@@ -78,3 +79,4 @@ class Event(Base):
        cascade="all, delete-orphan"
     )
     school = relationship("School", back_populates="events")
+    event_type = relationship("EventType", back_populates="events")

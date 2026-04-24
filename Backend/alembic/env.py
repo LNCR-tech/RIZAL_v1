@@ -45,6 +45,7 @@ from app.models import associations
 from app.models import attendance
 from app.models import department
 from app.models import event
+from app.models import event_type
 from app.models import program
 from app.models import role
 from app.models import school

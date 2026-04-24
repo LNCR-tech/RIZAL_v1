@@ -23,6 +23,7 @@ def read_events(
     query = _school_scoped_event_query(db, school_id).options(
         joinedload(EventModel.departments),
         joinedload(EventModel.programs),
+        joinedload(EventModel.event_type),
     )
     if status:
         query = query.filter(EventModel.status == ModelEventStatus[status.value.upper()])
@@ -57,6 +58,7 @@ def get_ongoing_events(
         .options(
             joinedload(EventModel.departments),
             joinedload(EventModel.programs),
+            joinedload(EventModel.event_type),
         )
         .filter(EventModel.status == ModelEventStatus.ONGOING)
         .order_by(EventModel.start_datetime)
@@ -85,6 +87,7 @@ def read_event(
         .options(
             joinedload(EventModel.programs).joinedload(ProgramModel.departments),
             joinedload(EventModel.departments),
+            joinedload(EventModel.event_type),
         )
         .filter(EventModel.id == event_id)
         .first()

@@ -15,6 +15,7 @@ from app.core.event_defaults import (
 )
 from app.schemas.attendance import Attendance, AttendanceStatus
 from app.schemas.department import Department
+from app.schemas.event_type import EventTypeSummary
 from app.schemas.program import Program
 
 class EventStatus(str, Enum):
@@ -141,6 +142,7 @@ class EventBase(BaseModel):
     start_datetime: datetime
     end_datetime: datetime
     status: EventStatus = EventStatus.upcoming
+    event_type_id: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_sign_out_window(self) -> "EventBase":
@@ -192,6 +194,7 @@ class Event(EventBase):
     sign_out_override_until: Optional[datetime] = None
     departments: List[Department] = Field(default_factory=list)
     programs: List[Program] = Field(default_factory=list)
+    event_type: Optional[EventTypeSummary] = None
     
     # Computed fields for IDs
     @computed_field

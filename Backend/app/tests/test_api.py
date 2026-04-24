@@ -12,6 +12,7 @@ from app.models import (
     Attendance,
     Department,
     Event,
+    EventType,
     PasswordResetRequest,
     Program,
     Role,
@@ -1036,6 +1037,62 @@ def test_create_event_api_uses_default_attendance_window_values(client, test_db)
     assert created_event.sign_out_grace_minutes == 20
 
 
+def test_create_event_api_persists_event_type_relation(client, test_db):
+    school = _create_school(test_db, code="EVENT-TYPE-ID")
+    admin_role = Role(name="admin")
+    test_db.add(admin_role)
+    test_db.commit()
+
+    admin_user = User(
+        email="event.type.admin@example.com",
+        school_id=school.id,
+        first_name="Event",
+        last_name="Type",
+        must_change_password=False,
+    )
+    admin_user.set_password("AdminPass123!")
+    test_db.add(admin_user)
+    test_db.commit()
+
+    test_db.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+    test_db.commit()
+
+    global_event_type = EventType(
+        school_id=None,
+        name="Workshop",
+        code="workshop",
+        is_active=True,
+        sort_order=10,
+    )
+    test_db.add(global_event_type)
+    test_db.commit()
+
+    token = create_access_token({"sub": admin_user.email})
+    start = datetime.utcnow().replace(microsecond=0) + timedelta(days=1)
+    end = start + timedelta(hours=2)
+
+    response = client.post(
+        "/api/events/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "Typed Event",
+            "location": "Innovation Hub",
+            "start_datetime": start.isoformat(),
+            "end_datetime": end.isoformat(),
+            "event_type_id": global_event_type.id,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["event_type_id"] == global_event_type.id
+    assert payload["event_type"]["name"] == "Workshop"
+
+    created_event = test_db.query(Event).filter(Event.id == payload["id"]).first()
+    assert created_event is not None
+    assert created_event.event_type_id == global_event_type.id
+
+
 def test_school_event_defaults_are_used_for_new_events(client, test_db):
     school = _create_school(test_db, code="EVENT-SCHOOL-DEFAULTS")
     campus_admin_role = Role(name="campus_admin")
@@ -1634,6 +1691,93 @@ def test_student_attendance_stats_returns_200_without_event_type_column(client, 
     payload = response.json()
     assert "event_type_breakdown" in payload
     assert payload["event_type_breakdown"][0]["event_type"] == "Regular Events"
+
+
+def test_student_attendance_stats_uses_event_type_relation_when_present(client, test_db, monkeypatch):
+    school = _create_school(test_db, code="ATT-TYPE")
+    campus_admin = _create_user_with_role(
+        test_db,
+        email="attendance.type.admin@example.com",
+        role_name="campus_admin",
+        password="CampusPass123!",
+        school_id=school.id,
+    )
+    student_user = _create_user_with_role(
+        test_db,
+        email="attendance.type.student@example.com",
+        role_name="student",
+        password="StudentPass123!",
+        school_id=school.id,
+    )
+
+    department = Department(school_id=school.id, name="Attendance Type Department")
+    program = Program(school_id=school.id, name="Attendance Type Program")
+    department.programs.append(program)
+    test_db.add_all([department, program])
+    test_db.commit()
+
+    student_profile = StudentProfile(
+        user_id=student_user.id,
+        school_id=school.id,
+        student_id="ATT-TYPE-001",
+        department_id=department.id,
+        program_id=program.id,
+        year_level=3,
+    )
+    test_db.add(student_profile)
+    test_db.commit()
+    test_db.refresh(student_profile)
+
+    event_type = EventType(
+        school_id=school.id,
+        name="Seminar",
+        code="seminar",
+        is_active=True,
+        sort_order=10,
+    )
+    test_db.add(event_type)
+    test_db.commit()
+    test_db.refresh(event_type)
+
+    event = Event(
+        school_id=school.id,
+        name="Attendance Type Event",
+        location="Type Hall",
+        start_datetime=datetime.utcnow() - timedelta(days=2),
+        end_datetime=datetime.utcnow() - timedelta(days=2, hours=-2),
+        event_type_id=event_type.id,
+    )
+    test_db.add(event)
+    test_db.commit()
+    test_db.refresh(event)
+
+    test_db.add(
+        Attendance(
+            student_id=student_profile.id,
+            event_id=event.id,
+            method="manual",
+            status="present",
+            check_in_status="present",
+            check_out_status="present",
+            time_in=event.start_datetime,
+            time_out=event.end_datetime,
+        )
+    )
+    test_db.commit()
+
+    monkeypatch.setattr(
+        "app.reports.student.queries.list_student_trend_results",
+        lambda *args, **kwargs: [],
+    )
+
+    response = client.get(
+        f"/api/attendance/students/{student_profile.id}/stats?group_by=month",
+        headers=_auth_headers(campus_admin),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["event_type_breakdown"][0]["event_type"] == "Seminar"
 
 
 def test_change_password_accepts_current_password_for_model_hashed_user(client, test_db):

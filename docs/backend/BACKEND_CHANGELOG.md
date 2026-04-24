@@ -16,6 +16,61 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-25 - Restore event categorization with `event_types`
+
+### Purpose
+
+Replace the legacy free-text `events.event_type` column with a real lookup table so event categorization can be modeled, seeded, and reported through a stable relation.
+
+### Main files
+
+- `Backend/alembic/versions/7d43d19e7a58_add_event_types_table_and_event_type_id.py`
+- `Backend/app/models/event.py`
+- `Backend/app/models/event_type.py`
+- `Backend/app/models/school.py`
+- `Backend/app/schemas/event.py`
+- `Backend/app/schemas/event_type.py`
+- `Backend/app/routers/events/crud.py`
+- `Backend/app/routers/events/queries.py`
+- `Backend/app/routers/events/shared.py`
+- `Backend/app/reports/student/queries.py`
+- `Backend/app/reports/student/service.py`
+- `Backend/app/seeder.py`
+
+### Backend changes
+
+- added `event_types` for global defaults and future school-specific custom event categories
+- added `events.event_type_id` and wired event create/read/update payloads to the relation
+- bootstrap now seeds default global event types on a fresh database
+- student attendance stats and reports now use the related event type name when present
+- report fallbacks still emit `Regular Events` when an event has no assigned type
+
+### Route or schema impact
+
+- `POST /api/events`
+  - accepts `event_type_id`
+- `PATCH /api/events/{event_id}`
+  - accepts `event_type_id`
+- `GET /api/events`
+  - returns `event_type_id`
+  - returns nested `event_type`
+
+### Migration impact
+
+- run `python -m alembic upgrade head`
+- migration creates `event_types`
+- migration adds `events.event_type_id`
+- migration backfills legacy `events.event_type` values into `event_types`
+- migration drops the old `events.event_type` text column
+
+### How to test
+
+1. Run `python -m alembic upgrade head`.
+2. Run `python .\bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!`.
+3. Create an event with `event_type_id` set to a seeded default type.
+4. Call `GET /api/events/` and confirm the event returns nested `event_type` data.
+5. Call `GET /api/attendance/students/{student_id}/stats` for a student with attendance on that event and confirm `event_type_breakdown` uses the related event type name.
+
 ## 2026-04-23 - Fix Docker import storage path resolution
 
 ### Purpose

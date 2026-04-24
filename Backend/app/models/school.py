@@ -49,6 +49,11 @@ class School(Base):
     users = relationship("User", back_populates="school")
     student_profiles = relationship("StudentProfile", back_populates="school")
     events = relationship("Event", back_populates="school")
+    event_types = relationship(
+        "EventType",
+        back_populates="school",
+        cascade="all, delete-orphan",
+    )
     audit_logs = relationship(
         "SchoolAuditLog",
         back_populates="school",

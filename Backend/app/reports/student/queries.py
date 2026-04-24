@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event
+from app.models.event_type import EventType as EventTypeModel
 from app.models.user import StudentProfile, User
 from app.routers.attendance.shared import _apply_student_scope_filters
 
@@ -237,13 +238,17 @@ def list_student_trend_results(base_query, *, trunc_period: str):
 
 
 def list_student_event_type_breakdown(base_query):
+    event_type_label = func.coalesce(
+        EventTypeModel.name,
+        literal("Regular Events", type_=String),
+    )
     return (
-        base_query.with_entities(
-            literal("Regular Events", type_=String).label("type"),
+        base_query.outerjoin(EventTypeModel, Event.event_type_id == EventTypeModel.id).with_entities(
+            event_type_label.label("type"),
             AttendanceModel.status,
             func.count(AttendanceModel.id).label("count"),
         )
-        .group_by(AttendanceModel.status)
+        .group_by(event_type_label, AttendanceModel.status)
         .all()
     )
 

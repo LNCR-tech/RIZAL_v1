@@ -10,6 +10,7 @@ from app.models.department import Department
 from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.program import Program
 from app.models.event import Event
+from app.models.event_type import EventType
 from app.models.school import School, SchoolSetting, SchoolAuditLog
 from app.models.import_job import BulkImportJob, BulkImportError, EmailDeliveryLog
 from app.models.password_reset_request import PasswordResetRequest
@@ -88,6 +89,7 @@ __all__ = [
     "GovernanceAnnouncement",
     "GovernanceStudentNote",
     "EventSanctionConfig",
+    "EventType",
     "SanctionRecord",
     "SanctionItem",
     "SanctionDelegation",

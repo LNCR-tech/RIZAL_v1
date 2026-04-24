@@ -135,10 +135,11 @@ Legacy router files were reduced to thin composition/wrapper behavior:
   - `GET /api/attendance/events/{event_id}/attendances/{status}`
   - `GET /api/attendance/events/{event_id}/attendances-with-students`
   - student attendance record endpoints that reuse shared attendance record serializers
-- `event_type` is no longer part of the backend event model.
-- Student stats/report responses keep the existing chart payload shape for frontend compatibility:
-  - `GET /api/attendance/students/{student_id}/stats` returns a single `event_type_breakdown` bucket labeled `Regular Events`
-  - `GET /api/attendance/students/{student_id}/report` no longer accepts an `event_type` filter
+- event categorization now comes from `event_types` plus `events.event_type_id`.
+- Student stats/report responses keep the existing chart payload shape:
+  - `GET /api/attendance/students/{student_id}/stats` groups by the related event type name when present
+  - `GET /api/attendance/students/{student_id}/report` returns `event_type_stats` keyed by the related event type name when present
+  - both endpoints fall back to `Regular Events` only when an event has no assigned event type
 
 ## How To Test
 
@@ -158,7 +159,9 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - insert or retain attendance rows with `method LIKE 'seed_%'`
    - call `GET /api/attendance/events/{event_id}/attendances-with-students`
    - verify the endpoint returns `200` and response `attendance.method` values are schema-valid (`manual`/`face_scan`).
-7. Student stats compatibility after removing `event_type`:
+7. Student stats compatibility after migrating to `event_type_id`:
+   - create one event linked to a named event type such as `Seminar`
    - call `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
-   - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Regular Events`.
+   - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Seminar`
+   - verify events without an assigned type still fall back to `Regular Events`.
 

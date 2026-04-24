@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.app_settings import APP_SETTINGS
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
+from app.models.event_type import EventType
 from app.models.role import Role
 from app.models.user import User, UserRole
 
@@ -21,6 +22,15 @@ DEFAULT_ROLE_NAMES = [
     "admin",
     "campus_admin",
     "student",
+]
+
+DEFAULT_EVENT_TYPE_DEFINITIONS = [
+    {"name": "Regular Event", "code": "regular-event", "sort_order": 0},
+    {"name": "Assembly", "code": "assembly", "sort_order": 10},
+    {"name": "Seminar", "code": "seminar", "sort_order": 20},
+    {"name": "Workshop", "code": "workshop", "sort_order": 30},
+    {"name": "Conference", "code": "conference", "sort_order": 40},
+    {"name": "Meeting", "code": "meeting", "sort_order": 50},
 ]
 
 
@@ -49,6 +59,30 @@ def seed_roles(db: Session, role_names: list[str] | None = None) -> None:
 
     db.commit()
     print("Roles seeded")
+
+
+def seed_event_types(db: Session) -> None:
+    existing_global_names = {
+        event_type.name
+        for event_type in db.query(EventType).filter(EventType.school_id.is_(None)).all()
+    }
+
+    for definition in DEFAULT_EVENT_TYPE_DEFINITIONS:
+        if definition["name"] in existing_global_names:
+            continue
+        db.add(
+            EventType(
+                school_id=None,
+                name=definition["name"],
+                code=definition["code"],
+                description=None,
+                is_active=True,
+                sort_order=definition["sort_order"],
+            )
+        )
+
+    db.commit()
+    print("Event types seeded")
 
 
 def _get_or_create_role(db: Session, role_name: str) -> Role:
@@ -192,6 +226,7 @@ def bootstrap_database(
     """Seed only the production baseline required for a fresh deployment."""
     resolved_options = options or BootstrapSeedOptions()
     seed_roles(db)
+    seed_event_types(db)
     seed_admin_user(db, options=resolved_options)
 
 

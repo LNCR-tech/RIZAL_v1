@@ -312,7 +312,10 @@ def get_student_attendance_report(
     event_type_stats = {}
     for attendance in attendances:
         if attendance.event:
-            attendance_event_type = "Regular Events"
+            attendance_event_type = (
+                getattr(getattr(attendance.event, "event_type", None), "name", None)
+                or "Regular Events"
+            )
             event_type_stats[attendance_event_type] = event_type_stats.get(attendance_event_type, 0) + 1
 
     return StudentAttendanceReport(
