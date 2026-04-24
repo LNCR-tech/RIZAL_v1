@@ -27,7 +27,6 @@ logs/
 
 # Environment / secrets
 .env
-.env
 !.env
 Frontend/.env.local
 
