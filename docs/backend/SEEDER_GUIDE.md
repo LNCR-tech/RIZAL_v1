@@ -129,6 +129,8 @@ To generate a completely different dataset, change `SEED_RANDOMIZER_KEY` to any 
 
 ## File Layout
 
+For a deeper look at module responsibilities, the data dependency order, and stochastic design notes, see [ARCHITECTURE.md](../../seeder/ARCHITECTURE.md).
+
 ```
 seeder/
 ├── seed.py              Entry point and CLI
