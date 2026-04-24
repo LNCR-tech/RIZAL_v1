@@ -2,7 +2,7 @@
 
 [<- Back to frontend index](./README.md)
 
-## Folder Map (`Frontend/src`)
+## Folder Map (`frontend/src`)
 
 - `assets/`: global styles and static assets.
 - `components/`: reusable UI components.
@@ -16,14 +16,14 @@
 
 ## Routing
 
-Routes are defined in `Frontend/src/router/index.js`.
+Routes are defined in `frontend/src/router/index.js`.
 
 ## API Base URL Resolution
 
 The backend and assistant base URLs are resolved in:
 
-- `Frontend/src/services/backendBaseUrl.js`
-- `Frontend/src/services/assistantBaseUrl.js`
+- `frontend/src/services/backendBaseUrl.js`
+- `frontend/src/services/assistantBaseUrl.js`
 
 These read from (in priority order):
 

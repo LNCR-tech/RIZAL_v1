@@ -8,7 +8,7 @@
 - Private API prefix: `/api`
 - OpenAPI docs: `/docs`
 
-Routers are registered in `Backend/app/main.py`. In practice, what matters to clients is the final path. Some routers include `/api` in their own router prefix, even if they are included without the `/api` helper.
+Routers are registered in `backend/app/main.py`. In practice, what matters to clients is the final path. Some routers include `/api` in their own router prefix, even if they are included without the `/api` helper.
 
 ## Router Map (major entrypoints)
 
@@ -39,3 +39,4 @@ Non-`/api` routes:
 - Health: `/health/...`
 
 If you are unsure about the exact request/response schema, use the live OpenAPI docs at `/docs`.
+

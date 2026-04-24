@@ -4,13 +4,13 @@
 
 The supported assistant service in this repository is:
 
-- `Assistant-v2/`
+- `assistant-v2/`
 
 Key configuration notes:
 
-- non-secret assistant defaults now live in `Assistant-v2/lib/app_settings.py`
+- non-secret assistant defaults now live in `assistant-v2/lib/app_settings.py`
 - secrets and runtime URLs remain env-driven
-- production compose and main docs target `Assistant-v2` only
+- production compose and main docs target `assistant-v2` only
 
 ## Existing Docs
 

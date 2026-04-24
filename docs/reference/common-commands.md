@@ -40,7 +40,7 @@ docker compose up -d backend worker beat assistant frontend
 ## Backend (Local)
 
 ```powershell
-cd .\Backend
+cd .\backend
 python -m alembic upgrade head
 python .\bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
@@ -49,14 +49,14 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ## Assistant v2 (Local)
 
 ```powershell
-cd .\Assistant-v2
+cd .\assistant-v2
 python -m uvicorn main:app --reload --host 127.0.0.1 --port 8500
 ```
 
 ## Frontend (Local)
 
 ```powershell
-cd .\Frontend
+cd .\frontend
 npm ci
 npm run dev
 ```

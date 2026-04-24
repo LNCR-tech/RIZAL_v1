@@ -4,12 +4,12 @@
 
 ## Docker Image
 
-- Dev/default compose build: `Frontend/Dockerfile`
-- Production build (if used): `Frontend/Dockerfile.prod`
+- Dev/default compose build: `frontend/Dockerfile`
+- Production build (if used): `frontend/Dockerfile.prod`
 
 ## Web Server
 
-The container serves the SPA via NGINX using `Frontend/nginx.conf.template`.
+The container serves the SPA via NGINX using `frontend/nginx.conf.template`.
 
 Health endpoint:
 

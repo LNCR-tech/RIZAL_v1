@@ -1,5 +1,5 @@
 """Use: Verify backend email delivery and optionally send a real test message.
-Where to use: Run this from `Backend/` when validating Mailjet API mail setup locally or in production.
+Where to use: Run this from `backend/` when validating Mailjet API mail setup locally or in production.
 Role: Operator script. It checks config, verifies the active transport, and sends a smoke-test email.
 """
 

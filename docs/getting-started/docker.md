@@ -32,6 +32,6 @@ docker compose up --build
 
 ## Notes
 
-- Use `python Backend/bootstrap.py --admin-email ... --admin-password ...` after migrations to create the first platform admin.
+- Use `python backend/bootstrap.py --admin-email ... --admin-password ...` after migrations to create the first platform admin.
 - Email delivery is disabled by default. If you want real outbound email, configure Mailjet in `.env`.
 - Production uses the same `docker-compose.yml` file with explicit migration and bootstrap commands.

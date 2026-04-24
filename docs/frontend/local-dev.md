@@ -5,7 +5,7 @@
 ## Install and Run
 
 ```powershell
-cd .\\Frontend
+cd .\\frontend
 npm ci
 npm run dev
 ```
@@ -14,7 +14,7 @@ Vite will print the dev URL (default `http://localhost:5173`).
 
 ## Dev Defaults (`.env.development`)
 
-This repo includes `Frontend/.env.development` so `npm run dev` works out of the box:
+This repo includes `frontend/.env.development` so `npm run dev` works out of the box:
 
 - `VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000`
 - `VITE_ASSISTANT_PROXY_TARGET=http://127.0.0.1:8500`

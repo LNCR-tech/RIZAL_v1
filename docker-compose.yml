@@ -36,7 +36,7 @@ services:
 
   backend:
     build:
-      context: ./Backend
+      context: ./backend
     image: rizal-backend:local
     ports:
       - "8000:8000"
@@ -57,7 +57,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
     volumes:
-      - ./Backend:/app
+      - ./backend:/app
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
       - insightface_models:/root/.insightface
@@ -80,7 +80,7 @@ services:
 
   worker:
     build:
-      context: ./Backend
+      context: ./backend
     image: rizal-backend:local
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
     env_file:
@@ -99,7 +99,7 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes:
-      - ./Backend:/app
+      - ./backend:/app
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
     restart: unless-stopped
@@ -111,7 +111,7 @@ services:
 
   beat:
     build:
-      context: ./Backend
+      context: ./backend
     image: rizal-backend:local
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
     env_file:
@@ -130,7 +130,7 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes:
-      - ./Backend:/app
+      - ./backend:/app
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
     restart: unless-stopped
@@ -142,7 +142,7 @@ services:
 
   frontend:
     build:
-      context: ./Frontend
+      context: ./frontend
     ports:
       - "${FRONTEND_PORT:-5173}:80"
     environment:
@@ -160,7 +160,7 @@ services:
     restart: unless-stopped
 
   assistant:
-    build: ./Assistant-v2
+    build: ./assistant-v2
     env_file:
       - ./.env
     environment:

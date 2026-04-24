@@ -7,8 +7,8 @@ This page documents backend behaviors that affect startup or runtime even if no 
 ## Configuration Source of Truth
 
 - Environment variables now cover secrets, connection strings, and deployment URLs only.
-- Non-secret backend runtime defaults now live in `Backend/app/core/app_settings.py`.
-- Backend env parsing remains in `Backend/app/core/config.py`.
+- Non-secret backend runtime defaults now live in `backend/app/core/app_settings.py`.
+- Backend env parsing remains in `backend/app/core/config.py`.
 
 This includes:
 
@@ -37,7 +37,7 @@ Behavior:
 Relative backend storage directories are resolved from the runtime backend root.
 
 - local repository layout:
-  - `Backend/app/core/config.py` resolves `storage/imports` to `<repo>/storage/imports`
+  - `backend/app/core/config.py` resolves `storage/imports` to `<repo>/storage/imports`
 - Docker layout:
   - `/app/app/core/config.py` resolves `storage/imports` to `/app/storage/imports`
 
@@ -54,9 +54,9 @@ This keeps retry behavior practical after backend-side import failures while sti
 
 Relevant files:
 
-- `Backend/app/core/config.py`
-- `Backend/app/services/email_service/config.py`
-- `Backend/app/services/email_service/transport.py`
+- `backend/app/core/config.py`
+- `backend/app/services/email_service/config.py`
+- `backend/app/services/email_service/transport.py`
 
 Related guide:
 
@@ -73,15 +73,15 @@ Affected response paths:
 
 Relevant files:
 
-- `Backend/app/core/timezones.py`
-- `Backend/app/reports/system/service.py`
-- `Backend/app/routers/school_settings.py`
+- `backend/app/core/timezones.py`
+- `backend/app/reports/system/service.py`
+- `backend/app/routers/school_settings.py`
 
 ## Face Runtime Warm-Up
 
 On API startup, the backend may trigger the InsightFace warm-up flow.
 
-- This is controlled by `Backend/app/core/app_settings.py`, not `.env`.
+- This is controlled by `backend/app/core/app_settings.py`, not `.env`.
 - Warm-up failures are logged but do not block API startup.
 
 Related guide:
@@ -92,7 +92,7 @@ Related guide:
 
 Production data initialization is now limited to a single explicit command:
 
-- `python Backend/bootstrap.py ...`
+- `python backend/bootstrap.py ...`
 
 The backend no longer ships demo or bulk seed entrypoints, and it no longer relies on `SEED_*` env toggles to decide what data to create.
 
@@ -108,13 +108,13 @@ Event categorization now uses a dedicated lookup relation instead of a free-text
 
 ## How to Test
 
-1. Run `pytest Backend/app/tests/test_config.py Backend/app/tests/test_email_service.py Backend/app/tests/test_seeder.py Backend/app/tests/test_audit_log_timezones.py`.
-2. Run `pytest Backend/app/tests/test_admin_import_preview_flow.py` to confirm import storage still honors the centralized backend settings object.
+1. Run `pytest backend/app/tests/test_config.py backend/app/tests/test_email_service.py backend/app/tests/test_seeder.py backend/app/tests/test_audit_log_timezones.py`.
+2. Run `pytest backend/app/tests/test_admin_import_preview_flow.py` to confirm import storage still honors the centralized backend settings object.
 3. In Docker, run `python - <<'PY'\nfrom app.core.config import get_settings\nprint(get_settings().import_storage_dir)\nPY` and confirm it prints `/app/storage/imports`.
 3. Start the API and confirm:
    - `EMAIL_TRANSPORT=disabled` allows startup with a warning
    - `EMAIL_TRANSPORT=mailjet_api` fails fast when credentials are incomplete
-4. Run `python Backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!` on a clean database and confirm the admin account is created without any demo schools or sample users.
+4. Run `python backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!` on a clean database and confirm the admin account is created without any demo schools or sample users.
 5. Open the audit log endpoints and confirm returned `created_at` values include a `+08:00` offset.
 6. Run `python -m alembic upgrade head` and confirm the migration creates `event_types`, adds `events.event_type_id`, and backfills legacy `events.event_type` values if they exist.
 7. Open `GET /api/events/` and confirm the endpoint returns `200` plus `event_type_id` / `event_type` fields for typed events.

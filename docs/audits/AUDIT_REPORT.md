@@ -10,8 +10,8 @@ Audit mode: static repository review plus targeted local verification
 
 This audit covers:
 
-- `Backend/` FastAPI application, services, models, migrations, tests, and docs
-- `Frontend/` Vue 3 + Vite + Capacitor application, routing, API client layer, and build scripts
+- `backend/` FastAPI application, services, models, migrations, tests, and docs
+- `frontend/` Vue 3 + Vite + Capacitor application, routing, API client layer, and build scripts
 - `Assistant/` Python assistant service, MCP tool integration, auth handling, and storage model
 - top-level Docker Compose, production Compose, environment templates, and CI workflow
 
@@ -109,7 +109,7 @@ The repository provides both development and production Docker Compose files cov
 - Backend test coverage is materially better than expected for a project of this size.
 - The project has good feature breadth with clear user-domain segmentation.
 - The frontend successfully builds in production mode and appears organized around business workflows rather than isolated demo screens.
-- The repository already includes backend documentation in `Backend/docs/`, which is a positive sign for maintainability.
+- The repository already includes backend documentation in `docs/backend/`, which is a positive sign for maintainability.
 - Docker Compose is complete enough to describe the intended runtime topology for both local and production deployments.
 
 ## Detailed Findings
@@ -131,12 +131,12 @@ Impact:
 
 Evidence:
 
-- `Backend/app/core/config.py` defaults `DATABASE_URL` and `SECRET_KEY`
+- `backend/app/core/config.py` defaults `DATABASE_URL` and `SECRET_KEY`
 - `docker-compose.prod.yml` defaults database credentials and login / CORS values
 
 Relevant paths:
 
-- `Backend/app/core/config.py`
+- `backend/app/core/config.py`
 - `docker-compose.prod.yml`
 - `.env.example`
 
@@ -221,10 +221,10 @@ Impact:
 
 Relevant paths:
 
-- `Backend/app/main.py`
-- `Backend/app/routers/`
-- `Backend/app/reports/router.py`
-- `Frontend/src/services/backendApi.js`
+- `backend/app/main.py`
+- `backend/app/routers/`
+- `backend/app/reports/router.py`
+- `frontend/src/services/backendApi.js`
 
 Recommendation:
 
@@ -250,8 +250,8 @@ Impact:
 Relevant paths:
 
 - `.github/workflows/ci.yml`
-- `Frontend/scripts/lint.mjs`
-- `Frontend/scripts/smoke.test.mjs`
+- `frontend/scripts/lint.mjs`
+- `frontend/scripts/smoke.test.mjs`
 - `Assistant/`
 
 Recommendation:
@@ -275,9 +275,9 @@ Impact:
 
 Relevant paths:
 
-- `Frontend/src/composables/useAuth.js`
-- `Frontend/src/services/sessionPersistence.js`
-- `Frontend/src/services/localAuth.js`
+- `frontend/src/composables/useAuth.js`
+- `frontend/src/services/sessionPersistence.js`
+- `frontend/src/services/localAuth.js`
 
 Recommendation:
 
@@ -292,8 +292,8 @@ Recommendation:
 Observed examples:
 
 - `Assistant/assistant.py` exceeds 2,000 lines
-- `Frontend/src/services/backendApi.js` is very large
-- `Frontend/src/router/index.js` is very large
+- `frontend/src/services/backendApi.js` is very large
+- `frontend/src/router/index.js` is very large
 
 Impact:
 
@@ -313,10 +313,10 @@ The following checks were executed locally during the audit:
 
 - `docker compose config --quiet`
 - `python -m compileall Backend Assistant`
-- `python -m pytest -q Backend/app/tests Backend/tests`
-- `npm run lint` in `Frontend/`
-- `npm run test` in `Frontend/`
-- `npm run build` in `Frontend/`
+- `python -m pytest -q backend/app/tests backend/tests`
+- `npm run lint` in `frontend/`
+- `npm run test` in `frontend/`
+- `npm run build` in `frontend/`
 
 Results:
 
@@ -392,7 +392,7 @@ These are maintenance warnings, not immediate functional failures.
 - Treat the backend as the reference layer. It is currently the most disciplined part of the repository.
 - Treat the assistant as a privileged integration boundary, not just another API service.
 - Reduce frontend resilience logic that exists only to absorb backend inconsistency. It adds hidden complexity.
-- Keep using docs for backend changes; the existing `Backend/docs/` practice is worth preserving and extending.
+- Keep using docs for backend changes; the existing `docs/backend/` practice is worth preserving and extending.
 
 ## Limitations of This Audit
 

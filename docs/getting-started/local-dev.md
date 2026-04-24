@@ -22,7 +22,7 @@ The canonical commands are in [Common Commands](../reference/common-commands.md)
 
 ## Frontend Local Override
 
-For manual frontend dev, create `Frontend/.env.development.local`:
+For manual frontend dev, create `frontend/.env.development.local`:
 
 ```env
 VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000

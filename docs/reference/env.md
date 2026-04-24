@@ -5,10 +5,10 @@
 ## Source of Truth
 
 - `.env.example` now documents only secrets, connection strings, deployment URLs, and a few operational overrides.
-- Backend non-secret defaults now live in `Backend/app/core/app_settings.py`.
-- Assistant non-secret defaults now live in `Assistant-v2/lib/app_settings.py`.
-- Backend env parsing remains in `Backend/app/core/config.py`.
-- Frontend runtime configuration is injected via `Frontend/runtime-config.js.template` and the Docker/NGINX templates.
+- Backend non-secret defaults now live in `backend/app/core/app_settings.py`.
+- Assistant non-secret defaults now live in `assistant-v2/lib/app_settings.py`.
+- Backend env parsing remains in `backend/app/core/config.py`.
+- Frontend runtime configuration is injected via `frontend/runtime-config.js.template` and the Docker/NGINX templates.
 
 `.env.example` is no longer the source of truth for import limits, email timeouts, face thresholds, school-logo limits, or assistant model defaults.
 
@@ -51,4 +51,4 @@ Initial production data is no longer configured through env toggles.
 
 Use the explicit bootstrap command instead:
 
-- `python Backend/bootstrap.py --admin-email ... --admin-password ...`
+- `python backend/bootstrap.py --admin-email ... --admin-password ...`
