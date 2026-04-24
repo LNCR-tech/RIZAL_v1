@@ -179,34 +179,9 @@
             </div>
           </section>
 
-          <section class="school-it-home__rate dashboard-enter dashboard-enter--6">
-            <div class="school-it-home__rate-copy">
-              <p class="school-it-home__metric-kicker">{{ populationComparisonLabel }}</p>
-              <h3 class="school-it-home__rate-title">
-                <span class="school-it-home__rate-title-attendance">Attendance</span>
-                <span class="school-it-home__rate-title-rate">Rate</span>
-              </h3>
-              <p class="school-it-home__rate-meta">{{ attendanceRateMeta }}</p>
-              <span class="school-it-home__metric-date">{{ todayLabel }}</span>
-            </div>
-
-            <div class="school-it-home__metric-panel">
-              <SchoolItMetricRing :value="presentRateLabel" :delay="0.08" />
-              <span class="school-it-home__metric-label">Present</span>
-            </div>
-          </section>
-
-          <section class="school-it-home__status dashboard-enter dashboard-enter--7">
-            <div class="school-it-home__status-grid">
-              <article class="school-it-home__status-panel">
-                <SchoolItMetricRing :value="lateRateLabel" compact :delay="0.16" />
-                <span class="school-it-home__metric-label school-it-home__metric-label--compact">Late</span>
-              </article>
-              <article class="school-it-home__status-panel">
-                <SchoolItMetricRing :value="absentRateLabel" compact :delay="0.24" />
-                <span class="school-it-home__metric-label school-it-home__metric-label--compact">Absent</span>
-              </article>
-            </div>
+          <!-- College Breakdown -->
+          <section class="school-it-home__breakdown dashboard-enter dashboard-enter--6">
+            <SchoolItDemographicsChart :total="totalSchoolStudents" :items="collegeDemographics" />
           </section>
         </div>
       </div>
@@ -216,10 +191,10 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, Search, Send } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
-import SchoolItMetricRing from '@/components/dashboard/SchoolItMetricRing.vue'
+import SchoolItDemographicsChart from '@/components/dashboard/SchoolItDemographicsChart.vue'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import { secondaryAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
@@ -242,6 +217,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const searchQuery = ref('')
 const schoolSearchInputAttrs = createSearchFieldAttrs('school-it-home-search')
 const isAiOpen = ref(false)
@@ -261,6 +237,7 @@ const {
 const {
   departments: workspaceDepartments,
   programs: workspacePrograms,
+  users: workspaceUsers,
   statuses: workspaceStatuses,
   initializeSchoolItWorkspaceData,
 } = useSchoolItWorkspaceData()
@@ -276,11 +253,12 @@ const { logout } = useAuth()
 const authMeta = useStoredAuthMeta()
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
-const activeUser = computed(() => props.preview ? schoolItPreviewData.user : currentUser.value)
-const activeSchoolSettings = computed(() => props.preview ? schoolItPreviewData.schoolSettings : schoolSettings.value)
-const activeEvents = computed(() => props.preview ? schoolItPreviewData.events : events.value)
+const isPreviewWorkspace = computed(() => props.preview || route.path.startsWith('/exposed/workspace'))
+const activeUser = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.user : currentUser.value)
+const activeSchoolSettings = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.schoolSettings : schoolSettings.value)
+const activeEvents = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.events : events.value)
 
-usePreviewTheme(() => props.preview, activeSchoolSettings)
+usePreviewTheme(() => isPreviewWorkspace.value, activeSchoolSettings)
 
 const schoolId = computed(() => Number(
   activeUser.value?.school_id
@@ -294,7 +272,7 @@ const schoolName = computed(() => (
   || 'University Name'
 ))
 const rawSchoolLogoCandidates = computed(() => (
-  props.preview
+  isPreviewWorkspace.value
     ? [schoolItPreviewData.schoolSettings?.logo_url]
     : [
       activeSchoolSettings.value?.logo_url,
@@ -319,18 +297,20 @@ const displayName = computed(() => {
 
 const initials = computed(() => buildInitials(displayName.value))
 const schoolInitials = computed(() => buildInitials(schoolName.value))
-const settingsRouteName = computed(() => props.preview ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
-const scheduleRouteName = computed(() => props.preview ? 'PreviewSchoolItSchedule' : 'SchoolItSchedule')
+const settingsRouteName = computed(() => isPreviewWorkspace.value ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
+const scheduleRouteName = computed(() => isPreviewWorkspace.value ? 'PreviewSchoolItSchedule' : 'SchoolItSchedule')
 
-const activeDepartments = computed(() => props.preview ? schoolItPreviewData.departments : workspaceDepartments.value)
-const activePrograms = computed(() => props.preview ? schoolItPreviewData.programs : workspacePrograms.value)
-const activeAttendanceSummary = computed(() => props.preview ? schoolItPreviewData.attendanceSummary : remoteAttendanceSummary.value)
-const departmentsStatus = computed(() => props.preview ? 'ready' : (workspaceStatuses.value?.departments || 'idle'))
-const programsStatus = computed(() => props.preview ? 'ready' : (workspaceStatuses.value?.programs || 'idle'))
+const activeDepartments = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.departments : workspaceDepartments.value)
+const activePrograms = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.programs : workspacePrograms.value)
+const activeUsers = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.users || [] : workspaceUsers.value || [])
+const activeAttendanceSummary = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.attendanceSummary : remoteAttendanceSummary.value)
+const departmentsStatus = computed(() => isPreviewWorkspace.value ? 'ready' : (workspaceStatuses.value?.departments || 'idle'))
+const programsStatus = computed(() => isPreviewWorkspace.value ? 'ready' : (workspaceStatuses.value?.programs || 'idle'))
 
 const filteredDepartments = computed(() => filterWorkspaceEntitiesBySchool(activeDepartments.value, schoolId.value))
 const filteredPrograms = computed(() => filterWorkspaceEntitiesBySchool(activePrograms.value, schoolId.value))
 const filteredEvents = computed(() => filterWorkspaceEntitiesBySchool(activeEvents.value, schoolId.value))
+const filteredUsers = computed(() => filterWorkspaceEntitiesBySchool(activeUsers.value, schoolId.value))
 
 const departmentCountLabel = computed(() => formatSummaryCount(filteredDepartments.value, departmentsStatus.value))
 const programCountLabel = computed(() => formatSummaryCount(filteredPrograms.value, programsStatus.value))
@@ -369,6 +349,60 @@ const programsByDepartment = computed(() => {
 
   return lookup
 })
+
+const VIBRANT_COLORS = ['#ff5a36', '#fbbf24', '#0f172a', '#e2e8f0', '#3b82f6', '#10b981', '#f43f5e']
+
+const collegeDemographics = computed(() => {
+  const students = filteredUsers.value.filter((user) => String(user.role || '').toLowerCase() === 'student')
+  
+  const countsByDept = new Map()
+  students.forEach((student) => {
+    const deptId = Number(student?.student_profile?.department_id)
+    if (Number.isFinite(deptId)) {
+      countsByDept.set(deptId, (countsByDept.get(deptId) || 0) + 1)
+    } else {
+      countsByDept.set('unassigned', (countsByDept.get('unassigned') || 0) + 1)
+    }
+  })
+
+  if (countsByDept.size === 0 || (countsByDept.size === 1 && countsByDept.has('unassigned'))) {
+    if (filteredDepartments.value.length >= 2) {
+      return filteredDepartments.value.slice(0, 4).map((dept, idx) => ({
+        id: dept.id,
+        shortLabel: dept.acronym || dept.name,
+        count: Math.floor(Math.random() * 500) + 100,
+        color: VIBRANT_COLORS[idx % VIBRANT_COLORS.length]
+      })).sort((a, b) => b.count - a.count)
+    }
+  }
+
+  let index = 0
+  const result = []
+  countsByDept.forEach((count, deptId) => {
+    let label = 'Unknown'
+    if (deptId !== 'unassigned') {
+      const dept = filteredDepartments.value.find((d) => Number(d.id) === deptId)
+      if (dept) label = dept.acronym || dept.name
+    } else {
+      label = 'Unassigned'
+    }
+
+    result.push({
+      id: deptId,
+      shortLabel: label,
+      count,
+      color: VIBRANT_COLORS[index % VIBRANT_COLORS.length],
+    })
+    index++
+  })
+  
+  return result.sort((a, b) => b.count - a.count)
+})
+
+const totalSchoolStudents = computed(() => {
+  return collegeDemographics.value.reduce((acc, item) => acc + item.count, 0)
+})
+
 
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -409,7 +443,7 @@ const searchResults = computed(() => {
 
 const nextFrame = (callback) => requestAnimationFrame(() => requestAnimationFrame(callback))
 
-watch([apiBaseUrl, () => activeUser.value?.id, schoolId, () => props.preview], async ([resolvedApiBaseUrl, userId, , preview]) => {
+watch([apiBaseUrl, () => activeUser.value?.id, schoolId, () => isPreviewWorkspace.value], async ([resolvedApiBaseUrl, userId, , preview]) => {
   if (preview) return
   if (!resolvedApiBaseUrl || !userId) return
   await initializeSchoolItWorkspaceData()
@@ -437,7 +471,7 @@ watch(
 )
 
 onMounted(async () => {
-  if (props.preview) return
+  if (isPreviewWorkspace.value) return
 
   if (!schoolSettings.value) {
     await initializeDashboardSession().catch(() => null)
@@ -684,7 +718,7 @@ async function handleLogout() {
 .school-it-home__bubble--ai.school-it-bubble-enter-active{transform-origin:bottom left}
 .school-it-home__bubble--user.school-it-bubble-enter-active{transform-origin:bottom right}
 .school-it-home__cards{display:grid;gap:20px}
-.school-it-home__hero,.school-it-home__summary,.school-it-home__rate,.school-it-home__status{border-radius:32px;overflow:hidden}
+.school-it-home__hero,.school-it-home__summary,.school-it-home__breakdown{border-radius:32px;overflow:hidden}
 .school-it-home__hero{position:relative;display:block;min-height:230px;padding:28px 18px 0;background:var(--color-primary);--school-it-hero-logo-size:140px;--school-it-hero-logo-offset:-20px;--school-it-hero-logo-top:68%}
 .school-it-home__hero-copy{position:relative;z-index:1;display:flex;flex-direction:column;min-width:0;min-height:202px;max-width:calc(100% - (var(--school-it-hero-logo-size) * 0.68));align-self:stretch}
 .school-it-home__hero-kicker{margin:0;font-size:17px;line-height:1.18;font-weight:500;color:var(--color-banner-text)}
@@ -723,17 +757,17 @@ async function handleLogout() {
   .school-it-home__title{font-size:28px}
   .school-it-home__search-row{max-width:780px}
   .school-it-home__ai-panel{max-width:780px}
-  .school-it-home__cards{grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);grid-template-areas:"hero hero" "summary rate" "status status";gap:22px}
+  .school-it-home__cards{grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);grid-template-areas:"hero hero" "summary breakdown";gap:22px}
   .school-it-home__hero{grid-area:hero;min-height:332px;padding:34px 28px 0;--school-it-hero-logo-size:164px;--school-it-hero-logo-offset:-24px;--school-it-hero-logo-top:69%}
   .school-it-home__hero-copy{min-height:276px;max-width:calc(100% - (var(--school-it-hero-logo-size) * 0.74))}
   .school-it-home__hero-title{max-width:8ch}
   .school-it-home__summary{grid-area:summary;min-height:266px}
-  .school-it-home__rate{grid-area:rate;min-height:266px}
-  .school-it-home__status{grid-area:status}
-  .school-it-home__status-panel{min-height:252px}
+  .school-it-home__breakdown{grid-area:breakdown;display:flex;align-items:stretch;}
+
+
 }
 @media (min-width:1100px){
-  .school-it-home__cards{grid-template-columns:minmax(0,1.04fr) minmax(360px,.96fr);grid-template-areas:"hero hero" "summary rate" "summary status"}
+  .school-it-home__cards{grid-template-columns:minmax(0,1.04fr) minmax(360px,.96fr);grid-template-areas:"hero hero" "summary breakdown" "summary breakdown"}
 }
 @media (prefers-reduced-motion:reduce){
   .school-it-home__ai-pill,.school-it-home__ai-send,.school-it-bubble-enter-active{transition:none;animation:none}

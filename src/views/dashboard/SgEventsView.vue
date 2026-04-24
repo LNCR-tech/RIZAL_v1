@@ -49,7 +49,7 @@
           <Search :size="18" style="color: var(--color-primary);" />
         </div>
         
-        <div class="sg-create-wrapper" :class="{ 'is-expanded': isCreating, 'map-is-fullscreen': isMapFullscreen }">
+        <div class="sg-create-wrapper" :class="{ 'is-expanded': isCreating }">
           <button v-show="!isCreating" class="sg-create-event-btn" type="button" @click="openCreateForm">
             <Plus :size="20" />
             <span style="margin-top: 1px;">Create<br>Event</span>
@@ -86,28 +86,13 @@
               
               <div class="sg-map-section">
                 <p class="sg-field-label">Please Select Location for Attendance</p>
-                
-                <div style="position: relative; width: 100%; height: 200px;">
-                  <div 
-                    class="sg-map-container"
-                    :class="{ 'is-fullscreen': isMapFullscreen }"
-                  >
-                    <div id="sg-leaflet-preview" class="sg-leaflet-preview" @click="toggleFullscreenMap"></div>
-                    
-                    <div v-if="isMapFullscreen" class="sg-map-fullscreen-overlay">
-                      <button class="sg-map-confirm-btn" type="button" @click.stop="toggleFullscreenMap">
-                        Confirm Location
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="sg-map-controls">
-                  <button class="sg-map-btn" type="button" @click="useCurrentLocation">Use Current Location</button>
-                  <button class="sg-map-btn sg-map-btn--clear" type="button" @click="clearLocation">
-                    <Trash2 :size="14" style="color:#e74c3c" /> <span style="color:#e74c3c">Clear</span>
-                  </button>
-                </div>
+
+                <EventLocationPicker
+                  v-model:latitude="form.latitude"
+                  v-model:longitude="form.longitude"
+                  :radius-m="form.radius_meters"
+                  :disabled="isSubmitting"
+                />
                 
                 <div class="sg-coord-grid">
                   <label class="sg-field-label">
@@ -219,7 +204,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
@@ -230,6 +215,7 @@ const props = defineProps({
 })
 import { ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2 } from 'lucide-vue-next'
 import EventEditorSheet from '@/components/events/EventEditorSheet.vue'
+import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
@@ -242,7 +228,6 @@ import {
   getGovernanceUnitDetail,
   updateEvent as updateBackendEvent,
 } from '@/services/backendApi.js'
-import { getCurrentPositionOrThrow } from '@/services/devicePermissions.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
 import {
   getGovernanceUnitsForAction,
@@ -276,7 +261,6 @@ const eventEditorError = ref('')
 
 const isCreating = ref(false)
 const isSubmitting = ref(false)
-const isMapFullscreen = ref(false)
 const form = ref({
   name: '',
   location_name: '',
@@ -288,9 +272,6 @@ const form = ref({
   radius_meters: 100,
   gps_accuracy: 50
 })
-
-let mapInstance = null
-let markerInstance = null
 
 const eventSwipeOffsets = ref({})
 const eventSwipeDragId = ref(null)
@@ -324,11 +305,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleDocumentPointerDown)
-  if (mapInstance) {
-    mapInstance.remove()
-    mapInstance = null
-    markerInstance = null
-  }
 })
 
 function formatDate(d) {
@@ -468,93 +444,10 @@ async function deleteManagedEvent(event) {
 
 function openCreateForm() {
   isCreating.value = true
-  initMap()
 }
 
 function closeCreateForm() {
   isCreating.value = false
-  setTimeout(() => {
-    if (mapInstance) {
-      mapInstance.remove()
-      mapInstance = null
-      markerInstance = null
-    }
-  }, 400) // Wait for transition
-}
-
-function initMap() {
-  if (mapInstance) return
-  nextTick(() => {
-    setTimeout(async () => {
-      const el = document.getElementById('sg-leaflet-preview')
-      if (!el) return
-      
-      try {
-        const LeafletModule = await import('leaflet')
-        await import('leaflet/dist/leaflet.css')
-        const L = LeafletModule.default || LeafletModule
-        
-        mapInstance = L.map(el).setView([14.5995, 120.9842], 13) // Default to Manila
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(mapInstance)
-        
-        // Define global L reference purely for the marker helper
-        window._sgLeaflet = L
-        
-        mapInstance.on('click', (e) => {
-          setMapMarker(e.latlng.lat, e.latlng.lng)
-        })
-        
-        if (form.value.latitude && form.value.longitude) {
-          setMapMarker(form.value.latitude, form.value.longitude)
-        }
-      } catch (err) {
-        console.error('Failed to load Leaflet:', err)
-      }
-    }, 350) // wait for element expansion animation
-  })
-}
-
-function setMapMarker(lat, lng) {
-  form.value.latitude = parseFloat(lat.toFixed(6))
-  form.value.longitude = parseFloat(lng.toFixed(6))
-  if (markerInstance) {
-    markerInstance.setLatLng([lat, lng])
-  } else {
-    const L = window._sgLeaflet
-    if (L) markerInstance = L.marker([lat, lng]).addTo(mapInstance)
-  }
-  if (mapInstance) mapInstance.setView([lat, lng])
-}
-
-async function useCurrentLocation() {
-  try {
-    const pos = await getCurrentPositionOrThrow({
-      enableHighAccuracy: true,
-      timeout: 25000,
-      maximumAge: 10000,
-    })
-    setMapMarker(pos.latitude, pos.longitude)
-  } catch (error) {
-    alert(error?.message || 'Unable to retrieve your location. Make sure GPS or device location services are turned on, then try again.')
-  }
-}
-
-function clearLocation() {
-  form.value.latitude = null
-  form.value.longitude = null
-  if (markerInstance) {
-    markerInstance.remove()
-    markerInstance = null
-  }
-}
-
-function toggleFullscreenMap() {
-  isMapFullscreen.value = !isMapFullscreen.value
-  setTimeout(() => {
-    if (mapInstance) mapInstance.invalidateSize()
-  }, 400)
 }
 
 function getEventSwipeOffset(eventId) {
@@ -1199,10 +1092,6 @@ function resolveNextPreviewEventId() {
   border-radius: 44px;
   width: 100%;
 }
-.sg-create-wrapper.map-is-fullscreen {
-  overflow: visible !important;
-  z-index: 99999;
-}
 .sg-sub-toolbar.is-creating {
   flex-direction: column;
 }
@@ -1289,74 +1178,6 @@ function resolveNextPreviewEventId() {
   flex-direction: column;
   gap: 12px;
   margin-top: 8px;
-}
-.sg-map-container {
-  position: absolute; /* positioned inside the protective 200px height wrapper */
-  top: 0; left: 0; right: 0; bottom: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 16px;
-  overflow: hidden;
-  z-index: 10;
-}
-@keyframes map-pop-in {
-  from { opacity: 0; transform: scale(0.98) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-.sg-map-container.is-fullscreen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 0;
-  z-index: 999999;
-  box-shadow: 0 0 100vw rgba(0,0,0,0.8);
-  animation: map-pop-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.sg-leaflet-preview {
-  width: 100%;
-  height: 100%;
-  background: #e2e8f0;
-}
-.sg-map-fullscreen-overlay {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10000; /* above leaflet ui */
-}
-.sg-map-confirm-btn {
-  background: var(--color-primary);
-  color: #000;
-  font-weight: 800;
-  padding: 12px 24px;
-  border-radius: 999px;
-  border: none;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  cursor: pointer;
-}
-
-.sg-map-controls {
-  display: flex;
-  gap: 8px;
-}
-.sg-map-btn {
-  flex: 1;
-  background: var(--color-surface);
-  border: none;
-  border-radius: 999px;
-  padding: 14px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--color-text-primary);
 }
 
 .sg-coord-grid {

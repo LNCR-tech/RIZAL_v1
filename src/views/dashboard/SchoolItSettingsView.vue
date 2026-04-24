@@ -188,6 +188,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { LoaderCircle, Upload } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
@@ -214,6 +215,7 @@ const {
   applySchoolSettingsSnapshot,
 } = useDashboardSession()
 const { logout } = useAuth()
+const route = useRoute()
 
 const previewSettings = reactive(cloneSchoolSettings(schoolItPreviewData.schoolSettings))
 const draft = reactive(cloneSchoolSettings(schoolItPreviewData.schoolSettings))
@@ -233,10 +235,11 @@ const logoRefreshKey = ref(0)
 let feedbackTimeoutId = null
 let previewAnimationTimeoutId = null
 
-const activeUser = computed(() => (props.preview ? schoolItPreviewData.user : currentUser.value))
-const activeSchoolSettings = computed(() => (props.preview ? previewSettings : schoolSettings.value))
+const isPreviewWorkspace = computed(() => props.preview || route.path.startsWith('/exposed/workspace'))
+const activeUser = computed(() => (isPreviewWorkspace.value ? schoolItPreviewData.user : currentUser.value))
+const activeSchoolSettings = computed(() => (isPreviewWorkspace.value ? previewSettings : schoolSettings.value))
 
-usePreviewTheme(() => props.preview, previewSettings)
+usePreviewTheme(() => isPreviewWorkspace.value, previewSettings)
 
 const displayName = computed(() => {
   const user = activeUser.value
@@ -258,7 +261,7 @@ const remoteLogoSrc = computed(() => {
   return withMediaCacheKey(resolved, activeSchoolSettings.value?.updated_at || logoRefreshKey.value || '')
 })
 const logoDisplaySrc = computed(() => localLogoUrl.value || remoteLogoSrc.value || '')
-const controlsDisabled = computed(() => !props.preview && !activeSchoolSettings.value)
+const controlsDisabled = computed(() => !isPreviewWorkspace.value && !activeSchoolSettings.value)
 
 const isSavingPrimary = computed(() => pendingField.value === 'primary')
 const isSavingSecondary = computed(() => pendingField.value === 'secondary')
@@ -280,7 +283,7 @@ watch(
 )
 
 onMounted(async () => {
-  if (props.preview) return
+  if (isPreviewWorkspace.value) return
 
   if (!schoolSettings.value) {
     await initializeDashboardSession().catch(() => null)
@@ -332,7 +335,7 @@ async function handleColorInput(kind, event) {
     draft.secondary_color = nextValue
   }
 
-  if (props.preview) {
+  if (isPreviewWorkspace.value) {
     if (kind === 'primary') {
       previewSettings.primary_color = nextValue
     } else {
@@ -360,7 +363,7 @@ async function handleLogoChange(event) {
     validateLogoFile(file)
     updateLocalLogoPreview(file)
 
-    if (props.preview) {
+    if (isPreviewWorkspace.value) {
       previewSettings.logo_url = localLogoUrl.value
       pushFeedback('success', 'University logo updated in preview.')
       return

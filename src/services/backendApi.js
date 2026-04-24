@@ -69,6 +69,82 @@ function buildUrl(baseUrl, path, params) {
     return url.toString()
 }
 
+function normalizeErrorPath(loc = []) {
+    const segments = (Array.isArray(loc) ? loc : [loc])
+        .map((segment) => String(segment ?? '').trim())
+        .filter(Boolean)
+        .filter((segment) => !['body', 'query', 'path', 'response'].includes(segment.toLowerCase()))
+
+    return segments.join('.')
+}
+
+function extractStructuredEntryMessage(value = null) {
+    if (!value || typeof value !== 'object') return ''
+
+    const message = String(value?.msg || value?.message || value?.reason || '').trim()
+    const path = normalizeErrorPath(value?.loc)
+
+    if (path && message) return `${path}: ${message}`
+    return message || path
+}
+
+function extractBackendErrorMessage(payload, fallback = 'Request failed.') {
+    const visited = new Set()
+
+    const visit = (value) => {
+        if (typeof value === 'string') {
+            const normalized = value.trim()
+            if (normalized.startsWith('<!DOCTYPE') || normalized.startsWith('<html')) {
+                return ''
+            }
+            return normalized || ''
+        }
+
+        if (Array.isArray(value)) {
+            const messages = value
+                .map((entry) => visit(entry))
+                .filter(Boolean)
+
+            return messages.slice(0, 3).join('; ')
+        }
+
+        if (!value || typeof value !== 'object') {
+            return ''
+        }
+
+        if (visited.has(value)) {
+            return ''
+        }
+        visited.add(value)
+
+        const structuredEntryMessage = extractStructuredEntryMessage(value)
+        if (structuredEntryMessage) {
+            return structuredEntryMessage
+        }
+
+        const candidateValues = [
+            value?.detail,
+            value?.message,
+            value?.reason,
+            value?.error,
+            value?.errors,
+            value?.violations,
+            value?.title,
+        ]
+
+        for (const candidate of candidateValues) {
+            const candidateMessage = visit(candidate)
+            if (candidateMessage) {
+                return candidateMessage
+            }
+        }
+
+        return ''
+    }
+
+    return visit(payload) || String(fallback || 'Request failed.')
+}
+
 async function parseResponse(response) {
     const contentType = response.headers.get('content-type') || ''
     const isJson = contentType.includes('application/json')
@@ -81,12 +157,10 @@ async function parseResponse(response) {
     }
 
     if (!response.ok) {
-        const message =
-            payload?.detail?.message ||
-            payload?.detail ||
-            payload?.message ||
-            response.statusText ||
-            'Request failed.'
+        const message = extractBackendErrorMessage(
+            payload,
+            response.statusText || 'Request failed.'
+        )
         throw new BackendApiError(String(message), {
             status: response.status,
             details: payload,
@@ -258,11 +332,12 @@ async function requestWithFallback(baseUrl, candidatePaths, options = {}, fallba
 
 export async function loginForAccessToken(baseUrl, { username, password }) {
     const body = new URLSearchParams({
-        username: String(username ?? ''),
+        grant_type: 'password',
+        username: String(username ?? '').trim(),
         password: String(password ?? ''),
     })
 
-    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/token', '/api/token'], {
+    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/api/token', '/token'], {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -675,13 +750,22 @@ export async function getGovernanceStudents(baseUrl, token, params = {}) {
         token,
         params,
     })
-    return Array.isArray(payload) ? payload : []
+    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate) : []
 }
 
 export async function getGovernanceAnnouncements(baseUrl, token, governanceUnitId) {
     const payload = await request(baseUrl, `/api/governance/units/${governanceUnitId}/announcements`, {
         method: 'GET',
         token,
+    })
+    return Array.isArray(payload) ? payload : []
+}
+
+export async function getGovernanceAnnouncementMonitor(baseUrl, token, params = {}) {
+    const payload = await request(baseUrl, '/api/governance/announcements/monitor', {
+        method: 'GET',
+        token,
+        params,
     })
     return Array.isArray(payload) ? payload : []
 }
@@ -795,6 +879,16 @@ export async function getAuditLogs(baseUrl, token, params = {}) {
 
 export async function getNotificationLogs(baseUrl, token, params = {}) {
     const payload = await request(baseUrl, '/api/notifications/logs', {
+        method: 'GET',
+        token,
+        params,
+    })
+
+    return Array.isArray(payload) ? payload.map(normalizeNotificationLogItem).filter(Boolean) : []
+}
+
+export async function getMyNotificationInbox(baseUrl, token, params = {}) {
+    const payload = await request(baseUrl, '/api/notifications/inbox/me', {
         method: 'GET',
         token,
         params,
@@ -928,6 +1022,26 @@ export async function startStudentImport(baseUrl, token, previewToken) {
     }))
 }
 
+export async function retryFailedStudentImport(baseUrl, token, jobId, rowNumbers = []) {
+    const normalizedRowNumbers = Array.isArray(rowNumbers)
+        ? rowNumbers.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+        : []
+
+    const payload = normalizedRowNumbers.length
+        ? { row_numbers: normalizedRowNumbers }
+        : null
+
+    return normalizeImportJobCreateResponse(await request(baseUrl, `/api/admin/import-students/retry-failed/${jobId}`, {
+        method: 'POST',
+        token,
+        timeoutMs: resolveImportApiTimeoutMs(),
+        headers: payload ? {
+            'Content-Type': 'application/json',
+        } : undefined,
+        body: payload ? JSON.stringify(payload) : undefined,
+    }))
+}
+
 export async function getStudentImportStatus(baseUrl, token, jobId) {
     return normalizeImportJobStatus(await request(baseUrl, `/api/admin/import-status/${jobId}`, {
         method: 'GET',
@@ -961,12 +1075,10 @@ async function downloadBinary(baseUrl, path, { token, params } = {}) {
                 payload = null
             }
 
-            const message =
-                payload?.detail?.message ||
-                payload?.detail ||
-                payload?.message ||
-                response.statusText ||
-                'Request failed.'
+            const message = extractBackendErrorMessage(
+                payload,
+                response.statusText || 'Request failed.'
+            )
 
             throw new BackendApiError(String(message), {
                 status: response.status,
@@ -1160,6 +1272,16 @@ export async function createAnnouncement(baseUrl, token, payload) {
         },
         body: JSON.stringify(payload),
     }, [404, 405])
+}
+
+export async function getAnnouncements(baseUrl, token, params = {}) {
+    const payload = await requestWithFallback(baseUrl, ['/api/announcements', '/announcements'], {
+        method: 'GET',
+        token,
+        params,
+    }, [404, 405])
+
+    return Array.isArray(payload) ? payload : []
 }
 
 /**

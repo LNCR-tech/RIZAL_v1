@@ -1,39 +1,47 @@
 <template>
-  <div class="student-council-setup-stage">
-    <div class="student-council-setup-stage__hero">
+  <div
+    class="student-council-setup-stage"
+    :class="{ 'student-council-setup-stage--compact': compact }"
+  >
+    <div v-if="showHeader" class="student-council-setup-stage__hero">
       <span v-if="eyebrow" class="student-council-setup-stage__eyebrow">{{ eyebrow }}</span>
-      <h2 class="student-council-setup-stage__title">{{ titleLines[0] }}<br>{{ titleLines[1] }}</h2>
+      <h2 class="student-council-setup-stage__title">
+        <template v-if="compact">{{ title }}</template>
+        <template v-else>
+          {{ titleLines[0] }}<br>{{ titleLines[1] }}
+        </template>
+      </h2>
       <p v-if="description" class="student-council-setup-stage__description">{{ description }}</p>
     </div>
 
     <label class="student-council-setup-stage__field">
-      <span class="student-council-setup-stage__field-label">Organization Acronym</span>
+      <span class="student-council-setup-stage__field-label">{{ acronymLabel }}</span>
       <input
         :value="draft.acronym"
         type="text"
         class="student-council-setup-stage__field-input"
-        placeholder="e.g., SSG, USC, CSC"
+        :placeholder="acronymPlaceholder"
         @input="updateDraft('acronym', $event.target.value)"
       >
     </label>
 
     <label class="student-council-setup-stage__field">
-      <span class="student-council-setup-stage__field-label">Official Governing Body Name</span>
+      <span class="student-council-setup-stage__field-label">{{ nameLabel }}</span>
       <input
         :value="draft.name"
         type="text"
         class="student-council-setup-stage__field-input"
-        placeholder="e.g., Supreme Student Government"
+        :placeholder="namePlaceholder"
         @input="updateDraft('name', $event.target.value)"
       >
     </label>
 
-    <label class="student-council-setup-stage__field">
-      <span class="student-council-setup-stage__field-label">Description</span>
+    <label v-if="showDescription" class="student-council-setup-stage__field">
+      <span class="student-council-setup-stage__field-label">{{ descriptionLabel }}</span>
       <textarea
         :value="draft.description"
         class="student-council-setup-stage__field-input student-council-setup-stage__field-input--textarea"
-        placeholder="Briefly describe the role of this governing body on campus..."
+        :placeholder="descriptionPlaceholder"
         @input="updateDraft('description', $event.target.value)"
       />
     </label>
@@ -115,6 +123,42 @@ const props = defineProps({
   description: {
     type: String,
     default: '',
+  },
+  compact: {
+    type: Boolean,
+    default: false,
+  },
+  showHeader: {
+    type: Boolean,
+    default: true,
+  },
+  showDescription: {
+    type: Boolean,
+    default: true,
+  },
+  acronymLabel: {
+    type: String,
+    default: 'Organization Acronym',
+  },
+  acronymPlaceholder: {
+    type: String,
+    default: 'e.g., SSG, USC, CSC',
+  },
+  nameLabel: {
+    type: String,
+    default: 'Official Governing Body Name',
+  },
+  namePlaceholder: {
+    type: String,
+    default: 'e.g., Supreme Student Government',
+  },
+  descriptionLabel: {
+    type: String,
+    default: 'Description',
+  },
+  descriptionPlaceholder: {
+    type: String,
+    default: 'Briefly describe the role of this governing body on campus...',
   },
   scopeLabel: {
     type: String,
@@ -201,6 +245,7 @@ function updateDraft(field, value) {
 
 <style scoped>
 .student-council-setup-stage{display:flex;flex-direction:column;gap:18px;min-height:472px}
+.student-council-setup-stage--compact{gap:14px;min-height:0}
 .student-council-setup-stage__hero{display:flex;flex-direction:column;gap:8px}
 .student-council-setup-stage__eyebrow{display:inline-flex;align-self:flex-start;padding:7px 12px;border-radius:999px;background:color-mix(in srgb,var(--color-primary) 10%, var(--color-surface));color:var(--color-primary);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .student-council-setup-stage__title{margin:0;font-size:clamp(36px,10vw,64px);line-height:.92;letter-spacing:-.08em;font-weight:700;color:var(--color-text-always-dark)}
@@ -224,8 +269,21 @@ function updateDraft(field, value) {
 .student-council-setup-stage__danger-pill{width:fit-content;min-height:54px;padding:0 20px 0 8px;border:1.5px solid rgba(217,45,32,.16);border-radius:999px;background:rgba(217,45,32,.06);color:#B42318;display:inline-flex;align-items:center;gap:14px;font-size:13px;font-weight:700}
 .student-council-setup-stage__danger-pill:disabled{opacity:.48;cursor:not-allowed}
 .student-council-setup-stage__danger-pill-icon{width:38px;height:38px;border-radius:999px;background:#D92D20;color:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.student-council-setup-stage--compact .student-council-setup-stage__hero{gap:6px}
+.student-council-setup-stage--compact .student-council-setup-stage__eyebrow{padding:0;background:transparent;border-radius:0;letter-spacing:.06em}
+.student-council-setup-stage--compact .student-council-setup-stage__title{font-size:22px;line-height:1.08;letter-spacing:0}
+.student-council-setup-stage--compact .student-council-setup-stage__description{max-width:none;font-size:12px;line-height:1.45}
+.student-council-setup-stage--compact .student-council-setup-stage__field{gap:7px}
+.student-council-setup-stage--compact .student-council-setup-stage__field-label{font-size:12px;font-weight:700}
+.student-council-setup-stage--compact .student-council-setup-stage__field-input{min-height:48px;border-radius:18px}
+.student-council-setup-stage--compact .student-council-setup-stage__field-input--textarea{min-height:74px;border-radius:18px}
+.student-council-setup-stage--compact .student-council-setup-stage__field-helper{font-size:11px;line-height:1.4}
+.student-council-setup-stage--compact .student-council-setup-stage__actions{margin-top:2px}
+.student-council-setup-stage--compact .student-council-setup-stage__primary-pill{width:100%;justify-content:center;min-height:50px;padding:0 16px 0 6px;border-radius:18px;box-shadow:none}
+.student-council-setup-stage--compact .student-council-setup-stage__primary-pill-icon{width:38px;height:38px;border-radius:14px}
 
 @media (min-width:768px){
   .student-council-setup-stage{min-height:500px}
+  .student-council-setup-stage--compact{min-height:0}
 }
 </style>

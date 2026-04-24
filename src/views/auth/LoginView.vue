@@ -102,10 +102,18 @@
         href="#"
         class="text-[12px] font-medium transition-colors"
         style="color: var(--color-text-secondary);"
+        @click.prevent="showTermsModal = true"
       >
         Learn more about Aura Project
       </a>
     </footer>
+
+    <!-- Terms Modal -->
+    <TermsModal 
+      :isOpen="showTermsModal" 
+      @agree="handleAgree"
+      @decline="handleDecline" 
+    />
   </div>
 </template>
 
@@ -114,18 +122,22 @@ import { computed, ref, onBeforeMount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import TermsModal from '@/components/auth/TermsModal.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
 import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'
 
 const email = ref('')
 const password = ref('')
+const showTermsModal = ref(false)
 const isMounted = ref(false)
 const sessionNotice = ref('')
 const router = useRouter()
 
-const { login, isLoading, error } = useAuth()
+const { login, logout, isLoading, error } = useAuth()
 const visibleMessage = computed(() => error.value || sessionNotice.value)
+
+const nextRoute = ref(null)
 
 onBeforeMount(() => {
   applyTheme(loadUnbrandedTheme())
@@ -140,7 +152,35 @@ onMounted(() => {
 })
 
 async function handleLogin() {
-  await login(email.value, password.value)
+  // TEMPORARY TESTING BYPASS: If you type "test" in both fields, it will skip the backend
+  if (email.value === 'test' && password.value === 'test') {
+    nextRoute.value = { name: 'PreviewHome' }
+    showTermsModal.value = true
+    return
+  }
+
+  const route = await login(email.value, password.value, { preventRedirect: true })
+  
+  if (route) {
+    // Login succeeded, token stored, session initialized.
+    // Pause routing and show Terms Modal.
+    nextRoute.value = route
+    showTermsModal.value = true
+  }
+}
+
+function handleAgree() {
+  showTermsModal.value = false
+  localStorage.setItem('aura_terms_agreed', 'true')
+  if (nextRoute.value) {
+    router.push(nextRoute.value)
+  }
+}
+
+function handleDecline() {
+  showTermsModal.value = false
+  // Log them out and clear session
+  logout()
 }
 
 function openQuickAttendance() {

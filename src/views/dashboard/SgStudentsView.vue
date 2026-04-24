@@ -37,10 +37,10 @@
             :key="student.user_id || student.id"
             class="sg-student-row"
           >
-            <span class="sg-student-id">{{ student.student_id || student.id }}</span>
+            <span class="sg-student-id">{{ studentProfile(student)?.student_id || student.id }}</span>
             <div class="sg-student-info">
               <span class="sg-student-name">{{ studentName(student) }}</span>
-              <span class="sg-student-email">{{ student.email || '' }}</span>
+              <span class="sg-student-email">{{ studentUser(student)?.email || '' }}</span>
             </div>
           </article>
         </div>
@@ -87,12 +87,32 @@ const filteredStudents = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return students.value
   return students.value.filter((s) =>
-    [s.student_id, s.first_name, s.last_name, s.email].filter(Boolean).join(' ').toLowerCase().includes(q)
+    [
+      studentProfile(s)?.student_id,
+      studentUser(s)?.first_name,
+      studentUser(s)?.last_name,
+      studentUser(s)?.email,
+      studentProfile(s)?.department_name,
+      studentProfile(s)?.program_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(q)
   )
 })
 
+function studentUser(student) {
+  return student?.user || student || null
+}
+
+function studentProfile(student) {
+  return student?.student_profile || student?.user?.student_profile || null
+}
+
 function studentName(s) {
-  return [s.first_name, s.last_name].filter(Boolean).join(' ').trim() || s.email || 'Student'
+  const user = studentUser(s)
+  return [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || user?.email || 'Student'
 }
 
 function goBack() {

@@ -1,7 +1,10 @@
 <template>
   <div class="student-council-member-stage">
     <div class="student-council-member-stage__header">
-      <h2 class="student-council-member-stage__title">{{ title }}</h2>
+      <div class="student-council-member-stage__heading">
+        <h2 class="student-council-member-stage__title">{{ title }}</h2>
+        <p v-if="subtitle" class="student-council-member-stage__subtitle">{{ subtitle }}</p>
+      </div>
 
       <button
         v-if="showClose"
@@ -31,7 +34,7 @@
                 v-bind="memberSearchInputAttrs"
                 type="text"
                 class="student-council-member-stage__search-input"
-                placeholder="Select and Search Student Here"
+                :placeholder="searchPlaceholder"
                 @focus="$emit('focus-search')"
                 @input="$emit('update:searchQuery', $event.target.value)"
               >
@@ -83,7 +86,7 @@
           @after-leave="onPermissionsAfterLeave"
         >
           <section v-if="showPermissions" class="student-council-member-stage__permissions">
-            <h3 class="student-council-member-stage__permissions-title">Permission</h3>
+            <h3 class="student-council-member-stage__permissions-title">{{ permissionsTitle }}</h3>
 
             <div
               v-for="category in permissionCatalog"
@@ -147,9 +150,17 @@ const props = defineProps({
     type: String,
     default: 'Add Member',
   },
+  subtitle: {
+    type: String,
+    default: '',
+  },
   searchQuery: {
     type: String,
     default: '',
+  },
+  searchPlaceholder: {
+    type: String,
+    default: 'Search enrolled students',
   },
   selectedStudent: {
     type: Object,
@@ -170,6 +181,10 @@ const props = defineProps({
   showPermissions: {
     type: Boolean,
     default: false,
+  },
+  permissionsTitle: {
+    type: String,
+    default: 'Permissions',
   },
   permissionCatalog: {
     type: Array,
@@ -276,7 +291,9 @@ function onPermissionsAfterLeave(element) {
 <style scoped>
 .student-council-member-stage{display:flex;flex-direction:column;gap:16px;min-height:0;flex:1}
 .student-council-member-stage__header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0}
+.student-council-member-stage__heading{display:grid;gap:10px;min-width:0}
 .student-council-member-stage__title{margin:0;font-size:clamp(36px,10vw,64px);line-height:.92;letter-spacing:-.08em;font-weight:700;color:var(--color-text-always-dark)}
+.student-council-member-stage__subtitle{margin:0;max-width:42ch;font-size:13px;line-height:1.6;font-weight:600;color:var(--color-text-muted)}
 .student-council-member-stage__close{width:42px;height:42px;border:none;border-radius:999px;background:var(--color-field-surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-field-surface-strong) 14%, transparent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--color-text-always-dark)}
 
 .student-council-member-stage__scroll-area{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding-right:6px;margin-right:-6px}

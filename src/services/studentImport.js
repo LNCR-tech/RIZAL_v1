@@ -138,6 +138,65 @@ export function extractStudentImportDisplayRows(summary = {}) {
     })
 }
 
+export function mergeImportStatusErrorsIntoDisplayRows(rows = [], importSummary = {}) {
+  const normalizedRows = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : []
+  const statusErrors = Array.isArray(importSummary?.errors) ? importSummary.errors : []
+
+  if (!statusErrors.length) return normalizedRows
+
+  const errorMap = new Map()
+  statusErrors.forEach((item, index) => {
+    const rowNumber = toOptionalNumber(item?.row, index + 1)
+    const message = toOptionalString(item?.error, 'Unknown import error')
+    const existing = errorMap.get(rowNumber) || []
+    errorMap.set(rowNumber, [...existing, message])
+  })
+
+  if (!normalizedRows.length) {
+    return [...errorMap.entries()].map(([rowNumber, errors]) => ({
+      id: `job-error-${rowNumber}`,
+      row: rowNumber,
+      studentId: '',
+      name: `Row ${rowNumber}`,
+      department: 'Review failed row file',
+      program: 'Backend import error',
+      status: 'failed',
+      errors,
+      suggestions: [],
+    }))
+  }
+
+  const mergedRows = normalizedRows.map((row) => {
+    const rowErrors = errorMap.get(toOptionalNumber(row?.row, 0))
+    if (!rowErrors?.length) return row
+
+    const existingErrors = normalizeStringList(row?.errors)
+    return {
+      ...row,
+      status: 'failed',
+      errors: [...new Set([...rowErrors, ...existingErrors])],
+    }
+  })
+
+  const knownRows = new Set(mergedRows.map((row) => toOptionalNumber(row?.row, 0)))
+  errorMap.forEach((errors, rowNumber) => {
+    if (knownRows.has(rowNumber)) return
+    mergedRows.push({
+      id: `job-error-${rowNumber}`,
+      row: rowNumber,
+      studentId: '',
+      name: `Row ${rowNumber}`,
+      department: 'Review failed row file',
+      program: 'Backend import error',
+      status: 'failed',
+      errors,
+      suggestions: [],
+    })
+  })
+
+  return mergedRows
+}
+
 export function createMockImportPreviewSummary({
   fileName = 'student_import_template.xlsx',
   users = [],

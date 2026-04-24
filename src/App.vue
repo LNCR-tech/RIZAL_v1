@@ -52,16 +52,22 @@
 
     <NotificationsPanel 
       :is-open="showNotifications" 
-      :notifications="mockNotifications" 
-      @close="showNotifications = false" 
+      :notifications="notificationItems"
+      :loading="notificationsLoading"
+      :error="notificationsError"
+      @close="closeNotifications"
+      @refresh="refreshNotifications({ force: true })"
+      @item-click="markNotificationRead"
+      @mark-all-read="markAllNotificationsRead"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import AppBootLoader from '@/components/ui/AppBootLoader.vue'
+import { bootSplashVisible, markBootSplashReady, notifyBootSplashMounted } from '@/services/bootSplash.js'
 import { mobileFullscreenHintVisible, requestMobileFullscreen } from '@/services/mobileFullscreen.js'
 import { isOnline } from '@/composables/useNetworkStatus.js'
 import { appFatalErrorMessage, clearAppFatalError } from '@/services/appBootstrap.js'
@@ -73,20 +79,34 @@ import { useNotifications } from '@/composables/useNotifications.js'
 
 const router = useRouter()
 const networkOnline = computed(() => isOnline.value)
-const { showNotifications, mockNotifications } = useNotifications()
+const {
+  showNotifications,
+  notificationItems,
+  notificationsLoading,
+  notificationsError,
+  closeNotifications,
+  refreshNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} = useNotifications()
 const fatalErrorMessage = computed(() => appFatalErrorMessage.value)
-const hasResolvedInitialRoute = ref(false)
-const showInitialBootScreen = computed(() => !hasResolvedInitialRoute.value && isNavigationPending.value)
+const showInitialBootScreen = computed(() => bootSplashVisible.value)
 
 watch(
   isNavigationPending,
   (pending) => {
     if (!pending) {
-      hasResolvedInitialRoute.value = true
+      markBootSplashReady()
     }
   },
   { immediate: true }
 )
+
+onMounted(() => {
+  nextTick(() => {
+    notifyBootSplashMounted()
+  })
+})
 
 function reloadApp() {
   clearAppFatalError()
@@ -103,7 +123,7 @@ function goToLogin() {
 <style>
 .app-safe-area {
   min-height: 100dvh;
-  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--color-bg, #050505);
 }
 
 .app-boot-screen,
@@ -121,7 +141,7 @@ function goToLogin() {
 }
 
 .app-boot-screen {
-  background: var(--color-surface, #ffffff);
+  background: #050505;
 }
 
 .app-fatal-card {

@@ -74,6 +74,92 @@ export const defaultStudentCouncilPermissionCatalog = [
   },
 ]
 
+const GOVERNANCE_PERMISSION_CATALOG_BY_UNIT_TYPE = {
+  SSG: [
+    {
+      id: 'operations',
+      label: 'Operations',
+      permissions: [
+        { id: 'manage-events', label: 'Manage Events' },
+        { id: 'publish-announcements', label: 'Publish Announcements' },
+        { id: 'manage-attendance', label: 'Manage Attendance' },
+      ],
+    },
+    {
+      id: 'student-services',
+      label: 'Student Services',
+      permissions: [
+        { id: 'view-student-directory', label: 'View Student Directory' },
+        { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+      ],
+    },
+    {
+      id: 'structure',
+      label: 'SSG Controls',
+      permissions: [
+        { id: 'create-college-level-councils', label: 'Create College Level Councils' },
+        { id: 'manage-members', label: 'Manage Members' },
+        { id: 'manage-permissions', label: 'Manage Permissions' },
+      ],
+    },
+  ],
+  SG: [
+    {
+      id: 'operations',
+      label: 'Operations',
+      permissions: [
+        { id: 'manage-events', label: 'Manage Events' },
+        { id: 'publish-announcements', label: 'Publish Announcements' },
+        { id: 'manage-attendance', label: 'Manage Attendance' },
+      ],
+    },
+    {
+      id: 'student-services',
+      label: 'Student Services',
+      permissions: [
+        { id: 'view-student-directory', label: 'View Student Directory' },
+        { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+      ],
+    },
+    {
+      id: 'structure',
+      label: 'SG Controls',
+      permissions: [
+        { id: 'create-organizations', label: 'Create Organizations' },
+        { id: 'manage-members', label: 'Manage Members' },
+        { id: 'manage-permissions', label: 'Manage Permissions' },
+      ],
+    },
+  ],
+  ORG: [
+    {
+      id: 'operations',
+      label: 'Operations',
+      permissions: [
+        { id: 'manage-events', label: 'Manage Events' },
+        { id: 'publish-announcements', label: 'Publish Announcements' },
+        { id: 'manage-attendance', label: 'Manage Attendance' },
+      ],
+    },
+    {
+      id: 'student-services',
+      label: 'Student Services',
+      permissions: [
+        { id: 'view-student-directory', label: 'View Student Directory' },
+        { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+      ],
+    },
+    {
+      id: 'structure',
+      label: 'ORG Controls',
+      permissions: [
+        { id: 'manage-members', label: 'Manage Members' },
+        { id: 'manage-permissions', label: 'Manage Permissions' },
+      ],
+    },
+  ],
+}
+
 export function createEmptyCouncilDraft() {
   return {
     acronym: '',
@@ -344,6 +430,13 @@ export function normalizePermissionCatalog(catalog = defaultStudentCouncilPermis
         : [],
     }))
     : []
+}
+
+export function getGovernancePermissionCatalogForUnitType(unitType = '') {
+  const normalizedUnitType = String(unitType || '').trim().toUpperCase()
+  return normalizePermissionCatalog(
+    GOVERNANCE_PERMISSION_CATALOG_BY_UNIT_TYPE[normalizedUnitType] || defaultStudentCouncilPermissionCatalog
+  )
 }
 
 export function normalizePermissionIds(values) {

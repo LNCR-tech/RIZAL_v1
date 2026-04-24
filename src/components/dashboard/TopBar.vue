@@ -40,10 +40,12 @@
       <!-- Hidden Sign Out section (Reveals on Hover or active state) -->
       <div 
         @click.stop="handleLogout"
-        class="signout-pill flex items-center overflow-hidden max-w-0 opacity-0 transition-all duration-300 ease-in-out whitespace-nowrap hover:opacity-75 cursor-pointer"
+        class="signout-pill overflow-hidden transition-all duration-300 ease-in-out cursor-pointer hover:opacity-75"
       >
-          <LogOut :size="18" color="#D92D20" :stroke-width="2.5" class="mr-2" />
-        <span class="text-[14px] font-medium" style="color: #D92D20; letter-spacing: -0.02em;">Sign Out</span>
+        <div class="flex items-center w-max pl-4 ml-3 border-l" style="border-left-color: var(--color-surface-border); height: 32px;">
+          <LogOut :size="16" color="#D92D20" :stroke-width="2.5" class="mr-2 shrink-0" />
+          <span class="text-[13px] font-bold shrink-0" style="color: #D92D20; letter-spacing: -0.01em;">Sign Out</span>
+        </div>
       </div>
     </button>
 
@@ -208,12 +210,15 @@ const governanceButtonLabel = computed(() => {
 </script>
 
 <style scoped>
+.signout-pill {
+  max-width: 0;
+  opacity: 0;
+}
+
 .profile-pill:hover .signout-pill,
 .profile-pill.is-expanded .signout-pill {
-  max-width: 150px;
+  max-width: 140px;
   opacity: 1;
-  margin-left: 24px;
-  margin-right: 4px;
 }
 
 .topbar-governance-btn {

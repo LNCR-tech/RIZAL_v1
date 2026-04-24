@@ -329,6 +329,7 @@ import {
   getEvents,
   resolveApiBaseUrl,
 } from '@/services/backendApi.js'
+import { downloadBlobFile } from '@/services/fileDownload.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 
 const props = defineProps({
@@ -766,9 +767,9 @@ async function downloadReport(event, format = 'csv') {
 
     const exportRows = dedupeAttendanceRows(bundle?.records || [])
     if (format === 'excel') {
-      downloadExcelReport(event, bundle?.report, exportRows)
+      await downloadExcelReport(event, bundle?.report, exportRows)
     } else {
-      downloadCsvReport(event, bundle?.report, exportRows)
+      await downloadCsvReport(event, bundle?.report, exportRows)
     }
   } catch (error) {
     selectionError.value = resolveSelectionError(error)
@@ -777,7 +778,7 @@ async function downloadReport(event, format = 'csv') {
   }
 }
 
-function downloadCsvReport(event, report, rows) {
+async function downloadCsvReport(event, report, rows) {
   const csvLines = [
     ['Event', report?.event_name || event?.name || 'Event'],
     ['Date', report?.event_date || formatDate(event?.start_datetime)],
@@ -805,10 +806,12 @@ function downloadCsvReport(event, report, rows) {
 
   const csvContent = `\uFEFF${csvLines.map((line) => line.map(toCsvField).join(',')).join('\r\n')}`
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  triggerFileDownload(blob, `${sanitizeFilename(event?.name || report?.event_name || 'event_report')}.csv`)
+  await downloadBlobFile(blob, `${sanitizeFilename(event?.name || report?.event_name || 'event_report')}.csv`, {
+    title: 'Event attendance report',
+  })
 }
 
-function downloadExcelReport(event, report, rows) {
+async function downloadExcelReport(event, report, rows) {
   const html = `
     <html>
       <head>
@@ -869,7 +872,9 @@ function downloadExcelReport(event, report, rows) {
   const blob = new Blob([`\uFEFF${html}`], {
     type: 'application/vnd.ms-excel;charset=utf-8;',
   })
-  triggerFileDownload(blob, `${sanitizeFilename(event?.name || report?.event_name || 'event_report')}.xls`)
+  await downloadBlobFile(blob, `${sanitizeFilename(event?.name || report?.event_name || 'event_report')}.xls`, {
+    title: 'Event attendance report',
+  })
 }
 
 function dedupeAttendanceRows(records) {
@@ -1029,18 +1034,6 @@ function toSpreadsheetSafeText(value) {
 
 function toCsvField(value) {
   return `"${toSpreadsheetSafeText(value).replace(/"/g, '""')}"`
-}
-
-function triggerFileDownload(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.style.display = 'none'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function escapeHtml(value) {

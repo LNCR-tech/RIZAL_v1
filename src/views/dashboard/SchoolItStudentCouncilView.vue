@@ -130,14 +130,31 @@
                       </button>
                     </section>
 
-                    <StudentCouncilSetupStage
-                      v-else-if="currentPrimaryStage === 'setup'"
-                      :draft="councilDraft"
-                      :submit-label="isSavingCouncil ? 'Creating Council...' : 'Add Student Council'"
-                      :submit-disabled="isSavingCouncil || !canSubmitCouncilDraft(councilDraft)"
-                      @update:draft="councilDraft = $event"
-                      @submit="handleCreateCouncil"
-                    />
+                    <template v-else-if="currentPrimaryStage === 'setup'">
+                      <div class="student-council-view__hierarchy-strip" aria-label="Governance hierarchy">
+                        <span class="student-council-view__hierarchy-step student-council-view__hierarchy-step--active">SSG</span>
+                        <span class="student-council-view__hierarchy-step">SG</span>
+                        <span class="student-council-view__hierarchy-step">ORG</span>
+                      </div>
+
+                      <StudentCouncilSetupStage
+                        compact
+                        :draft="councilDraft"
+                        eyebrow="Campus Level"
+                        title="SSG"
+                        description="Parent governance unit."
+                        acronym-label="Acronym"
+                        acronym-placeholder="e.g. SSG"
+                        name-label="Name"
+                        name-placeholder="e.g. Supreme Student Government"
+                        description-label="Notes (optional)"
+                        description-placeholder="Short campus role"
+                        :submit-label="isSavingCouncil ? 'Creating SSG...' : 'Create SSG'"
+                        :submit-disabled="isSavingCouncil || !canSubmitCouncilDraft(councilDraft)"
+                        @update:draft="councilDraft = $event"
+                        @submit="handleCreateCouncil"
+                      />
+                    </template>
 
                     <StudentCouncilMemberStage
                       v-else
@@ -297,7 +314,17 @@
         <div class="student-council-view__sheet">
           <StudentCouncilSetupStage
             class="student-council-view__sheet-setup-stage"
+            compact
             :draft="councilSheetDraft"
+            eyebrow="Campus Level"
+            title="SSG"
+            description="Parent governance unit."
+            acronym-label="Acronym"
+            acronym-placeholder="e.g. SSG"
+            name-label="Name"
+            name-placeholder="e.g. Supreme Student Government"
+            description-label="Notes (optional)"
+            description-placeholder="Short campus role"
             :is-editing="hasCouncil"
             :submit-label="councilSheetSubmitLabel"
             :submit-disabled="councilSheetSubmitDisabled"
@@ -1345,6 +1372,9 @@ async function handleLogout() {
 .student-council-view__stage-frame{width:min(100%,690px);min-height:380px;padding:28px 28px 40px;border-radius:34px;background:var(--color-surface);overflow:hidden}
 .student-council-view__stage-pane{width:100%}
 .student-council-view__stage-content{display:flex;flex-direction:column;gap:22px}
+.student-council-view__hierarchy-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.student-council-view__hierarchy-step{min-height:34px;border-radius:14px;background:color-mix(in srgb,var(--color-field-surface) 78%,var(--color-surface));color:var(--color-text-muted);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:0}
+.student-council-view__hierarchy-step--active{background:var(--color-primary);color:var(--color-banner-text)}
 .student-council-view__unavailable{display:flex;flex-direction:column;gap:16px;min-height:280px}
 .student-council-view__unavailable-title{margin:0;font-size:clamp(34px,10vw,60px);line-height:.92;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
 .student-council-view__unavailable-copy{margin:0;max-width:28ch;font-size:15px;line-height:1.5;color:var(--color-text-muted)}

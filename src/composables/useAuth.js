@@ -17,7 +17,7 @@ export function useAuth() {
     const isLoading = ref(false)
     const error = ref(null)
 
-    async function login(email, password) {
+    async function login(email, password, options = {}) {
         isLoading.value = true
         error.value = null
 
@@ -45,12 +45,16 @@ export function useAuth() {
             markCurrentRuntimeSession()
 
             if (hasPrivilegedPendingFace(authMeta)) {
-                router.push({ name: 'PrivilegedFaceVerification' })
+                const nextRoute = { name: 'PrivilegedFaceVerification' }
+                if (options.preventRedirect) return nextRoute
+                router.push(nextRoute)
                 return
             }
 
             if (authMeta.mustChangePassword) {
-                router.push({ name: 'ChangePassword' })
+                const nextRoute = { name: 'ChangePassword' }
+                if (options.preventRedirect) return nextRoute
+                router.push(nextRoute)
                 return
             }
 
@@ -58,14 +62,18 @@ export function useAuth() {
             if (!initializedSession?.user || sessionUsesLimitedMode()) {
                 throw new Error('The backend did not return a complete user session. Please try again once the backend is stable.')
             }
-            router.push(
-                sessionNeedsFaceRegistration()
-                    ? { name: 'FaceRegistration' }
-                    : getDefaultAuthenticatedRoute()
-            )
+            
+            const nextRoute = sessionNeedsFaceRegistration()
+                ? { name: 'FaceRegistration' }
+                : getDefaultAuthenticatedRoute()
+
+            if (options.preventRedirect) return nextRoute
+            router.push(nextRoute)
+            
         } catch (err) {
             clearDashboardSession()
             error.value = err?.message || 'Login failed. Please try again.'
+            if (options.preventRedirect) return null
         } finally {
             isLoading.value = false
         }

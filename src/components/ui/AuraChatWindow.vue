@@ -57,7 +57,20 @@
               :key="msg.id"
               :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
             >
-              {{ msg.text }}
+              <div v-if="msg.html" v-html="msg.html" class="chat-html-content" />
+              <template v-else>{{ msg.text }}</template>
+
+              <div v-if="msg.actions && msg.actions.length" class="chat-actions">
+                <button
+                  v-for="(action, i) in msg.actions"
+                  :key="i"
+                  class="chat-action-btn"
+                  @click="handleAction(action)"
+                >
+                  <component v-if="action.icon" :is="action.icon" :size="14" class="action-icon" />
+                  <span>{{ action.label }}</span>
+                </button>
+              </div>
             </div>
 
             <!-- Typing indicator -->
@@ -98,9 +111,11 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { Minus, X, Send } from 'lucide-vue-next'
+import { Minus, X, Send, Download, ExternalLink } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
+import { downloadDemoReport } from '@/services/demoReportDownload.js'
+import { useRouter } from 'vue-router'
 
 const windowEl = ref(null)
 
@@ -114,6 +129,17 @@ const {
   closeFull,
   minimizeToMini,
 } = useChat()
+
+const router = useRouter()
+
+async function handleAction(action) {
+  if (action.route) {
+    router.push(action.route)
+  }
+  if (action.actionId === 'download-pdf' || action.actionId === 'download-csv') {
+    await downloadDemoReport(action.actionId.split('-')[1])
+  }
+}
 
 const inputEl = ref(null)
 
@@ -398,5 +424,82 @@ watch(isFullOpen, (val) => {
 .chat-send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ── Rich Content Styles ───────────────────────────────── */
+::v-deep(.chat-html-content p) {
+  margin: 0 0 10px;
+}
+::v-deep(.chat-html-content p:last-child) {
+  margin: 0;
+}
+::v-deep(.chat-html-content .mock-graph) {
+  margin-top: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 100px;
+  padding: 10px 0;
+  border-bottom: 2px solid rgba(0,0,0,0.1);
+}
+::v-deep(.chat-html-content .mock-graph-bar) {
+  flex: 1;
+  background: var(--color-primary);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  min-height: 10px;
+}
+::v-deep(.chat-html-content .mock-graph-bar span) {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.6);
+}
+::v-deep(.chat-html-content .mock-graph-label) {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: rgba(0,0,0,0.5);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-around;
+}
+::v-deep(.chat-html-content .mock-graph-label span) {
+  flex: 1;
+}
+
+.chat-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.05);
+  color: #0A0A0A;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.chat-action-btn:hover {
+  background: rgba(0,0,0,0.08);
+}
+.action-icon {
+  opacity: 0.7;
 }
 </style>

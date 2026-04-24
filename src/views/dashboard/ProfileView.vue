@@ -257,7 +257,7 @@
 
         <!-- Action rows — below App Setting on mobile & desktop -->
         <div class="action-cards">
-          <button class="action-row" @click="handleSecurity">
+          <button class="action-row" type="button" @click="handleSecurity">
             <span class="action-row__left">
               <span class="action-icon"><Shield :size="16" /></span>
               <span class="action-label">Security</span>
@@ -265,7 +265,7 @@
             <ChevronRight :size="16" class="action-chevron" />
           </button>
 
-          <button class="action-row action-row--danger" @click="handleSignOut">
+          <button class="action-row action-row--danger" type="button" @click="handleSignOut">
             <span class="action-row__left">
               <span class="action-label action-label--danger">Sign Out</span>
             </span>
@@ -561,8 +561,7 @@ async function saveProfile() {
 
 // ── Handlers ──────────────────────────────────────────────────────────
 function handleSecurity() {
-  if (props.preview) return
-  router.push({ name: 'ProfileSecurity' })
+  router.push({ name: props.preview ? 'PreviewProfileSecurity' : 'ProfileSecurity' })
 }
 
 async function handleSignOut() {
@@ -712,10 +711,26 @@ async function handleSignOut() {
   border: none;
   background: var(--color-surface);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
 }
 
-.action-row:hover { opacity: 0.8; }
+.action-row:hover {
+  opacity: 0.9;
+  box-shadow: 0 12px 26px rgba(10, 10, 10, 0.08);
+}
+
+.action-row:active {
+  transform: scale(0.985);
+}
+
+.action-row:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-primary) 36%, transparent),
+    0 12px 26px rgba(10, 10, 10, 0.08);
+}
 
 .action-row__left {
   display: flex;

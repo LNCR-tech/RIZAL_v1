@@ -1,130 +1,190 @@
 <template>
-  <div class="login-page min-h-dvh flex flex-col overflow-auto" style="background: var(--color-bg);">
-    <div class="flex-1 flex flex-col items-center justify-center px-8 relative z-10">
-      <div class="w-full max-w-[340px] flex flex-col gap-6 login-form-area">
-        <h1
-          class="text-[22px] font-semibold leading-[1.4] tracking-[-0.3px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
-          style="color: var(--color-text-primary);"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
+  <div class="mobile-login" :class="{ 'mobile-login--mounted': isMounted }">
+    <div class="mobile-login__frame">
+      <header class="mobile-login__hero" :style="heroBackgroundStyle">
+        <div class="mobile-login__hero-overlay" />
+
+        <img
+          :src="auraLogoWhite"
+          alt="Aura"
+          class="mobile-login__logo"
         >
-          Welcome to the portal. Log in to access your dashboard.
-        </h1>
+      </header>
 
-        <form
-          class="flex flex-col gap-3 transition-all duration-700 delay-100 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
-          @submit.prevent="handleLogin"
-        >
-          <BaseInput
-            id="email"
-            v-model="email"
-            type="email"
-            placeholder="Gmail"
-            autocomplete="email"
-            tone="neutral"
-            :disabled="isLoading"
-          />
+      <main class="mobile-login__sheet">
+        <div class="mobile-login__content">
+          <h1 class="mobile-login__title">
+            Log In.
+          </h1>
 
-          <BaseInput
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="Password"
-            autocomplete="current-password"
-            tone="neutral"
-            :disabled="isLoading"
-            @enter="handleLogin"
-          />
+          <form class="mobile-login__form" @submit.prevent="handleLogin">
+            <label class="mobile-login__field">
+              <span class="sr-only">Gmail</span>
+              <input
+                id="email"
+                v-model="email"
+                class="mobile-login__input"
+                type="email"
+                placeholder="Gmail"
+                autocomplete="email"
+                autocapitalize="none"
+                spellcheck="false"
+                :disabled="isLoading"
+              >
+            </label>
 
-          <Transition name="fade">
-            <p v-if="visibleMessage" class="text-red-500 text-xs text-center mt-1">
-              {{ visibleMessage }}
-            </p>
-          </Transition>
+            <label class="mobile-login__field mobile-login__field--password">
+              <span class="sr-only">Password</span>
+              <input
+                id="password"
+                v-model="password"
+                class="mobile-login__input"
+                :type="passwordVisible ? 'text' : 'password'"
+                placeholder="Password"
+                autocomplete="current-password"
+                :disabled="isLoading"
+              >
 
-          <BaseButton
-            type="submit"
-            variant="primary"
-            size="md"
-            class="mt-1 group"
-            :loading="isLoading"
+              <button
+                type="button"
+                class="mobile-login__field-action"
+                :aria-label="passwordVisible ? 'Hide password' : 'Show password'"
+                :disabled="isLoading"
+                @click="togglePasswordVisibility"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M1.5 12s3.75-6.75 10.5-6.75S22.5 12 22.5 12 18.75 18.75 12 18.75 1.5 12 1.5 12Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.6"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="3.2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  />
+                </svg>
+              </button>
+            </label>
+
+            <Transition name="login-message">
+              <p v-if="visibleMessage" class="mobile-login__message">
+                {{ visibleMessage }}
+              </p>
+            </Transition>
+
+            <button
+              type="submit"
+              class="mobile-login__button mobile-login__button--primary"
+              :disabled="isLoading"
+            >
+              {{ isLoading ? 'Logging In...' : 'Log In' }}
+            </button>
+
+            <button
+              type="button"
+              class="mobile-login__button mobile-login__button--secondary"
+              :disabled="isLoading"
+              @click="openQuickAttendance"
+            >
+              Kiosk Mode
+            </button>
+          </form>
+        </div>
+
+        <footer class="mobile-login__footer">
+          <a
+            href="#"
+            class="mobile-login__footer-link"
+            @click.prevent
           >
-            Log In
-          </BaseButton>
+            Learn more about Aura Project
+          </a>
 
-          <BaseButton
+          <button
             type="button"
-            variant="secondary"
-            size="md"
-            class="group"
-            :disabled="isLoading"
-            @click="openQuickAttendance"
+            class="mobile-login__footer-link mobile-login__footer-link--button"
+            @click="developerViewOpen = true"
           >
-            Quick Attendance
-          </BaseButton>
-        </form>
+            Developer View
+          </button>
+        </footer>
+      </main>
+    </div>
 
-        <section
-          class="preview-panel transition-all duration-700 delay-150 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
-        >
-          <div class="preview-panel__copy">
-            <p class="preview-panel__eyebrow">Mock Views</p>
-            <p class="preview-panel__title">Open role previews without backend auth.</p>
+    <Transition name="developer-view">
+      <div
+        v-if="developerViewOpen"
+        class="developer-view"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Developer view previews"
+        @click.self="closeDeveloperView"
+      >
+        <div class="developer-view__sheet">
+          <div class="developer-view__header">
+            <div>
+              <p class="developer-view__eyebrow">
+                Mock Views
+              </p>
+              <p class="developer-view__title">
+                Open role previews without backend auth.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="developer-view__close"
+              aria-label="Close developer view"
+              @click="closeDeveloperView"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M6 6l12 12M18 6 6 18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.75"
+                />
+              </svg>
+            </button>
           </div>
 
-          <div class="preview-panel__grid">
+          <div class="developer-view__grid">
             <button
               v-for="role in previewRoles"
               :key="role.id"
               type="button"
-              class="preview-panel__card"
-              @click="openRolePreview(role.location)"
+              class="developer-view__card"
+              @click="handleRolePreview(role.location)"
             >
-              <span class="preview-panel__label">{{ role.label }}</span>
-              <span class="preview-panel__description">{{ role.description }}</span>
+              <span class="developer-view__card-label">{{ role.label }}</span>
+              <span class="developer-view__card-description">{{ role.description }}</span>
             </button>
-          </div>
-        </section>
-
-        <div
-          class="flex flex-col items-center justify-center gap-2 mt-1 transition-all duration-700 delay-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
-        >
-          <div class="flex items-center justify-center gap-2">
-            <img
-              :src="surfaceAuraLogo"
-              alt="Aura"
-              class="h-8 w-auto object-contain"
-            >
-            <span class="text-[13px] font-medium tracking-tight" style="color: var(--color-text-primary);">
-              Powered by Aura Ai
-            </span>
           </div>
         </div>
       </div>
-    </div>
-
-    <footer
-      class="pb-8 flex justify-center transition-all duration-1000 delay-300 ease-out relative z-10"
-      :class="isMounted ? 'opacity-100' : 'opacity-0'"
-    >
-      <a
-        href="#"
-        class="text-[12px] font-medium transition-colors"
-        style="color: var(--color-text-secondary);"
-      >
-        Learn more about Aura Project
-      </a>
-    </footer>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import BaseInput from '@/components/ui/BaseInput.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
-import { surfaceAuraLogo } from '@/config/theme.js'
+import { ref } from 'vue'
+import logBackground from '@/assets/images/login_bg.jpg'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
+
+const passwordVisible = ref(false)
+const developerViewOpen = ref(false)
+const auraLogoWhite = '/logos/aura_logo_white.png'
+const heroBackgroundStyle = {
+  backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.32) 100%), url(${logBackground})`,
+}
 
 const {
   email,
@@ -137,93 +197,444 @@ const {
   openRolePreview,
   openQuickAttendance,
 } = useLoginViewModel()
+
+function togglePasswordVisibility() {
+  passwordVisible.value = !passwordVisible.value
+}
+
+function closeDeveloperView() {
+  developerViewOpen.value = false
+}
+
+function handleRolePreview(location) {
+  developerViewOpen.value = false
+  openRolePreview(location)
+}
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.mobile-login {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 32%),
+    #060606;
+  color: #121212;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Display',
+    'Segoe UI',
+    sans-serif;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
 }
 
-.login-page {
-  font-family: 'Manrope', sans-serif;
-  -webkit-overflow-scrolling: touch;
-}
-
-.login-form-area {
-  padding-bottom: env(safe-area-inset-bottom, 16px);
-}
-
-.preview-panel {
-  padding: 16px;
-  border-radius: 24px;
-  background: var(--color-surface);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
-}
-
-.preview-panel__copy {
+.mobile-login__frame {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
-.preview-panel__eyebrow {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 800;
+.mobile-login__hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: clamp(240px, 38vh, 340px);
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 44px)
+    28px
+    72px;
+  background-color: #050505;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  overflow: hidden;
+  transform: translateY(20px);
+  opacity: 0;
+  transition:
+    transform 0.72s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.72s ease;
+}
+
+.mobile-login--mounted .mobile-login__hero {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.mobile-login__hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 28%, rgba(255, 255, 255, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.3) 100%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.mobile-login__hero-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  height: 130px;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+  pointer-events: none;
+}
+
+.mobile-login__logo {
+  position: relative;
+  z-index: 1;
+  width: min(92px, 24vw);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 30px rgba(255, 255, 255, 0.08));
+}
+
+.mobile-login__sheet {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin-top: -44px;
+  padding:
+    clamp(38px, 8vw, 52px)
+    clamp(28px, 8vw, 38px)
+    calc(env(safe-area-inset-bottom, 0px) + 26px);
+  background: #f7f7f4;
+  border-top-left-radius: 52px;
+  border-top-right-radius: 0;
+  box-shadow: 0 -14px 42px rgba(0, 0, 0, 0.18);
+  transform: translateY(34px);
+  opacity: 0;
+  transition:
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.8s ease;
+}
+
+.mobile-login--mounted .mobile-login__sheet {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.mobile-login__content {
+  width: 100%;
+  max-width: 336px;
+  margin: 0 auto;
+}
+
+.mobile-login__title {
+  margin: 0 0 42px;
+  font-size: clamp(2rem, 6.4vw, 2.3rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  color: #111111;
+}
+
+.mobile-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.mobile-login__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 4px 10px;
+  border-bottom: 1.4px solid rgba(15, 15, 15, 0.34);
+}
+
+.mobile-login__field--password {
+  padding-right: 40px;
+}
+
+.mobile-login__input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #131313;
+  font-size: 1.05rem;
+  font-weight: 400;
+  line-height: 1.4;
+  outline: none;
+  appearance: none;
+}
+
+.mobile-login__input::placeholder {
+  color: rgba(17, 17, 17, 0.28);
+}
+
+.mobile-login__input:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.mobile-login__field-action {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-top: -16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(17, 17, 17, 0.84);
+  padding: 0;
+}
+
+.mobile-login__field-action:disabled {
+  opacity: 0.48;
+}
+
+.mobile-login__field-action svg {
+  width: 21px;
+  height: 21px;
+}
+
+.mobile-login__message {
+  margin: -6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #c33232;
+}
+
+.mobile-login__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  border-radius: 999px;
+  padding: 0 24px;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.mobile-login__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.mobile-login__button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.mobile-login__button--primary {
+  margin-top: 10px;
+  border: 0;
+  background: #050505;
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+}
+
+.mobile-login__button--secondary {
+  border: 1.35px solid rgba(10, 10, 10, 0.72);
+  background: transparent;
+  color: #161616;
+}
+
+.mobile-login__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 52px;
+  flex-wrap: wrap;
+}
+
+.mobile-login__footer-link {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: rgba(16, 16, 16, 0.72);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.mobile-login__footer-link--button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.mobile-login__footer-link:active {
+  color: #0c0c0c;
+}
+
+.developer-view {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding:
+    20px
+    12px
+    calc(env(safe-area-inset-bottom, 0px) + 12px);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.developer-view__sheet {
+  width: min(100%, 420px);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 250, 250, 0.98)),
+    #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  padding: 18px;
+}
+
+.developer-view__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.developer-view__eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.65rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: #6a5a49;
 }
 
-.preview-panel__title {
+.developer-view__title {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--color-text-primary);
+  max-width: 240px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(15, 23, 42, 0.72);
 }
 
-.preview-panel__grid {
+.developer-view__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(15, 23, 42, 0.72);
+  padding: 0;
+}
+
+.developer-view__close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.developer-view__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.preview-panel__card {
+.developer-view__card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   align-items: flex-start;
-  min-height: 84px;
-  padding: 14px;
-  border: 1px solid var(--color-surface-border);
+  min-height: 88px;
+  gap: 6px;
+  padding: 14px 15px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
   text-align: left;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-.preview-panel__card:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-surface-border));
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+.developer-view__card:active {
+  transform: scale(0.985);
+  border-color: rgba(15, 23, 42, 0.16);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
-.preview-panel__label {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--color-text-primary);
+.developer-view__card-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #121212;
 }
 
-.preview-panel__description {
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--color-text-secondary);
+.developer-view__card-description {
+  font-size: 0.72rem;
+  line-height: 1.42;
+  color: rgba(15, 23, 42, 0.68);
+}
+
+.login-message-enter-active,
+.login-message-leave-active,
+.developer-view-enter-active,
+.developer-view-leave-active {
+  transition:
+    opacity 0.24s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.login-message-enter-from,
+.login-message-leave-to,
+.developer-view-enter-from,
+.developer-view-leave-to {
+  opacity: 0;
+}
+
+.developer-view-enter-from .developer-view__sheet,
+.developer-view-leave-to .developer-view__sheet {
+  transform: translateY(24px) scale(0.98);
+}
+
+@media (max-height: 720px) {
+  .mobile-login__sheet {
+    padding-top: 34px;
+  }
+
+  .mobile-login__title {
+    margin-bottom: 34px;
+  }
+
+  .mobile-login__footer {
+    padding-top: 40px;
+  }
 }
 </style>

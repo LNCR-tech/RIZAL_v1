@@ -5,7 +5,7 @@
   "server": {
     "androidScheme": "https",
     "allowNavigation": [
-      "aura-production-ec6a.up.railway.app",
+      "ragweed-exemplary-sultry.ngrok-free.dev",
       "*.railway.app",
       "*.ngrok-free.app",
       "*.ngrok.app"
@@ -30,7 +30,7 @@
     },
     "StatusBar": {
       "style": "LIGHT",
-      "backgroundColor": "#EBEBEB"
+      "backgroundColor": "#050505"
     },
     "Keyboard": {
       "resize": "none",

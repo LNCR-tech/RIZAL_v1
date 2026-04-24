@@ -13,7 +13,11 @@ import { ref, nextTick } from 'vue'
 
 // ─── Shared singleton state ───────────────────────────────────────────────────
 const messages   = ref([
-  { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }
+  {
+    id: 1,
+    sender: 'ai',
+    text: "Hello! I'm Aura AI, your campus assistant. I can help with your schedule, attendance, events, and school updates. What would you like to do today?",
+  }
 ])
 const inputText  = ref('')
 const isTyping   = ref(false)
@@ -40,7 +44,70 @@ async function simulateAiResponse(userMessage) {
    * return data.reply
    */
   await new Promise(resolve => setTimeout(resolve, 1400))
-  return "I'm ready and waiting for my backend brain! Once we connect the API, I'll answer your questions about grades, schedule, and more."
+
+  const normalizedMessage = userMessage.trim().toLowerCase()
+
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(normalizedMessage)) {
+    return "Hello! I'm Aura AI. I'm here to help you navigate your campus tools. I'm still running in demo mode for now, but once the backend is connected I'll be able to answer with live school data."
+  }
+
+  if (normalizedMessage.includes('schedule')) {
+    return "I can help with schedules. Right now I'm in frontend demo mode, so I can't load live class data yet, but this is where I would guide you through your upcoming classes and time slots."
+  }
+
+  if (normalizedMessage.includes('attendance')) {
+    return "I can help with attendance. Once the backend is connected, I'll be able to check attendance records, event participation, and status updates for you."
+  }
+
+  if (normalizedMessage.includes('event')) {
+    return "I can help you track campus events. In the full version, I'll be able to show event details, schedules, and attendance-related information in real time."
+  }
+
+  if (normalizedMessage.includes('create a college') || normalizedMessage.includes('college of engineering')) {
+    return {
+      text: "I've successfully set up the College of Engineering. I have also initialized the primary governance structure and sent an onboarding notification to the assigned Campus Admin.",
+      actions: [
+        {
+          label: "View in Admin Workspace",
+          route: "/exposed/admin/schools",
+          icon: "ExternalLink"
+        }
+      ]
+    }
+  }
+
+  if (normalizedMessage.includes('show me graph') || normalizedMessage.includes('engineering students')) {
+    return {
+      text: "Here is the enrollment distribution for the College of Engineering across its designated programs:",
+      html: `
+        <p><strong>College of Engineering Overview</strong></p>
+        <div class="mock-graph">
+          <div class="mock-graph-bar" style="height: 80%"><span style="color:#0a0a0a; font-weight: 800;">800</span></div>
+          <div class="mock-graph-bar" style="height: 45%"><span style="color:#0a0a0a; font-weight: 800;">450</span></div>
+          <div class="mock-graph-bar" style="height: 60%"><span style="color:#0a0a0a; font-weight: 800;">600</span></div>
+        </div>
+        <div class="mock-graph-label">
+          <span>BSCE</span>
+          <span>BSEE</span>
+          <span>BSME</span>
+        </div>
+      `,
+      actions: [
+        {
+          label: "Download as PDF",
+          actionId: "download-pdf",
+          icon: "Download"
+        },
+        {
+          label: "Download as CSV",
+          actionId: "download-csv",
+          icon: "Download"
+        }
+      ]
+    }
+  }
+
+  return { text: "I'm here and ready to help. This chat is still using a frontend-only demo response for now, but once the backend is connected I'll be able to give real answers based on your school data." }
 }
 
 // ─── Public actions ───────────────────────────────────────────────────────────
@@ -55,7 +122,13 @@ async function sendMessage() {
 
   try {
     const reply = await simulateAiResponse(text)
-    messages.value.push({ id: Date.now() + 1, sender: 'ai', text: reply })
+    messages.value.push({ 
+      id: Date.now() + 1, 
+      sender: 'ai', 
+      text: reply.text || (typeof reply === 'string' ? reply : ''),
+      html: reply.html || null,
+      actions: reply.actions || null
+    })
   } catch {
     messages.value.push({
       id: Date.now() + 1,

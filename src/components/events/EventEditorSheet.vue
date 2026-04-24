@@ -145,29 +145,15 @@
               >
             </label>
 
-            <label class="event-editor__field">
-              <span class="event-editor__field-label">Latitude</span>
-              <input
-                v-model="draft.latitude"
-                class="event-editor__field-input"
-                type="number"
-                step="any"
-                name="event_geo_latitude"
-                placeholder="e.g. 8.656681"
-              >
-            </label>
-
-            <label class="event-editor__field">
-              <span class="event-editor__field-label">Longitude</span>
-              <input
-                v-model="draft.longitude"
-                class="event-editor__field-input"
-                type="number"
-                step="any"
-                name="event_geo_longitude"
-                placeholder="e.g. 123.423068"
-              >
-            </label>
+            <div class="event-editor__field event-editor__field--wide">
+              <span class="event-editor__field-label">Event Map Location</span>
+              <EventLocationPicker
+                v-model:latitude="draft.latitude"
+                v-model:longitude="draft.longitude"
+                :radius-m="draft.radiusM"
+                :disabled="saving"
+              />
+            </div>
 
             <label class="event-editor__field event-editor__field--wide">
               <span class="event-editor__field-label">Allowed Radius</span>
@@ -232,6 +218,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { X } from 'lucide-vue-next'
+import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import {
   buildEventUpdatePayloadFromDraft,
   createEventEditorDraft,

@@ -1370,7 +1370,11 @@ export function useGovernanceWorkspace(options = {}) {
         Number.isFinite(normalizedUnitId)
           ? getGovernanceUnitDetail(url, authToken, normalizedUnitId)
           : Promise.resolve(null),
-        getGovernanceStudents(url, authToken),
+        getGovernanceStudents(
+          url,
+          authToken,
+          normalizedContext ? { governance_context: normalizedContext } : {},
+        ),
         getEvents(url, authToken, { governance_context: normalizedContext }),
         Number.isFinite(normalizedUnitId)
           ? getGovernanceAnnouncements(url, authToken, normalizedUnitId)
@@ -1488,7 +1492,7 @@ export function useGovernanceWorkspace(options = {}) {
     exportError.value = ''
 
     try {
-      downloadGovernanceParPdf({
+      await downloadGovernanceParPdf({
         event: analyticsFocusEntry.value?.event,
         report: analyticsFocusEntry.value?.report,
         eventHealth: eventHealthInsight.value,
@@ -1508,10 +1512,98 @@ export function useGovernanceWorkspace(options = {}) {
     exportError.value = ''
 
     try {
-      downloadGovernanceMasterlistCsv({
+      await downloadGovernanceMasterlistCsv({
         event: analyticsFocusEntry.value?.event,
         report: analyticsFocusEntry.value?.report,
         rows: focusMasterlistRows.value,
+      })
+    } catch (error) {
+      exportError.value = error?.message || 'Unable to export the masterlist.'
+    } finally {
+      isExportingMasterlist.value = false
+    }
+  }
+
+  function getEventReportSnapshot(eventOrId = null) {
+    const normalizedEventId = Number(isObject(eventOrId) ? eventOrId.id : eventOrId)
+    const event = Number.isFinite(normalizedEventId)
+      ? sortedEvents.value.find((entry) => Number(entry?.id) === normalizedEventId) || null
+      : null
+
+    const report = Number.isFinite(normalizedEventId)
+      ? attendanceReportsByEventId.value[normalizedEventId] || null
+      : null
+
+    const records = Number.isFinite(normalizedEventId)
+      ? dedupeAttendanceRecords(attendanceRecordsByEventId.value[normalizedEventId] || [])
+      : []
+
+    const checkedInCount = records.filter((record) => hasSignedInAttendanceRecord(record?.attendance)).length
+    const checkedOutCount = records.filter((record) => record?.attendance?.time_out).length
+    const eventEntry = {
+      event,
+      report,
+      records,
+    }
+
+    return {
+      event,
+      report,
+      records,
+      checkedInCount,
+      checkedOutCount,
+      checkedInLabel: formatWholeNumber(checkedInCount),
+      checkedOutLabel: formatWholeNumber(checkedOutCount),
+      canExportPar: Boolean(report),
+      canExportMasterlist: records.length > 0,
+      eventHealth: buildEventHealthInsight(report ? eventEntry : null),
+      demographicBreakdown: buildDemographicInsight({
+        focusEntry: report ? eventEntry : null,
+        attendanceRecords: records,
+        students: students.value,
+      }),
+      arrivalInsights: buildArrivalInsight({
+        event,
+        attendanceRecords: records,
+      }),
+      masterlistRows: buildMasterlistRows(records, students.value),
+    }
+  }
+
+  async function exportEventPostActivityReport(eventOrId = null) {
+    const snapshot = getEventReportSnapshot(eventOrId)
+    if (!snapshot.canExportPar || isExportingPar.value) return
+
+    isExportingPar.value = true
+    exportError.value = ''
+
+    try {
+      await downloadGovernanceParPdf({
+        event: snapshot.event,
+        report: snapshot.report,
+        eventHealth: snapshot.eventHealth,
+        demographicBreakdown: snapshot.demographicBreakdown,
+        arrivalInsights: snapshot.arrivalInsights,
+      })
+    } catch (error) {
+      exportError.value = error?.message || 'Unable to export the post-activity report.'
+    } finally {
+      isExportingPar.value = false
+    }
+  }
+
+  async function exportEventMasterlist(eventOrId = null) {
+    const snapshot = getEventReportSnapshot(eventOrId)
+    if (!snapshot.canExportMasterlist || isExportingMasterlist.value) return
+
+    isExportingMasterlist.value = true
+    exportError.value = ''
+
+    try {
+      await downloadGovernanceMasterlistCsv({
+        event: snapshot.event,
+        report: snapshot.report,
+        rows: snapshot.masterlistRows,
       })
     } catch (error) {
       exportError.value = error?.message || 'Unable to export the masterlist.'
@@ -1645,6 +1737,7 @@ export function useGovernanceWorkspace(options = {}) {
     engagementTimeline,
     arrivalInsight,
     analyticsEventOptions,
+    attendanceRecordsByEventId,
     selectedAnalyticsEventId,
     activeStudentsMetric,
     totalStudentsMetric,
@@ -1655,6 +1748,7 @@ export function useGovernanceWorkspace(options = {}) {
     focusMasterlistRows,
     canExportPar,
     canExportMasterlist,
+    getEventReportSnapshot,
     isCreateSheetOpen,
     hasPermission,
     openSection,
@@ -1667,6 +1761,8 @@ export function useGovernanceWorkspace(options = {}) {
     setSelectedAnalyticsEventId,
     exportPostActivityReport,
     exportMasterlist,
+    exportEventPostActivityReport,
+    exportEventMasterlist,
     getUpcomingEventActionLabel,
     getUpcomingEventTone,
     formatStudentName,

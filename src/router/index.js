@@ -11,7 +11,7 @@ import {
 } from '@/composables/useDashboardSession.js'
 import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
-import { createPlatformView } from '@/router/platformView.js'
+import { createPlatformView, preloadPlatformViews } from '@/router/platformView.js'
 
 const AppLayout = () => import('@/layouts/AppLayout.vue')
 const authView = (viewName) => createPlatformView(`auth/${viewName}`)
@@ -45,6 +45,40 @@ const SgCreateUnitView = dashboardView('SgCreateUnitView')
 const GatherWelcomeView = dashboardView('GatherWelcomeView')
 const GatherAttendanceView = dashboardView('GatherAttendanceView')
 
+const schoolItRoutePreloads = [
+    'dashboard/SchoolItHomeView',
+    'dashboard/SchoolItUsersView',
+    'dashboard/SchoolItImportStudentsView',
+    'dashboard/SchoolItDepartmentProgramsView',
+    'dashboard/SchoolItProgramStudentsView',
+    'dashboard/SchoolItUnassignedStudentsView',
+    'dashboard/SchoolItStudentCouncilView',
+    'dashboard/SchoolItScheduleView',
+    'dashboard/SchoolItAttendanceMonitorView',
+    'dashboard/SchoolItEventReportsView',
+    'dashboard/SchoolItSettingsView',
+    'dashboard/ProfileView',
+    'dashboard/EventDetailView',
+    'dashboard/WorkspacePlaceholderView',
+]
+
+const adminRoutePreloads = [
+    'dashboard/AdminWorkspaceView',
+]
+
+function preloadRouteContextViews(path = '') {
+    const normalizedPath = String(path || '')
+
+    if (normalizedPath.startsWith('/workspace') || normalizedPath.startsWith('/exposed/workspace')) {
+        void preloadPlatformViews(schoolItRoutePreloads).catch(() => null)
+        return
+    }
+
+    if (normalizedPath.startsWith('/admin') || normalizedPath.startsWith('/exposed/admin')) {
+        void preloadPlatformViews(adminRoutePreloads).catch(() => null)
+    }
+}
+
 const routes = [
     // Auth routes (no layout)
     {
@@ -62,6 +96,11 @@ const routes = [
         path: '/api-lab',
         name: 'ApiLab',
         component: toolsView('ApiLabView'),
+    },
+    {
+        path: '/exposed/face-scan',
+        name: 'PreviewFaceScan',
+        component: authView('QuickAttendanceView'),
     },
     {
         path: '/face-registration',
@@ -429,6 +468,15 @@ const routes = [
                 name: 'PreviewDashboardProfile',
                 component: ProfileView,
                 props: { preview: true },
+            },
+            {
+                path: 'profile/security',
+                name: 'PreviewProfileSecurity',
+                component: ProfileSecurityView,
+                props: { preview: true },
+                meta: {
+                    hideMobileNav: true,
+                },
             },
             {
                 path: 'gather',
@@ -852,8 +900,9 @@ router.beforeEach(async (to) => {
     return true
 })
 
-router.afterEach(() => {
+router.afterEach((to) => {
     setNavigationPending(false)
+    preloadRouteContextViews(to?.path)
 })
 
 router.onError(() => {

@@ -81,13 +81,6 @@ if (hasStoredSessionToken() && !hasPrivilegedPendingFace()) {
 
 // --- Capacitor Native Initialization ---
 if (Capacitor.isNativePlatform()) {
-  // Splash screen (auto-hides via config, but ensure it hides)
-  import('@capacitor/splash-screen').then(({ SplashScreen }) => {
-    setTimeout(() => {
-      SplashScreen.hide().catch(() => null)
-    }, 2000)
-  }).catch(() => null)
-
   // Android back button handler
   import('@capacitor/app').then(({ App: CapApp }) => {
     CapApp.addListener('backButton', ({ canGoBack }) => {
