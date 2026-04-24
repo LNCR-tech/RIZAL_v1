@@ -395,6 +395,7 @@ def run_demo(
                     {"item_code": "FINE", "item_name": "Community Fine", "description": "50 PHP community tax"}
                 ]
             )
+            ev._seeder_sanction_config_id = conf.id
             
             if sg_units and rng.random() > 0.5:
                 # delegate this event to a random SG unit
@@ -412,7 +413,8 @@ def run_demo(
         sanction_item_batch = []
         
         for e_idx, ev in enumerate(events):
-            conf = ev.sanction_config_id if hasattr(ev, 'sanction_config_id') else None
+            # Retrieve the sanction config ID that was created for this event
+            conf = ev._seeder_sanction_config_id if hasattr(ev, '_seeder_sanction_config_id') else None
             
             # CHAOS ENGINE: Determine if we should generate attendance for this event
             # Logic:

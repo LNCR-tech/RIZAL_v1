@@ -210,12 +210,14 @@ COLLEGES_DATASET: Dict[str, List[str]] = {
 
 # Mirrors the core platform permissions/roles hierarchy
 DEFAULT_ROLE_NAMES: List[str] = [
-    "student",       
-    "campus_admin",  
-    "admin",         
-    "ssg",           
-    "sg",            
-    "org"            
+    "student",
+    "campus_admin",
+    "admin",
+    "ssg",
+    "sg",
+    "org",
+    "faculty",
+    "school_it",
 ]
 
 # ==============================================================================
@@ -232,9 +234,14 @@ EVENT_THEMES: List[str] = [
     "Founders Day Celebration", "Seniors Night", "Tech Conference"
 ]
 
+# Must match the global EventType names seeded by backend/app/seeder.py DEFAULT_EVENT_TYPE_DEFINITIONS
 EVENT_TYPES: List[str] = [
-    "General Assembly", "Academic Seminar", "Orientation", 
-    "Workshop", "Conference", "Meeting"
+    "Regular Event",
+    "Assembly",
+    "Seminar",
+    "Workshop",
+    "Conference",
+    "Meeting",
 ]
 
 EVENT_LOCATIONS: List[str] = [

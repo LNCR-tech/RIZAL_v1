@@ -17,6 +17,8 @@ from app.models.governance_hierarchy import (
     PERMISSION_DEFINITIONS
 )
 from app.models.event import Event, EventStatus
+from app.models.event_type import EventType
+from app.models.governance_hierarchy import GovernanceAnnouncementStatus
 from app.models.sanctions import (
     EventSanctionConfig, SanctionRecord, SanctionItem, SanctionDelegation,
     SanctionComplianceStatus, SanctionItemStatus, SanctionDelegationScopeType,
@@ -60,6 +62,7 @@ def wipe_records(db: Session, preserve_platform_admin: str = None) -> None:
         "user_roles",
         "programs",
         "departments",
+        "school_audit_logs",
         "school_settings",
         "schools"
     ]
@@ -177,7 +180,8 @@ def create_user(db: Session, **kwargs) -> User:
         middle_name=kwargs.get("middle_name"),
         last_name=kwargs["last_name"],
         is_active=True,
-        must_change_password=False
+        must_change_password=False,
+        should_prompt_password_change=False
     )
     db.add(user)
     db.flush()
@@ -237,14 +241,28 @@ def set_member_permissions(db: Session, member_id: int, permission_codes: list) 
         db.add(GovernanceMemberPermission(governance_member_id=member_id, permission_id=perm.id))
     db.flush()
 
+def resolve_event_type_id(db: Session, event_type_name: str) -> int | None:
+    """Resolve an EventType name to its ID, checking global types first then any school type."""
+    et = db.query(EventType).filter(
+        EventType.name == event_type_name,
+        EventType.school_id.is_(None)
+    ).first()
+    if et is None:
+        et = db.query(EventType).filter(EventType.name == event_type_name).first()
+    return et.id if et else None
+
 def create_event(db: Session, **kwargs) -> Event:
+    event_type_id = None
+    if kwargs.get("event_type"):
+        event_type_id = resolve_event_type_id(db, kwargs["event_type"])
     event = Event(
         school_id=kwargs["school_id"],
         name=kwargs["name"],
         location=kwargs["location"],
         start_datetime=kwargs["start_dt"],
         end_datetime=kwargs["end_dt"],
-        status=EventStatus.COMPLETED
+        status=kwargs.get("status", EventStatus.UPCOMING),
+        event_type_id=event_type_id
     )
     db.add(event)
     db.flush()
@@ -303,7 +321,7 @@ def create_announcement(db: Session, **kwargs) -> GovernanceAnnouncement:
         school_id=kwargs["school_id"],
         title=kwargs["title"],
         body=kwargs["body"],
-        status=kwargs.get("status", "published"),
+        status=kwargs.get("status", GovernanceAnnouncementStatus.PUBLISHED),
         created_by_user_id=kwargs.get("created_by")
     )
     db.add(ann)
