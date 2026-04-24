@@ -5,12 +5,13 @@ Role: Service layer. It keeps business logic out of the route files.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Iterable, Optional
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.timezones import utc_now
 from app.models.platform_features import LoginHistory, UserSession
 from app.models.user import User
 
@@ -78,7 +79,7 @@ def create_user_session(
     expires_in_minutes: int,
     request: Request | None = None,
 ) -> UserSession:
-    now = datetime.utcnow()
+    now = utc_now()
     session = UserSession(
         id=session_id,
         user_id=user.id,
@@ -106,7 +107,7 @@ def assert_session_valid(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is not valid")
     if session.revoked_at is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
-    if session.expires_at < datetime.utcnow():
+    if session.expires_at < utc_now():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has expired")
     return session
 
@@ -124,7 +125,7 @@ def revoke_session(
     if session.user_id != actor_user_id and not allow_self:
         return False
     if session.revoked_at is None:
-        session.revoked_at = datetime.utcnow()
+        session.revoked_at = utc_now()
         db.flush()
     return True
 
@@ -140,7 +141,7 @@ def revoke_other_sessions(db: Session, *, actor_user_id: int, current_session_id
     if current_session_id:
         query = query.filter(UserSession.id != current_session_id)
     sessions = query.all()
-    now = datetime.utcnow()
+    now = utc_now()
     for session in sessions:
         session.revoked_at = now
     db.flush()

@@ -77,6 +77,75 @@ Relevant files:
 - `backend/app/reports/system/service.py`
 - `backend/app/routers/school_settings.py`
 
+## Attendance Timestamp Storage
+
+Attendance record timestamps are stored as timezone-aware UTC values in PostgreSQL.
+
+Affected database fields:
+
+- `attendances.time_in`
+- `attendances.time_out`
+
+Runtime behavior:
+
+- attendance write paths persist aware UTC timestamps instead of naive `datetime.utcnow()` values
+- backend attendance serializers continue returning explicit timezone offsets in API payloads
+- frontend attendance screens must format these as API timestamps, not as Manila-local event schedule inputs
+
+Relevant files:
+
+- `backend/app/core/timezones.py`
+- `backend/app/models/attendance.py`
+- `backend/app/routers/attendance/check_in_out.py`
+- `backend/app/routers/face_recognition.py`
+- `backend/app/routers/public_attendance.py`
+
+## System Timestamp Storage
+
+Common backend audit and system timestamps are now stored as timezone-aware UTC values in PostgreSQL.
+
+Affected areas:
+
+- user and school lifecycle metadata
+- governance unit, member, permission, announcement, and note audit fields
+- security sessions, login history, password reset requests, and face-verification audit fields
+- notification, subscription reminder, privacy-consent, and data-request audit fields
+- bulk import job/error/email-delivery timestamps
+- sanctions configuration, record, delegation, compliance, and clearance timestamps
+
+Runtime behavior:
+
+- backend model defaults and `onupdate` hooks now use `utc_now()` instead of naive `datetime.utcnow()`
+- write paths that explicitly set DB timestamps now persist aware UTC values
+- response schemas continue normalizing these values to explicit UTC offsets for API clients
+- frontend consumers that already parse ISO datetimes continue to work without Manila-specific guessing
+
+Scope intentionally unchanged:
+
+- event schedule fields such as `events.start_datetime` and `events.end_datetime` keep their existing Manila-local scheduling behavior
+- event time-window logic is not changed by this migration
+
+Relevant files:
+
+- `Backend/alembic/versions/d5e6f7a8b9c0_make_common_system_timestamps_timezone_aware.py`
+- `backend/app/core/timezones.py`
+- `backend/app/models/user.py`
+- `backend/app/models/school.py`
+- `backend/app/models/platform_features.py`
+- `backend/app/models/governance_hierarchy.py`
+- `backend/app/models/import_job.py`
+- `backend/app/models/password_reset_request.py`
+- `backend/app/models/event_type.py`
+- `backend/app/models/sanctions.py`
+- `backend/app/repositories/import_repository.py`
+- `backend/app/routers/auth.py`
+- `backend/app/routers/governance.py`
+- `backend/app/routers/security_center.py`
+- `backend/app/routers/subscription.py`
+- `backend/app/services/security_service.py`
+- `backend/app/services/notification_center_service.py`
+- `backend/app/services/sanctions_service.py`
+
 ## Face Runtime Warm-Up
 
 On API startup, the backend may trigger the InsightFace warm-up flow.
@@ -95,6 +164,28 @@ Production data initialization is now limited to a single explicit command:
 - `python backend/bootstrap.py ...`
 
 The backend no longer ships demo or bulk seed entrypoints, and it no longer relies on `SEED_*` env toggles to decide what data to create.
+
+## Event Create Idempotency
+
+Event creation now supports an optional idempotency header for duplicate-submit protection.
+
+Affected route:
+
+- `POST /api/events/`
+
+Behavior:
+
+- clients may send `X-Idempotency-Key` when creating an event
+- the first request with a new key creates the event normally
+- a repeated request with the same key from the same authenticated user returns the already-created event instead of inserting a duplicate row
+- omitting the header keeps the existing non-idempotent create behavior
+
+Relevant files:
+
+- `Backend/alembic/versions/e6f7a8b9c0d1_add_event_create_idempotency_fields.py`
+- `backend/app/models/event.py`
+- `backend/app/routers/events/crud.py`
+- `backend/app/tests/test_api.py`
 
 ## Event Type Lookup
 
@@ -118,3 +209,6 @@ Event categorization now uses a dedicated lookup relation instead of a free-text
 5. Open the audit log endpoints and confirm returned `created_at` values include a `+08:00` offset.
 6. Run `python -m alembic upgrade head` and confirm the migration creates `event_types`, adds `events.event_type_id`, and backfills legacy `events.event_type` values if they exist.
 7. Open `GET /api/events/` and confirm the endpoint returns `200` plus `event_type_id` / `event_type` fields for typed events.
+8. Run `python -m alembic upgrade head` again after the timezone migrations and confirm the latest revisions convert attendance plus system timestamps to `TIMESTAMP WITH TIME ZONE`.
+9. Check a session, notification, governance, or password-reset API response and confirm returned datetime fields include explicit UTC offsets instead of naive strings.
+10. Call `POST /api/events/` twice with the same `X-Idempotency-Key` as the same user and confirm both responses return the same event ID while only one row is stored.

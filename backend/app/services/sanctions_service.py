@@ -16,6 +16,7 @@ from openpyxl import Workbook
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.timezones import utc_now
 from app.core.security import get_school_id_with_admin_fallback, has_any_role
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel
@@ -86,7 +87,7 @@ def _build_full_name(user: User) -> str:
 
 def _resolve_academic_term(source_date: datetime | date | None) -> tuple[str, str]:
     if source_date is None:
-        source_date = datetime.utcnow()
+        source_date = utc_now()
     if isinstance(source_date, datetime):
         resolved_date = source_date.date()
     else:
@@ -751,7 +752,7 @@ def approve_student_sanction(
         raise HTTPException(status_code=404, detail="Sanction record not found")
 
     already_complied = sanction_record.status == SanctionComplianceStatus.COMPLIED
-    complied_at = datetime.utcnow()
+    complied_at = utc_now()
     sanction_record.status = SanctionComplianceStatus.COMPLIED
     sanction_record.complied_at = complied_at
 
@@ -935,7 +936,7 @@ def set_event_delegation_config(
     )
     existing_by_unit_id = {row.delegated_to_governance_unit_id: row for row in existing_rows}
     target_unit_id_set = set(target_unit_ids)
-    now = datetime.utcnow()
+    now = utc_now()
 
     for existing_row in existing_rows:
         if existing_row.delegated_to_governance_unit_id in target_unit_id_set:
@@ -1276,7 +1277,7 @@ def create_clearance_deadline(
         if queued:
             queued_emails += 1
 
-    now = datetime.utcnow()
+    now = utc_now()
     if queued_emails > 0:
         deadline.warning_email_sent_at = now
     deadline.warning_popup_sent_at = now

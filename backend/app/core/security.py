@@ -3,7 +3,7 @@ Where to use: Use this in routers and services when the backend must verify iden
 Role: Core security layer. It protects access to backend features.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable, List, Optional
 
 from fastapi import Depends, HTTPException, Request, status
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
+from app.core.timezones import utc_now
 from app.models.school import School
 from app.models.user import User, UserRole
 from app.schemas.auth import TokenData
@@ -183,7 +184,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    expire = utc_now() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

@@ -49,18 +49,6 @@
                   autocomplete="off"
                 >
               </label>
-
-              <label class="event-editor__field">
-                <span class="event-editor__field-label">Venue</span>
-                <input
-                  v-model="draft.location"
-                  class="event-editor__field-input"
-                  type="text"
-                  name="event_location"
-                  placeholder="University Gymnasium"
-                  autocomplete="off"
-                >
-              </label>
             </div>
           </section>
 
@@ -188,7 +176,7 @@
               <div>
                 <div class="event-editor__section-title">
                   <ShieldCheck :size="17" aria-hidden="true" />
-                  <h3>Geofence</h3>
+                  <h3>Location</h3>
                 </div>
                 <p class="event-editor__section-copy">{{ geofenceSummary }}</p>
               </div>
@@ -203,6 +191,18 @@
                 <span class="event-editor__switch-text">Required</span>
               </label>
             </header>
+
+            <label class="event-editor__field">
+              <span class="event-editor__field-label">Location</span>
+              <input
+                v-model="draft.location"
+                class="event-editor__field-input"
+                type="text"
+                name="event_location"
+                placeholder="University Gymnasium"
+                autocomplete="off"
+              >
+            </label>
 
             <div class="event-editor__grid event-editor__grid--compact">
               <label class="event-editor__field">

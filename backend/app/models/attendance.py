@@ -5,21 +5,17 @@ Role: Model layer. It maps Python objects to database tables and relationships.
 
 # app/models/attendance.py
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 from app.models.base import Base
-from datetime import datetime, timezone
 from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
+from app.core.timezones import utc_now
 
 class AttendanceStatus(PyEnum):
     PRESENT = "present"  # Must match database exactly
     LATE = "late"
     ABSENT = "absent"
     EXCUSED = "excused"
-
-def utc_now():
-    return datetime.now(timezone.utc)
 
 
 class Attendance(Base):
@@ -28,8 +24,8 @@ class Attendance(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("student_profiles.id", ondelete="CASCADE"), index=True)
     event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), index=True)
-    time_in = Column(DateTime, nullable=False, default=datetime.utcnow)
-    time_out = Column(DateTime)
+    time_in = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    time_out = Column(DateTime(timezone=True))
     method = Column(String(50))  # "face_scan", "manual", etc.
     status = Column(
         PG_ENUM(

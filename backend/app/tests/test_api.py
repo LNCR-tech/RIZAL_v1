@@ -1108,6 +1108,146 @@ def test_create_event_api_uses_default_attendance_window_values(client, test_db)
     assert created_event.sign_out_grace_minutes == 20
 
 
+def test_create_event_api_is_idempotent_for_same_user_and_key(client, test_db):
+    school = _create_school(test_db, code="EVENT-IDEMPOTENT")
+    admin_user = _create_user_with_role(
+        test_db,
+        email="event.idempotent@example.com",
+        role_name="admin",
+        password="AdminPass123!",
+        school_id=school.id,
+    )
+
+    start = datetime.utcnow().replace(microsecond=0) + timedelta(days=1)
+    end = start + timedelta(hours=2)
+    payload = {
+        "name": "Idempotent Event",
+        "location": "Main Gym",
+        "start_datetime": start.isoformat(),
+        "end_datetime": end.isoformat(),
+    }
+    headers = {
+        **_auth_headers(admin_user),
+        "X-Idempotency-Key": "event-create:test-idempotent",
+    }
+
+    first_response = client.post("/api/events/", headers=headers, json=payload)
+    second_response = client.post("/api/events/", headers=headers, json=payload)
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+
+    first_payload = first_response.json()
+    second_payload = second_response.json()
+    assert first_payload["id"] == second_payload["id"]
+
+    created_events = (
+        test_db.query(Event)
+        .filter(
+            Event.school_id == school.id,
+            Event.name == "Idempotent Event",
+            Event.created_by_user_id == admin_user.id,
+        )
+        .all()
+    )
+    assert len(created_events) == 1
+    assert created_events[0].create_idempotency_key == "event-create:test-idempotent"
+
+
+def test_create_event_api_allows_same_idempotency_key_for_different_users(client, test_db):
+    school = _create_school(test_db, code="EVENT-IDEMPOTENT-MULTI")
+    first_admin = _create_user_with_role(
+        test_db,
+        email="event.idempotent.first@example.com",
+        role_name="admin",
+        password="AdminPass123!",
+        school_id=school.id,
+    )
+    second_admin = _create_user_with_role(
+        test_db,
+        email="event.idempotent.second@example.com",
+        role_name="admin",
+        password="AdminPass123!",
+        school_id=school.id,
+    )
+
+    start = datetime.utcnow().replace(microsecond=0) + timedelta(days=1)
+    end = start + timedelta(hours=2)
+    payload = {
+        "name": "Shared Idempotency Key Event",
+        "location": "Innovation Hub",
+        "start_datetime": start.isoformat(),
+        "end_datetime": end.isoformat(),
+    }
+    idempotency_key = "event-create:shared-key"
+
+    first_response = client.post(
+        "/api/events/",
+        headers={**_auth_headers(first_admin), "X-Idempotency-Key": idempotency_key},
+        json=payload,
+    )
+    second_response = client.post(
+        "/api/events/",
+        headers={**_auth_headers(second_admin), "X-Idempotency-Key": idempotency_key},
+        json=payload,
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert first_response.json()["id"] != second_response.json()["id"]
+
+    created_events = (
+        test_db.query(Event)
+        .filter(
+            Event.school_id == school.id,
+            Event.name == "Shared Idempotency Key Event",
+            Event.create_idempotency_key == idempotency_key,
+        )
+        .all()
+    )
+    assert len(created_events) == 2
+
+
+def test_create_event_api_without_idempotency_key_keeps_creating_new_events(client, test_db):
+    school = _create_school(test_db, code="EVENT-NO-IDEMPOTENT")
+    admin_user = _create_user_with_role(
+        test_db,
+        email="event.no.idempotent@example.com",
+        role_name="admin",
+        password="AdminPass123!",
+        school_id=school.id,
+    )
+
+    start = datetime.utcnow().replace(microsecond=0) + timedelta(days=1)
+    end = start + timedelta(hours=2)
+    payload = {
+        "name": "Non Idempotent Event",
+        "location": "Auditorium",
+        "start_datetime": start.isoformat(),
+        "end_datetime": end.isoformat(),
+    }
+    headers = _auth_headers(admin_user)
+
+    first_response = client.post("/api/events/", headers=headers, json=payload)
+    second_response = client.post("/api/events/", headers=headers, json=payload)
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert first_response.json()["id"] != second_response.json()["id"]
+
+    created_events = (
+        test_db.query(Event)
+        .filter(
+            Event.school_id == school.id,
+            Event.name == "Non Idempotent Event",
+            Event.created_by_user_id == admin_user.id,
+        )
+        .all()
+    )
+    assert len(created_events) == 2
+    assert all(event.create_idempotency_key is None for event in created_events)
+
+
 def test_create_event_api_persists_event_type_relation(client, test_db):
     school = _create_school(test_db, code="EVENT-TYPE-ID")
     admin_role = Role(name="admin")

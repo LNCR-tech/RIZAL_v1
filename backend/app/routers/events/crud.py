@@ -1,21 +1,71 @@
 """CRUD routes for the event router package."""
 
+from fastapi import Header
+
 from .shared import *  # noqa: F403
 
 router = APIRouter()
+
+
+def _normalize_event_create_idempotency_key(raw_value: str | None) -> str | None:
+    normalized = str(raw_value or "").strip()
+    if not normalized:
+        return None
+    if len(normalized) > 128:
+        raise HTTPException(
+            status_code=400,
+            detail="X-Idempotency-Key must not exceed 128 characters.",
+        )
+    return normalized
+
+
+def _find_existing_idempotent_event(
+    db: Session,
+    *,
+    school_id: int,
+    current_user: UserModel,
+    idempotency_key: str,
+) -> EventModel | None:
+    return (
+        _school_scoped_event_query(db, school_id)
+        .options(
+            joinedload(EventModel.departments),
+            joinedload(EventModel.programs),
+            joinedload(EventModel.event_type),
+            joinedload(EventModel.attendances),
+        )
+        .filter(
+            EventModel.created_by_user_id == current_user.id,
+            EventModel.create_idempotency_key == idempotency_key,
+        )
+        .first()
+    )
 
 
 @router.post("/", response_model=EventWithRelations, status_code=status.HTTP_201_CREATED)
 def create_event(
     event: EventCreate,
     governance_context: GovernanceUnitType | None = Query(default=None),
+    idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    normalized_idempotency_key = _normalize_event_create_idempotency_key(idempotency_key)
+
     try:
         _ensure_event_manager(db, current_user)
         school_id = _require_school_scope(current_user)
         payload_fields_set = _get_payload_fields_set(event)
+
+        if normalized_idempotency_key is not None:
+            existing_event = _find_existing_idempotent_event(
+                db,
+                school_id=school_id,
+                current_user=current_user,
+                idempotency_key=normalized_idempotency_key,
+            )
+            if existing_event is not None:
+                return existing_event
 
         if event.start_datetime >= event.end_datetime:
             raise HTTPException(status_code=400, detail="End datetime must be after start datetime")
@@ -81,6 +131,8 @@ def create_event(
 
         db_event = EventModel(
             school_id=school_id,
+            created_by_user_id=current_user.id,
+            create_idempotency_key=normalized_idempotency_key,
             name=event.name,
             location=event.location,
             geo_latitude=event.geo_latitude,
@@ -152,6 +204,15 @@ def create_event(
         raise
     except IntegrityError:
         db.rollback()
+        if normalized_idempotency_key is not None:
+            existing_event = _find_existing_idempotent_event(
+                db,
+                school_id=school_id,
+                current_user=current_user,
+                idempotency_key=normalized_idempotency_key,
+            )
+            if existing_event is not None:
+                return existing_event
         raise HTTPException(status_code=400, detail="Event creation failed (possible duplicate)")
     except Exception as exc:
         db.rollback()

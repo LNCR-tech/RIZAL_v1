@@ -8,6 +8,7 @@ import {
   formatCompactDuration,
   getMillisecondsUntilSignOutOpen,
   isOpenAttendanceRecord,
+  parseAttendanceDateTime,
   parseEventDateTime,
   resolveAttendanceActionState,
   resolveAttendanceCompletionState,
@@ -107,8 +108,7 @@ function resolveEventGeo(event = null) {
 }
 
 function formatAttendanceTimestamp(value) {
-  if (!value) return '--, --'
-  const parsed = parseEventDateTime(value)
+  const parsed = parseAttendanceDateTime(value)
   return Number.isFinite(parsed.getTime()) ? timestampFormatter.format(parsed) : '--, --'
 }
 

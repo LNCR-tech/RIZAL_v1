@@ -6,7 +6,6 @@ Role: Router layer. It receives HTTP requests, checks access rules, and returns 
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-from datetime import datetime
 from typing import Callable
 
 from jose import JWTError, jwt
@@ -14,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.timezones import utc_now
 from app.core.security import (
     ALGORITHM,
     SECRET_KEY,
@@ -443,7 +443,7 @@ def verify_face_reference(
     issued_session: dict[str, object | None] | None = None
 
     if comparison.matched:
-        profile.last_verified_at = datetime.utcnow()
+        profile.last_verified_at = utc_now()
         if token_data.face_pending:
             issued_session = issue_full_access_token_response(
                 db=db,

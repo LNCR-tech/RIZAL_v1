@@ -5,7 +5,6 @@ Role: Model layer. It maps Python objects to database tables and relationships.
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
@@ -22,6 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
+from app.core.timezones import utc_now
 from app.models.base import Base
 
 
@@ -168,8 +168,8 @@ class GovernanceUnit(Base):
     event_default_early_check_in_minutes = Column(Integer, nullable=True)
     event_default_late_threshold_minutes = Column(Integer, nullable=True)
     event_default_sign_out_grace_minutes = Column(Integer, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     parent_unit = relationship("GovernanceUnit", remote_side=[id], back_populates="child_units")
     child_units = relationship("GovernanceUnit", back_populates="parent_unit")
@@ -216,7 +216,7 @@ class GovernanceMember(Base):
         nullable=True,
         index=True,
     )
-    assigned_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    assigned_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
 
     governance_unit = relationship("GovernanceUnit", back_populates="members")
@@ -280,7 +280,7 @@ class GovernanceUnitPermission(Base):
         nullable=True,
         index=True,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     governance_unit = relationship("GovernanceUnit", back_populates="unit_permissions")
     permission = relationship("GovernancePermission", back_populates="unit_permissions")
@@ -316,7 +316,7 @@ class GovernanceMemberPermission(Base):
         nullable=True,
         index=True,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     governance_member = relationship("GovernanceMember", back_populates="member_permissions")
     permission = relationship("GovernancePermission", back_populates="member_permissions")
@@ -359,8 +359,8 @@ class GovernanceAnnouncement(Base):
         nullable=True,
         index=True,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     governance_unit = relationship("GovernanceUnit", back_populates="announcements")
     school = relationship("School")
@@ -415,8 +415,8 @@ class GovernanceStudentNote(Base):
         nullable=True,
         index=True,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     governance_unit = relationship("GovernanceUnit", back_populates="student_notes")
     student_profile = relationship("StudentProfile")

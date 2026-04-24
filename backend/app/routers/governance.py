@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.timezones import utc_now
 from app.core.security import (
     get_current_admin_or_campus_admin,
     get_current_application_user,
@@ -250,7 +251,7 @@ def _soft_delete_target_user(db: Session, request_row: DataRequest) -> None:
     user.is_active = False
     # Keep anonymized email syntactically valid so response schemas using EmailStr won't fail.
     if "@deleted.example.com" not in user.email:
-        user.email = f"deleted_{user.id}_{int(datetime.utcnow().timestamp())}@deleted.example.com"
+        user.email = f"deleted_{user.id}_{int(utc_now().timestamp())}@deleted.example.com"
 
 
 @router.patch("/requests/{request_id}", response_model=DataRequestItem)
@@ -276,17 +277,18 @@ def update_data_request_status(
         details["review_note"] = payload.note
     row.details_json = details
 
+    resolved_at = utc_now()
     if payload.status in {"approved", "completed"}:
         if row.request_type == "export":
             row.output_path = _export_request_payload(db, row)
             row.status = "completed"
-            row.resolved_at = datetime.utcnow()
+            row.resolved_at = resolved_at
         elif row.request_type == "delete":
             _soft_delete_target_user(db, row)
             row.status = "completed"
-            row.resolved_at = datetime.utcnow()
+            row.resolved_at = resolved_at
     elif payload.status == "rejected":
-        row.resolved_at = datetime.utcnow()
+        row.resolved_at = resolved_at
 
     db.commit()
     db.refresh(row)
@@ -309,7 +311,7 @@ def run_retention_cleanup(
             detail="Auto-delete is disabled. Enable it before non-dry-run cleanup.",
         )
 
-    now = datetime.utcnow()
+    now = utc_now()
     audit_cutoff = now - timedelta(days=setting.audit_log_retention_days)
     import_cutoff = now - timedelta(days=setting.import_file_retention_days)
     notification_cutoff = now - timedelta(days=setting.audit_log_retention_days)

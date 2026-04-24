@@ -3,7 +3,7 @@ Where to use: Use this when the backend needs to store or load schools, school s
 Role: Model layer. It maps Python objects to database tables and relationships.
 """
 
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
@@ -13,6 +13,7 @@ from app.core.event_defaults import (
     DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
     DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
 )
+from app.core.timezones import utc_now
 from app.models.base import Base
 
 
@@ -32,12 +33,12 @@ class School(Base):
     subscription_plan = Column(String(100), nullable=False, default="free")
     subscription_start = Column(Date, nullable=False, default=date.today)
     subscription_end = Column(Date, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
 
     settings = relationship(
@@ -88,10 +89,10 @@ class SchoolSetting(Base):
         default=DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES,
     )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
     updated_by_user_id = Column(
         Integer,
@@ -121,6 +122,6 @@ class SchoolAuditLog(Base):
     action = Column(String(100), nullable=False)
     status = Column(String(30), nullable=False, default="success")
     details = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     school = relationship("School", back_populates="audit_logs")

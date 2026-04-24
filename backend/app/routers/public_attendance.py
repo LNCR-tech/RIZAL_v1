@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
+from app.core.timezones import utc_now
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
 from app.models.school import School as SchoolModel
 from app.schemas.public_attendance import (
@@ -431,7 +432,7 @@ def scan_public_attendance_event(
             event=event,
             student=student,
             phase=phase,
-            scanned_at=datetime.utcnow(),
+            scanned_at=utc_now(),
             geo_response=geo_response,
             latitude=payload.latitude,
             longitude=payload.longitude,

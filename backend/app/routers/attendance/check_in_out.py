@@ -1,5 +1,7 @@
 """Check-in and check-out routes for the attendance router package."""
 
+from app.core.timezones import utc_now
+
 from .shared import *  # noqa: F403
 
 router = APIRouter()
@@ -66,7 +68,7 @@ def record_face_scan_attendance(
 
         duration_minutes = _complete_attendance_sign_out(
             active_attendance,
-            recorded_at=datetime.utcnow(),
+            recorded_at=utc_now(),
         )
         db.commit()
         db.refresh(active_attendance)
@@ -95,7 +97,7 @@ def record_face_scan_attendance(
     if existing and existing.time_out is not None:
         raise HTTPException(400, f"Attendance already exists for student {student_id}")
 
-    scanned_at = datetime.utcnow()
+    scanned_at = utc_now()
     status_value = attendance_decision["attendance_status"] or "absent"
 
     attendance = AttendanceModel(
@@ -163,7 +165,7 @@ def record_manual_attendance(
 
         duration_minutes = _complete_attendance_sign_out(
             active_attendance,
-            recorded_at=datetime.utcnow(),
+            recorded_at=utc_now(),
         )
         db.commit()
         db.refresh(active_attendance)
@@ -190,7 +192,7 @@ def record_manual_attendance(
     if existing and existing.time_out is not None:
         raise HTTPException(400, f"Attendance already exists for student {data.student_id}")
 
-    recorded_at = datetime.utcnow()
+    recorded_at = utc_now()
     status_value = attendance_decision["attendance_status"] or "absent"
 
     attendance = AttendanceModel(
@@ -298,7 +300,7 @@ def record_bulk_attendance(
             results.append({"student_id": record.student_id, "status": "exists"})
             continue
 
-        recorded_at = datetime.utcnow()
+        recorded_at = utc_now()
         attendance = AttendanceModel(
             student_id=student.id,
             event_id=record.event_id,
@@ -356,7 +358,7 @@ def record_time_out(
 
     duration_minutes = _complete_attendance_sign_out(
         attendance,
-        recorded_at=datetime.utcnow(),
+        recorded_at=utc_now(),
     )
     db.commit()
 
@@ -417,7 +419,7 @@ def record_face_scan_timeout(
 
     duration_minutes = _complete_attendance_sign_out(
         attendance,
-        recorded_at=datetime.utcnow(),
+        recorded_at=utc_now(),
     )
     db.commit()
 

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.core.timezones import utc_now
 from app.models.associations import program_department_association
 from app.models.school import SchoolAuditLog
 from app.models.user import User
@@ -128,7 +129,7 @@ class StudentImportService:
 
     def _process_streaming(self, job_id: str) -> str | None:
         settings = self.settings
-        start_time = datetime.utcnow()
+        start_time = utc_now()
         used_temporary_passwords: set[str] = set()
 
         with SessionLocal() as db:
@@ -713,7 +714,7 @@ class StudentImportService:
         failed_count: int,
         start_time: datetime,
     ) -> None:
-        elapsed_seconds = max((datetime.utcnow() - start_time).total_seconds(), 1)
+        elapsed_seconds = max((utc_now() - start_time).total_seconds(), 1)
         processing_rate = processed_rows / elapsed_seconds
 
         eta_seconds = None

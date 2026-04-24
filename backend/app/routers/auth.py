@@ -3,13 +3,12 @@ Where to use: Use this through the FastAPI app when the frontend or an API clien
 Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
 """
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 
+from app.core.timezones import utc_now
 from app.core.security import (
     PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT,
     authenticate_user,
@@ -324,7 +323,7 @@ def approve_password_reset_request(
     target_user.should_prompt_password_change = False
 
     request_item.status = "approved"
-    request_item.resolved_at = datetime.utcnow()
+    request_item.resolved_at = utc_now()
     request_item.reviewed_by_user_id = current_user.id
 
     school = db.query(School).filter(School.id == request_item.school_id).first()
@@ -357,7 +356,7 @@ def approve_password_reset_request(
         id=request_item.id,
         user_id=target_user.id,
         status=request_item.status,
-        resolved_at=request_item.resolved_at or datetime.utcnow(),
+        resolved_at=request_item.resolved_at or utc_now(),
         message="Password reset approved and temporary password emailed.",
     )
 

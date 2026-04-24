@@ -16,6 +16,165 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-25 - Make event creation idempotent for duplicate submits
+
+### Purpose
+
+Prevent duplicate event rows when the frontend submits the same create request multiple times before the form fully closes, while preserving existing create behavior for clients that do not send an idempotency key.
+
+### Main files
+
+- `Backend/alembic/versions/e6f7a8b9c0d1_add_event_create_idempotency_fields.py`
+- `backend/app/models/event.py`
+- `backend/app/routers/events/crud.py`
+- `backend/app/tests/test_api.py`
+- `docs/backend/runtime-behavior.md`
+
+### Backend changes
+
+- added `events.created_by_user_id` and `events.create_idempotency_key`
+- added a unique constraint on `(created_by_user_id, create_idempotency_key)`
+- `POST /api/events/` now accepts `X-Idempotency-Key`
+- repeated create requests with the same key from the same authenticated user now return the existing event instead of inserting a duplicate row
+
+### Frontend changes
+
+- governance event create flows now send one idempotency key per in-flight create request
+- repeated rapid clicks are blocked in the form handlers before the second request is sent
+
+### Route or schema impact
+
+- `POST /api/events/`
+  - accepts optional `X-Idempotency-Key` header
+  - returns the existing event when the same user repeats the same key
+
+### Migration impact
+
+- run `python -m alembic upgrade head`
+- migration adds two new event columns plus the unique constraint backing create idempotency
+
+### How to test
+
+1. Run `python -m alembic upgrade head`.
+2. Call `POST /api/events/` with an `X-Idempotency-Key`.
+3. Repeat the same request immediately with the same authenticated user and key.
+4. Confirm both responses return the same event ID and the database stores only one row.
+5. Repeat with a different authenticated user but the same key and confirm a second event is still created.
+
+## 2026-04-25 - Store common system timestamps as timezone-aware UTC
+
+### Purpose
+
+Extend the UTC-with-timezone fix beyond attendance so backend audit/system timestamps stay accurate in the database, API responses, and frontend display without changing Manila-local event schedule behavior.
+
+### Main files
+
+- `Backend/alembic/versions/d5e6f7a8b9c0_make_common_system_timestamps_timezone_aware.py`
+- `backend/app/core/security.py`
+- `backend/app/core/timezones.py`
+- `backend/app/models/user.py`
+- `backend/app/models/school.py`
+- `backend/app/models/platform_features.py`
+- `backend/app/models/governance_hierarchy.py`
+- `backend/app/models/import_job.py`
+- `backend/app/models/password_reset_request.py`
+- `backend/app/models/event_type.py`
+- `backend/app/models/sanctions.py`
+- `backend/app/repositories/import_repository.py`
+- `backend/app/routers/auth.py`
+- `backend/app/routers/governance.py`
+- `backend/app/routers/security_center.py`
+- `backend/app/routers/subscription.py`
+- `backend/app/services/security_service.py`
+- `backend/app/services/notification_center_service.py`
+- `backend/app/services/sanctions_service.py`
+- `backend/app/services/student_import_service.py`
+- `docs/backend/runtime-behavior.md`
+
+### Backend changes
+
+- changed common audit/system timestamp columns from naive `timestamp` to timezone-aware `timestamptz`
+- switched model defaults and `onupdate` hooks for those fields to shared aware UTC timestamps via `utc_now()`
+- updated explicit write/comparison paths for password resets, governance data requests, security sessions, subscription reminders, bulk imports, notifications, and sanctions to use aware UTC values
+- kept event schedule fields and Manila-local event window logic unchanged
+
+### Frontend changes
+
+- no new frontend formatter logic was required beyond the existing UTC normalizers
+- affected API responses now consistently include explicit offsets, so existing frontend date parsing stays accurate
+
+### Route or schema impact
+
+- no route path changes
+- response datetime fields backed by the migrated tables now come from `timestamptz` storage and serialize with explicit offsets
+
+### Migration impact
+
+- run `python -m alembic upgrade head`
+- migration converts existing common system/audit timestamp columns from naive UTC into `TIMESTAMP WITH TIME ZONE`
+- this migration is intentionally scoped away from event schedule columns
+
+### How to test
+
+1. Run `python -m alembic upgrade head`.
+2. Verify the latest Alembic revision is `d5e6f7a8b9c0`.
+3. Trigger at least one flow that writes the affected tables, such as:
+   - login/session creation
+   - password reset approval
+   - governance data request creation/approval
+   - subscription reminder generation
+4. Confirm representative columns in PostgreSQL now report `timestamp with time zone`.
+5. Call the related APIs and confirm the returned datetime fields include explicit offsets and render correctly in the frontend.
+
+## 2026-04-25 - Store attendance timestamps as timezone-aware UTC
+
+### Purpose
+
+Fix attendance time drift between backend persistence and frontend display by storing attendance timestamps with timezone information and keeping attendance formatting separate from Manila-local event schedule parsing.
+
+### Main files
+
+- `Backend/alembic/versions/c4d5e6f7a8b9_make_attendance_timestamps_timezone_aware.py`
+- `backend/app/core/timezones.py`
+- `backend/app/models/attendance.py`
+- `backend/app/routers/attendance/check_in_out.py`
+- `backend/app/routers/face_recognition.py`
+- `backend/app/routers/public_attendance.py`
+- `frontend/src/services/attendanceFlow.js`
+- `frontend/src/composables/useMobileStudentAttendance.js`
+- `frontend/src/composables/useMobileStudentSchedule.js`
+- `docs/backend/runtime-behavior.md`
+
+### Backend changes
+
+- changed `attendances.time_in` and `attendances.time_out` to timezone-aware timestamps
+- attendance write paths now persist aware UTC timestamps via a shared `utc_now()` helper
+- attendance API responses continue returning explicit offsets so the frontend can format them without guessing
+
+### Frontend changes
+
+- attendance record displays now parse attendance timestamps as UTC-derived API values
+- event schedule parsing remains unchanged and still follows the event-specific Manila schedule logic
+
+### Route or schema impact
+
+- no route path changes
+- attendance response timestamp fields now come from `timestamptz` database storage
+
+### Migration impact
+
+- run `python -m alembic upgrade head`
+- migration converts existing `attendances.time_in` and `attendances.time_out` values from naive UTC into `TIMESTAMP WITH TIME ZONE`
+
+### How to test
+
+1. Run `python -m alembic upgrade head`.
+2. Record a student attendance sign-in and sign-out through:
+   - `POST /api/face/face-scan-with-recognition`, or
+   - `POST /api/attendance/manual`
+3. Call `GET /api/attendance/me/records` and confirm `time_in` / `time_out` include timezone offsets.
+4. Open the student attendance screens in the frontend and confirm check-in/check-out times render correctly.
+
 ## 2026-04-25 - Restore event categorization with `event_types`
 
 ### Purpose

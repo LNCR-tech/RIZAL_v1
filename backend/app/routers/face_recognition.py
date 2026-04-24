@@ -17,6 +17,7 @@ from app.core.security import (
     get_school_id_or_403,
     has_any_role,
 )
+from app.core.timezones import utc_now
 from app.core.dependencies import get_db
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
@@ -402,7 +403,7 @@ def record_attendance_from_face_scan(
         accuracy_m=payload.accuracy_m,
     )
 
-    scanned_at = datetime.utcnow()
+    scanned_at = utc_now()
     if (
         geo_response is not None
         and payload.latitude is not None

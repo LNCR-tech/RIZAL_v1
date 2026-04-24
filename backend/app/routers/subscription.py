@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.timezones import utc_now
 from app.core.security import (
     get_current_admin_or_campus_admin,
     get_role_lookup_names,
@@ -70,7 +71,7 @@ def _get_or_create_subscription_setting(db: Session, school_id: int) -> SchoolSu
 
 
 def _month_window(reference: datetime | None = None) -> tuple[datetime, datetime]:
-    now = reference or datetime.utcnow()
+    now = reference or utc_now()
     month_start = datetime(now.year, now.month, 1)
     if now.month == 12:
         next_month = datetime(now.year + 1, 1, 1)
@@ -235,7 +236,7 @@ def run_subscription_reminders(
             .filter(
                 SchoolSubscriptionReminder.school_id == setting.school_id,
                 SchoolSubscriptionReminder.reminder_type == "renewal_warning",
-                SchoolSubscriptionReminder.created_at >= datetime.utcnow() - timedelta(hours=24),
+                SchoolSubscriptionReminder.created_at >= utc_now() - timedelta(hours=24),
             )
             .first()
         )
@@ -245,7 +246,7 @@ def run_subscription_reminders(
         reminder = SchoolSubscriptionReminder(
             school_id=setting.school_id,
             reminder_type="renewal_warning",
-            due_at=datetime.utcnow(),
+            due_at=utc_now(),
             status="pending",
         )
         db.add(reminder)
@@ -291,7 +292,7 @@ def run_subscription_reminders(
 
         if sent_for_school:
             reminder.status = "sent"
-            reminder.sent_at = datetime.utcnow()
+            reminder.sent_at = utc_now()
             reminders_sent += 1
         elif failed_for_school:
             reminder.status = "failed"

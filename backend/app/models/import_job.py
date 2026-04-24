@@ -3,12 +3,11 @@ Where to use: Use this when the backend needs to store or load bulk import jobs 
 Role: Model layer. It maps Python objects to database tables and relationships.
 """
 
-from datetime import datetime
-
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON
 
+from app.core.timezones import utc_now
 from app.models.base import Base
 
 
@@ -33,11 +32,11 @@ class BulkImportJob(Base):
     error_summary = Column(Text, nullable=True)
     is_rate_limited = Column(Boolean, nullable=False, default=False)
 
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_heartbeat = Column(DateTime, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    last_heartbeat = Column(DateTime(timezone=True), nullable=True)
 
     errors = relationship("BulkImportError", back_populates="job", cascade="all, delete-orphan")
 
@@ -50,7 +49,7 @@ class BulkImportError(Base):
     row_number = Column(Integer, nullable=False)
     error_message = Column(Text, nullable=False)
     row_data = Column(JSON, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     job = relationship("BulkImportJob", back_populates="errors")
 
@@ -65,5 +64,5 @@ class EmailDeliveryLog(Base):
     status = Column(String(20), nullable=False, index=True)
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)

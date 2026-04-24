@@ -5,9 +5,10 @@ Role: Repository layer. It keeps import-job database access in one place.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Dict, Iterable, List, Sequence, Tuple
 
+from app.core.timezones import utc_now
 from sqlalchemy import delete, func, insert as sa_insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -72,10 +73,11 @@ class ImportRepository:
         return self.db.query(BulkImportJob).filter(BulkImportJob.id == job_id).first()
 
     def mark_processing(self, job_id: str) -> None:
+        now = utc_now()
         self.db.execute(
             update(BulkImportJob)
             .where(BulkImportJob.id == job_id)
-            .values(status="processing", started_at=datetime.utcnow(), last_heartbeat=datetime.utcnow())
+            .values(status="processing", started_at=now, last_heartbeat=now)
         )
 
     def update_progress(
@@ -88,6 +90,7 @@ class ImportRepository:
         failed_count: int,
         eta_seconds: int | None,
     ) -> None:
+        now = utc_now()
         self.db.execute(
             update(BulkImportJob)
             .where(BulkImportJob.id == job_id)
@@ -97,32 +100,34 @@ class ImportRepository:
                 success_count=success_count,
                 failed_count=failed_count,
                 eta_seconds=eta_seconds,
-                last_heartbeat=datetime.utcnow(),
+                last_heartbeat=now,
             )
         )
 
     def mark_completed(self, job_id: str, failed_report_path: str | None = None) -> None:
+        now = utc_now()
         self.db.execute(
             update(BulkImportJob)
             .where(BulkImportJob.id == job_id)
             .values(
                 status="completed",
-                completed_at=datetime.utcnow(),
+                completed_at=now,
                 failed_report_path=failed_report_path,
                 eta_seconds=0,
-                last_heartbeat=datetime.utcnow(),
+                last_heartbeat=now,
             )
         )
 
     def mark_failed(self, job_id: str, error_summary: str) -> None:
+        now = utc_now()
         self.db.execute(
             update(BulkImportJob)
             .where(BulkImportJob.id == job_id)
             .values(
                 status="failed",
-                completed_at=datetime.utcnow(),
+                completed_at=now,
                 error_summary=error_summary[:2000],
-                last_heartbeat=datetime.utcnow(),
+                last_heartbeat=now,
             )
         )
 
@@ -150,7 +155,7 @@ class ImportRepository:
         )
 
     def count_recent_jobs(self, created_by_user_id: int, window_seconds: int) -> int:
-        cutoff = datetime.utcnow() - timedelta(seconds=window_seconds)
+        cutoff = utc_now() - timedelta(seconds=window_seconds)
         return (
             self.db.query(func.count(BulkImportJob.id))
             .filter(

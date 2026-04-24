@@ -5,7 +5,7 @@ Role: Model layer. It maps Python objects to database tables and relationships.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from enum import Enum
 
 from sqlalchemy import (
@@ -23,6 +23,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
+from app.core.timezones import utc_now
 from app.models.base import Base
 
 
@@ -62,8 +63,8 @@ class EventSanctionConfig(Base):
     item_definitions_json = Column(JSON, nullable=False, default=list)
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     updated_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     school = relationship("School")
     event = relationship("Event")
@@ -113,10 +114,10 @@ class SanctionRecord(Base):
         index=True,
     )
     assigned_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    complied_at = Column(DateTime, nullable=True, index=True)
+    complied_at = Column(DateTime(timezone=True), nullable=True, index=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     school = relationship("School")
     event = relationship("Event")
@@ -156,11 +157,11 @@ class SanctionItem(Base):
         default=SanctionItemStatus.PENDING,
         index=True,
     )
-    complied_at = Column(DateTime, nullable=True, index=True)
+    complied_at = Column(DateTime(timezone=True), nullable=True, index=True)
     compliance_notes = Column(Text, nullable=True)
     metadata_json = Column(JSON, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     sanction_record = relationship("SanctionRecord", back_populates="items")
     compliance_history = relationship("SanctionComplianceHistory", back_populates="sanction_item")
@@ -205,10 +206,10 @@ class SanctionDelegation(Base):
     )
     scope_json = Column(JSON, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
-    revoked_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
     revoked_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     school = relationship("School")
     event = relationship("Event")
@@ -242,7 +243,7 @@ class SanctionComplianceHistory(Base):
     semester = Column(String(20), nullable=False, index=True)
     complied_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     school = relationship("School")
     event = relationship("Event")
@@ -265,7 +266,7 @@ class ClearanceDeadline(Base):
         nullable=True,
         index=True,
     )
-    deadline_at = Column(DateTime, nullable=False, index=True)
+    deadline_at = Column(DateTime(timezone=True), nullable=False, index=True)
     status = Column(
         SqlEnum(
             ClearanceDeadlineStatus,
@@ -277,11 +278,11 @@ class ClearanceDeadline(Base):
         default=ClearanceDeadlineStatus.ACTIVE,
         index=True,
     )
-    warning_email_sent_at = Column(DateTime, nullable=True)
-    warning_popup_sent_at = Column(DateTime, nullable=True)
+    warning_email_sent_at = Column(DateTime(timezone=True), nullable=True)
+    warning_popup_sent_at = Column(DateTime(timezone=True), nullable=True)
     message = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     school = relationship("School")
     event = relationship("Event")

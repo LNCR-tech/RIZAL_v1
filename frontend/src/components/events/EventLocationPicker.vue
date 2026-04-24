@@ -28,7 +28,7 @@
         <button
           class="event-location-picker__action"
           type="button"
-          :disabled="disabled || !hasCoordinates"
+          :disabled="disabled || !hasCoordinateInput"
           @click="clearSelection"
         >
           <Trash2 :size="15" :stroke-width="2" />
@@ -92,7 +92,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-vue-next'
-import { getCurrentPositionOrThrow } from '@/services/devicePermissions.js'
+import {
+  getCurrentPositionIfAvailable,
+  getCurrentPositionOrThrow,
+} from '@/services/devicePermissions.js'
 
 const props = defineProps({
   latitude: {
@@ -114,6 +117,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:latitude', 'update:longitude'])
+const MIN_LATITUDE = -90
+const MAX_LATITUDE = 90
+const MIN_LONGITUDE = -180
+const MAX_LONGITUDE = 180
+const DEFAULT_MAP_CENTER = Object.freeze({
+  latitude: 8.1552,
+  longitude: 123.8421,
+})
+const DEFAULT_MAP_ZOOM = 14
+const DEFAULT_MAP_MIN_ZOOM = 6
+const DEFAULT_AUTO_LOCATE_ZOOM = 15
 
 const mapEl = ref(null)
 const loadingMap = ref(true)
@@ -128,9 +142,13 @@ const normalizedRadius = computed(() => {
   const parsed = Number(props.radiusM)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 })
-const hasCoordinates = computed(() => (
+const hasCoordinateInput = computed(() => (
   normalizedLatitude.value != null
-  && normalizedLongitude.value != null
+  || normalizedLongitude.value != null
+))
+const hasCoordinates = computed(() => (
+  isValidLatitude(normalizedLatitude.value)
+  && isValidLongitude(normalizedLongitude.value)
 ))
 const formattedLatitude = computed(() => formatCoordinate(normalizedLatitude.value))
 const formattedLongitude = computed(() => formatCoordinate(normalizedLongitude.value))
@@ -148,6 +166,8 @@ let resizeObserver = null
 let invalidateTimeoutId = 0
 let mapInitSequence = 0
 let isComponentUnmounted = false
+let autoLocateSequence = 0
+let autoLocateAttempted = false
 
 onMounted(() => {
   isComponentUnmounted = false
@@ -198,20 +218,29 @@ async function initializeMap() {
     }
 
     leafletRef = leafletModule.default || leafletModule
+    const worldBounds = leafletRef.latLngBounds([[-85, -180], [85, 180]])
     mapInstance = leafletRef.map(containerEl, {
       zoomControl: false,
       attributionControl: true,
+      minZoom: DEFAULT_MAP_MIN_ZOOM,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1,
+      worldCopyJump: false,
     })
 
     leafletRef.control.zoom({ position: 'bottomright' }).addTo(mapInstance)
     leafletRef.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
+      minZoom: DEFAULT_MAP_MIN_ZOOM,
       maxZoom: 19,
+      noWrap: true,
     }).addTo(mapInstance)
 
     mapInstance.on('click', handleMapClick)
 
+    focusFallbackMap({ animate: false })
     syncSelectionOnMap({ focus: true })
+    startAutoLocateIfIdle()
     scheduleMapInvalidate()
     observeMapResize()
   } catch (error) {
@@ -227,6 +256,7 @@ async function initializeMap() {
 
 function cleanupMap() {
   mapInitSequence += 1
+  autoLocateSequence += 1
 
   if (invalidateTimeoutId) {
     window.clearTimeout(invalidateTimeoutId)
@@ -315,7 +345,7 @@ async function handleUseCurrentLocation() {
 }
 
 function clearSelection() {
-  if (props.disabled || !hasCoordinates.value) return
+  if (props.disabled || !hasCoordinateInput.value) return
 
   emit('update:latitude', '')
   emit('update:longitude', '')
@@ -345,16 +375,14 @@ function syncSelectionOnMap({
 } = {}) {
   if (!mapInstance || !leafletRef) return
 
-  const hasPoint = Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
+  const hasPoint = isValidLatitude(latitude) && isValidLongitude(longitude)
 
   if (!hasPoint) {
     removeMarkerFromMap()
     removeRadiusPreview()
 
     if (focus) {
-      mapInstance.fitWorld({
-        padding: [24, 24],
-      })
+      focusFallbackMap()
     }
 
     return
@@ -393,6 +421,56 @@ function syncSelectionOnMap({
   mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), 16), {
     animate: true,
   })
+}
+
+function focusFallbackMap({ animate = true } = {}) {
+  if (!mapInstance) return
+
+  mapInstance.setView(
+    [DEFAULT_MAP_CENTER.latitude, DEFAULT_MAP_CENTER.longitude],
+    DEFAULT_MAP_ZOOM,
+    { animate }
+  )
+}
+
+function focusNearestAvailableLocation(latitude, longitude, { animate = true } = {}) {
+  if (!mapInstance || !leafletRef) return
+  if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+    focusFallbackMap({ animate })
+    return
+  }
+
+  const latLng = leafletRef.latLng(Number(latitude), Number(longitude))
+  mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), DEFAULT_AUTO_LOCATE_ZOOM), {
+    animate,
+  })
+}
+
+function startAutoLocateIfIdle() {
+  if (autoLocateAttempted || hasCoordinates.value || !mapInstance) return
+
+  autoLocateAttempted = true
+  const locateSequence = ++autoLocateSequence
+
+  void (async () => {
+    const position = await getCurrentPositionIfAvailable({
+      enableHighAccuracy: false,
+      timeout: 3500,
+      maximumAge: 120000,
+    })
+
+    if (
+      !position
+      || isComponentUnmounted
+      || locateSequence !== autoLocateSequence
+      || !mapInstance
+      || hasCoordinates.value
+    ) {
+      return
+    }
+
+    focusNearestAvailableLocation(position.latitude, position.longitude)
+  })()
 }
 
 function syncRadiusPreview(latLng) {
@@ -487,6 +565,16 @@ function toFiniteNumber(value) {
   if (value == null || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function isValidLatitude(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_LATITUDE && parsed <= MAX_LATITUDE
+}
+
+function isValidLongitude(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_LONGITUDE && parsed <= MAX_LONGITUDE
 }
 
 function formatCoordinate(value) {

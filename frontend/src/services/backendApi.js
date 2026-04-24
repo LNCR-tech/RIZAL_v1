@@ -1308,13 +1308,18 @@ export async function getAnnouncements(baseUrl, token, params = {}) {
  * @param {Object} payload - Event data payload
  * @returns {Promise<Object>} The created event
  */
-export async function createGovernanceEvent(baseUrl, token, payload, params = {}) {
+export async function createGovernanceEvent(baseUrl, token, payload, params = {}, requestOptions = {}) {
+    const extraHeaders = requestOptions?.headers && typeof requestOptions.headers === 'object'
+        ? requestOptions.headers
+        : {}
+
     return normalizeEvent(await requestWithFallback(baseUrl, ['/api/events/', '/events/', '/api/governance/events'], {
         method: 'POST',
         token,
         params,
         headers: {
             'Content-Type': 'application/json',
+            ...extraHeaders,
         },
         body: JSON.stringify(payload),
     }, [404, 405]))

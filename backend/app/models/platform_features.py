@@ -3,7 +3,7 @@ Where to use: Use this when the backend needs to store or load platform feature 
 Role: Model layer. It maps Python objects to database tables and relationships.
 """
 
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy import (
     JSON,
@@ -20,6 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
+from app.core.timezones import utc_now
 from app.models.base import Base
 
 
@@ -34,7 +35,7 @@ class UserNotificationPreference(Base):
     notify_low_attendance = Column(Boolean, nullable=False, default=True)
     notify_account_security = Column(Boolean, nullable=False, default=True)
     notify_subscription = Column(Boolean, nullable=False, default=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     user = relationship("User")
 
@@ -45,7 +46,7 @@ class UserAppPreference(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     dark_mode_enabled = Column(Boolean, nullable=False, default=False)
     font_size_percent = Column(Integer, nullable=False, default=100)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     user = relationship("User")
 
@@ -63,7 +64,7 @@ class NotificationLog(Base):
     message = Column(Text, nullable=False)
     error_message = Column(Text, nullable=True)
     metadata_json = Column(JSON, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     school = relationship("School")
     user = relationship("User")
@@ -75,7 +76,7 @@ class UserSecuritySetting(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     mfa_enabled = Column(Boolean, nullable=False, default=False)
     trusted_device_days = Column(Integer, nullable=False, default=14)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     user = relationship("User")
 
@@ -87,9 +88,9 @@ class UserFaceProfile(Base):
     face_encoding = Column(LargeBinary, nullable=False)
     provider = Column(String(50), nullable=False, default="arcface")
     reference_image_sha256 = Column(String(64), nullable=True)
-    last_verified_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_verified_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     user = relationship("User", back_populates="face_profile")
 
@@ -102,11 +103,11 @@ class MfaChallenge(Base):
     code_hash = Column(String(255), nullable=False)
     channel = Column(String(20), nullable=False, default="email")
     attempts = Column(Integer, nullable=False, default=0)
-    expires_at = Column(DateTime, nullable=False, index=True)
-    consumed_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
     ip_address = Column(String(64), nullable=True)
     user_agent = Column(String(500), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     user = relationship("User")
 
@@ -119,10 +120,10 @@ class UserSession(Base):
     token_jti = Column(String(64), nullable=False, unique=True, index=True)
     ip_address = Column(String(64), nullable=True)
     user_agent = Column(String(500), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    revoked_at = Column(DateTime, nullable=True)
-    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    last_seen_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
 
     user = relationship("User")
 
@@ -139,7 +140,7 @@ class LoginHistory(Base):
     failure_reason = Column(String(255), nullable=True)
     ip_address = Column(String(64), nullable=True)
     user_agent = Column(String(500), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     user = relationship("User")
     school = relationship("School")
@@ -157,7 +158,7 @@ class SchoolSubscriptionSetting(Base):
     auto_renew = Column(Boolean, nullable=False, default=False)
     reminder_days_before = Column(Integer, nullable=False, default=14)
     updated_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     school = relationship("School")
     updated_by_user = relationship("User")
@@ -170,10 +171,10 @@ class SchoolSubscriptionReminder(Base):
     school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
     reminder_type = Column(String(40), nullable=False, default="renewal_warning")
     status = Column(String(20), nullable=False, default="pending", index=True)
-    due_at = Column(DateTime, nullable=False, index=True)
-    sent_at = Column(DateTime, nullable=True)
+    due_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     school = relationship("School")
 
@@ -187,7 +188,7 @@ class DataGovernanceSetting(Base):
     import_file_retention_days = Column(Integer, nullable=False, default=180)
     auto_delete_enabled = Column(Boolean, nullable=False, default=False)
     updated_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     school = relationship("School")
     updated_by_user = relationship("User")
@@ -203,7 +204,7 @@ class UserPrivacyConsent(Base):
     consent_granted = Column(Boolean, nullable=False, default=True)
     consent_version = Column(String(20), nullable=False, default="v1")
     source = Column(String(50), nullable=False, default="web")
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     user = relationship("User")
     school = relationship("School")
@@ -223,8 +224,8 @@ class DataRequest(Base):
     details_json = Column(JSON, nullable=True)
     output_path = Column(String(1024), nullable=True)
     handled_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    resolved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
 
     school = relationship("School")
     requested_by_user = relationship("User", foreign_keys=[requested_by_user_id])
@@ -240,6 +241,6 @@ class DataRetentionRunLog(Base):
     dry_run = Column(Boolean, nullable=False, default=True)
     status = Column(String(20), nullable=False, default="completed")
     summary = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     school = relationship("School")

@@ -3,7 +3,7 @@ Where to use: Use this when the backend needs to store or load events and event 
 Role: Model layer. It maps Python objects to database tables and relationships.
 """
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 
@@ -23,9 +23,18 @@ class EventStatus(PyEnum):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        UniqueConstraint(
+            "created_by_user_id",
+            "create_idempotency_key",
+            name="uq_events_creator_idempotency_key",
+        ),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+    create_idempotency_key = Column(String(128), nullable=True)
     name = Column(String(100), nullable=False)
     location = Column(String(200))
     geo_latitude = Column(Float, nullable=True)
@@ -80,3 +89,4 @@ class Event(Base):
     )
     school = relationship("School", back_populates="events")
     event_type = relationship("EventType", back_populates="events")
+    created_by_user = relationship("User")

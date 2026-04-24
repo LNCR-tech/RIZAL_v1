@@ -3,8 +3,6 @@ Where to use: Use this when the backend needs to store or load users, roles, and
 Role: Model layer. It maps Python objects to database tables and relationships.
 """
 
-from datetime import datetime
-
 from sqlalchemy import (
     Boolean,
     Column,
@@ -17,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
+from app.core.timezones import utc_now
 from app.models.base import Base
 from app.utils.passwords import hash_password_bcrypt, verify_password_bcrypt
 
@@ -35,7 +34,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, index=True)
     must_change_password = Column(Boolean, default=True, nullable=False, index=True)
     should_prompt_password_change = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
@@ -89,7 +88,7 @@ class StudentProfile(Base):
 
     section = Column(String(50), nullable=True, index=True)
     rfid_tag = Column(String(100), unique=True, nullable=True)
-    last_face_update = Column(DateTime, nullable=True)
+    last_face_update = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="student_profile")
@@ -117,7 +116,7 @@ class StudentProfile(Base):
         self.embedding_dimension = dimension
         self.embedding_normalized = normalized
         self.is_face_registered = True
-        self.last_face_update = datetime.utcnow()
+        self.last_face_update = utc_now()
 
 
 class FacultyProfile(Base):

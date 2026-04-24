@@ -5,12 +5,13 @@ Role: Service layer. It keeps business logic out of the route files.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Iterable
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.core.timezones import utc_now
 from app.models.attendance import Attendance
 from app.models.event import Event
 from app.models.platform_features import NotificationLog, UserNotificationPreference
@@ -326,7 +327,7 @@ def dispatch_missed_event_notifications(
     school_id: int,
     lookback_days: int = 14,
 ) -> dict[str, int]:
-    cutoff = datetime.utcnow() - timedelta(days=max(1, lookback_days))
+    cutoff = utc_now() - timedelta(days=max(1, lookback_days))
 
     rows = (
         db.query(
@@ -464,7 +465,7 @@ def dispatch_event_reminder_notifications(
     school_id: int,
     lead_hours: int = 24,
 ) -> dict[str, int]:
-    now = datetime.utcnow()
+    now = utc_now()
     reminder_cutoff = now + timedelta(hours=max(1, lead_hours))
     events = (
         db.query(Event)
