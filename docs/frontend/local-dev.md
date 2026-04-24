@@ -31,9 +31,16 @@ Optional local values:
 - `VITE_API_BASE_URL=/__backend__`
 - `VITE_API_TIMEOUT_MS=15000`
 - `VITE_NATIVE_API_BASE_URL=http://127.0.0.1:8000` for native/mobile builds
+- `VITE_ASSISTANT_PROXY_TARGET=http://127.0.0.1:8500`
+- `VITE_ASSISTANT_BASE_URL=http://127.0.0.1:8500`
+
+Assistant note:
+
+- these assistant env vars still exist and are part of local frontend configuration
+- the current Vite config only defines a backend proxy under `/__backend__`
 
 ## Backend Connectivity (Dev)
 
-The current Vite dev server only proxies backend requests through `/__backend__`.
+The current Vite dev server proxies backend requests through `/__backend__`.
 
 Details and the exact environment variables are documented in: [Frontend configuration](./configuration.md).

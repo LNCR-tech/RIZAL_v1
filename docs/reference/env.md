@@ -15,6 +15,10 @@ Use the env file that matches the process you are starting:
 
 Do not put frontend `VITE_*` local-dev overrides in the root `.env`.
 
+Frontend-specific required vs optional variables are documented in:
+
+- [Frontend configuration](../frontend/configuration.md)
+
 ## Local Setup
 
 ### Variables That Apply To Both Manual And Docker
@@ -56,19 +60,9 @@ Optional in root `.env`:
 - `UVICORN_WORKERS`
 - SMTP auth/TLS settings
 
-Required in `frontend/.env.development.local`:
+Frontend local-dev variables:
 
-- `VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000`
-
-Optional in `frontend/.env.development.local`:
-
-- `VITE_API_BASE_URL=/__backend__`
-- `VITE_API_TIMEOUT_MS=15000`
-- native/mobile-only `VITE_NATIVE_API_BASE_URL`
-
-Start from the tracked example:
-
-- `frontend/.env.development.local.example`
+- see [Frontend configuration](../frontend/configuration.md)
 
 ### Docker
 
