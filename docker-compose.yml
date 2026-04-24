@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker-init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d fastapi_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,6 +24,8 @@ services:
       - "6379:6379"
 
   backend:
+    build:
+      context: ./Backend
     image: rizal-backend:local
     ports:
       - "8000:8000"
@@ -49,11 +51,7 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5).read()\"",
-        ]
+      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5).read()\"" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -139,17 +137,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8500/health', timeout=5).read()\"",
-        ]
+      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8500/health', timeout=5).read()\"" ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 15s
-
-
 
 volumes:
   postgres_data:

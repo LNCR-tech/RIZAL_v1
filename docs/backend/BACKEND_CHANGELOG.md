@@ -1,4 +1,4 @@
-﻿[<- Back to docs index](../../README.md)
+[<- Back to docs index](../../README.md)
 
 # Backend Change Log
 
@@ -15,6 +15,37 @@ At minimum include:
 - affected files
 - route or schema changes
 - migration or configuration impact
+
+## 2026-04-25 - Fix 'attendancestatus' type missing error during production bootstrap
+
+### Purpose
+
+Fix the `(psycopg2.errors.UndefinedObject) type "attendancestatus" does not exist` error that occurred when running the production bootstrap on a fresh database.
+
+### Main files
+
+- `Backend/app/models/attendance.py`
+
+### Backend changes
+
+- updated `Attendance` model to set `create_type=True` for the `status` column enum
+- this ensures that SQLAlchemy's `Base.metadata.create_all()` (used in the bootstrap script) will create the native PostgreSQL enum type if it is missing
+
+### Route or schema impact
+
+- no route path changes
+- no request/response schema changes
+
+### Migration impact
+
+- no new Alembic migration required
+- improves compatibility for fresh database deployments using the bootstrap script
+
+### How to test
+
+1. Run the production bootstrap command:
+   `docker compose run --rm -e DATABASE_URL=... backend python bootstrap.py ...`
+2. Verify that the `CREATE TABLE attendances` step succeeds.
 
 ## 2026-04-23 - Fix Docker import storage path resolution
 
