@@ -9,6 +9,7 @@ import { loadTheme, applyTheme } from '@/config/theme.js'
 import { clearDashboardSession, initializeDashboardSession } from '@/composables/useDashboardSession.js'
 import { installAppErrorHandling, scheduleNonCriticalStartupTask } from '@/services/appBootstrap.js'
 import { startDocumentBrandingSync } from '@/services/documentBranding.js'
+import { startNativeEventNotificationSync } from '@/services/eventNotificationSync.js'
 import { getStoredAuthMeta, hasPrivilegedPendingFace } from '@/services/localAuth.js'
 import { registerAuraServiceWorker, startMobileFullscreenSync } from '@/services/mobileFullscreen.js'
 import { startPwaInstallSync } from '@/services/pwaInstall.js'
@@ -60,6 +61,7 @@ scheduleNonCriticalStartupTask(() => startDocumentBrandingSync(router))
 scheduleNonCriticalStartupTask(() => startPwaInstallSync())
 scheduleNonCriticalStartupTask(() => registerAuraServiceWorker())
 scheduleNonCriticalStartupTask(() => startMobileFullscreenSync())
+scheduleNonCriticalStartupTask(() => startNativeEventNotificationSync())
 
 // Session expiry listener
 if (typeof window !== 'undefined') {

@@ -2,10 +2,25 @@ import { Capacitor } from '@capacitor/core'
 
 const isNative = Capacitor.isNativePlatform()
 const ATTENDANCE_CHANNEL_ID = 'attendance-updates'
+const EVENT_CHANNEL_ID = 'event-updates'
 const DEDUPE_WINDOW_MS = 15_000
+const CHANNELS = {
+  [ATTENDANCE_CHANNEL_ID]: {
+    id: ATTENDANCE_CHANNEL_ID,
+    name: 'Attendance Updates',
+    description: 'Attendance confirmations from Aura.',
+    lightColor: '#0A84FF',
+  },
+  [EVENT_CHANNEL_ID]: {
+    id: EVENT_CHANNEL_ID,
+    name: 'Event Updates',
+    description: 'New and ongoing event alerts from Aura.',
+    lightColor: '#76FF03',
+  },
+}
 
 let LocalNotificationsPlugin = null
-let notificationChannelReady = false
+const notificationChannelsReady = new Set()
 let nextNotificationId = Math.floor(Date.now() % 2_000_000_000)
 
 const deliveredNotificationKeys = new Map()
@@ -101,28 +116,32 @@ async function ensureNotificationPermission(LocalNotifications) {
   }
 }
 
-async function ensureNotificationChannel(LocalNotifications) {
-  if (notificationChannelReady) return
+async function ensureNotificationChannel(LocalNotifications, channelId = ATTENDANCE_CHANNEL_ID) {
+  if (notificationChannelsReady.has(channelId)) return
 
   try {
+    const channel = CHANNELS[channelId] || CHANNELS[ATTENDANCE_CHANNEL_ID]
     await LocalNotifications.createChannel({
-      id: ATTENDANCE_CHANNEL_ID,
-      name: 'Attendance Updates',
-      description: 'Attendance confirmations from Aura.',
+      ...channel,
       importance: 5,
       visibility: 1,
       vibration: true,
       lights: true,
-      lightColor: '#0A84FF',
     })
   } catch {
     // Ignore channel creation failures and continue with the default behavior.
   } finally {
-    notificationChannelReady = true
+    notificationChannelsReady.add(channelId)
   }
 }
 
-async function scheduleNativeNotification({ title, body, dedupeKey = '', extra = null }) {
+async function scheduleNativeNotification({
+  title,
+  body,
+  dedupeKey = '',
+  extra = null,
+  channelId = ATTENDANCE_CHANNEL_ID,
+}) {
   if (!isNative) return false
   if (!shouldDeliverNotification(dedupeKey)) return false
 
@@ -132,7 +151,7 @@ async function scheduleNativeNotification({ title, body, dedupeKey = '', extra =
   const hasPermission = await ensureNotificationPermission(LocalNotifications)
   if (!hasPermission) return false
 
-  await ensureNotificationChannel(LocalNotifications)
+  await ensureNotificationChannel(LocalNotifications, channelId)
 
   try {
     await LocalNotifications.schedule({
@@ -141,10 +160,9 @@ async function scheduleNativeNotification({ title, body, dedupeKey = '', extra =
           id: getNextNotificationId(),
           title,
           body,
-          channelId: ATTENDANCE_CHANNEL_ID,
-          schedule: {
-            at: new Date(Date.now() + 120),
-          },
+          largeBody: body,
+          channelId,
+          autoCancel: true,
           extra,
         },
       ],
@@ -198,6 +216,36 @@ export async function notifyAttendanceMarked({
     extra: {
       audience: 'self',
       action: normalizedAction,
+      eventName: safeEventName,
+    },
+  })
+}
+
+export async function notifyEventAvailable({
+  eventId = null,
+  eventName,
+  status = 'ongoing',
+  scheduleLabel = '',
+  locationLabel = '',
+  dedupeKey = '',
+} = {}) {
+  const normalizedStatus = String(status || '').trim().toLowerCase()
+  const safeEventName = normalizeText(eventName, 'Event')
+  const details = [
+    normalizeText(scheduleLabel, ''),
+    normalizeText(locationLabel, ''),
+  ].filter(Boolean).join(' - ')
+
+  return scheduleNativeNotification({
+    title: normalizedStatus === 'new' ? 'New event posted' : 'Event is ongoing',
+    body: details ? `${safeEventName} - ${details}` : safeEventName,
+    dedupeKey: dedupeKey || `event:${normalizedStatus}:${eventId || safeEventName}:${details}`,
+    channelId: EVENT_CHANNEL_ID,
+    extra: {
+      audience: 'student',
+      type: 'event',
+      status: normalizedStatus,
+      eventId,
       eventName: safeEventName,
     },
   })

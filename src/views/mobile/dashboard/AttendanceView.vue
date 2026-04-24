@@ -100,6 +100,45 @@
           {{ submitButtonLabel }}
         </button>
       </section>
+
+      <Transition name="mobile-attendance-success">
+        <div
+          v-if="successFeedback.visible"
+          class="mobile-student-attendance__success-layer"
+          role="status"
+          aria-live="assertive"
+          @click.self="dismissSuccessFeedback"
+        >
+          <section class="mobile-student-attendance__success-card">
+            <span class="mobile-student-attendance__success-icon" aria-hidden="true">
+              <CircleCheckBig :size="28" :stroke-width="2.4" />
+            </span>
+            <h2 class="mobile-student-attendance__success-title">
+              {{ successFeedback.title }}
+            </h2>
+            <p class="mobile-student-attendance__success-event">
+              {{ successFeedback.eventName }}
+            </p>
+            <div class="mobile-student-attendance__success-grid">
+              <span>
+                <small>Date</small>
+                <strong>{{ successFeedback.dateLabel }}</strong>
+              </span>
+              <span>
+                <small>Time</small>
+                <strong>{{ successFeedback.timeLabel }}</strong>
+              </span>
+            </div>
+            <button
+              type="button"
+              class="mobile-student-attendance__success-button"
+              @click="dismissSuccessFeedback"
+            >
+              Done
+            </button>
+          </section>
+        </div>
+      </Transition>
     </template>
 
     <section v-else class="mobile-student-attendance__missing">
@@ -118,6 +157,7 @@
 <script setup>
 import {
   ArrowLeft,
+  CircleCheckBig,
   Clock3,
   LoaderCircle,
   MapPin,
@@ -141,6 +181,7 @@ const {
   cameraReady,
   currentLocationLabel,
   currentTimeLabel,
+  dismissSuccessFeedback,
   distanceLabel,
   event,
   faceDetected,
@@ -153,6 +194,7 @@ const {
   setBackgroundVideoRef,
   setFocusVideoRef,
   statusModel,
+  successFeedback,
   submitButtonLabel,
 } = useMobileStudentAttendance(() => props.preview)
 </script>
@@ -379,6 +421,113 @@ const {
   color: color-mix(in srgb, var(--color-text-always-dark) 78%, white);
 }
 
+.mobile-student-attendance__success-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 16px max(24px, env(safe-area-inset-bottom, 24px));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.34) 100%);
+}
+
+.mobile-student-attendance__success-card {
+  width: min(100%, 360px);
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 54px rgba(7, 14, 23, 0.26);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+
+.mobile-student-attendance__success-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 163, 74, 0.14);
+  color: #15803d;
+}
+
+.mobile-student-attendance__success-title {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.mobile-student-attendance__success-event {
+  width: 100%;
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-student-attendance__success-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobile-student-attendance__success-grid span {
+  min-width: 0;
+  min-height: 62px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px;
+}
+
+.mobile-student-attendance__success-grid small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.mobile-student-attendance__success-grid strong {
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.mobile-student-attendance__success-button {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.mobile-student-attendance__success-button:active {
+  transform: scale(0.98);
+}
+
 .mobile-student-attendance__missing {
   position: absolute;
   inset: 0;
@@ -427,9 +576,31 @@ const {
 
 @media (prefers-reduced-motion: reduce) {
   .mobile-student-attendance__pill-spinner,
-  .mobile-student-attendance__cta {
+  .mobile-student-attendance__cta,
+  .mobile-student-attendance__success-button {
     animation: none;
     transition: none;
   }
+}
+
+.mobile-attendance-success-enter-active,
+.mobile-attendance-success-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.mobile-attendance-success-enter-active .mobile-student-attendance__success-card,
+.mobile-attendance-success-leave-active .mobile-student-attendance__success-card {
+  transition: transform 220ms ease, opacity 180ms ease;
+}
+
+.mobile-attendance-success-enter-from,
+.mobile-attendance-success-leave-to {
+  opacity: 0;
+}
+
+.mobile-attendance-success-enter-from .mobile-student-attendance__success-card,
+.mobile-attendance-success-leave-to .mobile-student-attendance__success-card {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
 }
 </style>

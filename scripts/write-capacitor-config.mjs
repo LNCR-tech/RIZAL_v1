@@ -100,6 +100,8 @@ const allowNavigation = Array.from(
       ]),
       nativeApiBaseUrl ? new URL(nativeApiBaseUrl).hostname : null,
       '*.railway.app',
+      '*.ngrok-free.dev',
+      '*.ngrok.dev',
       '*.ngrok-free.app',
       '*.ngrok.app',
     ].filter(Boolean)
@@ -138,6 +140,10 @@ const config = {
     Keyboard: {
       resize: 'none',
       resizeOnFullScreen: false,
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_aura',
+      iconColor: '#76FF03',
     },
   },
 }

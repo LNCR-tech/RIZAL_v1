@@ -9,9 +9,9 @@
     "preview": "vite preview",
     "cap:config": "node ./scripts/write-capacitor-config.mjs",
     "runtime:config:dist": "node ./scripts/write-runtime-config.mjs dist/runtime-config.js",
-    "cap:sync": "npm run cap:config && npx cap sync",
-    "android:sync": "npm run build && npm run runtime:config:dist && npm run cap:config && npx cap sync android",
-    "android:open": "npm run cap:config && npx cap open android",
+    "cap:sync": "npm run cap:config && capacitor sync",
+    "android:sync": "npm run build && npm run runtime:config:dist && npm run cap:config && capacitor sync android",
+    "android:open": "npm run cap:config && capacitor open android",
     "android:build:debug": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleDebug",
     "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease"
   },

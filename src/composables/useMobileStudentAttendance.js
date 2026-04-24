@@ -49,6 +49,16 @@ const timestampFormatter = new Intl.DateTimeFormat('en-PH', {
   hour: 'numeric',
   minute: '2-digit',
 })
+const successDateFormatter = new Intl.DateTimeFormat('en-PH', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
+const successTimeFormatter = new Intl.DateTimeFormat('en-PH', {
+  hour: 'numeric',
+  minute: '2-digit',
+})
 const faceScanTimeoutMs = Number(import.meta.env.VITE_FACE_SCAN_TIMEOUT_MS ?? 3000)
 const faceScanGateEnabled = import.meta.env.VITE_FACE_SCAN_GATE !== 'false'
 
@@ -100,6 +110,16 @@ function formatAttendanceTimestamp(value) {
   if (!value) return '--, --'
   const parsed = parseEventDateTime(value)
   return Number.isFinite(parsed.getTime()) ? timestampFormatter.format(parsed) : '--, --'
+}
+
+function formatSuccessDate(value) {
+  const parsed = parseEventDateTime(value)
+  return Number.isFinite(parsed.getTime()) ? successDateFormatter.format(parsed) : '--'
+}
+
+function formatSuccessTime(value) {
+  const parsed = parseEventDateTime(value)
+  return Number.isFinite(parsed.getTime()) ? successTimeFormatter.format(parsed) : '--'
 }
 
 function resolveActionKind(actionState, attendanceRecord) {
@@ -309,6 +329,13 @@ export function useMobileStudentAttendance(previewSource = false) {
   const latestError = ref(null)
   const latestSuccess = ref(null)
   const latestNotice = ref(null)
+  const successFeedback = ref({
+    visible: false,
+    title: '',
+    eventName: '',
+    dateLabel: '',
+    timeLabel: '',
+  })
   const loadingMessage = ref('')
   const isInitializing = ref(true)
   const isResolvingLocation = ref(false)
@@ -328,6 +355,7 @@ export function useMobileStudentAttendance(previewSource = false) {
   let clockIntervalId = null
   let eventTimeStatusIntervalId = null
   let geocodeController = null
+  let successFeedbackTimer = null
 
   const activeUser = computed(() => (
     preview.value ? studentDashboardPreviewData.user : currentUser.value
@@ -511,6 +539,55 @@ export function useMobileStudentAttendance(previewSource = false) {
     latestError.value = null
     latestSuccess.value = null
     latestNotice.value = null
+    dismissSuccessFeedback()
+  }
+
+  function dismissSuccessFeedback() {
+    if (successFeedbackTimer != null) {
+      clearTimeout(successFeedbackTimer)
+      successFeedbackTimer = null
+    }
+
+    successFeedback.value = {
+      ...successFeedback.value,
+      visible: false,
+    }
+  }
+
+  function showSuccessFeedback(feedback = {}) {
+    if (successFeedbackTimer != null) {
+      clearTimeout(successFeedbackTimer)
+      successFeedbackTimer = null
+    }
+
+    successFeedback.value = {
+      visible: true,
+      title: feedback.title || 'Attendance saved',
+      eventName: feedback.eventName || 'Event',
+      dateLabel: feedback.dateLabel || '--',
+      timeLabel: feedback.timeLabel || '--',
+    }
+
+    successFeedbackTimer = window.setTimeout(() => {
+      dismissSuccessFeedback()
+    }, 6500)
+  }
+
+  function buildSuccessFeedback(attendanceResult = null, fallbackAction = 'sign-in') {
+    const result = attendanceResult?.result || {}
+    const record = attendanceResult?.attendanceRecord || {}
+    const action = normalizeAction(result?.action || fallbackAction)
+    const checkedOut = isSignOutAction(action) || Boolean(result?.time_out || record?.time_out)
+    const timestamp = checkedOut
+      ? result?.time_out || record?.time_out || new Date().toISOString()
+      : result?.time_in || record?.time_in || new Date().toISOString()
+
+    return {
+      title: checkedOut ? 'Checked out successfully' : 'Checked in successfully',
+      eventName: event.value?.name || 'Event',
+      dateLabel: formatSuccessDate(timestamp),
+      timeLabel: formatSuccessTime(timestamp),
+    }
   }
 
   function getCameraProcessingVideoEl() {
@@ -1231,6 +1308,7 @@ export function useMobileStudentAttendance(previewSource = false) {
       latestSuccess.value = {
         message: attendanceResult?.result?.message || 'Identity and location verified.',
       }
+      showSuccessFeedback(buildSuccessFeedback(attendanceResult, submittedActionKind))
       currentLocationError.value = ''
     } catch (error) {
       latestError.value = {
@@ -1304,6 +1382,7 @@ export function useMobileStudentAttendance(previewSource = false) {
     stopFaceDetection()
     geocodeController?.abort?.()
     geocodeController = null
+    dismissSuccessFeedback()
     resetFaceScanDetector()
     faceDetectorInstance = null
   })
@@ -1333,6 +1412,8 @@ export function useMobileStudentAttendance(previewSource = false) {
     setBackgroundVideoRef,
     setFocusVideoRef,
     statusModel,
+    successFeedback,
+    dismissSuccessFeedback,
     submitButtonLabel,
   }
 }
