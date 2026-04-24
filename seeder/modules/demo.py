@@ -223,13 +223,14 @@ def run_demo(
             fname = rng.choice(FIRST_NAMES)
             lname = rng.choice(LAST_NAMES)
             mname = rng.choice(MIDDLE_NAMES)
-            fname = apply_suffix(rng, fname, SUFFIXES, suffix_probability)
+            name_suffix = apply_suffix(rng, "", SUFFIXES, suffix_probability).strip() or None
             
             email = f"{fname.split()[0].lower()}.{lname.split()[-1].lower()}{rng.randint(1,99)}@{school_domain}"
             
             u = create_user(
                 db, email=email, school_id=school.id, password_hash=hashes[k],
-                first_name=fname, middle_name=mname, last_name=lname
+                first_name=fname, middle_name=mname, last_name=lname,
+                suffix=name_suffix
             )
             assign_role(db, u, "student")
             prog = assigned_progs[k]

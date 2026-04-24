@@ -179,6 +179,7 @@ def create_user(db: Session, **kwargs) -> User:
         first_name=kwargs["first_name"],
         middle_name=kwargs.get("middle_name"),
         last_name=kwargs["last_name"],
+        suffix=kwargs.get("suffix"),
         is_active=True,
         must_change_password=False,
         should_prompt_password_change=False

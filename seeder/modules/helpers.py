@@ -77,7 +77,7 @@ def is_absent(rng: random.Random, base_prob: float = 0.2) -> bool:
     return rng.random() <= base_prob
 
 def apply_suffix(rng: random.Random, name: str, suffixes: List[str], probability: float) -> str:
-    """Applies a suffix to a name with the given probability."""
+    """Returns a suffix string with the given probability, or empty string."""
     if rng.random() <= probability:
-        return f"{name} {rng.choice(suffixes)}"
-    return name
+        return rng.choice(suffixes)
+    return name if name else ""
