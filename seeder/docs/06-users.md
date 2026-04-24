@@ -20,15 +20,15 @@ $$
 
 ### Suffix Application
 
-After the first name is drawn, a suffix may be appended:
+After the first name is drawn, a suffix may be stored in the `User.suffix` column:
 
 $$
 \text{suffix\_applied} = \begin{cases} \text{True} & \text{if } U(0,1) \leq p_\text{suffix} \\ \text{False} & \text{otherwise} \end{cases}
 $$
 
-where $p_\text{suffix}$ = `SEED_USER_SUFFIX_PROBABILITY` (default 0.3). If applied, a suffix is drawn uniformly from `["Jr.", "Sr.", "II", "III", "IV"]` and appended to the first name.
+where $p_\text{suffix}$ = `SEED_USER_SUFFIX_PROBABILITY` (default 0.3). If applied, a suffix is drawn uniformly from `["Jr.", "Sr.", "II", "III", "IV"]` and stored in `User.suffix`. The first name itself is left unmodified.
 
-With the default probability, approximately 30% of students will have a generational suffix in their first name field.
+With the default probability, approximately 30% of students will have a non-null `suffix` column.
 
 ---
 
