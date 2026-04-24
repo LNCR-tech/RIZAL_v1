@@ -16,7 +16,7 @@ if str(backend_path) not in sys.path:
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal  # type: ignore
 from modules.core import ensure_tables, wipe_records, seed_roles, seed_permission_catalog, seed_platform_admin
 from modules.demo import run_demo
 from config import load_config

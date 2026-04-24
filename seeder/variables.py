@@ -9,7 +9,7 @@ SEED_ADMIN_EMAIL: str = "admin@aura.com"
 SEED_ADMIN_PASSWORD: str = "AdminPass123!"
 
 # Set to True to actually run the seeder (safety gate)
-SEED_DATABASE: bool = True
+SEED_DATABASE: bool = False
 
 # Wipe all existing seeded data before inserting
 SEED_WIPE_EXISTING: bool = True
