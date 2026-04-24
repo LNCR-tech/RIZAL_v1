@@ -4,7 +4,7 @@
 
 All commands are meant to be run from the repo root unless noted.
 
-## Docker (Local All-in-One)
+## Docker
 
 ```powershell
 Copy-Item .\.env.example .\.env -Force
@@ -15,26 +15,6 @@ Stop:
 
 ```powershell
 docker compose down
-```
-
-## Docker (Production-Style Flow)
-
-Run migrations:
-
-```powershell
-docker compose up --build migrate
-```
-
-Bootstrap the first admin:
-
-```powershell
-docker compose run --rm backend python bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
-```
-
-Start the long-running services:
-
-```powershell
-docker compose up -d backend worker beat assistant frontend
 ```
 
 ## Backend (Local)

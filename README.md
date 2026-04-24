@@ -8,58 +8,45 @@ Aura is a student attendance system with:
 
 ## Quick Start (Docker)
 
-### First-time setup (run once on a fresh machine)
-
 ```powershell
 # 1. Copy and configure environment
 Copy-Item .\.env.example .\.env -Force
 notepad .\.env
 
-# 2. Build images and start infrastructure (db + redis)
-docker compose up --build -d db redis
+# 2. Set SECRET_KEY, AI_API_KEY, AI_API_BASE, AI_MODEL in .env
 
-# 3. Run database migrations
-docker compose run --rm -e DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db backend alembic upgrade heads
-
-# 4. Bootstrap admin account
-docker compose run --rm -e DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db backend python bootstrap.py --admin-email admin@yourdomain.com --admin-password YourPassword123!
-
-# 5. Start all services
-docker compose up -d
+# 3. Start everything
+docker compose up --build
 ```
 
-### Subsequent starts (already set up)
-
-```powershell
-docker compose up -d
-```
-
-Open:
+Migrations, bootstrap, and all services start automatically. When ready:
 
 - Frontend: `http://localhost:5173`
 - Backend API docs: `http://localhost:8000/docs`
 - Assistant docs: `http://localhost:8500/docs`
+- Mailpit (email capture): `http://localhost:8025`
+- pgAdmin: `http://localhost:5050`
+
 Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). Set to `mailjet_api` and provide `MAILJET_API_KEY` / `MAILJET_API_SECRET` in `.env` to enable it.
 For local capture testing, set `EMAIL_TRANSPORT=smtp` with `SMTP_HOST=mailpit` and open Mailpit at `http://localhost:8025`.
 
 ## Production Path
 
-This repository uses a single compose file: `docker-compose.yml`.
+Update these variables in `.env` before deploying to a server:
 
-For a production-style rollout on a fresh machine:
+- `SECRET_KEY` — use a long random string
+- `DATABASE_URL` / `ASSISTANT_DB_URL` — point to your production Postgres
+- `LOGIN_URL` / `CORS_ALLOWED_ORIGINS` — your frontend's public URL
+- `BACKEND_ORIGIN` / `BACKEND_API_BASE_URL` — your backend's public URL
+- `ASSISTANT_ORIGIN` — your assistant's public URL
+- `EMAIL_TRANSPORT` — enable `smtp` or `mailjet_api`
+- `UVICORN_WORKERS` — increase for production
+- `FRONTEND_PORT` — change to `80` or `443`
+
+Then run the same single command:
 
 ```powershell
-# 1. Build and start infrastructure
-docker compose up --build -d db redis
-
-# 2. Run migrations
-docker compose run --rm -e DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db backend alembic upgrade heads
-
-# 3. Bootstrap the admin account
-docker compose run --rm backend python bootstrap.py --admin-email <email> --admin-password <password>
-
-# 4. Start all services
-docker compose up -d backend worker beat assistant frontend
+docker compose up --build
 ```
 
 ## Documentation
