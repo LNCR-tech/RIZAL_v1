@@ -54,6 +54,15 @@ _ALLOWED_ATTENDANCE_METHOD_VALUES = {
 _ALLOWED_ATTENDANCE_STATUS_VALUES = {status.value for status in AttendanceStatus}
 
 
+def _as_utc_datetime(value: datetime | None) -> datetime | None:
+    """Attach an explicit UTC offset to attendance timestamps before API serialization."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _normalize_attendance_method_for_response(method_value: Any) -> str:
     """Map legacy/unknown stored method markers into API-safe enum values."""
     normalized_method = str(method_value or "").strip().lower()
@@ -283,8 +292,8 @@ def _serialize_attendance_model(attendance: AttendanceModel) -> Attendance:
             "id": attendance.id,
             "student_id": attendance.student_id,
             "event_id": attendance.event_id,
-            "time_in": attendance.time_in,
-            "time_out": attendance.time_out,
+            "time_in": _as_utc_datetime(attendance.time_in),
+            "time_out": _as_utc_datetime(attendance.time_out),
             "method": _normalize_attendance_method_for_response(attendance.method),
             "status": _normalize_attendance_status_for_response(attendance.status),
             "check_in_status": attendance.check_in_status,
@@ -326,8 +335,8 @@ def _build_student_attendance_record(
         id=attendance.id,
         event_id=attendance.event_id,
         event_name=event_name,
-        time_in=attendance.time_in,
-        time_out=attendance.time_out,
+        time_in=_as_utc_datetime(attendance.time_in),
+        time_out=_as_utc_datetime(attendance.time_out),
         check_in_status=attendance.check_in_status,
         check_out_status=attendance.check_out_status,
         status=attendance.status,
@@ -352,8 +361,8 @@ def _build_student_attendance_detail(attendance: AttendanceModel) -> StudentAtte
         event_name=attendance.event.name,
         event_location=attendance.event.location,
         event_date=attendance.event.start_datetime,
-        time_in=attendance.time_in,
-        time_out=attendance.time_out,
+        time_in=_as_utc_datetime(attendance.time_in),
+        time_out=_as_utc_datetime(attendance.time_out),
         check_in_status=attendance.check_in_status,
         check_out_status=attendance.check_out_status,
         status=attendance.status,

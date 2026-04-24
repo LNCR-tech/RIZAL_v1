@@ -5,10 +5,10 @@ Role: Schema layer. It keeps API payloads clear and typed.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.event import EventLocationVerificationResponse
 
@@ -56,6 +56,15 @@ class FaceAttendanceScanResponse(BaseModel):
     time_out: Optional[datetime] = None
     duration_minutes: Optional[int] = None
     message: Optional[str] = None
+
+    @field_validator("time_in", "time_out", mode="before")
+    @classmethod
+    def normalize_attendance_timestamps(cls, value):
+        if not isinstance(value, datetime):
+            return value
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class SecurityFaceStatusResponse(BaseModel):

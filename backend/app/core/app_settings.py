@@ -23,6 +23,7 @@ class BackendAppSettings:
     face_threshold_single: float = 0.40
     face_threshold_group: float = 0.40
     face_threshold_mfa: float = 0.35
+    privileged_face_verification_enabled: bool = True
     face_warmup_on_startup: bool = True
     face_embedding_dim: int = 512
     face_embedding_dtype: str = "float32"

@@ -28,7 +28,8 @@ def get_my_attendance(
     if event_id:
         query = query.filter(AttendanceModel.event_id == event_id)
 
-    return query.order_by(AttendanceModel.time_in.desc()).offset(skip).limit(limit).all()
+    attendances = query.order_by(AttendanceModel.time_in.desc()).offset(skip).limit(limit).all()
+    return [_serialize_attendance_model(attendance) for attendance in attendances]
 
 
 @router.post("/face-scan")
@@ -73,8 +74,8 @@ def record_face_scan_attendance(
             "message": f"Time out recorded successfully for {student_id}",
             "attendance_id": active_attendance.id,
             "student_id": student_id,
-            "time_in": active_attendance.time_in,
-            "time_out": active_attendance.time_out,
+            "time_in": _as_utc_datetime(active_attendance.time_in),
+            "time_out": _as_utc_datetime(active_attendance.time_out),
             "duration_minutes": duration_minutes,
         }
 
@@ -116,7 +117,7 @@ def record_face_scan_attendance(
         "message": "Attendance recorded successfully",
         "attendance_id": attendance.id,
         "student_id": student_id,
-        "time_in": attendance.time_in
+        "time_in": _as_utc_datetime(attendance.time_in),
     }
 
 
@@ -362,8 +363,8 @@ def record_time_out(
     return {
         "message": "Time-out recorded successfully",
         "attendance_id": attendance_id,
-        "time_in": attendance.time_in,
-        "time_out": attendance.time_out,
+        "time_in": _as_utc_datetime(attendance.time_in),
+        "time_out": _as_utc_datetime(attendance.time_out),
         "duration_minutes": duration_minutes}
 
 
@@ -424,7 +425,7 @@ def record_face_scan_timeout(
         "message": "Face scan timeout recorded successfully",
         "attendance_id": attendance.id,
         "student_id": student_id,
-        "time_in": attendance.time_in,
-        "time_out": attendance.time_out,
+        "time_in": _as_utc_datetime(attendance.time_in),
+        "time_out": _as_utc_datetime(attendance.time_out),
         "duration_minutes": duration_minutes
     }

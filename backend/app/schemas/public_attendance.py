@@ -5,10 +5,10 @@ Role: Schema layer. It keeps the public attendance API typed and consistent.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.event import EventLocationVerificationResponse
 from app.schemas.face_recognition import Base64ImageRequest
@@ -77,6 +77,15 @@ class PublicAttendanceFaceOutcome(BaseModel):
     time_in: Optional[datetime] = None
     time_out: Optional[datetime] = None
     duration_minutes: Optional[int] = None
+
+    @field_validator("time_in", "time_out", mode="before")
+    @classmethod
+    def normalize_attendance_timestamps(cls, value):
+        if not isinstance(value, datetime):
+            return value
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class PublicAttendanceMultiFaceScanResponse(BaseModel):

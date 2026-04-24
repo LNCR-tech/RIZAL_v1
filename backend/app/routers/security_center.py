@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import (
     ALGORITHM,
     SECRET_KEY,
@@ -265,6 +266,9 @@ def get_face_status(
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
+    privileged_face_verification_enabled = (
+        get_settings().privileged_face_verification_enabled
+    )
     security_setting = get_or_create_user_security_setting(db, user=current_user)
     profile = (
         db.query(UserFaceRecognitionProfile)
@@ -286,7 +290,9 @@ def get_face_status(
     )
     return SecurityFaceStatusResponse(
         user_id=current_user.id,
-        face_verification_required=bool(security_setting.mfa_enabled),
+        face_verification_required=bool(
+            privileged_face_verification_enabled and security_setting.mfa_enabled
+        ),
         face_reference_enrolled=profile is not None,
         provider=(
             profile.provider

@@ -1173,7 +1173,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__scope {
-  align-items: stretch;
+  position: relative;
+  align-items: center;
   justify-content: space-between;
 }
 
@@ -1184,8 +1185,19 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__scope select {
+  flex: 1;
+  min-width: 0;
   height: 48px;
+  padding-right: 20px;
+  text-overflow: ellipsis;
   text-align: right;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
 .admin-view__feedback {

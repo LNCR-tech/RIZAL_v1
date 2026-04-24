@@ -236,6 +236,8 @@ def _raise_face_verification_required() -> None:
 
 
 def _enforce_face_verification_gate(token_data: TokenData, request: Request) -> None:
+    if not get_settings().privileged_face_verification_enabled:
+        return
     if not token_data.face_pending:
         return
 

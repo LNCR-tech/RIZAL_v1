@@ -4,7 +4,7 @@ Role: Schema layer. It keeps API payloads clear and typed.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict
 from enum import Enum
 
@@ -24,6 +24,16 @@ class AttendanceCompletionState(str, Enum):
     INCOMPLETE = "incomplete"
     COMPLETED = "completed"
 
+
+def _as_utc_datetime(value):
+    """Normalize naive datetimes as UTC so API responses include an explicit offset."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 class AttendanceBase(BaseModel):
     event_id: int = Field(..., gt=0)
     time_in: datetime
@@ -35,6 +45,11 @@ class AttendanceBase(BaseModel):
         if isinstance(v, str):
             return v.lower()  # Ensure lowercase
         return v
+
+    @field_validator("time_in", mode="before")
+    @classmethod
+    def normalize_time_in_timezone(cls, value):
+        return _as_utc_datetime(value)
     
     model_config = ConfigDict(use_enum_values=True)
 class AttendanceCreate(AttendanceBase):
@@ -52,13 +67,19 @@ class Attendance(AttendanceBase):
     verified_by: Optional[int] = Field(None, gt=0)
     notes: Optional[str] = None
     
+    @field_validator("time_out", mode="before")
+    @classmethod
+    def normalize_time_out_timezone(cls, value):
+        return _as_utc_datetime(value)
+
     @field_validator('time_out')
     @classmethod
     def validate_time_out(cls, v, info):
-        # Fixed: Use info.data instead of values.data
-        if v and 'time_in' in info.data and v < info.data['time_in']:
+        time_in = _as_utc_datetime(info.data.get("time_in"))
+        normalized_time_out = _as_utc_datetime(v)
+        if normalized_time_out and time_in and normalized_time_out < time_in:
             raise ValueError("time_out must be after time_in")
-        return v
+        return normalized_time_out
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -86,6 +107,11 @@ class StudentAttendanceRecord(BaseModel):
     method: AttendanceMethod
     notes: Optional[str] = None
     duration_minutes: Optional[int] = None  # Calculated field
+
+    @field_validator("time_in", "time_out", mode="before")
+    @classmethod
+    def normalize_record_timestamps(cls, value):
+        return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -135,6 +161,11 @@ class StudentAttendanceSummary(BaseModel):
     attendance_rate: float
     last_attendance: Optional[datetime] = None
 
+    @field_validator("last_attendance", mode="before")
+    @classmethod
+    def normalize_summary_last_attendance(cls, value):
+        return _as_utc_datetime(value)
+
 class StudentAttendanceDetail(BaseModel):
     id: int
     event_id: int
@@ -152,6 +183,11 @@ class StudentAttendanceDetail(BaseModel):
     method: str
     notes: Optional[str] = None
     duration_minutes: Optional[int] = None
+
+    @field_validator("time_in", "time_out", mode="before")
+    @classmethod
+    def normalize_detail_timestamps(cls, value):
+        return _as_utc_datetime(value)
 
 class StudentAttendanceReport(BaseModel):
     student: StudentAttendanceSummary
@@ -174,6 +210,11 @@ class StudentListItem(BaseModel):
     excused_events: int = 0
     attendance_rate: float
     last_attendance: Optional[datetime] = None
+
+    @field_validator("last_attendance", mode="before")
+    @classmethod
+    def normalize_list_last_attendance(cls, value):
+        return _as_utc_datetime(value)
 
 class DateRangeFilter(BaseModel):
     start_date: Optional[date] = None

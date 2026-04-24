@@ -11,6 +11,7 @@ import uuid
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     canonicalize_role_name_for_storage,
@@ -154,6 +155,8 @@ def _resolve_session_duration_minutes(
 
 
 def _should_require_face_scan_mfa(db: Session, user: User, role_names: list[str]) -> bool:
+    if not get_settings().privileged_face_verification_enabled:
+        return False
     if is_face_scan_bypass_enabled_for_user(user):
         return False
     if not any(role_name in PRIVILEGED_AUTH_ROLE_NAMES for role_name in role_names):

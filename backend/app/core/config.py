@@ -100,6 +100,7 @@ class Settings:
     face_threshold_single: float
     face_threshold_group: float
     face_threshold_mfa: float
+    privileged_face_verification_enabled: bool
     face_warmup_on_startup: bool
     face_embedding_dim: int
     face_embedding_dtype: str
@@ -170,6 +171,10 @@ def get_settings() -> Settings:
         face_threshold_single=APP_SETTINGS.face_threshold_single,
         face_threshold_group=APP_SETTINGS.face_threshold_group,
         face_threshold_mfa=APP_SETTINGS.face_threshold_mfa,
+        privileged_face_verification_enabled=_as_bool(
+            os.getenv("PRIVILEGED_FACE_VERIFICATION_ENABLED"),
+            APP_SETTINGS.privileged_face_verification_enabled,
+        ),
         face_warmup_on_startup=APP_SETTINGS.face_warmup_on_startup,
         face_embedding_dim=APP_SETTINGS.face_embedding_dim,
         face_embedding_dtype=APP_SETTINGS.face_embedding_dtype,
