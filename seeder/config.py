@@ -122,6 +122,14 @@ def load_config() -> SeederConfig:
     start_mmddyy   = require("SEED_START_MMDDYY",           tuple, valid_mmddyy)
     end_mmddyy     = require("SEED_END_MMDDYY",             tuple, valid_mmddyy)
 
+    if not errors and start_mmddyy and end_mmddyy:
+        sm, sd, sy = start_mmddyy
+        em, ed, ey = end_mmddyy
+        if (sy, sm, sd) > (ey, em, ed):
+            errors.append(
+                f"  - SEED_START_MMDDYY {start_mmddyy} is later than SEED_END_MMDDYY {end_mmddyy}"
+            )
+
     if errors:
         _abort("variables.py has invalid configuration:\n" + "\n".join(errors))
 
