@@ -9,6 +9,7 @@
 
 ## Existing Guides
 
+- [Demo Seeder Guide](./SEEDER_GUIDE.md)
 - [Backend Changelog](./BACKEND_CHANGELOG.md)
 - [Reports Module Guide](./BACKEND_REPORTS_MODULE_GUIDE.md)
 - [Report Catalog](./REPORT_CATALOG.md)
