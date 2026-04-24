@@ -196,6 +196,9 @@ const DEFAULT_MAP_ZOOM = 14
 const DEFAULT_MAP_MIN_ZOOM = 6
 const DEFAULT_AUTO_LOCATE_ZOOM = 15
 const LOCATION_SEARCH_DEBOUNCE_MS = 220
+const SHORT_QUERY_SEARCH_RADIUS_M = 6000
+const MEDIUM_QUERY_SEARCH_RADIUS_M = 12000
+const LONG_QUERY_SEARCH_RADIUS_M = 22000
 
 const mapEl = ref(null)
 const searchInputEl = ref(null)
@@ -237,7 +240,7 @@ const locationSearchMessage = computed(() => {
   if (!normalizedLocationQuery.value) return ''
   if (searchingSuggestions.value) return 'Searching nearby locations...'
   if (locationSearchError.value) return locationSearchError.value
-  if (!locationSuggestions.value.length) return 'No nearby locations matched your search.'
+  if (!locationSuggestions.value.length) return 'No nearby streets, barangays, or places matched your search.'
   return ''
 })
 const showSuggestionPanel = computed(() => (
@@ -590,11 +593,13 @@ async function loadLocationSuggestions() {
   locationSearchError.value = ''
 
   try {
+    const nearbyAnchor = await resolveSearchBiasCoordinates()
     const suggestions = await searchLocationSuggestions({
       query: normalizedLocationQuery.value,
-      near: resolveSearchBiasCoordinates(),
+      near: nearbyAnchor,
       signal: suggestionFetchController?.signal,
       limit: 6,
+      radiusMeters: resolveSearchRadiusMeters(normalizedLocationQuery.value),
     })
 
     locationSuggestions.value = suggestions
@@ -609,12 +614,17 @@ async function loadLocationSuggestions() {
   }
 }
 
-function resolveSearchBiasCoordinates() {
+async function resolveSearchBiasCoordinates() {
   if (isValidLatitude(normalizedLatitude.value) && isValidLongitude(normalizedLongitude.value)) {
     return {
       latitude: normalizedLatitude.value,
       longitude: normalizedLongitude.value,
     }
+  }
+
+  const resolvedUserCoordinates = await resolveNearbyUserCoordinates()
+  if (resolvedUserCoordinates) {
+    return resolvedUserCoordinates
   }
 
   if (
@@ -625,6 +635,58 @@ function resolveSearchBiasCoordinates() {
   }
 
   return DEFAULT_MAP_CENTER
+}
+
+async function resolveNearbyUserCoordinates() {
+  const hasResolvedNearbyCoordinates = (
+    Number.isFinite(Number(lastKnownUserCoordinates?.latitude))
+    && Number.isFinite(Number(lastKnownUserCoordinates?.longitude))
+    && !isDefaultSearchAnchor(lastKnownUserCoordinates)
+  )
+
+  if (hasResolvedNearbyCoordinates) {
+    return {
+      latitude: Number(lastKnownUserCoordinates.latitude),
+      longitude: Number(lastKnownUserCoordinates.longitude),
+    }
+  }
+
+  const position = await getCurrentPositionIfAvailable({
+    enableHighAccuracy: false,
+    timeout: 1800,
+    maximumAge: 180000,
+  })
+
+  if (!position) return null
+
+  lastKnownUserCoordinates = {
+    latitude: position.latitude,
+    longitude: position.longitude,
+  }
+
+  return {
+    latitude: position.latitude,
+    longitude: position.longitude,
+  }
+}
+
+function isDefaultSearchAnchor(coordinates = null) {
+  const latitude = Number(coordinates?.latitude)
+  const longitude = Number(coordinates?.longitude)
+
+  return (
+    Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && Math.abs(latitude - DEFAULT_MAP_CENTER.latitude) < 0.000001
+    && Math.abs(longitude - DEFAULT_MAP_CENTER.longitude) < 0.000001
+  )
+}
+
+function resolveSearchRadiusMeters(query) {
+  const normalizedLength = String(query || '').trim().length
+  if (normalizedLength <= 1) return SHORT_QUERY_SEARCH_RADIUS_M
+  if (normalizedLength === 2) return MEDIUM_QUERY_SEARCH_RADIUS_M
+  return LONG_QUERY_SEARCH_RADIUS_M
 }
 
 async function selectLocationSuggestion(suggestion) {
