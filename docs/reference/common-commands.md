@@ -42,7 +42,7 @@ docker compose up -d backend worker beat assistant frontend
 ```powershell
 cd .\backend
 python -m alembic upgrade head
-python .\bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!
+python .\bootstrap.py
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
