@@ -12,6 +12,7 @@ import {
   getGovernanceAnnouncements,
   getGovernanceStudents,
   getGovernanceUnitDetail,
+  getGovernanceUnits,
 } from '@/services/backendApi.js'
 import {
   downloadGovernanceMasterlistCsv,
@@ -1366,10 +1367,15 @@ export function useGovernanceWorkspace(options = {}) {
 
       activeUnit.value = resolvedUnit
 
-      const [detailResult, studentsResult, eventsResult, announcementsResult, ssgSetupResult] = await Promise.allSettled([
+      const shouldLoadChildUnits = Number.isFinite(normalizedUnitId) && ['SSG', 'SG'].includes(normalizedContext)
+
+      const [detailResult, childUnitsResult, studentsResult, eventsResult, announcementsResult, ssgSetupResult] = await Promise.allSettled([
         Number.isFinite(normalizedUnitId)
           ? getGovernanceUnitDetail(url, authToken, normalizedUnitId)
           : Promise.resolve(null),
+        shouldLoadChildUnits
+          ? getGovernanceUnits(url, authToken, { parent_unit_id: normalizedUnitId })
+          : Promise.resolve([]),
         getGovernanceStudents(
           url,
           authToken,
@@ -1384,10 +1390,23 @@ export function useGovernanceWorkspace(options = {}) {
           : Promise.resolve(null),
       ])
 
+      const mergedChildUnits = childUnitsResult.status === 'fulfilled' && Array.isArray(childUnitsResult.value)
+        ? childUnitsResult.value.map(cloneRecord)
+        : []
+
       if (detailResult.status === 'fulfilled' && detailResult.value) {
-        activeUnit.value = detailResult.value
+        activeUnit.value = {
+          ...detailResult.value,
+          child_units: mergedChildUnits,
+        }
         membersCount.value = Array.isArray(detailResult.value?.members) ? detailResult.value.members.length : 0
       } else {
+        activeUnit.value = activeUnit.value
+          ? {
+            ...activeUnit.value,
+            child_units: mergedChildUnits,
+          }
+          : activeUnit.value
         membersCount.value = 0
       }
 
