@@ -1,5 +1,7 @@
 # Aura Demo Seeder
 
+[<- Back to backend docs](./README.md)
+
 The seeder generates a full production-scale demo dataset for Aura — multiple schools, complete academic hierarchies, governance structures, students, events, attendance records, sanctions, and compliance history. It is designed for QA, demos, and AI assistant stress-testing, not for bootstrapping a real deployment.
 
 For production bootstrapping (admin account + roles + event types only), use `bootstrap.py` instead.
