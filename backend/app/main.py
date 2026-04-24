@@ -44,9 +44,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     try:
         validate_email_delivery_on_startup()
-    except Exception:
-        logger.exception("Email delivery startup validation failed.")
-        raise
+    except Exception as exc:
+        logger.warning(
+            "Email delivery startup check failed — continuing without email: %s", exc
+        )
     if not settings.face_warmup_on_startup:
         logger.info("InsightFace startup warm-up is disabled by configuration.")
         yield

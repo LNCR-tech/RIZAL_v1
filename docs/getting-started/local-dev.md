@@ -48,6 +48,19 @@ VITE_API_BASE_URL=/__backend__
 VITE_API_TIMEOUT_MS=15000
 ```
 
+## Startup Order
+
+Start services in this order to avoid startup warnings:
+
+1. PostgreSQL
+2. Redis
+3. Mailpit (if `EMAIL_TRANSPORT=smtp`)
+4. Backend
+5. Assistant
+6. Frontend
+
+The backend will start even if Mailpit is not running — it logs a warning and continues. But email delivery will fail silently until Mailpit is up.
+
 ## Steps
 
 1. Copy `.env.example` to `.env` and point the connection strings at your local services.
