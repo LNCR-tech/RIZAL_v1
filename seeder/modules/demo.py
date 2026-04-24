@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 
 from sqlalchemy.orm import Session
 
-from modules.config import (
+from modules.data import (
     FIRST_NAMES, LAST_NAMES, MIDDLE_NAMES, SUFFIXES,
     SCHOOL_NAMES, COLLEGES_DATASET, EVENT_THEMES, EVENT_LOCATIONS,
     ANNOUNCEMENT_DATA, MOCK_NOTE_TAGS, MOCK_NOTES_POOL, COMPLIANCE_NOTES,

@@ -135,7 +135,7 @@ seeder/
 ├── config.py            Loads and validates variables.py before anything runs
 ├── variables.py         All configuration — edit this before running
 └── modules/
-    ├── config.py        Static data pools (names, schools, colleges, programs, events)
+    ├── data.py              Static data pools (names, schools, colleges, programs, events)
     ├── core.py          DB factory functions and lifecycle helpers (wipe, seed roles, etc.)
     ├── demo.py          Main orchestration — runs the full generation sequence per school
     └── helpers.py       Pure utilities: date generation, chunking, parallel bcrypt, etc.

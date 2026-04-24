@@ -25,7 +25,7 @@ from app.models.sanctions import (
     SanctionComplianceHistory
 )
 
-from modules.config import DEFAULT_ROLE_NAMES
+from modules.data import DEFAULT_ROLE_NAMES
 
 logger = logging.getLogger(__name__)
 
