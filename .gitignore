@@ -27,7 +27,6 @@ logs/
 
 # Environment / secrets
 .env
-!.env
 Frontend/.env.local
 
 # Database / local artifacts
