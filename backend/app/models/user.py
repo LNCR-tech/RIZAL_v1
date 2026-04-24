@@ -42,6 +42,7 @@ class User(Base):
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     school = relationship("School", back_populates="users")
     face_profile = relationship("UserFaceProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    faculty_profile = relationship("FacultyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     def set_password(self, password: str):
         if len(password) < 8:
@@ -117,3 +118,16 @@ class StudentProfile(Base):
         self.embedding_normalized = normalized
         self.is_face_registered = True
         self.last_face_update = datetime.utcnow()
+
+
+class FacultyProfile(Base):
+    __tablename__ = "faculty_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True)
+    program_id = Column(Integer, ForeignKey("programs.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    user = relationship("User", back_populates="faculty_profile")
+    department = relationship("Department")
+    program = relationship("Program")

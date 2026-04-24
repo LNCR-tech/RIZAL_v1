@@ -49,7 +49,7 @@ from app.models.sanctions import (
 )
 
 from .role import Role
-from .user import User, UserRole, StudentProfile
+from .user import User, UserRole, StudentProfile, FacultyProfile
 from .attendance import Attendance  # If you have this model
 
 __all__ = [
@@ -58,6 +58,7 @@ __all__ = [
     "User",
     "UserRole",
     "StudentProfile",
+    "FacultyProfile",
     "Attendance",
     "School",
     "SchoolSetting",
