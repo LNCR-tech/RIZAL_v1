@@ -41,7 +41,7 @@
       class="school-it-top-header__notify"
       type="button"
       aria-label="Notifications"
-      @click="handleNotificationClick"
+      @click="handleToggleNotifications"
     >
       <Bell :size="18" :stroke-width="2" />
       <span
@@ -91,7 +91,7 @@ function toggleExpanded() {
   isExpanded.value = !isExpanded.value
 }
 
-function handleNotificationClick() {
+function handleToggleNotifications() {
   toggleNotifications()
   emit('toggle-notifications')
 }

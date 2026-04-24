@@ -16,6 +16,78 @@ function toOptionalNumber(value, fallback = null) {
     return Number.isFinite(normalized) ? normalized : fallback
 }
 
+function looksLikeHtmlDocument(value) {
+    const normalized = String(value ?? '').trim()
+    if (!normalized) return false
+
+    return /<!doctype html|<html[\s>]|<head[\s>]|<body[\s>]|<title[\s>]/i.test(normalized)
+}
+
+function stripHtmlTags(value) {
+    return String(value ?? '')
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&#39;/gi, "'")
+        .replace(/&quot;/gi, '"')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function summarizeHtmlResponse(value) {
+    const normalized = String(value ?? '')
+    const flattened = stripHtmlTags(normalized)
+    const titleMatch = normalized.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+    const title = stripHtmlTags(titleMatch?.[1] ?? '')
+
+    if (
+        /ERR_NGROK_8012/i.test(normalized)
+        || /failed to establish a connection to the upstream web service/i.test(flattened)
+    ) {
+        return 'The ngrok tunnel is reachable, but it cannot connect to the backend server. Make sure the backend is running and that ngrok forwards to the correct port.'
+    }
+
+    if (/ngrok/i.test(flattened) && /expired|offline|not found|unavailable|inactive/i.test(flattened)) {
+        return 'The ngrok tunnel for the public attendance service is unavailable. Restart the tunnel and rebuild or reload the app if the URL changed.'
+    }
+
+    if (title) {
+        return `The public attendance service returned an HTML page instead of JSON (${title}). Check that the API base URL points to the backend and that the tunnel is healthy.`
+    }
+
+    return 'The public attendance service returned an HTML page instead of JSON. Check that the API base URL points to the backend and that the tunnel is healthy.'
+}
+
+function sanitizePublicDetail(detail) {
+    if (typeof detail === 'string') {
+        const normalized = detail.trim()
+        if (!normalized) return ''
+        return looksLikeHtmlDocument(normalized)
+            ? summarizeHtmlResponse(normalized)
+            : normalized
+    }
+
+    if (!detail || typeof detail !== 'object') {
+        return detail
+    }
+
+    const nextDetail = { ...detail }
+
+    if (typeof nextDetail.message === 'string') {
+        nextDetail.message = sanitizePublicDetail(nextDetail.message)
+    }
+
+    if (typeof nextDetail.reason === 'string') {
+        nextDetail.reason = sanitizePublicDetail(nextDetail.reason)
+    }
+
+    return nextDetail
+}
+
 function normalizeLiveness(payload = null) {
     if (!payload || typeof payload !== 'object') return null
 
@@ -116,13 +188,26 @@ async function parsePublicResponse(response) {
     }
 
     if (!response.ok) {
-        const detail = payload?.detail ?? payload?.message ?? payload
+        const detail = sanitizePublicDetail(payload?.detail ?? payload?.message ?? payload)
         const message =
             detail?.message
             || detail?.reason
             || detail
             || response.statusText
             || 'Request failed.'
+
+        throw new PublicAttendanceApiError(String(message), {
+            status: response.status,
+            detail,
+        })
+    }
+
+    if (!isJson) {
+        const detail = sanitizePublicDetail(payload)
+        const message =
+            (typeof detail === 'string' && detail)
+            || detail?.message
+            || 'The public attendance service returned an unexpected response format.'
 
         throw new PublicAttendanceApiError(String(message), {
             status: response.status,
@@ -219,7 +304,7 @@ export function resolvePublicAttendanceRetryAfterMs(error, fallbackMs = 1400) {
 
 export function describePublicAttendanceError(error) {
     if (error instanceof PublicAttendanceApiError) {
-        const detail = error.detail
+        const detail = sanitizePublicDetail(error.detail)
         if (typeof detail === 'string' && detail.trim()) {
             return detail
         }
@@ -232,11 +317,11 @@ export function describePublicAttendanceError(error) {
             if (reason) return reason
         }
 
-        return error.message
+        return sanitizePublicDetail(error.message)
     }
 
     return error instanceof Error
-        ? error.message
+        ? sanitizePublicDetail(error.message)
         : 'The public attendance kiosk request failed.'
 }
 

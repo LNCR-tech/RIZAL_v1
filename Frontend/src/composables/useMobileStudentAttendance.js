@@ -17,6 +17,7 @@ import {
 import {
   getCurrentPositionOrThrow,
   getCurrentPositionWithinAccuracyOrThrow,
+  prepareLocationAccess,
   requestCameraPermission,
 } from '@/services/devicePermissions.js'
 import {
@@ -36,6 +37,7 @@ import {
   hasNavigableHistory,
   resolveBackFallbackLocation,
 } from '@/services/routeWorkspace.js'
+import { notifyAttendanceMarked } from '@/services/localNotifications.js'
 
 const clockFormatter = new Intl.DateTimeFormat('en-PH', {
   hour: 'numeric',
@@ -47,6 +49,8 @@ const timestampFormatter = new Intl.DateTimeFormat('en-PH', {
   hour: 'numeric',
   minute: '2-digit',
 })
+const faceScanTimeoutMs = Number(import.meta.env.VITE_FACE_SCAN_TIMEOUT_MS ?? 3000)
+const faceScanGateEnabled = import.meta.env.VITE_FACE_SCAN_GATE !== 'false'
 
 function resolvePreviewFlag(source) {
   return Boolean(unref(typeof source === 'function' ? source() : source))
@@ -57,7 +61,7 @@ function normalizeAction(action) {
 }
 
 function isSignOutAction(action) {
-  return ['sign_out', 'signed_out', 'check_out', 'checkout', 'time_out', 'out'].includes(
+  return ['sign_out', 'signed_out', 'check_out', 'checkout', 'time_out', 'timeout', 'out'].includes(
     normalizeAction(action)
   )
 }
@@ -178,7 +182,7 @@ function resolveLiveStatusMessage({ cameraReady, faceDetected, locationReady, ac
 }
 
 function resolveLocationErrorMessage(source, fallback = 'Unable to verify your location.') {
-  const detail = source?.details ?? source?.detail ?? source
+  const detail = source?.details?.detail ?? source?.details ?? source?.detail ?? source
   const hasLocationDetail = detail && typeof detail === 'object' && (
     detail.reason != null
     || detail.distance_m != null
@@ -190,8 +194,23 @@ function resolveLocationErrorMessage(source, fallback = 'Unable to verify your l
     return buildAttendanceLocationErrorMessage(detail)
   }
 
-  const message = String(source?.message || '').trim()
-  return message || fallback
+  const messageCandidates = [
+    source?.message,
+    source?.details?.detail?.message,
+    source?.details?.message,
+    source?.detail?.message,
+    source?.details?.detail?.reason,
+    source?.details?.reason,
+    source?.detail?.reason,
+    typeof detail === 'string' ? detail : '',
+  ]
+
+  for (const candidate of messageCandidates) {
+    const normalized = String(candidate || '').trim()
+    if (normalized) return normalized
+  }
+
+  return fallback
 }
 
 function pickLatestAttendanceRecord(records = [], eventId = null) {
@@ -494,6 +513,20 @@ export function useMobileStudentAttendance(previewSource = false) {
     latestNotice.value = null
   }
 
+  function getCameraProcessingVideoEl() {
+    const candidates = [
+      backgroundVideoEl.value,
+      focusVideoEl.value,
+    ]
+
+    return candidates.find((el) => (
+      el
+      && el.readyState >= 2
+      && el.videoWidth > 0
+      && el.videoHeight > 0
+    )) || candidates.find(Boolean) || null
+  }
+
   async function attachStreamToVideo(el, readyRef) {
     if (!el || !mediaStream.value) return false
 
@@ -619,7 +652,7 @@ export function useMobileStudentAttendance(previewSource = false) {
       faceDetectorInstance = await initFaceScanDetector({
         wasmBaseUrl:
           import.meta.env.VITE_FACE_DETECTOR_WASM_URL
-          || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm',
+          || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
         modelAssetPath:
           import.meta.env.VITE_FACE_DETECTOR_MODEL_URL
           || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
@@ -642,7 +675,7 @@ export function useMobileStudentAttendance(previewSource = false) {
   }
 
   async function startFaceDetection() {
-    if (!cameraReady.value || !focusVideoEl.value) return
+    if (!cameraReady.value || !getCameraProcessingVideoEl()) return
 
     const detectorReady = await ensureFaceDetector()
     if (!detectorReady) {
@@ -659,7 +692,8 @@ export function useMobileStudentAttendance(previewSource = false) {
     const minFrames = Number(import.meta.env.VITE_FACE_SCAN_MIN_FRAMES ?? 1)
 
     const loop = (nowMs) => {
-      if (!focusVideoEl.value || !cameraReady.value) return
+      const videoEl = getCameraProcessingVideoEl()
+      if (!videoEl || !cameraReady.value) return
 
       if (nowMs - lastDetectAt < detectIntervalMs) {
         faceDetectRaf = requestAnimationFrame(loop)
@@ -668,7 +702,7 @@ export function useMobileStudentAttendance(previewSource = false) {
 
       lastDetectAt = nowMs
       try {
-        const result = faceDetectorInstance.detectForVideo(focusVideoEl.value, nowMs)
+        const result = faceDetectorInstance.detectForVideo(videoEl, nowMs)
         const hasFace = Array.isArray(result?.detections) && result.detections.length > 0
         if (hasFace) {
           streak += 1
@@ -687,6 +721,55 @@ export function useMobileStudentAttendance(previewSource = false) {
     }
 
     faceDetectRaf = requestAnimationFrame(loop)
+  }
+
+  function waitForFaceOrTimeout(timeoutMs = faceScanTimeoutMs) {
+    return new Promise((resolve) => {
+      if (!faceScanGateEnabled || faceDetected.value) {
+        resolve('detected')
+        return
+      }
+
+      let stopFaceWatch = () => {}
+      let stopCameraWatch = () => {}
+      let timer = null
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer)
+        stopFaceWatch()
+        stopCameraWatch()
+      }
+
+      timer = window.setTimeout(() => {
+        cleanup()
+        resolve('timeout')
+      }, timeoutMs)
+
+      stopFaceWatch = watch(faceDetected, (detected) => {
+        if (!detected) return
+        cleanup()
+        resolve('detected')
+      })
+
+      stopCameraWatch = watch(cameraReady, (ready) => {
+        if (ready) return
+        cleanup()
+        resolve('camera-not-ready')
+      })
+    })
+  }
+
+  async function waitForFaceDetection() {
+    if (!faceScanGateEnabled || faceDetected.value) return true
+
+    const detectorReady = await ensureFaceDetector()
+    if (!detectorReady) {
+      faceDetected.value = true
+      return true
+    }
+
+    await startFaceDetection()
+    return (await waitForFaceOrTimeout()) === 'detected'
   }
 
   async function loadEventTimeStatus() {
@@ -814,6 +897,31 @@ export function useMobileStudentAttendance(previewSource = false) {
     }
   }
 
+  async function warmLocationAccess() {
+    if (preview.value) return null
+
+    const access = await prepareLocationAccess({
+      enableHighAccuracy: false,
+      timeout: Math.max(Number(import.meta.env.VITE_GEOLOCATION_TIMEOUT_MS ?? 7000), 7000),
+      maximumAge: 45_000,
+    }).catch(() => null)
+
+    const coords = access?.position
+    if (!coords) {
+      return access
+    }
+
+    userCoords.value = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy ?? null,
+      capturedAt: coords.capturedAt || new Date().toISOString(),
+    }
+
+    await refreshLocationLabel(userCoords.value).catch(() => null)
+    return access
+  }
+
   async function verifyCurrentLocation(coords) {
     if (!event.value?.geo_required) {
       locationCheck.value = {
@@ -861,7 +969,7 @@ export function useMobileStudentAttendance(previewSource = false) {
   }
 
   function captureVideoFrame() {
-    const element = focusVideoEl.value || backgroundVideoEl.value
+    const element = getCameraProcessingVideoEl()
     if (!element || element.videoWidth <= 0 || element.videoHeight <= 0) {
       throw new Error('Cannot verify face right now. Camera preview is not ready.')
     }
@@ -1081,6 +1189,7 @@ export function useMobileStudentAttendance(previewSource = false) {
 
     clearTransientState()
     const currentState = actionState.value
+    const submittedActionKind = resolveActionKind(currentState, latestAttendanceRecord.value)
     if (!canSubmit.value) {
       latestNotice.value = resolveBlockedStateModel(
         currentState,
@@ -1100,9 +1209,8 @@ export function useMobileStudentAttendance(previewSource = false) {
         throw new Error('Camera access is required to continue.')
       }
 
-      if (!faceDetected.value) {
-        throw new Error('Cannot verify face. Center your face inside the frame and try again.')
-      }
+      loadingMessage.value = 'Checking face...'
+      await waitForFaceDetection()
 
       loadingMessage.value = 'Checking current location...'
       const coords = await resolveCurrentPosition({ precise: true })
@@ -1112,11 +1220,16 @@ export function useMobileStudentAttendance(previewSource = false) {
 
       loadingMessage.value = `${actionLabel.value}...`
       const imageDataUrl = captureVideoFrame()
-      await recordAttendance(imageDataUrl, coords)
+      const attendanceResult = await recordAttendance(imageDataUrl, coords)
       await refreshAttendanceContext().catch(() => null)
+      void notifyAttendanceMarked({
+        audience: 'self',
+        action: attendanceResult?.result?.action || submittedActionKind,
+        eventName: event.value?.name,
+      })
 
       latestSuccess.value = {
-        message: 'Identity and location verified',
+        message: attendanceResult?.result?.message || 'Identity and location verified.',
       }
       currentLocationError.value = ''
     } catch (error) {
@@ -1139,11 +1252,9 @@ export function useMobileStudentAttendance(previewSource = false) {
       await ensureDashboardEvent(eventId.value).catch(() => null)
     }
 
-    await Promise.allSettled([
-      refreshAttendanceContext(),
-      startCamera(),
-      resolveCurrentPosition({ precise: false, silent: true }),
-    ])
+    await refreshAttendanceContext().catch(() => null)
+    await warmLocationAccess().catch(() => null)
+    await startCamera().catch(() => null)
 
     await startFaceDetection()
     startEventStatusPolling()

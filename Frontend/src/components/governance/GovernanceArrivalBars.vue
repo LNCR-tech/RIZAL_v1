@@ -1,5 +1,5 @@
 <template>
-  <div class="governance-arrival-curve">
+  <div ref="rootRef" class="governance-arrival-curve">
     <div class="governance-arrival-curve__scroller">
       <div class="governance-arrival-curve__canvas" :style="{ width: `${canvasWidth}px` }">
         <svg
@@ -118,7 +118,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
   insight: {
@@ -127,6 +127,8 @@ const props = defineProps({
   },
 })
 
+const rootRef = ref(null)
+const containerWidth = ref(0)
 const uid = `governance-arrival-${Math.random().toString(36).slice(2, 9)}`
 const viewportHeight = 252
 const padding = {
@@ -148,10 +150,18 @@ const normalizedItems = computed(() => (
 ))
 
 const plotHeight = viewportHeight - padding.top - padding.bottom
+const slotWidth = computed(() => {
+  const itemCount = normalizedItems.value.length
+  if (itemCount <= 4) return 40
+  if (itemCount <= 6) return 34
+  return 30
+})
+
 const canvasWidth = computed(() => {
   const itemCount = normalizedItems.value.length
   const slotCount = itemCount > 1 ? itemCount - 1 : 1
-  return Math.max(320, padding.left + padding.right + (slotCount * 62))
+  const preferredWidth = padding.left + padding.right + (slotCount * slotWidth.value)
+  return Math.max(containerWidth.value || 0, Math.max(236, preferredWidth))
 })
 
 const plotWidth = computed(() => canvasWidth.value - padding.left - padding.right)
@@ -258,6 +268,33 @@ const ariaLabel = computed(() => {
   return `Peak arrivals happened around ${peakPoint.value.label} with ${peakPoint.value.valueLabel} students, or ${peakPoint.value.percentageLabel} of attendees.`
 })
 
+let resizeObserver = null
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+
+  const updateWidth = () => {
+    const measuredWidth = rootRef.value?.clientWidth || 0
+    if (measuredWidth > 0) {
+      containerWidth.value = measuredWidth
+    }
+  }
+
+  updateWidth()
+
+  if (typeof ResizeObserver === 'undefined' || !rootRef.value) return
+
+  resizeObserver = new ResizeObserver(() => {
+    updateWidth()
+  })
+  resizeObserver.observe(rootRef.value)
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+})
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
@@ -297,6 +334,7 @@ function buildAreaPath(points = [], baseline = 0) {
 <style scoped>
 .governance-arrival-curve {
   width: 100%;
+  min-width: 0;
 }
 
 .governance-arrival-curve__scroller {
@@ -327,7 +365,7 @@ function buildAreaPath(points = [], baseline = 0) {
 
 .governance-arrival-curve__y-label,
 .governance-arrival-curve__x-label {
-  font-size: 11px;
+  font-size: clamp(9px, 2.8vw, 11px);
   line-height: 1;
   font-weight: 700;
   fill: color-mix(in srgb, var(--color-text-muted) 92%, transparent);
@@ -379,11 +417,18 @@ function buildAreaPath(points = [], baseline = 0) {
 }
 
 .governance-arrival-curve__badge text:first-of-type {
-  font-size: 10px;
+  font-size: clamp(9px, 2.6vw, 10px);
   opacity: 0.88;
 }
 
 .governance-arrival-curve__badge text:last-of-type {
-  font-size: 11px;
+  font-size: clamp(9.5px, 2.8vw, 11px);
+}
+
+@media (max-width: 380px) {
+  .governance-arrival-curve__y-label,
+  .governance-arrival-curve__x-label {
+    font-size: 9px;
+  }
 }
 </style>

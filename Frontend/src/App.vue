@@ -50,109 +50,63 @@
       </button>
     </Transition>
 
-    <NotificationsPanel
-      :is-open="showNotifications"
-      :notifications="notifications"
+    <NotificationsPanel 
+      :is-open="showNotifications" 
+      :notifications="notificationItems"
       :loading="notificationsLoading"
       :error="notificationsError"
-      @close="showNotifications = false"
-    />
-
-    <SanctionsDeadlineWarningModal
-      :open="sanctionsWarningOpen"
-      :pending-count="sanctionsWarningPendingCount"
-      :deadline="sanctionsWarningDeadline"
-      @dismiss="handleSanctionsWarningDismiss"
+      @close="closeNotifications"
+      @refresh="refreshNotifications({ force: true })"
+      @item-click="markNotificationRead"
+      @mark-all-read="markAllNotificationsRead"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { RouterView, useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, watch } from 'vue'
+import { RouterView } from 'vue-router'
 import AppBootLoader from '@/components/ui/AppBootLoader.vue'
+import { bootSplashVisible, markBootSplashReady, notifyBootSplashMounted } from '@/services/bootSplash.js'
 import { mobileFullscreenHintVisible, requestMobileFullscreen } from '@/services/mobileFullscreen.js'
 import { isOnline } from '@/composables/useNetworkStatus.js'
 import { appFatalErrorMessage, clearAppFatalError } from '@/services/appBootstrap.js'
 import { isNavigationPending } from '@/services/navigationState.js'
-import { clearDashboardSession, useDashboardSession } from '@/composables/useDashboardSession.js'
+import { clearDashboardSession } from '@/composables/useDashboardSession.js'
+import { useRouter } from 'vue-router'
 import NotificationsPanel from '@/components/dashboard/NotificationsPanel.vue'
-import SanctionsDeadlineWarningModal from '@/components/dashboard/SanctionsDeadlineWarningModal.vue'
 import { useNotifications } from '@/composables/useNotifications.js'
-import { getActiveClearanceDeadline, getMySanctions } from '@/services/backendApi.js'
 
 const router = useRouter()
-const route = useRoute()
 const networkOnline = computed(() => isOnline.value)
 const {
   showNotifications,
-  notifications,
+  notificationItems,
   notificationsLoading,
   notificationsError,
-  syncNotificationSession,
+  closeNotifications,
+  refreshNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 } = useNotifications()
 const fatalErrorMessage = computed(() => appFatalErrorMessage.value)
-const hasResolvedInitialRoute = ref(false)
-const showInitialBootScreen = computed(() => !hasResolvedInitialRoute.value && isNavigationPending.value)
-const sanctionsWarningOpen = ref(false)
-const sanctionsWarningPendingCount = ref(0)
-const sanctionsWarningDeadline = ref(null)
-const sanctionsWarningCheckInFlight = ref(false)
-const sanctionsWarningCheckedUserId = ref(null)
-
-const {
-  dashboardState,
-  apiBaseUrl,
-  token,
-  currentUser,
-} = useDashboardSession()
-
-const isStudentSession = computed(() => {
-  const user = currentUser.value
-  if (!user) return false
-  if (user.student_profile) return true
-
-  const roles = Array.isArray(user.roles) ? user.roles : []
-  return roles.some((entry) => {
-    const roleName = String(entry?.role?.name || entry?.name || entry || '').trim().toLowerCase()
-    return roleName === 'student'
-  })
-})
+const showInitialBootScreen = computed(() => bootSplashVisible.value)
 
 watch(
   isNavigationPending,
   (pending) => {
     if (!pending) {
-      hasResolvedInitialRoute.value = true
+      markBootSplashReady()
     }
   },
   { immediate: true }
 )
 
-watch(
-  [() => dashboardState.initialized, apiBaseUrl, token, () => currentUser.value?.id],
-  async ([initialized, url, authToken, userId]) => {
-    const hasActiveSession = initialized && url && authToken && Number.isFinite(Number(userId))
-    await syncNotificationSession({
-      baseUrl: hasActiveSession ? url : '',
-      token: hasActiveSession ? authToken : '',
-      sessionKey: hasActiveSession ? `user:${Number(userId)}` : '',
-    })
-  },
-  { immediate: true }
-)
-
-watch(
-  [() => dashboardState.initialized, apiBaseUrl, token, () => currentUser.value?.id, isStudentSession],
-  async ([initialized, url, authToken, userId, studentSession]) => {
-    if (!initialized || !url || !authToken || !studentSession || !Number.isFinite(Number(userId))) return
-    if (sanctionsWarningCheckedUserId.value === Number(userId) || sanctionsWarningCheckInFlight.value) return
-
-    sanctionsWarningCheckedUserId.value = Number(userId)
-    await evaluateSanctionsWarning(url, authToken)
-  },
-  { immediate: true }
-)
+onMounted(() => {
+  nextTick(() => {
+    notifyBootSplashMounted()
+  })
+})
 
 function reloadApp() {
   clearAppFatalError()
@@ -164,53 +118,12 @@ function goToLogin() {
   clearAppFatalError()
   router.replace({ name: 'Login' }).catch(() => null)
 }
-
-function hasPendingSanction(record = null) {
-  const overallStatus = String(record?.status || '').trim().toLowerCase()
-  if (overallStatus === 'pending') return true
-
-  const items = Array.isArray(record?.items) ? record.items : []
-  return items.some((item) => String(item?.status || '').trim().toLowerCase() === 'pending')
-}
-
-async function evaluateSanctionsWarning(url, authToken) {
-  sanctionsWarningCheckInFlight.value = true
-
-  try {
-    const [deadline, sanctions] = await Promise.all([
-      getActiveClearanceDeadline(url, authToken).catch(() => null),
-      getMySanctions(url, authToken).catch(() => []),
-    ])
-
-    const deadlineStatus = String(deadline?.status || '').trim().toLowerCase()
-    if (!deadline || (deadlineStatus && deadlineStatus !== 'active')) return
-
-    const pendingCount = Array.isArray(sanctions)
-      ? sanctions.filter((record) => hasPendingSanction(record)).length
-      : 0
-
-    if (pendingCount <= 0) return
-
-    sanctionsWarningPendingCount.value = pendingCount
-    sanctionsWarningDeadline.value = deadline
-    sanctionsWarningOpen.value = true
-  } finally {
-    sanctionsWarningCheckInFlight.value = false
-  }
-}
-
-function handleSanctionsWarningDismiss() {
-  sanctionsWarningOpen.value = false
-
-  if (route.name === 'DashboardSanctions') return
-  router.push({ name: 'DashboardSanctions' }).catch(() => null)
-}
 </script>
 
 <style>
 .app-safe-area {
   min-height: 100dvh;
-  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--color-bg, #050505);
 }
 
 .app-boot-screen,
@@ -228,7 +141,7 @@ function handleSanctionsWarningDismiss() {
 }
 
 .app-boot-screen {
-  background: var(--color-surface, #ffffff);
+  background: #050505;
 }
 
 .app-fatal-card {

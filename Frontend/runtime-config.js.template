@@ -1,5 +1,4 @@
 window.__AURA_RUNTIME_CONFIG__ = {
   apiBaseUrl: "${AURA_API_BASE_URL}",
-  apiTimeoutMs: "${AURA_API_TIMEOUT_MS}",
-  assistantBaseUrl: "${AURA_ASSISTANT_BASE_URL}"
+  apiTimeoutMs: "${AURA_API_TIMEOUT_MS}"
 }

@@ -25,20 +25,22 @@ function loadEnvFile(filePath) {
   }, {})
 }
 
-function readProjectEnv() {
-  const envFiles = [
-    '.env',
-    '.env.local',
-    '.env.development.local',
-    '.env.docker',
-  ]
+const PROJECT_ENV_FILES = [
+  '.env',
+  '.env.local',
+  '.env.development.local',
+  '.env.docker',
+]
 
-  return envFiles.reduce((acc, relativePath) => {
-    return {
-      ...acc,
-      ...loadEnvFile(path.join(projectRoot, relativePath)),
-    }
-  }, {})
+function readProjectEnvLayers() {
+  return PROJECT_ENV_FILES.map((relativePath) => loadEnvFile(path.join(projectRoot, relativePath)))
+}
+
+function mergeEnvLayers(layers = []) {
+  return layers.reduce((acc, layer) => ({
+    ...acc,
+    ...layer,
+  }), {})
 }
 
 function normalizeAbsoluteUrl(value = '') {
@@ -56,8 +58,32 @@ function normalizeAbsoluteUrl(value = '') {
   }
 }
 
+function collectConfiguredApiHostnames(envLayers = []) {
+  const hostnames = []
+
+  envLayers.forEach((layer) => {
+    ;[
+      layer?.VITE_NATIVE_API_BASE_URL,
+      layer?.VITE_BACKEND_PROXY_TARGET,
+      layer?.VITE_API_BASE_URL,
+    ].forEach((value) => {
+      const normalized = normalizeAbsoluteUrl(value)
+      if (!normalized) return
+
+      try {
+        hostnames.push(new URL(normalized).hostname)
+      } catch {
+        // Ignore malformed absolute URLs.
+      }
+    })
+  })
+
+  return Array.from(new Set(hostnames))
+}
+
+const projectEnvLayers = readProjectEnvLayers()
 const env = {
-  ...readProjectEnv(),
+  ...mergeEnvLayers(projectEnvLayers),
   ...process.env,
 }
 
@@ -68,6 +94,10 @@ const nativeApiBaseUrl = normalizeAbsoluteUrl(
 const allowNavigation = Array.from(
   new Set(
     [
+      ...collectConfiguredApiHostnames([
+        ...projectEnvLayers,
+        process.env,
+      ]),
       nativeApiBaseUrl ? new URL(nativeApiBaseUrl).hostname : null,
       '*.railway.app',
       '*.ngrok-free.app',
@@ -85,6 +115,7 @@ const config = {
     allowNavigation,
   },
   android: {
+    path: 'aura-apk/android',
     allowMixedContent: nativeApiBaseUrl.startsWith('http://'),
   },
   plugins: {
@@ -92,16 +123,17 @@ const config = {
       enabled: true,
     },
     SplashScreen: {
-      launchAutoHide: true,
-      launchShowDuration: 2000,
+      launchAutoHide: false,
+      launchShowDuration: 2400,
+      launchFadeOutDuration: 150,
       androidScaleType: 'CENTER_CROP',
-      backgroundColor: '#EBEBEB',
+      backgroundColor: '#050505',
       splashFullScreen: true,
       splashImmersive: true,
     },
     StatusBar: {
       style: 'LIGHT',
-      backgroundColor: '#EBEBEB',
+      backgroundColor: '#050505',
     },
     Keyboard: {
       resize: 'none',

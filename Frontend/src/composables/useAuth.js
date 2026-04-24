@@ -11,14 +11,13 @@ import {
 import { hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
 import { markCurrentRuntimeSession } from '@/services/sessionPersistence.js'
 import { clearSessionExpiredNotice } from '@/services/sessionExpiry.js'
-import { storeRememberMePreference } from '@/services/userPreferences.js'
 
 export function useAuth() {
     const router = useRouter()
     const isLoading = ref(false)
     const error = ref(null)
 
-    async function login(email, password, { rememberMe = false } = {}) {
+    async function login(email, password, options = {}) {
         isLoading.value = true
         error.value = null
 
@@ -33,7 +32,6 @@ export function useAuth() {
             const tokenPayload = await loginForAccessToken(apiBaseUrl, {
                 username: email,
                 password,
-                rememberMe,
             })
 
             const accessToken = tokenPayload?.access_token
@@ -44,16 +42,19 @@ export function useAuth() {
             localStorage.setItem('aura_token', accessToken)
             localStorage.setItem('aura_user_roles', JSON.stringify(tokenPayload?.roles ?? []))
             const authMeta = storeAuthMeta(tokenPayload)
-            storeRememberMePreference(rememberMe)
             markCurrentRuntimeSession()
 
-            if (authMeta.mustChangePassword) {
-                router.push({ name: 'ChangePassword' })
+            if (hasPrivilegedPendingFace(authMeta)) {
+                const nextRoute = { name: 'PrivilegedFaceVerification' }
+                if (options.preventRedirect) return nextRoute
+                router.push(nextRoute)
                 return
             }
 
-            if (hasPrivilegedPendingFace(authMeta)) {
-                router.push({ name: 'PrivilegedFaceVerification' })
+            if (authMeta.mustChangePassword) {
+                const nextRoute = { name: 'ChangePassword' }
+                if (options.preventRedirect) return nextRoute
+                router.push(nextRoute)
                 return
             }
 
@@ -61,14 +62,18 @@ export function useAuth() {
             if (!initializedSession?.user || sessionUsesLimitedMode()) {
                 throw new Error('The backend did not return a complete user session. Please try again once the backend is stable.')
             }
-            router.push(
-                sessionNeedsFaceRegistration()
-                    ? { name: 'FaceRegistration' }
-                    : getDefaultAuthenticatedRoute()
-            )
+            
+            const nextRoute = sessionNeedsFaceRegistration()
+                ? { name: 'FaceRegistration' }
+                : getDefaultAuthenticatedRoute()
+
+            if (options.preventRedirect) return nextRoute
+            router.push(nextRoute)
+            
         } catch (err) {
             clearDashboardSession()
             error.value = err?.message || 'Login failed. Please try again.'
+            if (options.preventRedirect) return null
         } finally {
             isLoading.value = false
         }

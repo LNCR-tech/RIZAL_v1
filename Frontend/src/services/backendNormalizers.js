@@ -92,6 +92,9 @@ export function normalizeTokenPayload(payload = {}) {
         accent_color: toOptionalString(payload.accent_color, null),
         must_change_password: Boolean(payload.must_change_password),
         session_id: toOptionalString(payload.session_id, null),
+        mfa_required: Boolean(payload.mfa_required),
+        mfa_challenge_id: toOptionalString(payload.mfa_challenge_id, null),
+        mfa_expires_at: toOptionalString(payload.mfa_expires_at, null),
         face_verification_required: Boolean(payload.face_verification_required),
         face_reference_enrolled: Boolean(payload.face_reference_enrolled),
         face_verification_pending: Boolean(payload.face_verification_pending),
@@ -237,32 +240,6 @@ export function normalizeEventAttendanceReport(payload = {}) {
         programs: normalizedPrograms,
         program_breakdown: normalizedProgramBreakdown,
     }
-}
-
-export function normalizeAttendanceOverviewItem(item = {}) {
-    return {
-        ...item,
-        id: toOptionalNumber(item.id, 0),
-        student_id: toOptionalString(item.student_id, null),
-        full_name: toOptionalString(item.full_name ?? item.student_name, 'Unknown Student'),
-        department_name: toOptionalString(item.department_name, null),
-        program_name: toOptionalString(item.program_name, null),
-        year_level: toOptionalNumber(item.year_level, null),
-        total_events: toOptionalNumber(item.total_events, 0),
-        attended_events: toOptionalNumber(item.attended_events, null),
-        late_events: toOptionalNumber(item.late_events, 0),
-        incomplete_events: toOptionalNumber(item.incomplete_events, 0),
-        absent_events: toOptionalNumber(item.absent_events, 0),
-        excused_events: toOptionalNumber(item.excused_events, 0),
-        attendance_rate: typeof item.attendance_rate === 'number'
-            ? item.attendance_rate
-            : toOptionalNumber(item.attendance_rate, 0),
-        last_attendance: toOptionalString(item.last_attendance, null),
-    }
-}
-
-export function normalizeAttendanceOverviewCollection(payload = null) {
-    return Array.isArray(payload) ? payload.map(normalizeAttendanceOverviewItem) : []
 }
 
 export function normalizeStudentProfile(profile = null) {
@@ -458,35 +435,6 @@ export function normalizeNotificationLogItem(item = null) {
             ? item.metadata_json
             : null,
         created_at: toOptionalString(item.created_at, nowIso()),
-    }
-}
-
-export function normalizeNotificationPreference(payload = null) {
-    if (!payload || typeof payload !== 'object') return null
-
-    return {
-        ...payload,
-        user_id: toOptionalNumber(payload.user_id, null),
-        email_enabled: typeof payload.email_enabled === 'boolean' ? payload.email_enabled : true,
-        sms_enabled: typeof payload.sms_enabled === 'boolean' ? payload.sms_enabled : false,
-        sms_number: toOptionalString(payload.sms_number, null),
-        notify_missed_events: typeof payload.notify_missed_events === 'boolean' ? payload.notify_missed_events : true,
-        notify_low_attendance: typeof payload.notify_low_attendance === 'boolean' ? payload.notify_low_attendance : true,
-        notify_account_security: typeof payload.notify_account_security === 'boolean' ? payload.notify_account_security : true,
-        notify_subscription: typeof payload.notify_subscription === 'boolean' ? payload.notify_subscription : true,
-        updated_at: toOptionalString(payload.updated_at, nowIso()),
-    }
-}
-
-export function normalizeUserAppPreference(payload = null) {
-    if (!payload || typeof payload !== 'object') return null
-
-    return {
-        ...payload,
-        user_id: toOptionalNumber(payload.user_id, null),
-        dark_mode_enabled: Boolean(payload.dark_mode_enabled),
-        font_size_percent: toOptionalNumber(payload.font_size_percent, 100),
-        updated_at: toOptionalString(payload.updated_at, nowIso()),
     }
 }
 
@@ -786,220 +734,6 @@ export function normalizeGovernanceSsgSetup(payload = null) {
         ...payload,
         unit: normalizeGovernanceUnitDetail(unitPayload),
         total_imported_students: toOptionalNumber(payload.total_imported_students, 0),
-    }
-}
-
-export function normalizeGovernanceDashboardOverview(payload = null) {
-    if (!payload || typeof payload !== 'object') return null
-
-    return {
-        ...payload,
-        governance_unit_id: toOptionalNumber(payload.governance_unit_id, null),
-        unit_type: toOptionalString(payload.unit_type, null),
-        published_announcement_count: toOptionalNumber(payload.published_announcement_count, 0),
-        total_students: toOptionalNumber(payload.total_students, 0),
-        recent_announcements: Array.isArray(payload.recent_announcements)
-            ? payload.recent_announcements.map((item) => ({
-                ...item,
-                id: toOptionalNumber(item?.id, 0),
-                title: toOptionalString(item?.title, 'Untitled Announcement'),
-                status: toOptionalString(item?.status, 'draft'),
-                author_name: toOptionalString(item?.author_name, null),
-                updated_at: toOptionalString(item?.updated_at, null),
-            }))
-            : [],
-        child_units: Array.isArray(payload.child_units)
-            ? payload.child_units.map((item) => ({
-                ...item,
-                id: toOptionalNumber(item?.id, 0),
-                unit_code: toOptionalString(item?.unit_code, ''),
-                unit_name: toOptionalString(item?.unit_name, 'Student Government'),
-                description: toOptionalString(item?.description, null),
-                unit_type: toOptionalString(item?.unit_type, null),
-                member_count: toOptionalNumber(item?.member_count, 0),
-            }))
-            : [],
-    }
-}
-
-export function normalizeSanctionConfigItem(item = {}) {
-    return {
-        ...item,
-        item_code: toOptionalString(item.item_code, null),
-        item_name: toOptionalString(item.item_name, ''),
-        item_description: toOptionalString(item.item_description, null),
-        metadata_json: item.metadata_json && typeof item.metadata_json === 'object'
-            ? item.metadata_json
-            : null,
-    }
-}
-
-export function normalizeSanctionConfigResponse(payload = {}) {
-    const items = Array.isArray(payload?.items)
-        ? payload.items.map(normalizeSanctionConfigItem).filter((item) => item.item_name)
-        : []
-
-    return {
-        ...payload,
-        event_id: toOptionalNumber(payload.event_id, null),
-        sanctions_enabled: Boolean(payload.sanctions_enabled),
-        items,
-        created_by_user_id: toOptionalNumber(payload.created_by_user_id, null),
-        updated_by_user_id: toOptionalNumber(payload.updated_by_user_id, null),
-        created_at: toOptionalString(payload.created_at, null),
-        updated_at: toOptionalString(payload.updated_at, null),
-    }
-}
-
-export function normalizeSanctionStudentSummary(student = {}) {
-    return {
-        ...student,
-        user_id: toOptionalNumber(student.user_id, null),
-        student_profile_id: toOptionalNumber(student.student_profile_id, null),
-        student_id: toOptionalString(student.student_id, null),
-        email: toOptionalString(student.email, ''),
-        first_name: toOptionalString(student.first_name, null),
-        middle_name: toOptionalString(student.middle_name, null),
-        last_name: toOptionalString(student.last_name, null),
-        department_id: toOptionalNumber(student.department_id, null),
-        department_name: toOptionalString(student.department_name, null),
-        program_id: toOptionalNumber(student.program_id, null),
-        program_name: toOptionalString(student.program_name, null),
-        year_level: toOptionalNumber(student.year_level, null),
-    }
-}
-
-export function normalizeSanctionItemResponse(item = {}) {
-    return {
-        ...item,
-        id: toOptionalNumber(item.id, 0),
-        item_code: toOptionalString(item.item_code, null),
-        item_name: toOptionalString(item.item_name, ''),
-        item_description: toOptionalString(item.item_description, null),
-        status: toOptionalString(item.status, 'pending'),
-        complied_at: toOptionalString(item.complied_at, null),
-        compliance_notes: toOptionalString(item.compliance_notes, null),
-        metadata_json: item.metadata_json && typeof item.metadata_json === 'object'
-            ? item.metadata_json
-            : null,
-        created_at: toOptionalString(item.created_at, null),
-        updated_at: toOptionalString(item.updated_at, null),
-    }
-}
-
-export function normalizeSanctionRecordResponse(record = {}) {
-    return {
-        ...record,
-        id: toOptionalNumber(record.id, 0),
-        event_id: toOptionalNumber(record.event_id, null),
-        status: toOptionalString(record.status, 'pending'),
-        notes: toOptionalString(record.notes, null),
-        complied_at: toOptionalString(record.complied_at, null),
-        assigned_by_user_id: toOptionalNumber(record.assigned_by_user_id, null),
-        delegated_governance_unit_id: toOptionalNumber(record.delegated_governance_unit_id, null),
-        created_at: toOptionalString(record.created_at, null),
-        updated_at: toOptionalString(record.updated_at, null),
-        student: normalizeSanctionStudentSummary(record.student),
-        items: Array.isArray(record.items)
-            ? record.items.map(normalizeSanctionItemResponse).filter((item) => item.item_name)
-            : [],
-    }
-}
-
-export function normalizePaginatedSanctionRecordsResponse(payload = {}) {
-    return {
-        ...payload,
-        total: toOptionalNumber(payload.total, 0),
-        items: Array.isArray(payload.items)
-            ? payload.items.map(normalizeSanctionRecordResponse)
-            : [],
-        skip: toOptionalNumber(payload.skip, 0),
-        limit: toOptionalNumber(payload.limit, 0),
-    }
-}
-
-export function normalizeSanctionDelegationResponse(item = {}) {
-    return {
-        ...item,
-        id: toOptionalNumber(item.id, 0),
-        event_id: toOptionalNumber(item.event_id, null),
-        delegated_by_user_id: toOptionalNumber(item.delegated_by_user_id, null),
-        delegated_to_governance_unit_id: toOptionalNumber(item.delegated_to_governance_unit_id, null),
-        delegated_to_unit_code: toOptionalString(item.delegated_to_unit_code, null),
-        delegated_to_unit_name: toOptionalString(item.delegated_to_unit_name, null),
-        delegated_to_unit_type: toOptionalString(item.delegated_to_unit_type, null),
-        scope_type: toOptionalString(item.scope_type, 'unit'),
-        scope_json: item.scope_json && typeof item.scope_json === 'object'
-            ? item.scope_json
-            : null,
-        is_active: typeof item.is_active === 'boolean' ? item.is_active : true,
-        revoked_at: toOptionalString(item.revoked_at, null),
-        revoked_by_user_id: toOptionalNumber(item.revoked_by_user_id, null),
-        created_at: toOptionalString(item.created_at, null),
-        updated_at: toOptionalString(item.updated_at, null),
-    }
-}
-
-export function normalizeSanctionsDashboardEventSummary(item = {}) {
-    return {
-        ...item,
-        event_id: toOptionalNumber(item.event_id, null),
-        event_name: toOptionalString(item.event_name, 'Untitled Event'),
-        owner_level: toOptionalString(item.owner_level, 'UNKNOWN'),
-        participant_count: toOptionalNumber(item.participant_count, 0),
-        absent_count: toOptionalNumber(item.absent_count, 0),
-        pending_sanctions: toOptionalNumber(item.pending_sanctions, 0),
-        complied_sanctions: toOptionalNumber(item.complied_sanctions, 0),
-        absence_rate_percent: typeof item.absence_rate_percent === 'number'
-            ? item.absence_rate_percent
-            : toOptionalNumber(item.absence_rate_percent, 0),
-    }
-}
-
-export function normalizeSanctionsDashboardResponse(payload = {}) {
-    return {
-        ...payload,
-        total_events: toOptionalNumber(payload.total_events, 0),
-        total_participants: toOptionalNumber(payload.total_participants, 0),
-        total_absent: toOptionalNumber(payload.total_absent, 0),
-        total_pending_sanctions: toOptionalNumber(payload.total_pending_sanctions, 0),
-        total_complied_sanctions: toOptionalNumber(payload.total_complied_sanctions, 0),
-        overall_absence_rate_percent: typeof payload.overall_absence_rate_percent === 'number'
-            ? payload.overall_absence_rate_percent
-            : toOptionalNumber(payload.overall_absence_rate_percent, 0),
-        events: Array.isArray(payload.events)
-            ? payload.events.map(normalizeSanctionsDashboardEventSummary)
-            : [],
-    }
-}
-
-export function normalizeSanctionStudentDetailResponse(payload = {}) {
-    return {
-        ...payload,
-        user_id: toOptionalNumber(payload.user_id, null),
-        sanctions: Array.isArray(payload.sanctions)
-            ? payload.sanctions.map(normalizeSanctionRecordResponse)
-            : [],
-    }
-}
-
-export function normalizeClearanceDeadlineResponse(payload = null) {
-    if (!payload || typeof payload !== 'object') return null
-
-    return {
-        ...payload,
-        id: toOptionalNumber(payload.id, 0),
-        school_id: toOptionalNumber(payload.school_id, null),
-        event_id: toOptionalNumber(payload.event_id, null),
-        declared_by_user_id: toOptionalNumber(payload.declared_by_user_id, null),
-        target_governance_unit_id: toOptionalNumber(payload.target_governance_unit_id, null),
-        deadline_at: toOptionalString(payload.deadline_at, null),
-        status: toOptionalString(payload.status, 'active'),
-        warning_email_sent_at: toOptionalString(payload.warning_email_sent_at, null),
-        warning_popup_sent_at: toOptionalString(payload.warning_popup_sent_at, null),
-        message: toOptionalString(payload.message, null),
-        created_at: toOptionalString(payload.created_at, null),
-        updated_at: toOptionalString(payload.updated_at, null),
     }
 }
 

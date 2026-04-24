@@ -1,8 +1,7 @@
-﻿<template>
-  <div class="sg-events-view">
-    <section class="sg-sub-page">
+<template>
+  <section class="sg-sub-page">
     <header class="sg-sub-header dashboard-enter dashboard-enter--1">
-      <div class="sg-title-row">
+      <div style="display: flex; align-items: center; gap: 16px;">
         <button class="sg-sub-back" type="button" @click="goBack">
           <ArrowLeft :size="20" />
         </button>
@@ -40,7 +39,7 @@
       </div>
 
       <div class="sg-sub-toolbar dashboard-enter dashboard-enter--3" :class="{'is-creating': isCreating}">
-        <div class="sg-sub-search-shell sg-sub-search-shell--grow">
+        <div class="sg-sub-search-shell" style="flex: 1;">
           <input
             v-model="searchQuery"
             type="text"
@@ -49,45 +48,28 @@
           />
           <Search :size="18" style="color: var(--color-primary);" />
         </div>
-
-        <button
-          v-if="canViewSanctionsDashboard"
-          class="sg-sub-action sg-sub-action--sanctions"
-          type="button"
-          @click="openSanctionsDashboard"
-        >
-          Sanctions
-        </button>
         
-        <div v-if="!isCreating" class="sg-create-wrapper">
+        <div class="sg-create-wrapper" :class="{ 'is-expanded': isCreating }">
           <button v-show="!isCreating" class="sg-create-event-btn" type="button" @click="openCreateForm">
             <Plus :size="20" />
-            <span class="sg-create-event-btn__label">Create<br>Event</span>
+            <span style="margin-top: 1px;">Create<br>Event</span>
           </button>
-        </div>
-      </div>
-
-      <section
-        v-if="isCreating"
-        class="sg-create-panel dashboard-enter dashboard-enter--4"
-        :class="{ 'map-is-fullscreen': isMapFullscreen }"
-      >
-        <div class="sg-create-form">
-          <header class="sg-create-form-header">
-            <button class="sg-create-event-btn sg-create-event-btn--inner" type="button" @click="closeCreateForm">
-              <Plus :size="20" />
-              <span class="sg-create-event-btn__label">Create<br>Event</span>
-            </button>
-          </header>
           
-          <form class="sg-event-fields" @submit.prevent="submitEvent">
-            <div class="sg-event-fields-grid">
-              <label class="sg-field-label sg-field-label--wide">
+          <div class="sg-create-form" v-show="isCreating">
+            <header class="sg-create-form-header">
+              <button class="sg-create-event-btn sg-create-event-btn--inner" type="button" @click="closeCreateForm">
+                <Plus :size="20" />
+                <span style="margin-top: 1px;">Create<br>Event</span>
+              </button>
+            </header>
+            
+            <form class="sg-event-fields" @submit.prevent="submitEvent">
+              <label class="sg-field-label">
                 Event Name
                 <input v-model="form.name" type="text" placeholder="e.g. Orientation" required />
               </label>
               
-              <label class="sg-field-label sg-field-label--wide">
+              <label class="sg-field-label">
                 Location
                 <input v-model="form.location_name" type="text" placeholder="e.g. University Campus" required />
               </label>
@@ -101,131 +83,51 @@
                 End date & time
                 <input v-model="form.end_time" type="datetime-local" required />
               </label>
-            </div>
-            
-            <div class="sg-map-section">
-              <p class="sg-map-section-title">Please Select Location for Attendance</p>
               
-              <div class="sg-map-frame">
-                <div 
-                  class="sg-map-container"
-                  :class="{ 'is-fullscreen': isMapFullscreen }"
-                >
-                  <div id="sg-leaflet-preview" class="sg-leaflet-preview" @click="toggleFullscreenMap"></div>
-                  
-                  <div v-if="isMapFullscreen" class="sg-map-fullscreen-overlay">
-                    <button class="sg-map-confirm-btn" type="button" @click.stop="toggleFullscreenMap">
-                      Confirm Location
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="sg-map-controls">
-                <button class="sg-map-btn" type="button" @click="useCurrentLocation">Use Current Location</button>
-                <button class="sg-map-btn sg-map-btn--clear" type="button" @click="clearLocation">
-                  <Trash2 :size="14" style="color:#e74c3c" /> <span style="color:#e74c3c">Clear</span>
-                </button>
-              </div>
-              
-              <div class="sg-coord-grid">
-                <label class="sg-field-label">
-                  Latitude
-                  <input v-model="form.latitude" type="number" step="any" placeholder="0.00000" />
-                </label>
-                <label class="sg-field-label">
-                  Longitude
-                  <input v-model="form.longitude" type="number" step="any" placeholder="0.00000" />
-                </label>
-                <label class="sg-field-label">
-                  Allowed Radius
-                  <input v-model="form.radius_meters" type="number" placeholder="100 meters" />
-                </label>
-                <label class="sg-field-label">
-                  Max GPS Accuracy
-                  <input v-model="form.gps_accuracy" type="number" placeholder="50 meters" />
-                </label>
-              </div>
-              
-              <label class="sg-checkbox-label">
-                <input v-model="form.require_geofence" type="checkbox" />
-                <span class="sg-checkbox-custom"></span>
-                Require students to be inside this geofence when signing in.
-              </label>
-            </div>
+              <div class="sg-map-section">
+                <p class="sg-field-label">Please Select Location for Attendance</p>
 
-            <section
-              class="sg-sanctions-panel"
-              :class="{ 'sg-sanctions-panel--locked': !canConfigureEventSanctions }"
-            >
-              <header class="sg-sanctions-panel__header">
-                <p class="sg-sanctions-panel__eyebrow">Optional</p>
-                <h3 class="sg-sanctions-panel__title">Sanctions Setup</h3>
-              </header>
-
-              <div
-                v-if="canConfigureEventSanctions && hasSavedCreateSanctionsTemplate"
-                class="sg-sanctions-recommendation"
-              >
-                <div class="sg-sanctions-recommendation__content">
-                  <p class="sg-sanctions-recommendation__eyebrow">Recommended</p>
-                  <p class="sg-sanctions-recommendation__title">Use the last saved sanctions template</p>
-                  <p class="sg-sanctions-recommendation__copy">
-                    {{ savedCreateSanctionsTemplateSummary }}
-                  </p>
-                </div>
-                <button
-                  class="sg-sanctions-recommendation__action"
-                  type="button"
+                <EventLocationPicker
+                  v-model:latitude="form.latitude"
+                  v-model:longitude="form.longitude"
+                  :radius-m="form.radius_meters"
                   :disabled="isSubmitting"
-                  @click="applySavedCreateSanctionsTemplate"
-                >
-                  Use Template
-                </button>
+                />
+                
+                <div class="sg-coord-grid">
+                  <label class="sg-field-label">
+                    Latitude
+                    <input v-model="form.latitude" type="number" step="any" placeholder="0.00000" />
+                  </label>
+                  <label class="sg-field-label">
+                    Longitude
+                    <input v-model="form.longitude" type="number" step="any" placeholder="0.00000" />
+                  </label>
+                  <label class="sg-field-label">
+                    Allowed Radius
+                    <input v-model="form.radius_meters" type="number" placeholder="100 meters" />
+                  </label>
+                  <label class="sg-field-label">
+                    Max GPS Accuracy
+                    <input v-model="form.gps_accuracy" type="number" placeholder="50 meters" />
+                  </label>
+                </div>
+                
+                <label class="sg-checkbox-label">
+                  <input v-model="form.require_geofence" type="checkbox" />
+                  <span class="sg-checkbox-custom"></span>
+                  Require students to be inside this geofence when signing in.
+                </label>
               </div>
-
-              <div class="sg-sanctions-toggle">
-                <p class="sg-sanctions-toggle__label">Enable sanctions rules for this event</p>
-                <button
-                  class="sg-sanctions-toggle__button"
-                  :class="{ 'sg-sanctions-toggle__button--enabled': canConfigureEventSanctions && isCreateSanctionsEnabled }"
-                  type="button"
-                  :disabled="isSubmitting || !canConfigureEventSanctions"
-                  @click="toggleCreateSanctionsEnabled"
-                >
-                  {{
-                    canConfigureEventSanctions
-                      ? (isCreateSanctionsEnabled ? 'Disable' : 'Enable')
-                      : 'No Access'
-                  }}
-                </button>
-              </div>
-              <p v-if="!canConfigureEventSanctions" class="sg-sanctions-toggle__hint">
-                Requires an active <strong>SSG/SG/ORG</strong> governance role or sanctions permission.
-              </p>
-
-              <EventSanctionConfigPanel
-                v-if="canConfigureEventSanctions && isCreateSanctionsEnabled"
-                v-model="createSanctionsConfig"
-                :disabled="isSubmitting"
-                :show-enabled-toggle="false"
-              />
-
-              <EventDelegationConfigPanel
-                v-if="canConfigureEventSanctions && isCreateSanctionsEnabled"
-                v-model="createSanctionsDelegations"
-                :governance-units="governanceUnits"
-                :disabled="isSubmitting"
-              />
-            </section>
-             
-            <button type="submit" class="sg-submit-event" :disabled="isSubmitting">
-              {{ isSubmitting ? 'Creating...' : 'Create Event' }}
-            </button>
-            <p class="sg-form-note">New governance events are created with the default upcoming status.</p>
-          </form>
+              
+              <button type="submit" class="sg-submit-event" :disabled="isSubmitting">
+                {{ isSubmitting ? 'Creating...' : 'Create Event' }}
+              </button>
+              <p class="sg-form-note">New governance events are created with the default upcoming status.</p>
+            </form>
+          </div>
         </div>
-      </section>
+      </div>
 
       <div class="sg-sub-card dashboard-enter dashboard-enter--4">
         <div v-if="filteredEvents.length" class="sg-events-list">
@@ -286,31 +188,23 @@
         <p v-else class="sg-sub-empty">No events found matching your search.</p>
       </div>
     </template>
-    </section>
+  </section>
 
-    <EventEditorSheet
-      :is-open="isEventEditorOpen"
-      :event="editingEvent"
-      title="Edit Governance Event"
-      description="Update the event details using the same backend fields the governance event API accepts."
-      submit-label="Save Event"
-      :saving="isMutatingEvent"
-      :error-message="eventEditorError"
-      :show-sanctions-panels="true"
-      :can-configure-event-sanctions="canConfigureEventSanctions"
-      :sanctions-config="editingSanctionsConfig"
-      :sanctions-delegations="editingSanctionsDelegations"
-      :governance-units="governanceUnits"
-      :sanctions-loading="sanctionsPanelLoading"
-      :sanctions-error-message="sanctionsPanelError"
-      @close="closeEventEditor"
-      @save="saveEventEdits"
-    />
-  </div>
+  <EventEditorSheet
+    :is-open="isEventEditorOpen"
+    :event="editingEvent"
+    title="Edit Governance Event"
+    description="Update the event details using the same backend fields the governance event API accepts."
+    submit-label="Save Event"
+    :saving="isMutatingEvent"
+    :error-message="eventEditorError"
+    @close="closeEventEditor"
+    @save="saveEventEdits"
+  />
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
@@ -321,8 +215,7 @@ const props = defineProps({
 })
 import { ArrowLeft, ArrowRight, Search, Plus, Trash2, Edit2 } from 'lucide-vue-next'
 import EventEditorSheet from '@/components/events/EventEditorSheet.vue'
-import EventSanctionConfigPanel from '@/components/events/EventSanctionConfigPanel.vue'
-import EventDelegationConfigPanel from '@/components/events/EventDelegationConfigPanel.vue'
+import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
@@ -330,17 +223,11 @@ import {
   BackendApiError,
   createGovernanceEvent,
   deleteEvent as deleteBackendEvent,
-  getEventSanctionConfig,
-  getEventSanctionDelegation,
   getEvents,
   getGovernanceAccess,
-  getGovernanceUnits,
   getGovernanceUnitDetail,
-  upsertEventSanctionConfig,
-  upsertEventSanctionDelegation,
   updateEvent as updateBackendEvent,
 } from '@/services/backendApi.js'
-import { getCurrentPositionOrThrow } from '@/services/devicePermissions.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
 import {
   getGovernanceUnitsForAction,
@@ -350,16 +237,9 @@ import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.j
 
 const route = useRoute()
 const router = useRouter()
-const {
-  apiBaseUrl,
-  token,
-  dashboardState,
-  isSchoolItSession,
-  isAdminSession,
-  sessionHasRole,
-} = useDashboardSession()
+const { apiBaseUrl, token, dashboardState, isSchoolItSession, isAdminSession } = useDashboardSession()
 const { previewBundle } = useSgPreviewBundle(() => props.preview)
-const { isLoading: sgLoading, permissionCodes, activeUnitId, acronym } = useSgDashboard(props.preview)
+const { isLoading: sgLoading } = useSgDashboard(props.preview)
 const governanceUnitId = ref(null)
 const governanceContext = ref('')
 const governanceUnitDetailCache = new Map()
@@ -368,7 +248,6 @@ const GOVERNANCE_EVENT_UNIT_ID_STORAGE_KEY = 'aura_cached_governance_unit_id'
 const GOVERNANCE_EVENT_CONTEXT_STORAGE_KEY = 'aura_cached_governance_context'
 const GOVERNANCE_EVENT_USER_ID_STORAGE_KEY = 'aura_cached_governance_user_id'
 const GOVERNANCE_EVENT_SESSION_ID_STORAGE_KEY = 'aura_cached_governance_session_id'
-const GOVERNANCE_EVENT_SANCTIONS_TEMPLATE_STORAGE_KEY = 'aura_cached_governance_event_sanctions_template'
 const LEGACY_SSG_UNIT_ID_STORAGE_KEY = 'aura_cached_ssg_unit_id'
 
 const isLoading = ref(true)
@@ -379,20 +258,9 @@ const isMutatingEvent = ref(false)
 const isEventEditorOpen = ref(false)
 const editingEvent = ref(null)
 const eventEditorError = ref('')
-const sanctionsPanelLoading = ref(false)
-const sanctionsPanelError = ref('')
-const governanceUnits = ref([])
-const savedCreateSanctionsTemplate = ref(null)
-
-const createSanctionsConfig = ref(createEmptySanctionsConfig())
-const createSanctionsDelegations = ref([])
-const editingSanctionsConfig = ref(createEmptySanctionsConfig())
-const editingSanctionsDelegations = ref([])
 
 const isCreating = ref(false)
 const isSubmitting = ref(false)
-const isMapFullscreen = ref(false)
-const isCreateSanctionsEnabled = ref(false)
 const form = ref({
   name: '',
   location_name: '',
@@ -404,9 +272,6 @@ const form = ref({
   radius_meters: 100,
   gps_accuracy: 50
 })
-
-let mapInstance = null
-let markerInstance = null
 
 const eventSwipeOffsets = ref({})
 const eventSwipeDragId = ref(null)
@@ -433,83 +298,13 @@ const hasOpenEventSwipe = computed(() => Object.values(eventSwipeOffsets.value).
 const upcomingCount = computed(() => events.value.filter(e => String(e.status).toLowerCase() === 'upcoming').length)
 const ongoingCount = computed(() => events.value.filter(e => ['ongoing', 'active'].includes(String(e.status).toLowerCase())).length)
 const completedCount = computed(() => events.value.filter(e => String(e.status).toLowerCase() === 'completed').length)
-const hasSanctionsRoleAccess = computed(() => (
-  isSchoolItSession(dashboardState.user) || isAdminSession(dashboardState.user)
-))
-const normalizedPermissionCodes = computed(() => (
-  (Array.isArray(permissionCodes.value) ? permissionCodes.value : [])
-    .map((permissionCode) => String(permissionCode || '').trim().toLowerCase().replace(/-/g, '_'))
-    .filter(Boolean)
-))
-const hasGovernanceSanctionsRoleAccess = computed(() => (
-  Number.isFinite(Number(activeUnitId.value))
-  || Boolean(normalizeGovernanceContext(acronym.value))
-  || Boolean(normalizeGovernanceContext(governanceContext.value))
-  || sessionHasRole('ssg', dashboardState.user)
-  || sessionHasRole('sg', dashboardState.user)
-  || sessionHasRole('org', dashboardState.user)
-  || sessionHasRole('student_council', dashboardState.user)
-  || sessionHasRole('student council', dashboardState.user)
-))
-const canConfigureEventSanctions = computed(() => (
-  props.preview
-  || hasSanctionsRoleAccess.value
-  || hasGovernanceSanctionsRoleAccess.value
-  || normalizedPermissionCodes.value.includes('manage_events')
-  || normalizedPermissionCodes.value.includes('configure_event_sanctions')
-))
-const canViewSanctionsDashboard = computed(() => (
-  props.preview
-  || hasSanctionsRoleAccess.value
-  || hasGovernanceSanctionsRoleAccess.value
-  || normalizedPermissionCodes.value.includes('manage_events')
-  || normalizedPermissionCodes.value.includes('configure_event_sanctions')
-  || normalizedPermissionCodes.value.includes('view_sanctions_dashboard')
-))
-const hasSavedCreateSanctionsTemplate = computed(() => savedCreateSanctionsTemplate.value != null)
-const savedCreateSanctionsTemplateSummary = computed(() => {
-  const template = savedCreateSanctionsTemplate.value
-  if (!template) return ''
-
-  const items = Array.isArray(template?.sanctionConfig?.items)
-    ? template.sanctionConfig.items.filter((item) => String(item?.item_name || '').trim())
-    : []
-  const delegations = Array.isArray(template?.sanctionsDelegations)
-    ? template.sanctionsDelegations
-    : []
-
-  const summaryBits = []
-  if (items.length) {
-    summaryBits.push(`${items.length} sanction item${items.length === 1 ? '' : 's'}`)
-  }
-  if (delegations.length) {
-    summaryBits.push(`${delegations.length} delegation${delegations.length === 1 ? '' : 's'}`)
-  }
-
-  const leadingNames = items
-    .slice(0, 2)
-    .map((item) => String(item.item_name || '').trim())
-    .filter(Boolean)
-
-  if (leadingNames.length) {
-    const suffix = items.length > leadingNames.length ? ', ...' : ''
-    return `${summaryBits.join(' â€¢ ') || 'Saved sanctions'}: ${leadingNames.join(', ')}${suffix}`
-  }
-
-  return summaryBits.join(' â€¢ ') || 'Saved sanctions template from your last event.'
-})
-
-let _isMounted = false
 
 onMounted(() => {
-  _isMounted = true
   document.addEventListener('pointerdown', handleDocumentPointerDown)
 })
 
 onBeforeUnmount(() => {
-  _isMounted = false
   document.removeEventListener('pointerdown', handleDocumentPointerDown)
-  destroyMap()
 })
 
 function formatDate(d) {
@@ -526,14 +321,6 @@ function goBack() {
   router.push('/governance') 
 }
 
-function openSanctionsDashboard() {
-  if (props.preview) {
-    router.push(withPreservedGovernancePreviewQuery(route, '/exposed/governance/events/sanctions'))
-    return
-  }
-  router.push('/governance/events/sanctions')
-}
-
 function goToEvent(event) {
   if (props.preview) {
     router.push(withPreservedGovernancePreviewQuery(route, { name: 'PreviewSgEventDetail', params: { id: event.id } }))
@@ -546,232 +333,19 @@ function getEventDisplayName(event) {
   return String(event?.title || event?.name || 'this event').trim()
 }
 
-function createEmptySanctionsConfig() {
-  return {
-    sanctions_enabled: false,
-    items: [],
-  }
-}
-
-function createEmptySanctionItem() {
-  return {
-    item_code: '',
-    item_name: '',
-    item_description: '',
-  }
-}
-
-function normalizeSanctionsConfigPayload(value = null) {
-  const items = Array.isArray(value?.items)
-    ? value.items
-      .map((item) => ({
-        item_code: String(item?.item_code || '').trim() || null,
-        item_name: String(item?.item_name || '').trim(),
-        item_description: String(item?.item_description || '').trim() || null,
-      }))
-      .filter((item) => item.item_name)
-    : []
-
-  return {
-    sanctions_enabled: Boolean(value?.sanctions_enabled),
-    items,
-  }
-}
-
-function normalizeSanctionsDelegationsPayload(value = []) {
-  if (!Array.isArray(value)) return []
-
-  return value
-    .map((item) => ({
-      delegated_to_governance_unit_id: Number(item?.delegated_to_governance_unit_id),
-      scope_type: String(item?.scope_type || 'unit').toLowerCase(),
-      is_active: item?.is_active !== false,
-      scope_json: item?.scope_json && typeof item.scope_json === 'object'
-        ? item.scope_json
-        : null,
-    }))
-    .filter((item) => Number.isFinite(item.delegated_to_governance_unit_id))
-}
-
-function resolveCreateSanctionsTemplateStorageKey() {
-  const { userId, sessionId } = getCurrentGovernanceCacheIdentity()
-  const scopeId = Number(governanceUnitId.value)
-  const scopeContext = normalizeGovernanceContext(governanceContext.value)
-  const keyParts = [GOVERNANCE_EVENT_SANCTIONS_TEMPLATE_STORAGE_KEY]
-
-  if (Number.isFinite(userId)) {
-    keyParts.push(`user-${userId}`)
-  } else if (sessionId) {
-    keyParts.push(`session-${sessionId}`)
-  }
-
-  if (Number.isFinite(scopeId)) {
-    keyParts.push(`unit-${scopeId}`)
-  }
-
-  if (scopeContext) {
-    keyParts.push(`context-${scopeContext.toLowerCase()}`)
-  }
-
-  return keyParts.join(':')
-}
-
-function buildCreateSanctionsTemplatePayload(sanctionsPayload = null) {
-  const sanctionConfig = normalizeSanctionsConfigPayload(sanctionsPayload?.sanctionConfig)
-  const sanctionsDelegations = normalizeSanctionsDelegationsPayload(sanctionsPayload?.sanctionsDelegations)
-
-  if (!sanctionConfig.sanctions_enabled) {
-    return null
-  }
-
-  return {
-    sanctionConfig,
-    sanctionsDelegations,
-    savedAt: new Date().toISOString(),
-  }
-}
-
-function hydrateCreateSanctionsTemplateFromStorage() {
-  savedCreateSanctionsTemplate.value = null
-
-  if (props.preview) return
-
-  try {
-    const rawValue = localStorage.getItem(resolveCreateSanctionsTemplateStorageKey())
-    if (!rawValue) return
-
-    const parsedValue = JSON.parse(rawValue)
-    const normalizedTemplate = buildCreateSanctionsTemplatePayload(parsedValue)
-    if (!normalizedTemplate) {
-      return
-    }
-
-    savedCreateSanctionsTemplate.value = normalizedTemplate
-  } catch {
-    localStorage.removeItem(resolveCreateSanctionsTemplateStorageKey())
-  }
-}
-
-function persistCreateSanctionsTemplateRecommendation(sanctionsPayload = null) {
-  if (props.preview) return
-
-  const normalizedTemplate = buildCreateSanctionsTemplatePayload(sanctionsPayload)
-  if (!normalizedTemplate) return
-
-  savedCreateSanctionsTemplate.value = normalizedTemplate
-  localStorage.setItem(
-    resolveCreateSanctionsTemplateStorageKey(),
-    JSON.stringify(normalizedTemplate)
-  )
-}
-
-function applySavedCreateSanctionsTemplate() {
-  if (!canConfigureEventSanctions.value || isSubmitting.value || !savedCreateSanctionsTemplate.value) return
-
-  createSanctionsConfig.value = normalizeSanctionsConfigPayload(savedCreateSanctionsTemplate.value.sanctionConfig)
-  createSanctionsDelegations.value = normalizeSanctionsDelegationsPayload(savedCreateSanctionsTemplate.value.sanctionsDelegations)
-  isCreateSanctionsEnabled.value = true
-}
-
-function enableCreateSanctionsDraft() {
-  const currentConfig = normalizeSanctionsConfigPayload(createSanctionsConfig.value)
-  createSanctionsConfig.value = {
-    sanctions_enabled: true,
-    items: currentConfig.items.length ? currentConfig.items : [createEmptySanctionItem()],
-  }
-}
-
-function resetCreateSanctionsState() {
-  createSanctionsConfig.value = createEmptySanctionsConfig()
-  createSanctionsDelegations.value = []
-}
-
-function resetEditingSanctionsState() {
-  editingSanctionsConfig.value = createEmptySanctionsConfig()
-  editingSanctionsDelegations.value = []
-  sanctionsPanelError.value = ''
-}
-
-async function loadGovernanceUnits(url) {
-  if (props.preview || !canConfigureEventSanctions.value) {
-    governanceUnits.value = []
-    return
-  }
-
-  try {
-    governanceUnits.value = await getGovernanceUnits(url, token.value)
-  } catch {
-    governanceUnits.value = []
-  }
-}
-
-async function loadEventSanctionSettings(eventId) {
-  if (!Number.isFinite(Number(eventId)) || !canConfigureEventSanctions.value) {
-    resetEditingSanctionsState()
-    return
-  }
-
-  if (props.preview) {
-    resetEditingSanctionsState()
-    editingSanctionsConfig.value = {
-      sanctions_enabled: true,
-      items: [
-        { item_code: 'community_service', item_name: 'Community Service', item_description: '' },
-        { item_code: 'reflection', item_name: 'Reflection Paper', item_description: '' },
-      ],
-    }
-    return
-  }
-
-  sanctionsPanelLoading.value = true
-  sanctionsPanelError.value = ''
-  try {
-    const [config, delegations] = await Promise.all([
-      getEventSanctionConfig(apiBaseUrl.value, token.value, eventId),
-      getEventSanctionDelegation(apiBaseUrl.value, token.value, eventId),
-    ])
-    editingSanctionsConfig.value = normalizeSanctionsConfigPayload(config)
-    editingSanctionsDelegations.value = normalizeSanctionsDelegationsPayload(delegations)
-  } catch (error) {
-    resetEditingSanctionsState()
-    sanctionsPanelError.value = error?.message || 'Unable to load sanctions settings.'
-  } finally {
-    sanctionsPanelLoading.value = false
-  }
-}
-
-async function persistEventSanctionSettings(eventId, sanctionsPayload = null) {
-  if (!canConfigureEventSanctions.value || !Number.isFinite(Number(eventId))) return
-  if (!sanctionsPayload) return
-
-  if (props.preview) return
-
-  const normalizedConfig = normalizeSanctionsConfigPayload(sanctionsPayload?.sanctionConfig)
-  const normalizedDelegations = normalizeSanctionsDelegationsPayload(sanctionsPayload?.sanctionsDelegations)
-
-  await upsertEventSanctionConfig(apiBaseUrl.value, token.value, eventId, normalizedConfig)
-  await upsertEventSanctionDelegation(apiBaseUrl.value, token.value, eventId, {
-    delegations: normalizedDelegations,
-  })
-}
-
 function closeEventEditor(force = false) {
   if (!force && isMutatingEvent.value) return
   isEventEditorOpen.value = false
   editingEvent.value = null
   eventEditorError.value = ''
-  sanctionsPanelLoading.value = false
-  resetEditingSanctionsState()
 }
 
-async function editManagedEvent(event) {
+function editManagedEvent(event) {
   if (!event?.id || isMutatingEvent.value) return
   closeAllEventSwipes()
   editingEvent.value = { ...event }
   eventEditorError.value = ''
-  resetEditingSanctionsState()
   isEventEditorOpen.value = true
-  await loadEventSanctionSettings(event.id)
 }
 
 function replaceEventInList(nextEvent) {
@@ -797,7 +371,7 @@ async function ensureGovernanceEventMutationParams(url) {
   return buildEventQueryParams()
 }
 
-async function saveEventEdits(payload, sanctionsPayload = null) {
+async function saveEventEdits(payload) {
   if (!editingEvent.value?.id || isMutatingEvent.value) return
 
   if (props.preview) {
@@ -805,11 +379,6 @@ async function saveEventEdits(payload, sanctionsPayload = null) {
       ...editingEvent.value,
       ...payload,
     })
-    if (canConfigureEventSanctions.value) {
-      editingSanctionsConfig.value = normalizeSanctionsConfigPayload(sanctionsPayload?.sanctionConfig)
-      editingSanctionsDelegations.value = normalizeSanctionsDelegationsPayload(sanctionsPayload?.sanctionsDelegations)
-      persistCreateSanctionsTemplateRecommendation(sanctionsPayload)
-    }
     closeEventEditor(true)
     return
   }
@@ -826,17 +395,6 @@ async function saveEventEdits(payload, sanctionsPayload = null) {
       payload,
       mutationParams
     )
-
-    try {
-      await persistEventSanctionSettings(editingEvent.value.id, sanctionsPayload)
-      sanctionsPanelError.value = ''
-      persistCreateSanctionsTemplateRecommendation(sanctionsPayload)
-    } catch (sanctionsError) {
-      sanctionsPanelError.value = sanctionsError?.message || 'Unable to update sanctions settings.'
-      replaceEventInList(updatedEvent)
-      eventEditorError.value = 'Event details were saved, but sanctions settings failed to update.'
-      return
-    }
 
     replaceEventInList(updatedEvent)
     closeEventEditor(true)
@@ -885,115 +443,11 @@ async function deleteManagedEvent(event) {
 }
 
 function openCreateForm() {
-  hydrateCreateSanctionsTemplateFromStorage()
-  resetCreateSanctionsState()
-  isCreateSanctionsEnabled.value = false
   isCreating.value = true
-  initMap()
-}
-
-function destroyMap() {
-  try {
-    if (markerInstance) {
-      markerInstance.remove()
-      markerInstance = null
-    }
-    if (mapInstance) {
-      mapInstance.off()
-      mapInstance.remove()
-      mapInstance = null
-    }
-  } catch {
-    mapInstance = null
-    markerInstance = null
-  }
-  if (typeof window !== 'undefined') {
-    delete window._sgLeaflet
-  }
 }
 
 function closeCreateForm() {
   isCreating.value = false
-  resetCreateSanctionsState()
-  isCreateSanctionsEnabled.value = false
-  setTimeout(() => {
-    destroyMap()
-  }, 400)
-}
-
-function initMap() {
-  if (mapInstance) return
-  nextTick(() => {
-    setTimeout(async () => {
-      const el = document.getElementById('sg-leaflet-preview')
-      if (!el) return
-      
-      try {
-        const LeafletModule = await import('leaflet')
-        await import('leaflet/dist/leaflet.css')
-        const L = LeafletModule.default || LeafletModule
-        
-        mapInstance = L.map(el).setView([14.5995, 120.9842], 13) // Default to Manila
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(mapInstance)
-        
-        // Define global L reference purely for the marker helper
-        window._sgLeaflet = L
-        
-        mapInstance.on('click', (e) => {
-          setMapMarker(e.latlng.lat, e.latlng.lng)
-        })
-        
-        if (form.value.latitude && form.value.longitude) {
-          setMapMarker(form.value.latitude, form.value.longitude)
-        }
-      } catch (err) {
-        console.error('Failed to load Leaflet:', err)
-      }
-    }, 350) // wait for element expansion animation
-  })
-}
-
-function setMapMarker(lat, lng) {
-  form.value.latitude = parseFloat(lat.toFixed(6))
-  form.value.longitude = parseFloat(lng.toFixed(6))
-  if (markerInstance) {
-    markerInstance.setLatLng([lat, lng])
-  } else {
-    const L = window._sgLeaflet
-    if (L) markerInstance = L.marker([lat, lng]).addTo(mapInstance)
-  }
-  if (mapInstance) mapInstance.setView([lat, lng])
-}
-
-async function useCurrentLocation() {
-  try {
-    const pos = await getCurrentPositionOrThrow({
-      enableHighAccuracy: true,
-      timeout: 25000,
-      maximumAge: 10000,
-    })
-    setMapMarker(pos.latitude, pos.longitude)
-  } catch (error) {
-    alert(error?.message || 'Unable to retrieve your location. Make sure GPS or device location services are turned on, then try again.')
-  }
-}
-
-function clearLocation() {
-  form.value.latitude = null
-  form.value.longitude = null
-  if (markerInstance) {
-    markerInstance.remove()
-    markerInstance = null
-  }
-}
-
-function toggleFullscreenMap() {
-  isMapFullscreen.value = !isMapFullscreen.value
-  setTimeout(() => {
-    if (mapInstance) mapInstance.invalidateSize()
-  }, 400)
 }
 
 function getEventSwipeOffset(eventId) {
@@ -1025,8 +479,7 @@ function closeAllEventSwipes() {
 
 function handleDocumentPointerDown(event) {
   if (!hasOpenEventSwipe.value) return
-  const target = event.target
-  if (target instanceof Element && target.closest('.sg-event-swipe-container')) return
+  if (event.target.closest('.sg-event-swipe-container')) return
   closeAllEventSwipes()
 }
 
@@ -1466,17 +919,6 @@ async function createEventWithResolvedScope(url, payload) {
   throw lastError || new Error('Unable to create the event.')
 }
 
-function toggleCreateSanctionsEnabled() {
-  if (isSubmitting.value || !canConfigureEventSanctions.value) return
-  isCreateSanctionsEnabled.value = !isCreateSanctionsEnabled.value
-  if (!isCreateSanctionsEnabled.value) {
-    resetCreateSanctionsState()
-    return
-  }
-
-  enableCreateSanctionsDraft()
-}
-
 async function submitEvent() {
   isSubmitting.value = true
   try {
@@ -1497,20 +939,7 @@ async function submitEvent() {
       return
     }
 
-    const createdEvent = await createEventWithResolvedScope(apiBaseUrl.value, buildCreateEventPayload())
-    try {
-      if (isCreateSanctionsEnabled.value) {
-        enableCreateSanctionsDraft()
-        const sanctionsPayload = {
-          sanctionConfig: createSanctionsConfig.value,
-          sanctionsDelegations: createSanctionsDelegations.value,
-        }
-        await persistEventSanctionSettings(createdEvent?.id, sanctionsPayload)
-        persistCreateSanctionsTemplateRecommendation(sanctionsPayload)
-      }
-    } catch (sanctionsError) {
-      alert(sanctionsError?.message || 'Event was created but sanctions settings could not be saved.')
-    }
+    await createEventWithResolvedScope(apiBaseUrl.value, buildCreateEventPayload())
     closeCreateForm()
     resetEventForm()
 
@@ -1529,14 +958,6 @@ watch(
   async ([url]) => {
     if (!url || sgLoading.value) return
     await loadEvents(url)
-  },
-  { immediate: true }
-)
-
-watch(
-  [governanceUnitId, governanceContext],
-  () => {
-    hydrateCreateSanctionsTemplateFromStorage()
   },
   { immediate: true }
 )
@@ -1576,14 +997,12 @@ async function loadEvents(url) {
       events.value = await getEvents(url, token.value, buildEventQueryParams())
     }
 
-    await loadGovernanceUnits(url)
-
     if (keepDefaultScope) {
       return
     }
 
     // 3. Refresh governance access in the background so SSG, SG, and ORG users stay in the right scope.
-    getGovernanceAccess(url, token.value).then((access) => { if (!_isMounted) return;
+    getGovernanceAccess(url, token.value).then((access) => {
       const previousUnitId = governanceUnitId.value
       const previousContext = governanceContext.value
       syncGovernanceEventContext(resolveGovernanceEventUnit(access))
@@ -1593,7 +1012,7 @@ async function loadEvents(url) {
         || governanceContext.value !== previousContext
       ) {
         getEvents(url, token.value, buildEventQueryParams())
-          .then((res) => { if (_isMounted) events.value = res })
+          .then((res) => { events.value = res })
       }
     }).catch(() => {})
 
@@ -1618,7 +1037,6 @@ function resetEventForm() {
     radius_meters: 100,
     gps_accuracy: 50,
   }
-  resetCreateSanctionsState()
 }
 
 function resolveNextPreviewEventId() {
@@ -1631,30 +1049,10 @@ function resolveNextPreviewEventId() {
 
 .sg-sub-header { justify-content: flex-start; }
 
-.sg-title-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
-}
-
 .sg-sub-toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 14px;
-  flex-wrap: wrap;
-}
-.sg-sub-search-shell--grow {
-  flex: 1 1 280px;
-  min-width: 0;
-}
-.sg-sub-action--sanctions {
-  align-self: stretch;
-  border-radius: 999px;
-  min-height: 52px;
-  padding: 0 18px;
-  font-weight: 700;
-  flex: 0 0 auto;
 }
 .sg-sub-search-shell {
   background: var(--color-surface);
@@ -1683,20 +1081,19 @@ function resolveNextPreviewEventId() {
   background: var(--color-primary); /* Lime Green form base */
   border-radius: 999px;
   overflow: hidden;
-  flex: 0 0 auto;
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  max-height: 52px; /* matches toolbar height */
+  transform-origin: top right;
+  flex-shrink: 0;
   width: auto;
-  max-width: 100%;
 }
-.sg-create-panel {
-  position: relative;
-  background: var(--color-primary);
-  border-radius: 32px;
-  overflow: visible;
-  z-index: 2;
+.sg-create-wrapper.is-expanded {
+  max-height: 1200px;
+  border-radius: 44px;
+  width: 100%;
 }
-.sg-create-panel.map-is-fullscreen {
-  overflow: visible !important;
-  z-index: 99999;
+.sg-sub-toolbar.is-creating {
+  flex-direction: column;
 }
 
 .sg-create-event-btn {
@@ -1717,10 +1114,6 @@ function resolveNextPreviewEventId() {
   transition: filter 0.15s ease;
   white-space: nowrap;
 }
-.sg-create-event-btn__label {
-  display: inline-block;
-  margin-top: 1px;
-}
 .sg-create-event-btn:hover {
   filter: brightness(1.04);
 }
@@ -1730,13 +1123,12 @@ function resolveNextPreviewEventId() {
 }
 
 .sg-create-form {
-  padding: 0 clamp(16px, 4vw, 24px) clamp(24px, 4vw, 32px);
+  padding: 0 24px 32px 24px;
   color: var(--color-primary-text);
   display: flex;
   flex-direction: column;
   gap: 16px;
   animation: fade-in 0.4s ease forwards;
-  min-width: 0;
 }
 @keyframes fade-in {
   from { opacity: 0; }
@@ -1751,17 +1143,9 @@ function resolveNextPreviewEventId() {
 }
 
 .sg-event-fields {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-.sg-event-fields-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-}
-.sg-field-label--wide {
-  grid-column: 1 / -1;
 }
 .sg-field-label {
   display: flex;
@@ -1771,7 +1155,6 @@ function resolveNextPreviewEventId() {
   font-weight: 700;
   color: var(--color-primary-text);
   padding-left: 2px;
-  min-width: 0;
 }
 .sg-field-label input {
   background: var(--color-surface);
@@ -1791,93 +1174,10 @@ function resolveNextPreviewEventId() {
 
 /* Map specific styling */
 .sg-map-section {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  padding: 16px;
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--color-surface) 18%, transparent);
-}
-.sg-map-section-title {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--color-primary-text);
-  letter-spacing: 0.02em;
-}
-.sg-map-frame {
-  position: relative;
-  width: 100%;
-  min-height: 220px;
-  height: clamp(220px, 34vw, 280px);
-}
-.sg-map-container {
-  position: absolute; /* positioned inside the protective 200px height wrapper */
-  top: 0; left: 0; right: 0; bottom: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 16px;
-  overflow: hidden;
-  z-index: 10;
-}
-@keyframes map-pop-in {
-  from { opacity: 0; transform: scale(0.98) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-.sg-map-container.is-fullscreen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 0;
-  z-index: 999999;
-  box-shadow: 0 0 100vw rgba(0,0,0,0.8);
-  animation: map-pop-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.sg-leaflet-preview {
-  width: 100%;
-  height: 100%;
-  background: #e2e8f0;
-}
-.sg-map-fullscreen-overlay {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10000; /* above leaflet ui */
-}
-.sg-map-confirm-btn {
-  background: var(--color-primary);
-  color: #000;
-  font-weight: 800;
-  padding: 12px 24px;
-  border-radius: 999px;
-  border: none;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  cursor: pointer;
-}
-
-.sg-map-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.sg-map-btn {
-  flex: 1 1 180px;
-  background: var(--color-surface);
-  border: none;
-  border-radius: 999px;
-  padding: 14px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--color-text-primary);
+  margin-top: 8px;
 }
 
 .sg-coord-grid {
@@ -1892,10 +1192,10 @@ function resolveNextPreviewEventId() {
   gap: 12px;
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.5;
   color: var(--color-primary-text);
   cursor: pointer;
-  margin: 0;
+  margin-top: 12px;
+  margin-bottom: 24px;
 }
 .sg-checkbox-label input {
   display: none;
@@ -1927,207 +1227,12 @@ function resolveNextPreviewEventId() {
   font-weight: 800;
   cursor: pointer;
   width: 100%;
-  min-height: 54px;
 }
 .sg-form-note {
   font-size: 11px;
   text-align: center;
   color: color-mix(in srgb, var(--color-primary-text) 70%, transparent);
   margin: 0;
-}
-.sg-sanctions-panel {
-  display: grid;
-  gap: 12px;
-  margin: 8px 0 4px;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--color-primary-text) 18%, transparent);
-  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
-}
-.sg-sanctions-panel--locked {
-  border-color: color-mix(in srgb, #f59e0b 32%, transparent);
-}
-.sg-sanctions-recommendation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--color-primary) 14%, white);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
-}
-.sg-sanctions-recommendation__content {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-.sg-sanctions-recommendation__eyebrow {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
-}
-.sg-sanctions-recommendation__title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--color-text-primary);
-}
-.sg-sanctions-recommendation__copy {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: color-mix(in srgb, var(--color-text-secondary) 86%, transparent);
-}
-.sg-sanctions-recommendation__action {
-  border: none;
-  border-radius: 999px;
-  background: var(--color-nav);
-  color: var(--color-nav-text);
-  font-size: 12px;
-  font-weight: 800;
-  min-height: 36px;
-  padding: 0 16px;
-  cursor: pointer;
-  flex: 0 0 auto;
-}
-.sg-sanctions-recommendation__action:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.sg-sanctions-panel__header {
-  display: grid;
-  gap: 2px;
-}
-.sg-sanctions-panel__eyebrow {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
-}
-.sg-sanctions-panel__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--color-text-primary);
-}
-.sg-sanctions-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.sg-sanctions-toggle__label {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-.sg-sanctions-toggle__hint {
-  margin: -2px 0 2px;
-  font-size: 11px;
-  font-weight: 700;
-  color: color-mix(in srgb, #b45309 80%, transparent);
-}
-.sg-sanctions-toggle__button {
-  border: 1px solid color-mix(in srgb, var(--color-text-primary) 20%, transparent);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-primary);
-  font-weight: 700;
-  font-size: 12px;
-  min-height: 32px;
-  padding: 0 12px;
-  cursor: pointer;
-}
-.sg-sanctions-toggle__button--enabled {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  border-color: transparent;
-}
-.sg-sanctions-toggle__button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-@media (max-width: 900px) {
-  .sg-sub-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .sg-sub-search-shell--grow,
-  .sg-sub-action--sanctions,
-  .sg-create-wrapper {
-    width: 100%;
-  }
-
-  .sg-sub-search-input {
-    height: 44px;
-    font-size: 14px;
-  }
-
-  .sg-sub-search-shell {
-    padding: 0 16px;
-  }
-
-  .sg-sub-action--sanctions,
-  .sg-create-event-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .sg-create-form-header {
-    justify-content: flex-start;
-  }
-
-  .sg-event-fields-grid,
-  .sg-coord-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .sg-field-label--wide {
-    grid-column: auto;
-  }
-
-  .sg-map-section {
-    padding: 14px;
-    border-radius: 20px;
-  }
-
-  .sg-map-frame {
-    min-height: 200px;
-    height: 220px;
-  }
-
-  .sg-map-controls,
-  .sg-sanctions-toggle,
-  .sg-sanctions-recommendation {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .sg-map-btn,
-  .sg-sanctions-toggle__button,
-  .sg-sanctions-recommendation__action {
-    width: 100%;
-  }
-
-  .sg-map-fullscreen-overlay {
-    left: 16px;
-    right: 16px;
-    transform: none;
-    bottom: 24px;
-  }
-
-  .sg-map-confirm-btn {
-    width: 100%;
-  }
 }
 
 .sg-summary-grid {

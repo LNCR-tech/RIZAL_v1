@@ -13,11 +13,25 @@ let HapticsPlugin = null
 let StatusBarPlugin = null
 let AppPlugin = null
 
+function wrapPlugin(plugin, methodNames = []) {
+    if (!plugin) return null
+
+    return methodNames.reduce((wrapped, methodName) => {
+        if (typeof plugin?.[methodName] !== 'function') return wrapped
+
+        wrapped[methodName] = (...args) => plugin[methodName](...args)
+        return wrapped
+    }, {})
+}
+
 async function loadHaptics() {
     if (HapticsPlugin) return HapticsPlugin
     try {
         const mod = await import('@capacitor/haptics')
-        HapticsPlugin = mod.Haptics
+        HapticsPlugin = wrapPlugin(mod.Haptics, [
+            'impact',
+            'notification',
+        ])
         return HapticsPlugin
     } catch {
         return null
@@ -28,7 +42,11 @@ async function loadStatusBar() {
     if (StatusBarPlugin) return StatusBarPlugin
     try {
         const mod = await import('@capacitor/status-bar')
-        StatusBarPlugin = mod.StatusBar
+        StatusBarPlugin = wrapPlugin(mod.StatusBar, [
+            'setBackgroundColor',
+            'hide',
+            'show',
+        ])
         return StatusBarPlugin
     } catch {
         return null
@@ -39,7 +57,9 @@ async function loadApp() {
     if (AppPlugin) return AppPlugin
     try {
         const mod = await import('@capacitor/app')
-        AppPlugin = mod.App
+        AppPlugin = wrapPlugin(mod.App, [
+            'addListener',
+        ])
         return AppPlugin
     } catch {
         return null

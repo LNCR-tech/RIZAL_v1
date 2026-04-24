@@ -136,6 +136,8 @@ const chartAriaLabel = computed(() => (
 
 <style scoped>
 .governance-breakdown {
+  width: 100%;
+  min-width: 0;
   display: grid;
   gap: 18px;
 }
@@ -149,7 +151,7 @@ const chartAriaLabel = computed(() => (
 
 .governance-breakdown__title {
   margin: 0;
-  font-size: 18px;
+  font-size: clamp(16px, 5vw, 18px);
   line-height: 1;
   letter-spacing: -0.04em;
   font-weight: 800;
@@ -159,18 +161,19 @@ const chartAriaLabel = computed(() => (
 .governance-breakdown__view-switch {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: clamp(6px, 2vw, 8px);
+  flex-shrink: 0;
 }
 
 .governance-breakdown__view-button {
   min-width: 0;
   height: 32px;
-  padding: 0 14px;
+  padding: 0 clamp(10px, 3.4vw, 14px);
   border: none;
   border-radius: 999px;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: clamp(11px, 3.2vw, 12px);
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
@@ -183,10 +186,10 @@ const chartAriaLabel = computed(() => (
 }
 
 .governance-breakdown__chart {
-  min-height: 236px;
+  min-height: clamp(200px, 58vw, 236px);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: clamp(8px, 2.4vw, 12px);
   align-items: stretch;
 }
 
@@ -209,27 +212,27 @@ const chartAriaLabel = computed(() => (
   width: max-content;
   min-width: 100%;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(60px, 60px);
+  grid-auto-columns: minmax(52px, 52px);
 }
 
 .governance-breakdown__column {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 174px) minmax(42px, auto);
-  gap: 8px;
+  grid-template-rows: auto minmax(0, clamp(140px, 44vw, 174px)) minmax(38px, auto);
+  gap: clamp(6px, 1.8vw, 8px);
   justify-items: center;
 }
 
 .governance-breakdown__value-pill {
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 clamp(8px, 2.4vw, 10px);
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--color-bg) 54%, var(--color-surface));
   color: var(--color-text-primary);
-  font-size: 11px;
+  font-size: clamp(10px, 2.8vw, 11px);
   font-weight: 800;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -242,13 +245,13 @@ const chartAriaLabel = computed(() => (
 
 .governance-breakdown__track {
   position: relative;
-  width: 100%;
+  width: min(100%, clamp(18px, 5.5vw, 26px));
   height: 100%;
   min-height: 0;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 8px 8px 10px;
+  padding: clamp(5px, 1.8vw, 8px) clamp(3px, 1vw, 4px) clamp(8px, 2.2vw, 10px);
   overflow: hidden;
   border-radius: 999px;
   background:
@@ -264,7 +267,7 @@ const chartAriaLabel = computed(() => (
   position: relative;
   z-index: 1;
   width: 100%;
-  min-height: 10px;
+  min-height: 12px;
   border-radius: 999px;
   background:
     linear-gradient(
@@ -283,7 +286,7 @@ const chartAriaLabel = computed(() => (
 }
 
 .governance-breakdown__column-copy strong {
-  font-size: 11px;
+  font-size: clamp(10px, 2.9vw, 11px);
   line-height: 1.15;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -362,16 +365,16 @@ const chartAriaLabel = computed(() => (
   }
 
   .governance-breakdown__chart {
-    grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+    gap: 8px;
   }
 
   .governance-breakdown__chart.is-scrollable {
-    grid-auto-columns: minmax(56px, 56px);
+    grid-auto-columns: minmax(48px, 48px);
   }
 
   .governance-breakdown__column {
-    grid-template-rows: auto minmax(0, 158px) minmax(48px, auto);
+    grid-template-rows: auto minmax(0, 144px) minmax(42px, auto);
   }
 
   .governance-breakdown__track {
@@ -385,6 +388,25 @@ const chartAriaLabel = computed(() => (
   .governance-breakdown__table-label strong,
   .governance-breakdown__table-metrics strong {
     font-size: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .governance-breakdown__header {
+    gap: 10px;
+  }
+
+  .governance-breakdown__chart {
+    grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
+    gap: 6px;
+  }
+
+  .governance-breakdown__chart.is-scrollable {
+    grid-auto-columns: minmax(44px, 44px);
+  }
+
+  .governance-breakdown__column {
+    grid-template-rows: auto minmax(0, 132px) minmax(38px, auto);
   }
 }
 </style>

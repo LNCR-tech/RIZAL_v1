@@ -26,6 +26,7 @@ import {
 import {
   getCurrentPositionOrThrow,
   getCurrentPositionWithinAccuracyOrThrow,
+  prepareLocationAccess,
   requestCameraPermission,
 } from '@/services/devicePermissions.js'
 import {
@@ -56,6 +57,8 @@ const stampFormatter = new Intl.DateTimeFormat('en-PH', {
   hour: 'numeric',
   minute: '2-digit',
 })
+const faceScanTimeoutMs = Number(import.meta.env.VITE_FACE_SCAN_TIMEOUT_MS ?? 3000)
+const faceScanGateEnabled = import.meta.env.VITE_FACE_SCAN_GATE !== 'false'
 
 const ACTION_RANK = {
   'sign-out': 0,
@@ -81,7 +84,7 @@ function normalizeAction(value) {
 }
 
 function isSignOutAction(value) {
-  return ['sign_out', 'signed_out', 'check_out', 'checkout', 'time_out', 'out'].includes(
+  return ['sign_out', 'signed_out', 'check_out', 'checkout', 'time_out', 'timeout', 'out'].includes(
     normalizeAction(value)
   )
 }
@@ -700,6 +703,20 @@ export function useGatherAttendance(previewSource = false) {
     focusVideoEl.value = el
   }
 
+  function getCameraProcessingVideoEl() {
+    const candidates = [
+      backgroundVideoEl.value,
+      focusVideoEl.value,
+    ]
+
+    return candidates.find((el) => (
+      el
+      && el.readyState >= 2
+      && el.videoWidth > 0
+      && el.videoHeight > 0
+    )) || candidates.find(Boolean) || null
+  }
+
   async function attachStreamToVideo(el, readyRef) {
     if (!el || !mediaStream.value) return false
 
@@ -831,7 +848,7 @@ export function useGatherAttendance(previewSource = false) {
       faceDetectorInstance = await initFaceScanDetector({
         wasmBaseUrl:
           import.meta.env.VITE_FACE_DETECTOR_WASM_URL
-          || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm',
+          || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
         modelAssetPath:
           import.meta.env.VITE_FACE_DETECTOR_MODEL_URL
           || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
@@ -848,7 +865,7 @@ export function useGatherAttendance(previewSource = false) {
   }
 
   async function startFaceDetection() {
-    if (!cameraReady.value || !focusVideoEl.value) return
+    if (!cameraReady.value || !getCameraProcessingVideoEl()) return
 
     const detectorReady = await ensureFaceDetector()
     if (!detectorReady) {
@@ -865,7 +882,8 @@ export function useGatherAttendance(previewSource = false) {
     const minFrames = Number(import.meta.env.VITE_FACE_SCAN_MIN_FRAMES ?? 1)
 
     const loop = (nowMs) => {
-      if (!focusVideoEl.value || !cameraReady.value) return
+      const videoEl = getCameraProcessingVideoEl()
+      if (!videoEl || !cameraReady.value) return
 
       if (nowMs - lastDetectAt < detectIntervalMs) {
         faceDetectRaf = requestAnimationFrame(loop)
@@ -874,7 +892,7 @@ export function useGatherAttendance(previewSource = false) {
 
       lastDetectAt = nowMs
       try {
-        const result = faceDetectorInstance.detectForVideo(focusVideoEl.value, nowMs)
+        const result = faceDetectorInstance.detectForVideo(videoEl, nowMs)
         const hasFace = Array.isArray(result?.detections) && result.detections.length > 0
         if (hasFace) {
           streak += 1
@@ -893,6 +911,55 @@ export function useGatherAttendance(previewSource = false) {
     }
 
     faceDetectRaf = requestAnimationFrame(loop)
+  }
+
+  function waitForFaceOrTimeout(timeoutMs = faceScanTimeoutMs) {
+    return new Promise((resolve) => {
+      if (!faceScanGateEnabled || faceDetected.value) {
+        resolve('detected')
+        return
+      }
+
+      let stopFaceWatch = () => {}
+      let stopCameraWatch = () => {}
+      let timer = null
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer)
+        stopFaceWatch()
+        stopCameraWatch()
+      }
+
+      timer = window.setTimeout(() => {
+        cleanup()
+        resolve('timeout')
+      }, timeoutMs)
+
+      stopFaceWatch = watch(faceDetected, (detected) => {
+        if (!detected) return
+        cleanup()
+        resolve('detected')
+      })
+
+      stopCameraWatch = watch(cameraReady, (ready) => {
+        if (ready) return
+        cleanup()
+        resolve('camera-not-ready')
+      })
+    })
+  }
+
+  async function waitForFaceDetection() {
+    if (!faceScanGateEnabled || faceDetected.value) return true
+
+    const detectorReady = await ensureFaceDetector()
+    if (!detectorReady) {
+      faceDetected.value = true
+      return true
+    }
+
+    await startFaceDetection()
+    return (await waitForFaceOrTimeout()) === 'detected'
   }
 
   async function refreshLocationLabel(coords, preferredLabel = '') {
@@ -963,6 +1030,31 @@ export function useGatherAttendance(previewSource = false) {
     }
   }
 
+  async function warmLocationAccess() {
+    if (preview.value) return null
+
+    const access = await prepareLocationAccess({
+      enableHighAccuracy: false,
+      timeout: Math.max(Number(import.meta.env.VITE_GEOLOCATION_TIMEOUT_MS ?? 7000), 7000),
+      maximumAge: 45_000,
+    }).catch(() => null)
+
+    const coords = access?.position
+    if (!coords) {
+      return access
+    }
+
+    userCoords.value = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy ?? null,
+      capturedAt: coords.capturedAt || new Date().toISOString(),
+    }
+
+    await refreshLocationLabel(userCoords.value).catch(() => null)
+    return access
+  }
+
   async function verifyCurrentLocation(coords) {
     const activeModel = selectedEvent.value
     if (!activeModel?.event) {
@@ -1018,7 +1110,7 @@ export function useGatherAttendance(previewSource = false) {
   }
 
   function captureVideoFrame() {
-    const element = focusVideoEl.value || backgroundVideoEl.value
+    const element = getCameraProcessingVideoEl()
     if (!element || element.videoWidth <= 0 || element.videoHeight <= 0) {
       throw new Error('Cannot verify face right now. Camera preview is not ready.')
     }
@@ -1285,9 +1377,8 @@ export function useGatherAttendance(previewSource = false) {
         throw new Error('Camera access is required to continue.')
       }
 
-      if (!faceDetected.value) {
-        throw new Error('Cannot verify face. Center your face inside the frame and try again.')
-      }
+      loadingMessage.value = 'Checking face...'
+      await waitForFaceDetection()
 
       const coords = await resolveCurrentPosition({ precise: true })
       loadingMessage.value = 'Verifying location...'
@@ -1351,10 +1442,11 @@ export function useGatherAttendance(previewSource = false) {
     if (!preview.value) {
       await refreshAttendanceRecords().catch(() => null)
     }
-    await Promise.allSettled([
-      refreshEventStatuses(Number.isFinite(Number(selectedEventId.value)) ? [Number(selectedEventId.value)] : []),
-      startCamera(),
-    ])
+    await refreshEventStatuses(
+      Number.isFinite(Number(selectedEventId.value)) ? [Number(selectedEventId.value)] : []
+    ).catch(() => null)
+    await warmLocationAccess().catch(() => null)
+    await startCamera().catch(() => null)
     await startFaceDetection()
     startEventStatusPolling()
   }

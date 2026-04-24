@@ -91,16 +91,15 @@
 
         <Transition name="mobile-search">
           <div v-if="isAiOpen" class="mobile-dashboard__ai-panel">
-            <TransitionGroup name="mobile-dashboard__bubble" tag="div" class="mobile-dashboard__messages-inner" ref="scrollEl">
-              <template v-for="message in messages" :key="message.id">
-                <div
-                  v-if="message.sender === 'user' || (message.text && message.text.trim().length > 0)"
-                  :class="['mobile-dashboard__bubble', message.sender === 'ai' ? 'mobile-dashboard__bubble--ai' : 'mobile-dashboard__bubble--user']"
-                >
-                  <ChatMarkdownMessage :text="message.text" />
-                </div>
-              </template>
-            </TransitionGroup>
+            <div class="mobile-dashboard__ai-messages" ref="scrollEl">
+              <div
+                v-for="message in messages"
+                :key="message.id"
+                :class="['mobile-dashboard__bubble', message.sender === 'ai' ? 'mobile-dashboard__bubble--ai' : 'mobile-dashboard__bubble--user']"
+              >
+                {{ message.text }}
+              </div>
+            </div>
 
             <div class="mobile-dashboard__ai-input">
               <input
@@ -176,7 +175,6 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Search, Send } from 'lucide-vue-next'
 import { secondaryAuraLogo, surfaceAuraLogo } from '@/config/theme.js'
-import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
@@ -189,7 +187,6 @@ import {
 import { resolveDashboardAiOverview } from '@/services/dashboardAiOverview.js'
 import { primeLocationAccess } from '@/services/devicePermissions.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
-import { resolveChatLocation } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
@@ -315,7 +312,7 @@ watch(searchQuery, (value) => {
 })
 
 function toggleAi() {
-  router.push(resolveChatLocation())
+  isAiOpen.value = !isAiOpen.value
 }
 
 function openEvent(event) {

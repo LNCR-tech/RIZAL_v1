@@ -33,13 +33,6 @@
             <!-- Minimize → return to mini pill -->
             <button
               class="chat-icon-btn"
-              aria-label="Copy conversation"
-              @click="copyConversation"
-            >
-              <Copy :size="15" />
-            </button>
-            <button
-              class="chat-icon-btn"
               aria-label="Minimize chat"
               @click="minimizeToMini"
             >
@@ -56,91 +49,59 @@
           </div>
         </div>
 
-        <div class="chat-body">
-          <div class="chat-sidebar" aria-label="Conversation list">
-            <div class="chat-sidebar-header">
-              <div class="chat-sidebar-title">Chats</div>
-              <button class="chat-sidebar-new" type="button" @click="startNewConversation">
-                <Plus :size="15" />
-                New
-              </button>
-            </div>
+        <!-- ── Messages area ──────────────────────────────────────── -->
+        <div class="chat-messages" ref="scrollEl">
+          <TransitionGroup name="bubble" tag="div" class="chat-messages-inner">
+            <div
+              v-for="msg in messages"
+              :key="msg.id"
+              :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
+            >
+              <div v-if="msg.html" v-html="msg.html" class="chat-html-content" />
+              <template v-else>{{ msg.text }}</template>
 
-            <div v-if="isLoadingConversations" class="chat-sidebar-meta">Loading…</div>
-            <div v-else-if="conversationsError" class="chat-sidebar-meta chat-sidebar-meta--error">
-              {{ conversationsError }}
-            </div>
-            <div v-else-if="!conversations?.length" class="chat-sidebar-meta">No conversations yet.</div>
-
-            <div v-if="conversations?.length" class="chat-sidebar-list">
-              <button
-                v-for="c in conversations"
-                :key="c.conversation_id"
-                type="button"
-                class="chat-sidebar-item"
-                :class="String(c.conversation_id) === String(conversationId || '') ? 'chat-sidebar-item--active' : ''"
-                @click="selectConversation(c.conversation_id)"
-              >
-                <div class="chat-sidebar-item-title">
-                  {{ c.title || c.last_message || 'New chat' }}
-                </div>
+              <div v-if="msg.actions && msg.actions.length" class="chat-actions">
                 <button
-                  type="button"
-                  class="chat-sidebar-item-delete"
-                  aria-label="Delete conversation"
-                  title="Delete"
-                  @click.stop="removeConversation(c.conversation_id)"
+                  v-for="(action, i) in msg.actions"
+                  :key="i"
+                  class="chat-action-btn"
+                  @click="handleAction(action)"
                 >
-                  <Trash2 :size="14" />
-                </button>
-              </button>
-            </div>
-          </div>
-
-          <div class="chat-main">
-            <!-- ── Messages area ──────────────────────────────────────── -->
-            <div class="chat-messages" ref="scrollEl">
-              <TransitionGroup name="bubble" tag="div" class="chat-messages-inner">
-                <template v-for="msg in messages" :key="msg.id">
-                  <div
-                    v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
-                    :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
-                  >
-                    <ChatMarkdownMessage :text="msg.text" />
-                  </div>
-                </template>
-
-                <!-- Typing indicator -->
-                <div v-if="isTyping" key="typing" class="bubble bubble--ai bubble--typing">
-                  <span class="dot" style="animation-delay: 0ms"   />
-                  <span class="dot" style="animation-delay: 150ms" />
-                  <span class="dot" style="animation-delay: 300ms" />
-                </div>
-              </TransitionGroup>
-            </div>
-
-            <!-- ── Input bar ──────────────────────────────────────────── -->
-            <div class="chat-input-wrap">
-              <div class="chat-input-row">
-                <input
-                  ref="inputEl"
-                  v-model="inputText"
-                  class="chat-input"
-                  type="text"
-                  placeholder="Ask Aura anything..."
-                  :disabled="isTyping"
-                  @keyup.enter="sendMessage"
-                />
-                <button
-                  class="chat-send-btn"
-                  :disabled="!inputText.trim() || isTyping"
-                  aria-label="Send message"
-                  @click="sendMessage"
-                >
-                  <Send :size="16" />
+                  <component v-if="action.icon" :is="action.icon" :size="14" class="action-icon" />
+                  <span>{{ action.label }}</span>
                 </button>
               </div>
             </div>
+
+            <!-- Typing indicator -->
+            <div v-if="isTyping" key="typing" class="bubble bubble--ai bubble--typing">
+              <span class="dot" style="animation-delay: 0ms"   />
+              <span class="dot" style="animation-delay: 150ms" />
+              <span class="dot" style="animation-delay: 300ms" />
+            </div>
+          </TransitionGroup>
+        </div>
+
+        <!-- ── Input bar ──────────────────────────────────────────── -->
+        <div class="chat-input-wrap">
+          <div class="chat-input-row">
+            <input
+              ref="inputEl"
+              v-model="inputText"
+              class="chat-input"
+              type="text"
+              placeholder="Ask Aura anything..."
+              :disabled="isTyping"
+              @keyup.enter="sendMessage"
+            />
+            <button
+              class="chat-send-btn"
+              :disabled="!inputText.trim() || isTyping"
+              aria-label="Send message"
+              @click="sendMessage"
+            >
+              <Send :size="16" />
+            </button>
           </div>
         </div>
       </div>
@@ -150,10 +111,11 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { Copy, Minus, X, Send, Plus, Trash2 } from 'lucide-vue-next'
-import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
+import { Minus, X, Send, Download, ExternalLink } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
+import { downloadDemoReport } from '@/services/demoReportDownload.js'
+import { useRouter } from 'vue-router'
 
 const windowEl = ref(null)
 
@@ -162,27 +124,28 @@ const {
   inputText,
   isTyping,
   isFullOpen,
-  conversationId,
-  conversations,
-  isLoadingConversations,
-  conversationsError,
   scrollEl,
   sendMessage,
   closeFull,
   minimizeToMini,
-  copyConversation,
-  refreshConversations,
-  startNewConversation,
-  selectConversation,
-  removeConversation,
 } = useChat()
+
+const router = useRouter()
+
+async function handleAction(action) {
+  if (action.route) {
+    router.push(action.route)
+  }
+  if (action.actionId === 'download-pdf' || action.actionId === 'download-csv') {
+    await downloadDemoReport(action.actionId.split('-')[1])
+  }
+}
 
 const inputEl = ref(null)
 
 // Auto-focus input when window opens
 watch(isFullOpen, (val) => {
   if (val) {
-    refreshConversations()
     setTimeout(() => inputEl.value?.focus(), 350)
   }
 })
@@ -214,8 +177,7 @@ watch(isFullOpen, (val) => {
   bottom: 64px;       /* float above the bottom of the screen  */
   z-index: 9999;
 
-  width: 760px;
-  max-width: calc(100vw - 96px);
+  width: 360px;
   height: 520px;
   display: flex;
   flex-direction: column;
@@ -223,17 +185,6 @@ watch(isFullOpen, (val) => {
   background: var(--color-primary);
   border-radius: 28px;
   overflow: hidden;
-}
-
-@media (max-width: 860px) {
-  .aura-chat-window {
-    left: 16px;
-    width: calc(100vw - 32px);
-    max-width: calc(100vw - 32px);
-  }
-  .chat-sidebar {
-    width: 220px;
-  }
 }
 
 /* ── Open / close animation ────────────────────────────── */
@@ -475,141 +426,80 @@ watch(isFullOpen, (val) => {
   cursor: not-allowed;
 }
 
-.chat-body {
+/* ── Rich Content Styles ───────────────────────────────── */
+::v-deep(.chat-html-content p) {
+  margin: 0 0 10px;
+}
+::v-deep(.chat-html-content p:last-child) {
+  margin: 0;
+}
+::v-deep(.chat-html-content .mock-graph) {
+  margin-top: 12px;
   display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 100px;
+  padding: 10px 0;
+  border-bottom: 2px solid rgba(0,0,0,0.1);
+}
+::v-deep(.chat-html-content .mock-graph-bar) {
   flex: 1;
-  min-height: 0;
+  background: var(--color-primary);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  min-height: 10px;
 }
-
-.chat-sidebar {
-  width: 260px;
-  flex: 0 0 auto;
-  border-right: 1px solid rgba(0, 0, 0, 0.12);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-}
-
-.chat-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.chat-sidebar-title {
-  font-family: 'Manrope', sans-serif;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.55);
-}
-
-.chat-sidebar-new {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.16);
-  background: rgba(255, 255, 255, 0.6);
-  font-family: 'Manrope', sans-serif;
-  font-size: 12px;
+::v-deep(.chat-html-content .mock-graph-bar span) {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.72);
-  cursor: pointer;
+  color: rgba(0,0,0,0.6);
 }
-
-.chat-sidebar-new:hover {
-  background: rgba(255, 255, 255, 0.85);
+::v-deep(.chat-html-content .mock-graph-label) {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: rgba(0,0,0,0.5);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-around;
 }
-
-.chat-sidebar-meta {
-  font-family: 'Manrope', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.55);
-}
-
-.chat-sidebar-meta--error {
-  color: rgba(160, 0, 0, 0.7);
-}
-
-.chat-sidebar-list {
+::v-deep(.chat-html-content .mock-graph-label span) {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+}
+
+.chat-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-right: 4px;
-  scrollbar-width: none;
+  margin-top: 12px;
 }
 
-.chat-sidebar-list::-webkit-scrollbar {
-  display: none;
-}
-
-.chat-sidebar-item {
-  width: 100%;
-  text-align: left;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 14px;
-  padding: 10px 10px;
-  display: flex;
+.chat-action-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  cursor: pointer;
-  transition: background 0.18s ease, transform 0.15s ease, border-color 0.18s ease;
-}
-
-.chat-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.9);
-  transform: translateY(-1px);
-}
-
-.chat-sidebar-item--active {
-  border-color: rgba(0, 0, 0, 0.28);
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.chat-sidebar-item-title {
-  font-family: 'Manrope', sans-serif;
-  font-size: 12px;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.05);
+  color: #0A0A0A;
+  font-size: 13px;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.78);
-  line-height: 1.25;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.chat-sidebar-item-delete {
-  flex: 0 0 auto;
-  border: none;
-  background: transparent;
-  color: rgba(0, 0, 0, 0.52);
-  border-radius: 10px;
-  padding: 6px;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
-
-.chat-sidebar-item-delete:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.72);
+.chat-action-btn:hover {
+  background: rgba(0,0,0,0.08);
 }
-
-.chat-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+.action-icon {
+  opacity: 0.7;
 }
 </style>

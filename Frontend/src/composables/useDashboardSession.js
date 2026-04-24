@@ -1,12 +1,11 @@
 import { computed, reactive, readonly } from 'vue'
-import { applyTheme, loadTheme, setDarkMode } from '@/config/theme.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
 import {
     getFaceStatus,
     getCurrentUserProfile,
     getEventById,
     getEvents,
     getMyAttendance,
-    getMyUserAppPreferences,
     getSchoolSettings,
     resolveApiBaseUrl,
     updateUser,
@@ -18,7 +17,6 @@ import {
 import { resolveBackendMediaUrl } from '@/services/backendMedia.js'
 import { getStoredAuthMeta, patchStoredAuthMeta } from '@/services/localAuth.js'
 import { clearStoredSessionArtifacts, hasStoredSessionToken, readStoredSessionToken } from '@/services/sessionPersistence.js'
-import { storeFontSizePreference } from '@/services/userPreferences.js'
 
 const DASHBOARD_CACHE_KEY = 'aura_dashboard_cache_v1'
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000
@@ -269,20 +267,6 @@ function applyActiveTheme() {
     ))
 }
 
-import { useChat } from '@/composables/useChat.js'
-
-function applyRemoteAppPreferences(preferences) {
-    if (!preferences || typeof preferences !== 'object') return
-
-    if (Object.prototype.hasOwnProperty.call(preferences, 'dark_mode_enabled')) {
-        setDarkMode(Boolean(preferences.dark_mode_enabled))
-    }
-
-    if (Object.prototype.hasOwnProperty.call(preferences, 'font_size_percent')) {
-        storeFontSizePreference(preferences.font_size_percent)
-    }
-}
-
 function resetDashboardState() {
     state.user = null
     state.schoolSettings = null
@@ -404,7 +388,7 @@ async function fetchDashboardData() {
             suppressSessionExpiryHandling: true,
         }
 
-        const [settingsResult, eventsResult, attendanceResult, faceStatusResult, appPreferencesResult] = await Promise.allSettled([
+        const [settingsResult, eventsResult, attendanceResult, faceStatusResult] = await Promise.allSettled([
             getSchoolSettings(state.apiBaseUrl, state.token, auxiliaryRequestOptions),
             getEvents(state.apiBaseUrl, state.token, { limit: 200 }, auxiliaryRequestOptions),
             shouldLoadAttendance
@@ -413,7 +397,6 @@ async function fetchDashboardData() {
             shouldLoadPrivilegedFaceStatus
                 ? getFaceStatus(state.apiBaseUrl, state.token, auxiliaryRequestOptions)
                 : Promise.resolve(null),
-            getMyUserAppPreferences(state.apiBaseUrl, state.token).catch(() => null),
         ])
 
         const schoolId = Number(user?.school_id)
@@ -443,9 +426,6 @@ async function fetchDashboardData() {
         syncUserAttendanceRecords()
         syncUserFaceState()
         applyActiveTheme()
-        if (appPreferencesResult.status === 'fulfilled') {
-            applyRemoteAppPreferences(appPreferencesResult.value)
-        }
         persistDashboardSnapshot()
         if (usingFallbackUser) {
             state.error = 'Some backend profile endpoints are failing, so Aura is using a limited session fallback.'
@@ -692,7 +672,6 @@ export function clearDashboardSession() {
     clearStoredSessionArtifacts()
     setToken('')
     resetDashboardState()
-    useChat().resetChatState()
 }
 
 export function sessionUsesLimitedMode() {

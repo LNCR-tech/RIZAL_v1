@@ -81,54 +81,39 @@
                   @click.stop="closeMini"
                 />
                 <!-- ★ This expand button opens the full floating window -->
-                <div class="flex items-center gap-1">
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="Copy conversation"
-                    title="Copy conversation"
-                    @click.stop="copyConversation"
-                  >
-                    <Copy :size="15" :color="'var(--color-banner-text)'" />
-                  </button>
-
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="Start new chat"
-                    title="New chat"
-                    @click.stop="startNewConversation"
-                  >
-                    <Plus :size="15" :color="'var(--color-banner-text)'" />
-                  </button>
-
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="Expand chat to full window"
-                    title="Open full chat"
-                    @click.stop="openFullChatPage"
-                  >
-                    <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
-                  </button>
-                </div>
-              </div>
-
-              <div
-                class="mb-2 text-[10px] font-semibold tracking-wide"
-                :style="{ color: 'var(--color-banner-text)', opacity: 0.75 }"
-              >
-                {{ getActiveConversationLabel() }}
+                <button
+                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                  aria-label="Expand chat to full window"
+                  title="Open full chat"
+                  @click.stop="expandToFull"
+                >
+                  <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
+                </button>
               </div>
 
               <!-- Mini messages (read-only scroll) -->
               <div class="mini-messages flex-1 overflow-y-auto scrollbar-hide pb-1">
                 <TransitionGroup name="mini-bubble" tag="div" class="mini-messages-inner">
-                  <template v-for="msg in messages" :key="msg.id">
-                    <div
-                      v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
-                      :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
-                    >
-                      <ChatMarkdownMessage :text="msg.text" />
+                  <div
+                    v-for="msg in messages"
+                    :key="msg.id"
+                    :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
+                  >
+                    <div v-if="msg.html" v-html="msg.html" class="mini-chat-html-content" />
+                    <template v-else>{{ msg.text }}</template>
+
+                    <div v-if="msg.actions && msg.actions.length" class="mini-chat-actions">
+                      <button
+                        v-for="(action, i) in msg.actions"
+                        :key="i"
+                        class="mini-chat-action-btn"
+                        @click="handleAction(action)"
+                      >
+                        <component v-if="action.icon" :is="action.icon" :size="12" class="mini-action-icon" />
+                        <span>{{ action.label }}</span>
+                      </button>
                     </div>
-                  </template>
+                  </div>
 
                   <!-- Typing dots -->
                   <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
@@ -172,17 +157,19 @@
   </aside>
 
   <!-- ── Full floating chat window (teleported to body) ────── -->
+  <AuraChatWindow />
 </template>
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Copy, Maximize2, Send, Plus } from 'lucide-vue-next'
+import { Maximize2, Send, Download, ExternalLink } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
-import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
+import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
-import { resolveChatLocation, withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
+import { downloadDemoReport } from '@/services/demoReportDownload.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 // ── Chat state from singleton composable ──────────────────
 const {
@@ -191,11 +178,9 @@ const {
   isTyping,
   isMiniOpen,
   sendMessage,
-  copyConversation,
-  startNewConversation,
-  getActiveConversationLabel,
   openPill,
   closeMini,
+  expandToFull,
 } = useChat()
 
 // ── Click-outside to close mini pill ─────────────────────
@@ -249,12 +234,13 @@ function navigate(path) {
   router.push(target)
 }
 
-function openFullChatPage() {
-  closeMini()
-  const target = resolveChatLocation(route)
-  const resolvedTarget = router.resolve(target)
-  if (route.fullPath === resolvedTarget.fullPath) return
-  router.push(target)
+async function handleAction(action) {
+  if (action.route) {
+    navigate(action.route)
+  }
+  if (action.actionId === 'download-pdf' || action.actionId === 'download-csv') {
+    await downloadDemoReport(action.actionId.split('-')[1])
+  }
 }
 </script>
 
@@ -454,4 +440,71 @@ function openFullChatPage() {
   82%  { transform: scale(0.97);             }
   100% { transform: scale(1);                }
 }
+/* ── Rich Content Styles for Mini Chat ─────────────────── */
+::v-deep(.mini-chat-html-content p) { margin: 0 0 6px; }
+::v-deep(.mini-chat-html-content p:last-child) { margin: 0; }
+::v-deep(.mini-chat-html-content .mock-graph) {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 60px;
+  padding: 6px 0;
+  border-bottom: 2px solid rgba(0,0,0,0.1);
+}
+::v-deep(.mini-chat-html-content .mock-graph-bar) {
+  flex: 1;
+  background: var(--color-primary);
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  min-height: 4px;
+}
+::v-deep(.mini-chat-html-content .mock-graph-bar span) {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.8);
+}
+::v-deep(.mini-chat-html-content .mock-graph-label) {
+  text-align: center;
+  font-size: 8px;
+  font-weight: 700;
+  margin-top: 4px;
+  color: rgba(0,0,0,0.6);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-around;
+}
+::v-deep(.mini-chat-html-content .mock-graph-label span) {
+  flex: 1;
+}
+
+.mini-chat-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.mini-chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.05);
+  color: #0A0A0A;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.mini-chat-action-btn:hover { background: rgba(0,0,0,0.08); }
+.mini-action-icon { opacity: 0.7; }
 </style>

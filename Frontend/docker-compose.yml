@@ -1,0 +1,23 @@
+services:
+  aura-web:
+    container_name: ${AURA_CONTAINER_NAME:-aura-web}
+    image: aura-web:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/__backend__}
+        VITE_API_TIMEOUT_MS: ${VITE_API_TIMEOUT_MS:-15000}
+    environment:
+      BACKEND_ORIGIN: ${BACKEND_ORIGIN:?Set BACKEND_ORIGIN in .env.docker with the backend root URL, not the /api path.}
+      AURA_API_BASE_URL: ${AURA_API_BASE_URL:-/__backend__}
+      AURA_API_TIMEOUT_MS: ${AURA_API_TIMEOUT_MS:-15000}
+    ports:
+      - "${AURA_PORT:-8080}:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

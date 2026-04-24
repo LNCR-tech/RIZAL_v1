@@ -4,6 +4,8 @@ import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
 import {
   getCurrentPositionOrThrow,
+  getCurrentPositionWithinAccuracyOrThrow,
+  isNativeApp,
   requestCameraPermission,
 } from '@/services/devicePermissions.js'
 import {
@@ -16,6 +18,7 @@ import {
   isGovernanceWorkspaceContext,
   resolveWorkspaceHomeLocation,
 } from '@/services/routeWorkspace.js'
+import { notifyAttendanceMarked } from '@/services/localNotifications.js'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('en-PH', {
   month: 'short',
@@ -33,6 +36,14 @@ const previewDefaultCoordinates = {
   latitude: 8.1552,
   longitude: 123.8421,
 }
+const rawGatherDiscoveryDesiredAccuracyM = Number(import.meta.env.VITE_GATHER_DISCOVERY_ACCURACY_M ?? 45)
+const gatherDiscoveryDesiredAccuracyM = Number.isFinite(rawGatherDiscoveryDesiredAccuracyM) && rawGatherDiscoveryDesiredAccuracyM > 0
+  ? rawGatherDiscoveryDesiredAccuracyM
+  : 45
+const rawGatherDiscoveryTimeoutMs = Number(import.meta.env.VITE_GEOLOCATION_TIMEOUT_MS ?? 18000)
+const gatherDiscoveryTimeoutMs = Number.isFinite(rawGatherDiscoveryTimeoutMs) && rawGatherDiscoveryTimeoutMs > 0
+  ? Math.max(rawGatherDiscoveryTimeoutMs, 18000)
+  : 18000
 
 const COOLDOWN_ACTIONS = new Set([
   'time_in',
@@ -596,11 +607,25 @@ export function useGatherKiosk(previewSource = false) {
         return
       }
 
-      const position = await getCurrentPositionOrThrow({
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
-      })
+      const position = await (
+        isNativeApp()
+          ? getCurrentPositionWithinAccuracyOrThrow({
+              desiredAccuracy: gatherDiscoveryDesiredAccuracyM,
+              enableHighAccuracy: true,
+              timeout: gatherDiscoveryTimeoutMs,
+              maximumAge: 0,
+              onAccuracyUpdate: (accuracy) => {
+                if (silent || !Number.isFinite(Number(accuracy)) || Number(accuracy) <= 0) return
+                statusMessage.value = `Improving GPS accuracy... currently ${formatDistance(accuracy)}.`
+                statusTone.value = 'info'
+              },
+            })
+          : getCurrentPositionOrThrow({
+              enableHighAccuracy: true,
+              timeout: 12000,
+              maximumAge: 0,
+            })
+      )
 
       const resolvedLocation = {
         latitude: position.latitude,
@@ -838,15 +863,16 @@ export function useGatherKiosk(previewSource = false) {
       return
     }
 
+    const activeEvent = selectedEvent.value
     scanBusy.value = true
     syncStatusMessage()
 
     try {
       const frameBlob = await captureFrameBlob()
       const response = preview.value
-        ? await submitPreviewCapture(selectedEvent.value, frameBlob)
+        ? await submitPreviewCapture(activeEvent, frameBlob)
         : await submitPublicAttendanceScan({
-          eventId: selectedEvent.value.id,
+          eventId: activeEvent.id,
           imageBlob: frameBlob,
           location: location.value,
           cooldownStudentIds: automatic ? syncCooldownStudentIds() : [],
@@ -859,7 +885,15 @@ export function useGatherKiosk(previewSource = false) {
 
       outcomes.value = Array.isArray(response.outcomes) ? response.outcomes : []
       lastScanAt.value = new Date().toISOString()
-      appendAttendanceHistory(selectedEvent.value, response.outcomes, lastScanAt.value)
+      appendAttendanceHistory(activeEvent, response.outcomes, lastScanAt.value)
+      void Promise.allSettled(
+        (response.outcomes || []).map((outcome) => notifyAttendanceMarked({
+          audience: 'kiosk',
+          action: outcome?.action,
+          eventName: activeEvent?.name,
+          studentName: outcome?.student_name || outcome?.student_id,
+        }))
+      )
 
       if (automatic) {
         const now = Date.now()

@@ -38,11 +38,25 @@ const DEFAULT_LOCATION_PRIME_OPTIONS = {
 const DEFAULT_PRECISE_LOCATION_TIMEOUT_MS = 18000
 const DEFAULT_PRECISE_LOCATION_MAX_INPUT_ACCURACY_M = 5000
 
+function wrapPlugin(plugin, methodNames = []) {
+    if (!plugin) return null
+
+    return methodNames.reduce((wrapped, methodName) => {
+        if (typeof plugin?.[methodName] !== 'function') return wrapped
+
+        wrapped[methodName] = (...args) => plugin[methodName](...args)
+        return wrapped
+    }, {})
+}
+
 async function loadCameraPlugin() {
     if (CameraPlugin) return CameraPlugin
     try {
         const mod = await import('@capacitor/camera')
-        CameraPlugin = mod.Camera
+        CameraPlugin = wrapPlugin(mod.Camera, [
+            'checkPermissions',
+            'requestPermissions',
+        ])
         return CameraPlugin
     } catch {
         return null
@@ -53,7 +67,13 @@ async function loadGeolocationPlugin() {
     if (GeolocationPlugin) return GeolocationPlugin
     try {
         const mod = await import('@capacitor/geolocation')
-        GeolocationPlugin = mod.Geolocation
+        GeolocationPlugin = wrapPlugin(mod.Geolocation, [
+            'checkPermissions',
+            'requestPermissions',
+            'getCurrentPosition',
+            'watchPosition',
+            'clearWatch',
+        ])
         return GeolocationPlugin
     } catch {
         return null
@@ -69,6 +89,10 @@ export function isNativeApp() {
 
 function isLocationGrantedStatus(status = {}) {
     return status.location === 'granted' || status.coarseLocation === 'granted'
+}
+
+function hasPreciseLocationPermission(status = {}) {
+    return status.location === 'granted'
 }
 
 function isLocationDeniedStatus(status = {}) {
@@ -364,6 +388,211 @@ async function resolveWebCurrentPosition(options = {}) {
     throw new Error(getLocationErrorMessage(lastError))
 }
 
+function buildLowAccuracyLocationMessage(accuracy, { precisePermissionMissing = false } = {}) {
+    const formattedAccuracy = Number.isFinite(accuracy) && accuracy > 0
+        ? `${Math.round(accuracy)}m`
+        : 'too low'
+
+    if (precisePermissionMissing && isNativeApp()) {
+        return `GPS accuracy is ${formattedAccuracy}. Enable Precise location for Aura in Android Settings, then try again.`
+    }
+
+    return `GPS accuracy is ${formattedAccuracy}. Enable precise location and wait for a stronger GPS signal before trying again.`
+}
+
+async function resolveNativePreciseCurrentPosition(options = {}) {
+    const desiredAccuracy = Number(
+        options.desiredAccuracy
+        ?? options.targetAccuracy
+        ?? options.maximumAcceptedAccuracy
+    )
+
+    if (!Number.isFinite(desiredAccuracy) || desiredAccuracy <= 0) {
+        return resolveNativeCurrentPosition(options)
+    }
+
+    const cached = getCachedPosition(resolveRequestedMaximumAge(options))
+    if (
+        cached
+        && Number.isFinite(Number(cached.accuracy))
+        && Number(cached.accuracy) > 0
+        && Number(cached.accuracy) <= desiredAccuracy
+    ) {
+        return cached
+    }
+
+    const permission = await requestLocationPermission()
+    if (!permission.granted) {
+        throw new Error(permission.message || 'Location access is required to continue.')
+    }
+
+    const Geolocation = await loadGeolocationPlugin()
+    if (!Geolocation) {
+        throw new Error('Geolocation plugin not available.')
+    }
+
+    let permissionStatus = null
+    try {
+        permissionStatus = await Geolocation.checkPermissions()
+    } catch {
+        permissionStatus = null
+    }
+
+    const precisePermissionMissing = Boolean(
+        permissionStatus
+        && !hasPreciseLocationPermission(permissionStatus)
+        && isLocationGrantedStatus(permissionStatus)
+    )
+
+    const onAccuracyUpdate = typeof options.onAccuracyUpdate === 'function'
+        ? options.onAccuracyUpdate
+        : null
+    const {
+        desiredAccuracy: _desiredAccuracy,
+        targetAccuracy: _targetAccuracy,
+        maximumAcceptedAccuracy: _maximumAcceptedAccuracy,
+        onAccuracyUpdate: _onAccuracyUpdate,
+        ...nativeOptions
+    } = options
+    const totalTimeout = Math.max(
+        Number(options.timeout) || 0,
+        DEFAULT_PRECISE_LOCATION_TIMEOUT_MS
+    )
+    const watchOptions = {
+        ...DEFAULT_NATIVE_LOCATION_OPTIONS,
+        ...nativeOptions,
+        enableHighAccuracy: options.enableHighAccuracy !== false,
+        timeout: totalTimeout,
+        maximumAge: 0,
+        minimumUpdateInterval: Number(options.minimumUpdateInterval) > 0
+            ? Number(options.minimumUpdateInterval)
+            : 1000,
+        interval: Number(options.interval) > 0
+            ? Number(options.interval)
+            : 1000,
+    }
+
+    try {
+        const initialPosition = await Geolocation.getCurrentPosition({
+            ...watchOptions,
+            timeout: Math.max(Math.min(totalTimeout, 12000), 6000),
+        })
+        const initialAccuracy = Number(initialPosition?.coords?.accuracy)
+
+        onAccuracyUpdate?.(initialAccuracy)
+
+        if (
+            Number.isFinite(initialAccuracy)
+            && initialAccuracy > 0
+            && initialAccuracy <= desiredAccuracy
+        ) {
+            return cacheResolvedPosition(initialPosition)
+        }
+    } catch (error) {
+        if (isLocationPermissionDeniedError(error) || isLocationServicesDisabledError(error)) {
+            throw new Error(getLocationErrorMessage(error))
+        }
+    }
+
+    return new Promise((resolve, reject) => {
+        let settled = false
+        let bestPosition = null
+        let bestAccuracy = Number.POSITIVE_INFINITY
+        let watchId = null
+        let timeoutId = null
+
+        const cleanup = async () => {
+            if (timeoutId != null) {
+                clearTimeout(timeoutId)
+                timeoutId = null
+            }
+
+            if (watchId != null) {
+                const id = watchId
+                watchId = null
+                try {
+                    await Geolocation.clearWatch({ id })
+                } catch {
+                    // Ignore watcher cleanup failures.
+                }
+            }
+        }
+
+        const finishSuccess = async (position) => {
+            if (settled) return
+            settled = true
+            await cleanup()
+            resolve(cacheResolvedPosition(position))
+        }
+
+        const finishError = async (message) => {
+            if (settled) return
+            settled = true
+            await cleanup()
+            reject(new Error(message))
+        }
+
+        const handlePosition = (position) => {
+            const accuracy = Number(position?.coords?.accuracy)
+            if (!Number.isFinite(accuracy) || accuracy <= 0) {
+                return
+            }
+
+            onAccuracyUpdate?.(accuracy)
+
+            if (accuracy < bestAccuracy) {
+                bestAccuracy = accuracy
+                bestPosition = position
+            }
+
+            if (accuracy <= desiredAccuracy) {
+                void finishSuccess(position)
+            }
+        }
+
+        const handleError = (error) => {
+            void finishError(getLocationErrorMessage(error))
+        }
+
+        Geolocation.watchPosition(watchOptions, (position, err) => {
+            if (err) {
+                handleError(err)
+                return
+            }
+
+            if (position) {
+                handlePosition(position)
+            }
+        })
+            .then((id) => {
+                watchId = id
+                if (settled) {
+                    void Geolocation.clearWatch({ id }).catch(() => {
+                        // Ignore watcher cleanup failures.
+                    })
+                }
+            })
+            .catch((error) => {
+                void finishError(getLocationErrorMessage(error))
+            })
+
+        timeoutId = setTimeout(() => {
+            if (bestPosition) {
+                void finishError(
+                    buildLowAccuracyLocationMessage(bestAccuracy, { precisePermissionMissing })
+                )
+                return
+            }
+
+            void finishError(
+                precisePermissionMissing
+                    ? 'Precise location is disabled for Aura. Enable it in Android Settings and try again.'
+                    : 'Location lookup timed out. Try again in an open area with better GPS signal.'
+            )
+        }, totalTimeout)
+    })
+}
+
 /**
  * Request camera permission.
  * Returns { granted: boolean, denied: boolean, message: string }
@@ -496,6 +725,42 @@ export async function requestLocationPermission() {
 }
 
 /**
+ * Prompt for location access and optionally warm the location cache.
+ * Returns { granted, denied, message, position }.
+ */
+export async function prepareLocationAccess(options = {}) {
+    const {
+        prime = true,
+        ...primeOptions
+    } = options
+
+    const permission = await requestLocationPermission()
+    if (!permission.granted) {
+        return {
+            ...permission,
+            position: null,
+        }
+    }
+
+    if (!prime) {
+        return {
+            granted: true,
+            denied: false,
+            message: '',
+            position: null,
+        }
+    }
+
+    const position = await primeLocationAccess(primeOptions).catch(() => null)
+    return {
+        granted: true,
+        denied: false,
+        message: '',
+        position,
+    }
+}
+
+/**
  * Get current position and throw a useful error when it cannot be retrieved.
  * Returns { latitude, longitude, accuracy }.
  */
@@ -519,7 +784,7 @@ export async function getCurrentPositionWithinAccuracyOrThrow(options = {}) {
     }
 
     if (isNativeApp()) {
-        return getCurrentPositionOrThrow(options)
+        return resolveNativePreciseCurrentPosition(options)
     }
 
     const secureContextError = getWebSecureContextLocationError()

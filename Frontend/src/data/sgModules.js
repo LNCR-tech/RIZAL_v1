@@ -1,4 +1,4 @@
-import { CalendarDays, Megaphone, ClipboardCheck, Users, Eye, Building2, Landmark, UserPlus, Shield, ShieldAlert } from 'lucide-vue-next'
+import { CalendarDays, Megaphone, ClipboardCheck, Users, Eye, Building2, Landmark, UserPlus, Shield } from 'lucide-vue-next'
 
 /**
  * Permission-to-card mapping for the SG Dashboard.
@@ -41,14 +41,6 @@ const SG_MODULE_SECTIONS = [
         icon: ClipboardCheck,
         route: '/governance/attendance',
       },
-      {
-        id: 'sanctions-dashboard',
-        permissionCode: 'view_sanctions_dashboard',
-        label: 'Sanctions Dashboard',
-        description: 'Track absences, pending sanctions, and compliance approvals.',
-        icon: ShieldAlert,
-        route: '/governance/events/sanctions',
-      },
     ],
   },
   {
@@ -80,16 +72,16 @@ const SG_MODULE_SECTIONS = [
       {
         id: 'create-sg',
         permissionCode: 'create_sg',
-        label: 'Create College-Level Council',
-        description: 'Create college-level SG child units under this council.',
+        label: 'Create SG',
+        description: 'Add a department council.',
         icon: Landmark,
         route: '/governance/create-unit',
       },
       {
         id: 'create-org',
         permissionCode: 'create_org',
-        label: 'Create Organization',
-        description: 'Create student organization units under this council.',
+        label: 'Create ORG',
+        description: 'Add a program organization.',
         icon: Building2,
         route: '/governance/create-unit',
       },

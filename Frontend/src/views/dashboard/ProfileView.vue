@@ -203,11 +203,11 @@
             <span class="settings-row__label">Dark Mode</span>
             <button
               class="settings-toggle"
-              :class="{ 'settings-toggle--on': draftDarkMode }"
+              :class="{ 'settings-toggle--on': isDarkMode }"
               type="button"
-              :aria-pressed="draftDarkMode"
+              :aria-pressed="isDarkMode"
               aria-label="Toggle dark mode"
-              @click="draftDarkMode = !draftDarkMode"
+              @click="toggleDarkMode"
             >
               <span class="settings-toggle__knob" />
             </button>
@@ -253,23 +253,11 @@
               <span class="font-size-label font-size-label--large">Aa</span>
             </div>
           </div>
-
-          <div class="settings-save-row" v-if="!props.preview">
-            <p v-if="settingsFeedback" class="settings-feedback">{{ settingsFeedback }}</p>
-            <button
-              class="settings-save-btn"
-              type="button"
-              :disabled="!settingsDirty || isSavingSettings"
-              @click="saveAppConfiguration"
-            >
-              {{ isSavingSettings ? 'Saving…' : settingsDirty ? 'Save Configuration' : 'Configuration Saved' }}
-            </button>
-          </div>
         </div>
 
         <!-- Action rows — below App Setting on mobile & desktop -->
         <div class="action-cards">
-          <button class="action-row" @click="handleSecurity">
+          <button class="action-row" type="button" @click="handleSecurity">
             <span class="action-row__left">
               <span class="action-icon"><Shield :size="16" /></span>
               <span class="action-label">Security</span>
@@ -277,7 +265,7 @@
             <ChevronRight :size="16" class="action-chevron" />
           </button>
 
-          <button class="action-row action-row--danger" @click="handleSignOut">
+          <button class="action-row action-row--danger" type="button" @click="handleSignOut">
             <span class="action-row__left">
               <span class="action-label action-label--danger">Sign Out</span>
             </span>
@@ -298,17 +286,11 @@ import {
   Shield, ChevronRight, Bell, Moon
 } from 'lucide-vue-next'
 
-import { defaultTheme, isDarkMode, setDarkMode } from '@/config/theme.js'
+import { defaultTheme, isDarkMode, toggleDarkMode } from '@/config/theme.js'
 import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
-import {
-  getMyUserAppPreferences,
-  getMyNotificationPreferences,
-  updateMyNotificationPreferences,
-  updateMyUserAppPreferences,
-} from '@/services/backendApi.js'
 import {
   DEFAULT_FONT_SIZE,
   FONT_SIZE_MAX,
@@ -332,12 +314,10 @@ const router = useRouter()
 // ── Auth ─────────────────────────────────────────────────────────────
 const { logout } = useAuth()
 const {
-  apiBaseUrl,
   currentUser: sessionCurrentUser,
   schoolSettings: sessionSchoolSettings,
   attendanceRecords: sessionAttendanceRecords,
   saveCurrentUserProfile,
-  token,
 } = useDashboardSession()
 
 const previewUser = ref(JSON.parse(JSON.stringify(studentDashboardPreviewData.user)))
@@ -467,10 +447,6 @@ function onSliderKeyDown(event) {
 }
 
 const fontSize = ref(getStoredFontSize() || DEFAULT_FONT_SIZE)
-const draftDarkMode = ref(isDarkMode.value)
-const settingsFeedback = ref('')
-const isSavingSettings = ref(false)
-const savedSettingsSnapshot = ref(null)
 
 // Apply + persist whenever slider changes
 watch(fontSize, val => {
@@ -480,111 +456,29 @@ watch(fontSize, val => {
   }
 })
 
-watch(draftDarkMode, (value) => {
-  setDarkMode(value)
-})
-
+// ── Notifications ──────────────────────────────────────────────────────
+// Currently persisted to localStorage.
+//
+// When backend is ready, swap savePreferences() to:
+//   await api.patch('/api/users/preferences', { notifications_enabled: value })
+//
 const notificationsEnabled = ref(
   JSON.parse(localStorage.getItem('aura_notif_enabled') ?? 'true')
 )
 
-function captureSettingsSnapshot() {
-  return {
-    notificationsEnabled: Boolean(notificationsEnabled.value),
-    darkMode: Boolean(draftDarkMode.value),
-    fontSize: snapFontSize(fontSize.value),
+async function savePreferences(payload) {
+  // ── LOCAL (current) ───────────────────────────────────────────────
+  if ('notifications_enabled' in payload) {
+    localStorage.setItem('aura_notif_enabled', payload.notifications_enabled)
   }
+
+  // ── BACKEND (swap in when ready) ─────────────────────────────────
+  // await api.patch('/api/users/preferences', payload)
 }
 
-function replaceSavedSettingsSnapshot(snapshot = captureSettingsSnapshot()) {
-  savedSettingsSnapshot.value = {
-    notificationsEnabled: Boolean(snapshot.notificationsEnabled),
-    darkMode: Boolean(snapshot.darkMode),
-    fontSize: snapFontSize(snapshot.fontSize),
-  }
-}
-
-function patchSavedSettingsSnapshot(patch = {}) {
-  const nextSnapshot = {
-    ...(savedSettingsSnapshot.value || captureSettingsSnapshot()),
-  }
-
-  if (Object.prototype.hasOwnProperty.call(patch, 'notificationsEnabled')) {
-    nextSnapshot.notificationsEnabled = Boolean(patch.notificationsEnabled)
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'darkMode')) {
-    nextSnapshot.darkMode = Boolean(patch.darkMode)
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'fontSize')) {
-    nextSnapshot.fontSize = snapFontSize(patch.fontSize)
-  }
-
-  savedSettingsSnapshot.value = nextSnapshot
-}
-
-const settingsDirty = computed(() => {
-  if (!savedSettingsSnapshot.value) return false
-
-  const currentSnapshot = captureSettingsSnapshot()
-  return (
-    currentSnapshot.notificationsEnabled !== savedSettingsSnapshot.value.notificationsEnabled
-    || currentSnapshot.darkMode !== savedSettingsSnapshot.value.darkMode
-    || currentSnapshot.fontSize !== savedSettingsSnapshot.value.fontSize
-  )
-})
-
-watch(
-  [() => props.preview, apiBaseUrl, token, () => user.value?.id],
-  async ([previewMode, url, authToken, userId]) => {
-    if (previewMode) {
-      draftDarkMode.value = isDarkMode.value
-      fontSize.value = getStoredFontSize() || DEFAULT_FONT_SIZE
-      settingsFeedback.value = ''
-      replaceSavedSettingsSnapshot()
-      return
-    }
-
-    if (!url || !authToken || !Number.isFinite(Number(userId))) {
-      return
-    }
-
-    try {
-      const [notificationPreferenceResult, appPreferenceResult] = await Promise.allSettled([
-        getMyNotificationPreferences(url, authToken),
-        getMyUserAppPreferences(url, authToken),
-      ])
-
-      if (notificationPreferenceResult.status === 'fulfilled') {
-        notificationsEnabled.value = Boolean(notificationPreferenceResult.value?.email_enabled)
-        localStorage.setItem('aura_notif_enabled', JSON.stringify(Boolean(notificationPreferenceResult.value?.email_enabled)))
-      }
-
-      if (appPreferenceResult.status === 'fulfilled' && appPreferenceResult.value) {
-        draftDarkMode.value = Boolean(appPreferenceResult.value.dark_mode_enabled)
-        fontSize.value = appPreferenceResult.value.font_size_percent ?? DEFAULT_FONT_SIZE
-      } else {
-        draftDarkMode.value = isDarkMode.value
-        fontSize.value = getStoredFontSize() || DEFAULT_FONT_SIZE
-      }
-
-      settingsFeedback.value = ''
-      replaceSavedSettingsSnapshot()
-    } catch {
-      draftDarkMode.value = isDarkMode.value
-      fontSize.value = getStoredFontSize() || DEFAULT_FONT_SIZE
-      settingsFeedback.value = ''
-      replaceSavedSettingsSnapshot()
-    }
-  },
-  { immediate: true }
+watch(notificationsEnabled, enabled =>
+  savePreferences({ notifications_enabled: enabled })
 )
-
-watch([notificationsEnabled, draftDarkMode, fontSize], () => {
-  if (isSavingSettings.value) return
-  if (settingsDirty.value && settingsFeedback.value) {
-    settingsFeedback.value = ''
-  }
-})
 
 watch(schoolLogo, () => {
   schoolLogoError.value = false
@@ -598,82 +492,6 @@ function handleSchoolLogoError() {
   }
 
   schoolLogoUnavailable.value = true
-}
-
-async function saveAppConfiguration() {
-  if (props.preview) return
-  if (!settingsDirty.value) {
-    settingsFeedback.value = 'Configuration is already saved.'
-    return
-  }
-  if (!apiBaseUrl.value || !token.value) {
-    settingsFeedback.value = 'Your session is not ready yet. Please try again.'
-    return
-  }
-
-  isSavingSettings.value = true
-  settingsFeedback.value = ''
-
-  const normalizedFontSize = storeFontSizePreference(fontSize.value)
-  if (normalizedFontSize !== fontSize.value) {
-    fontSize.value = normalizedFontSize
-  }
-
-  const [appPreferenceResult, notificationResult] = await Promise.allSettled([
-    updateMyUserAppPreferences(apiBaseUrl.value, token.value, {
-      dark_mode_enabled: Boolean(draftDarkMode.value),
-      font_size_percent: normalizedFontSize,
-    }),
-    updateMyNotificationPreferences(apiBaseUrl.value, token.value, {
-      email_enabled: Boolean(notificationsEnabled.value),
-    }),
-  ])
-
-  if (appPreferenceResult.status === 'fulfilled') {
-    const savedDarkMode = Boolean(appPreferenceResult.value?.dark_mode_enabled)
-    const savedFontSize = storeFontSizePreference(
-      appPreferenceResult.value?.font_size_percent ?? normalizedFontSize
-    )
-    draftDarkMode.value = savedDarkMode
-    if (savedFontSize !== fontSize.value) {
-      fontSize.value = savedFontSize
-    }
-    patchSavedSettingsSnapshot({
-      darkMode: savedDarkMode,
-      fontSize: savedFontSize,
-    })
-  }
-
-  if (notificationResult.status === 'fulfilled') {
-    notificationsEnabled.value = Boolean(notificationResult.value?.email_enabled)
-    localStorage.setItem('aura_notif_enabled', JSON.stringify(notificationsEnabled.value))
-    patchSavedSettingsSnapshot({
-      notificationsEnabled: notificationsEnabled.value,
-    })
-  }
-
-  const successfulSaves = [
-    appPreferenceResult.status === 'fulfilled',
-    notificationResult.status === 'fulfilled',
-  ].filter(Boolean).length
-
-  if (successfulSaves === 2) {
-    settingsFeedback.value = 'Saved to your account. Aura will sync this configuration on your next device sign-in.'
-  } else if (successfulSaves === 1) {
-    const failedReason = appPreferenceResult.status === 'rejected'
-      ? appPreferenceResult.reason?.message
-      : notificationResult.reason?.message
-    settingsFeedback.value = failedReason
-      ? `Saved part of your configuration. ${failedReason}`
-      : 'Saved part of your configuration. Please try again to finish syncing.'
-  } else {
-    settingsFeedback.value =
-      appPreferenceResult.reason?.message
-      || notificationResult.reason?.message
-      || 'Unable to save your configuration right now.'
-  }
-
-  isSavingSettings.value = false
 }
 
 // ── Edit Profile ──────────────────────────────────────────────────────
@@ -743,8 +561,7 @@ async function saveProfile() {
 
 // ── Handlers ──────────────────────────────────────────────────────────
 function handleSecurity() {
-  if (props.preview) return
-  router.push({ name: 'ProfileSecurity' })
+  router.push({ name: props.preview ? 'PreviewProfileSecurity' : 'ProfileSecurity' })
 }
 
 async function handleSignOut() {
@@ -894,10 +711,26 @@ async function handleSignOut() {
   border: none;
   background: var(--color-surface);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
 }
 
-.action-row:hover { opacity: 0.8; }
+.action-row:hover {
+  opacity: 0.9;
+  box-shadow: 0 12px 26px rgba(10, 10, 10, 0.08);
+}
+
+.action-row:active {
+  transform: scale(0.985);
+}
+
+.action-row:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-primary) 36%, transparent),
+    0 12px 26px rgba(10, 10, 10, 0.08);
+}
 
 .action-row__left {
   display: flex;
@@ -1091,51 +924,6 @@ async function handleSignOut() {
 
 .font-size-label--small { font-size: 11px; }
 .font-size-label--large { font-size: 17px; }
-
-.settings-save-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-.settings-feedback {
-  margin: 0;
-  flex: 1;
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(0, 0, 0, 0.62);
-}
-
-.settings-save-btn {
-  min-width: 154px;
-  padding: 11px 16px;
-  border: none;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: var(--color-banner-text);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.settings-save-btn:hover {
-  opacity: 0.88;
-}
-
-.settings-save-btn:active {
-  transform: scale(0.98);
-}
-
-.settings-save-btn:disabled {
-  opacity: 0.52;
-  cursor: default;
-  transform: none;
-}
 
 /* ── Custom font-size slider ─────────────────────────────────────── */
 .custom-slider-track {

@@ -11,247 +11,399 @@
       />
 
       <div class="school-it-import__body">
-        <section class="school-it-import__title-card dashboard-enter dashboard-enter--2">
-          <h1 class="school-it-import__title">Import Student</h1>
+        <section class="school-it-import__hero dashboard-enter dashboard-enter--2">
+          <div class="school-it-import__hero-top">
+            <div class="school-it-import__hero-copy">
+              <span class="school-it-import__eyebrow">Campus Admin</span>
+              <h1 class="school-it-import__title">Bulk Student Import</h1>
+              <p class="school-it-import__subtitle">
+                Upload the backend template, preview every row first, then queue only the approved students.
+              </p>
+            </div>
 
-          <button
-            class="school-it-import__info-button"
-            type="button"
-            :aria-expanded="infoOpen ? 'true' : 'false'"
-            aria-label="Import information"
-            @click="infoOpen = !infoOpen"
-          >
-            <Info :size="18" />
-          </button>
+            <div class="school-it-import__hero-actions">
+              <button
+                class="school-it-import__button school-it-import__button--surface"
+                type="button"
+                :disabled="stage === 'processing'"
+                @click="downloadTemplate"
+              >
+                <Download :size="16" />
+                Download Template
+              </button>
+
+              <button
+                v-if="stage !== 'idle' || selectedFile"
+                class="school-it-import__button school-it-import__button--ghost"
+                type="button"
+                :disabled="stage === 'processing'"
+                @click="resetFlow"
+              >
+                <RefreshCcw :size="16" />
+                Reset Flow
+              </button>
+            </div>
+          </div>
+
+          <div class="school-it-import__step-grid">
+            <article
+              v-for="step in workflowSteps"
+              :key="step.id"
+              class="school-it-import__step"
+              :class="[
+                `school-it-import__step--${step.state}`,
+              ]"
+            >
+              <span class="school-it-import__step-index">{{ step.index }}</span>
+              <div class="school-it-import__step-copy">
+                <p class="school-it-import__step-title">{{ step.label }}</p>
+                <p class="school-it-import__step-detail">{{ step.detail }}</p>
+              </div>
+            </article>
+          </div>
         </section>
 
-        <Transition name="school-it-import-info">
-          <div
-            v-if="infoOpen"
-            class="school-it-import__info-note dashboard-enter dashboard-enter--3"
-          >
-            <p style="margin: 0; margin-bottom: 12px;">
-              Upload a <strong>.xlsx</strong> or <strong>.csv</strong> file using the backend template columns:
-              Student_ID, Email, Last Name, First Name, Middle Name, Department, and Course.
-            </p>
-            <button class="school-it-import__download-template" type="button" @click="downloadTemplate">
-              <Download :size="14" style="margin-right: 6px" />
-              Download Template
-            </button>
-          </div>
-        </Transition>
+        <div class="school-it-import__layout">
+          <section class="school-it-import__workspace dashboard-enter dashboard-enter--3">
+            <article class="school-it-import__panel school-it-import__panel--upload">
+              <div class="school-it-import__panel-head">
+                <div>
+                  <p class="school-it-import__panel-kicker">Source File</p>
+                  <h2 class="school-it-import__panel-title">
+                    {{ selectedFile ? 'File Ready For Review' : 'Upload Student Spreadsheet' }}
+                  </h2>
+                  <p class="school-it-import__panel-copy">
+                    {{ selectedFile ? fileStatusCopy : 'The backend accepts only .csv and .xlsx files with the exact template headers.' }}
+                  </p>
+                </div>
 
-        <section class="school-it-import__panel dashboard-enter dashboard-enter--4">
-          <Transition name="school-it-import-stage" mode="out-in">
-            <div
-              v-if="stage === 'idle'"
-              key="idle"
-              class="school-it-import__stage school-it-import__stage--idle"
-            >
+                <div class="school-it-import__panel-actions">
+                  <button
+                    class="school-it-import__button school-it-import__button--ghost"
+                    type="button"
+                    :disabled="stage === 'processing'"
+                    @click="openFilePicker"
+                  >
+                    <Upload :size="16" />
+                    {{ selectedFile ? 'Replace File' : 'Choose File' }}
+                  </button>
+
+                  <button
+                    class="school-it-import__button school-it-import__button--primary"
+                    type="button"
+                    :disabled="isPrimaryActionDisabled"
+                    @click="handlePrimaryAction"
+                  >
+                    <LoaderCircle
+                      v-if="stage === 'processing'"
+                      class="school-it-import__button-spinner"
+                      :size="16"
+                    />
+                    <template v-else>
+                      <ArrowRight :size="16" />
+                    </template>
+                    {{ primaryActionLabel }}
+                  </button>
+                </div>
+              </div>
+
               <button
+                v-if="!selectedFile"
                 class="school-it-import__dropzone"
-                :class="{
-                  'school-it-import__dropzone--active': isDragActive,
-                  'school-it-import__dropzone--selected': Boolean(selectedFile),
-                }"
+                :class="{ 'school-it-import__dropzone--active': isDragActive }"
                 type="button"
                 @click="openFilePicker"
+                @dragenter.prevent="isDragActive = true"
                 @dragover.prevent="isDragActive = true"
                 @dragleave.prevent="isDragActive = false"
                 @drop.prevent="handleFileDrop"
               >
-                <CloudUpload class="school-it-import__dropzone-icon" :size="92" :stroke-width="2.2" />
-
+                <CloudUpload class="school-it-import__dropzone-icon" :size="42" />
                 <div class="school-it-import__dropzone-copy">
-                  <p class="school-it-import__dropzone-title">Click to upload or drag and drop.</p>
-                  <p class="school-it-import__dropzone-caption">Supported format: XLSX or CSV</p>
-                  <p v-if="selectedFile" class="school-it-import__dropzone-file">{{ selectedFile.name }}</p>
+                  <p class="school-it-import__dropzone-title">Drop a CSV or XLSX file here</p>
+                  <p class="school-it-import__dropzone-detail">
+                    Preview is required before the backend will accept the import.
+                  </p>
                 </div>
               </button>
-            </div>
 
-            <div
-              v-else-if="stage === 'processing'"
-              key="processing"
-              class="school-it-import__stage school-it-import__stage--processing"
+              <div v-else class="school-it-import__file-card">
+                <div class="school-it-import__file-main">
+                  <span class="school-it-import__file-icon">
+                    <FileSpreadsheet :size="18" />
+                  </span>
+
+                  <div class="school-it-import__file-copy">
+                    <p class="school-it-import__file-name">{{ selectedFile.name }}</p>
+                    <p class="school-it-import__file-meta">
+                      {{ selectedFileSizeLabel }} · {{ fileExtensionLabel }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="school-it-import__file-pills">
+                  <span
+                    class="school-it-import__status-pill"
+                    :class="[`school-it-import__status-pill--${fileStatusTone}`]"
+                  >
+                    {{ fileStatusLabel }}
+                  </span>
+                  <span class="school-it-import__micro-pill">CSV / XLSX</span>
+                  <span v-if="previewSummary" class="school-it-import__micro-pill">
+                    {{ previewSummary.total_rows }} rows detected
+                  </span>
+                  <span v-if="importSummary?.job_id" class="school-it-import__micro-pill school-it-import__micro-pill--mono">
+                    Job {{ importSummary.job_id }}
+                  </span>
+                </div>
+              </div>
+            </article>
+
+            <p
+              v-if="feedbackMessage"
+              class="school-it-import__feedback"
+              :class="{ 'school-it-import__feedback--error': feedbackError }"
             >
-              <p class="school-it-import__processing-label">{{ processingLabel }}</p>
-              <p v-if="processingStatusHint" class="school-it-import__processing-hint">{{ processingStatusHint }}</p>
+              {{ feedbackMessage }}
+            </p>
 
-              <div class="school-it-import__progress-shell" aria-hidden="true">
-                <div
-                  class="school-it-import__progress-track"
-                  :class="{ 'school-it-import__progress-track--indeterminate': !hasDeterminateProgress }"
-                >
+            <section
+              v-if="summaryCards.length"
+              class="school-it-import__summary-grid"
+            >
+              <article
+                v-for="card in summaryCards"
+                :key="card.id"
+                class="school-it-import__summary-card"
+                :class="[`school-it-import__summary-card--${card.tone}`]"
+              >
+                <span class="school-it-import__summary-label">{{ card.label }}</span>
+                <strong class="school-it-import__summary-value">{{ card.value }}</strong>
+                <span class="school-it-import__summary-note">{{ card.note }}</span>
+              </article>
+            </section>
+
+            <article
+              v-if="stage === 'processing'"
+              class="school-it-import__panel school-it-import__panel--processing"
+            >
+              <div class="school-it-import__processing-main">
+                <span class="school-it-import__processing-icon">
+                  <LoaderCircle :size="20" />
+                </span>
+                <div class="school-it-import__processing-copy">
+                  <p class="school-it-import__processing-title">{{ processingLabel }}</p>
+                  <p class="school-it-import__processing-detail">{{ processingStatusHint }}</p>
+                </div>
+              </div>
+
+              <div class="school-it-import__progress-wrap" aria-hidden="true">
+                <div class="school-it-import__progress-track">
                   <span
                     class="school-it-import__progress-fill"
                     :class="{ 'school-it-import__progress-fill--indeterminate': !hasDeterminateProgress }"
                     :style="hasDeterminateProgress ? { width: `${displayProgress}%` } : undefined"
                   />
-                  <span
-                    v-if="hasDeterminateProgress"
-                    class="school-it-import__progress-knob"
-                    :style="{ left: `clamp(18px, calc(${displayProgress}% - 10px), calc(100% - 18px))` }"
-                  />
                 </div>
+                <span class="school-it-import__progress-value">
+                  {{ hasDeterminateProgress ? `${Math.round(displayProgress)}%` : 'Working' }}
+                </span>
               </div>
-            </div>
+            </article>
 
-            <div
-              v-else
-              key="result"
-              class="school-it-import__stage school-it-import__stage--result"
+            <article
+              v-else-if="stage === 'result'"
+              class="school-it-import__panel school-it-import__panel--results"
             >
-              <div class="school-it-import__result-header">
-                <div class="school-it-import__result-copy">
-                  <h2 class="school-it-import__result-title">{{ resultTitle }}</h2>
-                  <p class="school-it-import__result-summary">{{ resultSummary }}</p>
+              <div class="school-it-import__result-head">
+                <div>
+                  <p class="school-it-import__panel-kicker">{{ resultKicker }}</p>
+                  <h2 class="school-it-import__panel-title">{{ resultTitle }}</h2>
+                  <p class="school-it-import__panel-copy">{{ resultSummary }}</p>
                 </div>
 
-                <button
-                  class="school-it-import__result-reset"
-                  type="button"
-                  @click="resetFlow"
-                >
-                  Another File
-                </button>
-              </div>
-
-              <p
-                v-if="feedbackMessage"
-                class="school-it-import__feedback"
-                :class="{ 'school-it-import__feedback--error': feedbackError }"
-              >
-                {{ feedbackMessage }}
-              </p>
-
-              <div
-                v-if="showImportSuccessMessage"
-                class="school-it-import__success-banner"
-              >
-                <p class="school-it-import__success-title">Import completed successfully</p>
-                <p class="school-it-import__success-copy">{{ importSuccessMessage }}</p>
+                <div class="school-it-import__result-head-actions">
+                  <button
+                    v-if="showSecondaryAction"
+                    class="school-it-import__button school-it-import__button--ghost"
+                    type="button"
+                    :disabled="stage === 'processing'"
+                    @click="handleSecondaryAction"
+                  >
+                    {{ secondaryActionLabel }}
+                  </button>
+                </div>
               </div>
 
               <div
-                v-if="showPreviewRepairActions || showImportErrorDownload"
+                v-if="showPreviewRepairActions || showImportErrorDownload || showRetryFailedRowsAction"
                 class="school-it-import__result-actions"
               >
                 <button
                   v-if="showPreviewRepairActions"
-                  class="school-it-import__secondary-action"
+                  class="school-it-import__button school-it-import__button--surface"
                   type="button"
                   :disabled="stage === 'processing'"
                   @click="handleDownloadPreviewErrors"
                 >
+                  <Download :size="15" />
                   Download Errors
                 </button>
 
                 <button
                   v-if="showPreviewRepairActions"
-                  class="school-it-import__secondary-action"
+                  class="school-it-import__button school-it-import__button--surface"
                   type="button"
                   :disabled="stage === 'processing'"
                   @click="handleDownloadPreviewRetryFile"
                 >
+                  <RefreshCcw :size="15" />
                   Retry File
                 </button>
 
                 <button
                   v-if="showPreviewRepairActions && canKeepValidRows"
-                  class="school-it-import__secondary-action school-it-import__secondary-action--primary"
+                  class="school-it-import__button school-it-import__button--primary"
                   type="button"
                   :disabled="stage === 'processing'"
                   @click="handleKeepValidRows"
                 >
+                  <ShieldCheck :size="15" />
                   Keep Valid Rows
                 </button>
 
                 <button
                   v-if="showImportErrorDownload"
-                  class="school-it-import__secondary-action"
+                  class="school-it-import__button school-it-import__button--surface"
                   type="button"
                   :disabled="stage === 'processing'"
                   @click="handleDownloadImportErrors"
                 >
+                  <Download :size="15" />
                   Download Failed Rows
+                </button>
+
+                <button
+                  v-if="showRetryFailedRowsAction"
+                  class="school-it-import__button school-it-import__button--primary"
+                  type="button"
+                  :disabled="stage === 'processing'"
+                  @click="handleRetryFailedRows"
+                >
+                  <RefreshCcw :size="15" />
+                  Retry Failed Rows
                 </button>
               </div>
 
-              <div v-if="displayRows.length" class="school-it-import__results-list">
-                <article
-                  v-for="row in displayRows"
-                  :key="row.id"
-                  class="school-it-import__result-row"
-                  :class="{ 'school-it-import__result-row--invalid': row.status !== 'valid' }"
+              <div v-if="displayRows.length" class="school-it-import__result-filter">
+                <button
+                  v-for="filter in rowFilters"
+                  :key="filter.id"
+                  class="school-it-import__filter-pill"
+                  :class="{ 'school-it-import__filter-pill--active': rowFilter === filter.id }"
+                  type="button"
+                  @click="rowFilter = filter.id"
                 >
-                  <div class="school-it-import__result-top">
-                    <div class="school-it-import__result-identity">
-                      <p class="school-it-import__result-name">{{ row.name }}</p>
-                      <p class="school-it-import__result-id">{{ row.studentId || `Row ${row.row}` }}</p>
+                  {{ filter.label }}
+                </button>
+              </div>
+
+              <div v-if="filteredDisplayRows.length" class="school-it-import__rows">
+                <article
+                  v-for="row in filteredDisplayRows"
+                  :key="row.id"
+                  class="school-it-import__row"
+                  :class="{ 'school-it-import__row--issue': row.status !== 'valid' }"
+                >
+                  <div class="school-it-import__row-top">
+                    <div class="school-it-import__row-copy">
+                      <p class="school-it-import__row-name">{{ row.name }}</p>
+                      <p class="school-it-import__row-id">{{ row.studentId || `Row ${row.row}` }}</p>
                     </div>
 
                     <span
-                      class="school-it-import__result-status"
-                      :class="{ 'school-it-import__result-status--invalid': row.status !== 'valid' }"
+                      class="school-it-import__status-pill"
+                      :class="[`school-it-import__status-pill--${row.status === 'valid' ? 'ready' : 'issue'}`]"
                     >
-                      {{ row.status === 'valid' ? 'Ready' : 'Needs Review' }}
+                      {{ resolveRowStatusLabel(row) }}
                     </span>
                   </div>
 
-                  <div class="school-it-import__result-meta">
+                  <div class="school-it-import__row-meta">
                     <span>{{ row.department }}</span>
                     <span>{{ row.program }}</span>
+                    <span>Row {{ row.row }}</span>
                   </div>
 
-                  <p v-if="row.errors.length" class="school-it-import__result-error">
+                  <p v-if="row.errors.length" class="school-it-import__row-error">
                     {{ row.errors[0] }}
                   </p>
                 </article>
               </div>
 
-              <p v-else class="school-it-import__empty">No students could be resolved from this file.</p>
-            </div>
-          </Transition>
+              <p v-else class="school-it-import__empty">
+                {{ emptyStateMessage }}
+              </p>
+            </article>
 
-          <input
-            ref="fileInputEl"
-            class="school-it-import__file-input"
-            type="file"
-            accept=".xlsx,.csv"
-            @change="handleFileSelect"
-          >
-        </section>
-
-        <div class="school-it-import__action-row dashboard-enter dashboard-enter--5">
-          <button
-            ref="swipePillRef"
-            class="school-it-import__swipe-pill"
-            :class="{
-              'school-it-import__swipe-pill--busy': stage === 'processing',
-              'school-it-import__swipe-pill--ready': stage === 'result',
-            }"
-            type="button"
-            :disabled="isPrimaryActionDisabled"
-            @click="handlePillClick"
-            @touchstart.passive="handleSwipeStart"
-            @mousedown="handleSwipeStart"
-          >
-            <span 
-              ref="swipeThumbRef"
-              class="school-it-import__swipe-thumb"
-              :style="thumbStyle"
+            <input
+              ref="fileInputEl"
+              class="school-it-import__file-input"
+              type="file"
+              accept=".xlsx,.csv"
+              @change="handleFileSelect"
             >
-              <ArrowRight :size="18" />
-            </span>
+          </section>
 
-            <span class="school-it-import__swipe-label" :style="{ opacity: labelOpacity }">{{ primaryActionLabel }}</span>
+          <aside class="school-it-import__sidebar dashboard-enter dashboard-enter--4">
+            <article class="school-it-import__side-card">
+              <p class="school-it-import__panel-kicker">Backend Workflow</p>
+              <h2 class="school-it-import__side-title">How this import works</h2>
 
-            <span v-if="stage === 'idle'" class="school-it-import__swipe-chevrons" aria-hidden="true" :style="{ opacity: labelOpacity }">
-              <ChevronRight :size="16" />
-              <ChevronRight :size="16" />
-            </span>
-          </button>
+              <ul class="school-it-import__side-list">
+                <li>Template download uses the backend’s exact student-import headers.</li>
+                <li>Preview validates the file first and returns a required `preview_token`.</li>
+                <li>Import only starts after the frontend sends that `preview_token` back.</li>
+                <li>Failed rows can be downloaded or re-queued without reimporting the whole batch.</li>
+              </ul>
+            </article>
+
+            <article class="school-it-import__side-card">
+              <p class="school-it-import__panel-kicker">Required Headers</p>
+              <h2 class="school-it-import__side-title">Exact column names</h2>
+
+              <div class="school-it-import__header-chips">
+                <span
+                  v-for="header in EXPECTED_HEADERS"
+                  :key="header"
+                  class="school-it-import__header-chip"
+                >
+                  {{ header }}
+                </span>
+              </div>
+            </article>
+
+            <article class="school-it-import__side-card">
+              <p class="school-it-import__panel-kicker">Current Context</p>
+              <h2 class="school-it-import__side-title">{{ sidebarContextTitle }}</h2>
+
+              <div class="school-it-import__context-list">
+                <div
+                  v-for="item in sidebarContextItems"
+                  :key="item.label"
+                  class="school-it-import__context-item"
+                >
+                  <span class="school-it-import__context-label">{{ item.label }}</span>
+                  <span
+                    class="school-it-import__context-value"
+                    :class="{ 'school-it-import__context-value--mono': item.mono }"
+                  >
+                    {{ item.value }}
+                  </span>
+                </div>
+              </div>
+            </article>
+          </aside>
         </div>
       </div>
     </div>
@@ -259,8 +411,17 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ArrowRight, ChevronRight, CloudUpload, Info, Download } from 'lucide-vue-next'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import {
+  ArrowRight,
+  CloudUpload,
+  Download,
+  FileSpreadsheet,
+  LoaderCircle,
+  RefreshCcw,
+  ShieldCheck,
+  Upload,
+} from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -269,18 +430,21 @@ import { schoolItPreviewData } from '@/data/schoolItPreview.js'
 import {
   BackendApiError,
   downloadImportErrors,
-  getAuditLogs,
   downloadPreviewImportErrors,
   downloadPreviewRetryFile,
   downloadStudentImportTemplate,
+  getAuditLogs,
   getStudentImportStatus,
   previewImportStudents,
   removeInvalidPreviewRows,
+  retryFailedStudentImport,
   startStudentImport,
 } from '@/services/backendApi.js'
+import { downloadBlobFile } from '@/services/fileDownload.js'
 import {
   createMockImportPreviewSummary,
   extractStudentImportDisplayRows,
+  mergeImportStatusErrorsIntoDisplayRows,
 } from '@/services/studentImport.js'
 
 const props = defineProps({
@@ -293,25 +457,31 @@ const props = defineProps({
 const POLL_INTERVAL_MS = 1200
 const IMPORT_JOB_LOOKUP_ATTEMPTS = 10
 const IMPORT_JOB_LOOKUP_INTERVAL_MS = 1200
+const EXPECTED_HEADERS = [
+  'Student_ID',
+  'Email',
+  'Last Name',
+  'First Name',
+  'Middle Name',
+  'Department',
+  'Course',
+]
+
 const fileInputEl = ref(null)
-const swipePillRef = ref(null)
-const swipeThumbRef = ref(null)
-const infoOpen = ref(false)
 const isDragActive = ref(false)
 const selectedFile = ref(null)
 const stage = ref('idle')
-const processingLabel = ref('Uploading Please Wait')
+const processingMode = ref('preview')
+const processingLabel = ref('Preparing import preview...')
 const displayProgress = ref(null)
 const feedbackMessage = ref('')
 const feedbackError = ref(false)
 const previewSummary = ref(null)
 const importSummary = ref(null)
 const displayRows = ref([])
+const rowFilter = ref('all')
 
-const isSwiping = ref(false)
-const swipeProgress = ref(0)
-let swipeStartX = 0
-let swipeMaxTravel = 0
+let pollTimeoutId = 0
 
 const { currentUser, schoolSettings, apiBaseUrl, token } = useDashboardSession()
 const { logout } = useAuth()
@@ -325,47 +495,162 @@ const displayName = computed(() => {
   const first = activeUser.value?.first_name || ''
   const middle = activeUser.value?.middle_name || ''
   const last = activeUser.value?.last_name || ''
-  return [first, middle, last].filter(Boolean).join(' ') || activeUser.value?.email?.split('@')[0] || 'School IT'
+  return [first, middle, last].filter(Boolean).join(' ') || activeUser.value?.email?.split('@')[0] || 'Campus Admin'
 })
 
 const initials = computed(() => buildInitials(displayName.value))
 const avatarUrl = computed(() => activeUser.value?.avatar_url || '')
-const validPreviewRows = computed(() => displayRows.value.filter((row) => row.status === 'valid').length)
-const invalidPreviewRows = computed(() => displayRows.value.filter((row) => row.status !== 'valid').length)
-const canKeepValidRows = computed(() => validPreviewRows.value > 0 && invalidPreviewRows.value > 0 && Boolean(previewSummary.value?.preview_token))
-const showPreviewRepairActions = computed(() =>
+const selectedFileSizeLabel = computed(() => formatFileSize(selectedFile.value?.size))
+const fileExtensionLabel = computed(() => {
+  const fileName = String(selectedFile.value?.name || '')
+  const extension = fileName.includes('.') ? fileName.split('.').pop() : ''
+  return extension ? extension.toUpperCase() : 'Spreadsheet'
+})
+
+const validDisplayRows = computed(() => displayRows.value.filter((row) => row.status === 'valid'))
+const invalidDisplayRows = computed(() => displayRows.value.filter((row) => row.status !== 'valid'))
+const issueFilterLabel = computed(() => importSummary.value ? 'Failed' : 'Needs Review')
+
+const rowFilters = computed(() => ([
+  {
+    id: 'all',
+    label: `All (${displayRows.value.length})`,
+  },
+  {
+    id: 'issue',
+    label: `${issueFilterLabel.value} (${invalidDisplayRows.value.length})`,
+  },
+  {
+    id: 'ready',
+    label: `${importSummary.value ? 'Imported' : 'Ready'} (${validDisplayRows.value.length})`,
+  },
+]))
+
+const filteredDisplayRows = computed(() => {
+  const rows = [...displayRows.value].sort((left, right) => {
+    const leftIssue = left.status === 'valid' ? 1 : 0
+    const rightIssue = right.status === 'valid' ? 1 : 0
+    if (leftIssue !== rightIssue) return leftIssue - rightIssue
+    return Number(left.row || 0) - Number(right.row || 0)
+  })
+
+  if (rowFilter.value === 'issue') {
+    return rows.filter((row) => row.status !== 'valid')
+  }
+
+  if (rowFilter.value === 'ready') {
+    return rows.filter((row) => row.status === 'valid')
+  }
+
+  return rows
+})
+
+const canKeepValidRows = computed(() => (
+  validDisplayRows.value.length > 0
+  && invalidDisplayRows.value.length > 0
+  && Boolean(previewSummary.value?.preview_token)
+))
+
+const showPreviewRepairActions = computed(() => (
   stage.value === 'result'
   && !importSummary.value
   && Boolean(previewSummary.value?.preview_token)
-  && invalidPreviewRows.value > 0
-)
-const showImportErrorDownload = computed(() =>
+  && invalidDisplayRows.value.length > 0
+))
+
+const showImportErrorDownload = computed(() => (
   stage.value === 'result'
-  && Boolean(importSummary.value?.failed_count)
+  && Number(importSummary.value?.failed_count || 0) > 0
   && Boolean(importSummary.value?.job_id)
-)
-const showImportSuccessMessage = computed(() =>
-  stage.value === 'result' && importSummary.value?.state === 'completed'
-)
-const importSuccessMessage = computed(() => {
-  if (!showImportSuccessMessage.value) return ''
+))
 
-  const successCount = Number(importSummary.value?.success_count || 0)
-  const failedCount = Number(importSummary.value?.failed_count || 0)
+const showRetryFailedRowsAction = computed(() => (
+  !props.preview
+  && stage.value === 'result'
+  && Number(importSummary.value?.failed_count || 0) > 0
+  && Boolean(importSummary.value?.job_id)
+))
 
-  if (failedCount > 0) {
-    return `${successCount} student accounts were imported. ${failedCount} rows still need review.`
-  }
+const hasDeterminateProgress = computed(() => Number.isFinite(Number(displayProgress.value)))
 
-  if (successCount === 1) {
-    return '1 student account was added to the database.'
-  }
-
-  return `${successCount} student accounts were added to the database.`
+const primaryActionLabel = computed(() => {
+  if (!selectedFile.value) return 'Choose File'
+  if (stage.value === 'processing') return 'Processing'
+  if (stage.value === 'idle') return 'Preview File'
+  if (stage.value === 'result' && !importSummary.value && previewSummary.value?.can_commit) return 'Start Import'
+  if (stage.value === 'result' && !importSummary.value && !previewSummary.value?.can_commit) return 'Replace File'
+  return 'Import Another File'
 })
+
+const isPrimaryActionDisabled = computed(() => {
+  if (stage.value === 'processing') return true
+  if (!selectedFile.value) return false
+  return false
+})
+
+const showSecondaryAction = computed(() => (
+  stage.value !== 'processing'
+  && (Boolean(selectedFile.value) || stage.value === 'result')
+))
+
+const secondaryActionLabel = computed(() => {
+  if (stage.value === 'idle') return 'Clear File'
+  if (importSummary.value) return 'Start Over'
+  return 'Choose Another File'
+})
+
+const resultKicker = computed(() => {
+  if (importSummary.value?.state === 'completed') return 'Import Finished'
+  if (importSummary.value?.state === 'failed') return 'Import Requires Review'
+  return 'Preview Results'
+})
+
+const resultTitle = computed(() => {
+  if (importSummary.value?.state === 'completed' && Number(importSummary.value?.failed_count || 0) <= 0) {
+    return 'Students Imported'
+  }
+
+  if (importSummary.value?.state === 'completed') {
+    return 'Import Completed With Failed Rows'
+  }
+
+  if (importSummary.value?.state === 'failed') {
+    return 'Import Stopped With Issues'
+  }
+
+  if (invalidDisplayRows.value.length > 0) {
+    return 'Preview Needs Attention'
+  }
+
+  return 'Preview Ready To Import'
+})
+
+const resultSummary = computed(() => {
+  if (importSummary.value) {
+    const processedRows = Number(importSummary.value?.processed_rows || 0)
+    const totalRows = Number(importSummary.value?.total_rows || 0)
+    const successCount = Number(importSummary.value?.success_count || 0)
+    const failedCount = Number(importSummary.value?.failed_count || 0)
+    return `${successCount} imported, ${failedCount} failed, ${processedRows}/${totalRows || processedRows} processed.`
+  }
+
+  if (!previewSummary.value) {
+    return 'Upload a file to start the student import preview.'
+  }
+
+  return `${previewSummary.value.valid_rows} ready, ${previewSummary.value.invalid_rows} flagged from ${previewSummary.value.filename || 'the selected file'}.`
+})
+
 const processingStatusHint = computed(() => {
   if (stage.value !== 'processing') return ''
-  if (props.preview) return ''
+
+  if (processingMode.value === 'preview') {
+    return 'Checking file type, header order, and row-level validation rules from the backend import service.'
+  }
+
+  if (processingMode.value === 'retry') {
+    return 'Re-queuing only the backend rows that previously failed.'
+  }
 
   const summary = importSummary.value
   const approvedRows = Number(previewSummary.value?.valid_rows || previewSummary.value?.total_rows || 0)
@@ -382,14 +667,8 @@ const processingStatusHint = computed(() => {
 
   if (summary.state === 'pending' || summary.state === 'queued') {
     return approvedRows > 0
-      ? `${approvedRows} approved rows are queued. Waiting for the backend worker to start.`
-      : 'Waiting for the backend worker to start.'
-  }
-
-  if (summary.state === 'processing' && totalRows <= 0) {
-    return approvedRows > 0
-      ? `The backend is processing ${approvedRows} approved rows but has not reported row progress yet.`
-      : 'The backend is processing the import but has not reported row progress yet.'
+      ? `${approvedRows} approved rows are queued. Waiting for the worker to start.`
+      : 'Waiting for the worker to start.'
   }
 
   if (summary.state === 'processing' && totalRows > 0) {
@@ -397,76 +676,262 @@ const processingStatusHint = computed(() => {
     return `${processedRows}/${totalRows} rows processed.${etaLabel}`
   }
 
-  return ''
+  return 'Processing the current import job.'
 })
-const primaryActionLabel = computed(() => {
-  if (stage.value === 'processing') return 'Processing...'
-  if (stage.value === 'result' && importSummary.value?.state === 'completed') return 'Import Another'
-  if (stage.value === 'result' && importSummary.value?.state === 'failed') return 'Try Another File'
-  if (stage.value === 'result' && previewSummary.value && !previewSummary.value.can_commit) return 'Fix Errors to Import'
-  return 'Slide to Import'
+
+const fileStatusLabel = computed(() => {
+  if (!selectedFile.value) return 'No File'
+  if (stage.value === 'processing' && processingMode.value === 'preview') return 'Previewing'
+  if (stage.value === 'processing' && processingMode.value === 'retry') return 'Retrying Failed Rows'
+  if (stage.value === 'processing') return 'Importing'
+  if (importSummary.value?.state === 'completed' && Number(importSummary.value?.failed_count || 0) <= 0) return 'Imported'
+  if (importSummary.value?.state === 'completed') return 'Imported With Issues'
+  if (importSummary.value?.state === 'failed') return 'Import Failed'
+  if (previewSummary.value && invalidDisplayRows.value.length > 0) return 'Needs Review'
+  if (previewSummary.value?.can_commit) return 'Ready To Import'
+  return 'File Selected'
 })
-const isPrimaryActionDisabled = computed(() => {
-  if (stage.value === 'processing') return true
-  if (stage.value === 'result' && importSummary.value) return false
-  if (stage.value === 'result' && previewSummary.value && !previewSummary.value.can_commit) return true
-  return !selectedFile.value
+
+const fileStatusTone = computed(() => {
+  if (!selectedFile.value) return 'neutral'
+  if (stage.value === 'processing') return 'active'
+  if (importSummary.value?.state === 'failed' || invalidDisplayRows.value.length > 0) return 'issue'
+  if (previewSummary.value || importSummary.value?.state === 'completed') return 'ready'
+  return 'neutral'
 })
-const resultTitle = computed(() => {
-  if (importSummary.value?.state === 'completed') return 'Imported Students'
-  if (importSummary.value?.state === 'failed') return 'Import Results'
-  return 'Import Preview'
-})
-const resultSummary = computed(() => {
-  if (importSummary.value?.state === 'completed') {
-    return `${importSummary.value.success_count} imported, ${importSummary.value.failed_count} failed`
+
+const fileStatusCopy = computed(() => {
+  if (importSummary.value) {
+    return 'The current file has already been previewed and sent to the backend import queue.'
   }
-  if (importSummary.value?.state === 'failed') {
-    return `${importSummary.value.success_count} imported, ${importSummary.value.failed_count} failed during this job`
+
+  if (previewSummary.value?.can_commit) {
+    return 'Preview passed. You can start the import job or replace the file.'
   }
+
+  if (previewSummary.value && invalidDisplayRows.value.length > 0) {
+    return 'Preview found rows that need correction before import.'
+  }
+
+  return 'Review the selected file before sending it to the backend.'
+})
+
+const summaryCards = computed(() => {
+  if (importSummary.value) {
+    return [
+      {
+        id: 'imported',
+        label: 'Imported',
+        value: Number(importSummary.value?.success_count || 0),
+        note: 'Rows successfully created as students.',
+        tone: 'ready',
+      },
+      {
+        id: 'failed',
+        label: 'Failed',
+        value: Number(importSummary.value?.failed_count || 0),
+        note: 'Rows the backend rejected during import.',
+        tone: Number(importSummary.value?.failed_count || 0) > 0 ? 'issue' : 'neutral',
+      },
+      {
+        id: 'processed',
+        label: 'Processed',
+        value: `${Number(importSummary.value?.processed_rows || 0)}/${Number(importSummary.value?.total_rows || 0) || Number(importSummary.value?.processed_rows || 0)}`,
+        note: 'Worker progress reported by the backend.',
+        tone: 'neutral',
+      },
+    ]
+  }
+
   if (previewSummary.value) {
-    return `${validPreviewRows.value} ready, ${invalidPreviewRows.value} flagged from ${previewSummary.value.filename || 'selected file'}`
+    return [
+      {
+        id: 'rows',
+        label: 'Rows Detected',
+        value: Number(previewSummary.value?.total_rows || 0),
+        note: 'Rows parsed from the uploaded file.',
+        tone: 'neutral',
+      },
+      {
+        id: 'ready',
+        label: 'Ready',
+        value: Number(previewSummary.value?.valid_rows || 0),
+        note: 'Rows approved for import.',
+        tone: 'ready',
+      },
+      {
+        id: 'review',
+        label: 'Needs Review',
+        value: Number(previewSummary.value?.invalid_rows || 0),
+        note: 'Rows blocked by validation errors.',
+        tone: Number(previewSummary.value?.invalid_rows || 0) > 0 ? 'issue' : 'neutral',
+      },
+    ]
   }
-  return 'Review the rows detected from the selected file.'
+
+  if (selectedFile.value) {
+    return [
+      {
+        id: 'headers',
+        label: 'Template Columns',
+        value: EXPECTED_HEADERS.length,
+        note: 'The backend checks exact header names.',
+        tone: 'neutral',
+      },
+      {
+        id: 'formats',
+        label: 'Accepted Files',
+        value: 'CSV / XLSX',
+        note: 'Other formats are rejected before preview.',
+        tone: 'neutral',
+      },
+      {
+        id: 'flow',
+        label: 'Import Mode',
+        value: 'Preview First',
+        note: 'A preview token is required before import.',
+        tone: 'active',
+      },
+    ]
+  }
+
+  return []
 })
 
-let pollTimeoutId = 0
+const workflowSteps = computed(() => {
+  const steps = [
+    { id: 'template', index: '01', label: 'Template', detail: 'Use the exact backend column names.' },
+    { id: 'preview', index: '02', label: 'Preview', detail: 'Validate rows before import.' },
+    { id: 'queue', index: '03', label: 'Queue', detail: 'Send the preview token to import.' },
+    { id: 'finish', index: '04', label: 'Finish', detail: 'Review or retry failed rows.' },
+  ]
 
-const hasDeterminateProgress = computed(() => Number.isFinite(Number(displayProgress.value)))
+  let activeIndex = 0
+  let completeThrough = -1
 
-const thumbStyle = computed(() => {
-  if (isSwiping.value) {
-    return { left: `calc(5px + ${swipeProgress.value}px)`, transition: 'none' }
+  if (selectedFile.value) {
+    activeIndex = 1
+    completeThrough = 0
   }
-  return {}
+
+  if (stage.value === 'processing' && processingMode.value === 'preview') {
+    activeIndex = 1
+    completeThrough = 0
+  } else if (previewSummary.value && !importSummary.value) {
+    completeThrough = 1
+    activeIndex = previewSummary.value.can_commit ? 2 : 3
+  }
+
+  if (stage.value === 'processing' && ['import', 'retry'].includes(processingMode.value)) {
+    activeIndex = 2
+    completeThrough = 1
+  }
+
+  if (importSummary.value) {
+    completeThrough = 2
+    activeIndex = 3
+  }
+
+  return steps.map((step, index) => ({
+    ...step,
+    state: index <= completeThrough ? 'done' : index === activeIndex ? 'active' : 'pending',
+  }))
 })
 
-const labelOpacity = computed(() => {
-  if (isSwiping.value && swipeMaxTravel > 0) {
-    return Math.max(0, 1 - (swipeProgress.value / (swipeMaxTravel * 0.4)))
-  }
-  return 1
+const sidebarContextTitle = computed(() => {
+  if (importSummary.value?.job_id) return 'Live Import Status'
+  if (previewSummary.value?.preview_token) return 'Preview Ready'
+  if (selectedFile.value) return 'Selected File'
+  return 'Waiting For File'
 })
 
-onMounted(() => {
-  resetFlow()
-  window.addEventListener('mousemove', handleSwipeMove)
-  window.addEventListener('mouseup', handleSwipeEnd)
-  window.addEventListener('touchmove', handleSwipeMove, { passive: false })
-  window.addEventListener('touchend', handleSwipeEnd)
+const sidebarContextItems = computed(() => {
+  if (importSummary.value?.job_id) {
+    return [
+      {
+        label: 'Job ID',
+        value: importSummary.value.job_id,
+        mono: true,
+      },
+      {
+        label: 'State',
+        value: String(importSummary.value?.state || 'queued').replace(/_/g, ' '),
+      },
+      {
+        label: 'Failed Rows',
+        value: Number(importSummary.value?.failed_count || 0),
+      },
+    ]
+  }
+
+  if (previewSummary.value?.preview_token) {
+    return [
+      {
+        label: 'Preview Token',
+        value: previewSummary.value.preview_token,
+        mono: true,
+      },
+      {
+        label: 'Can Commit',
+        value: previewSummary.value.can_commit ? 'Yes' : 'No',
+      },
+      {
+        label: 'Detected Rows',
+        value: Number(previewSummary.value?.total_rows || 0),
+      },
+    ]
+  }
+
+  if (selectedFile.value) {
+    return [
+      {
+        label: 'Filename',
+        value: selectedFile.value.name,
+      },
+      {
+        label: 'Size',
+        value: selectedFileSizeLabel.value,
+      },
+      {
+        label: 'Next Action',
+        value: 'Preview file',
+      },
+    ]
+  }
+
+  return [
+    {
+      label: 'Accepted Files',
+      value: 'CSV, XLSX',
+    },
+    {
+      label: 'Required Flow',
+      value: 'Preview first',
+    },
+    {
+      label: 'Access',
+      value: 'Campus Admin / Admin',
+    },
+  ]
+})
+
+const emptyStateMessage = computed(() => {
+  if (importSummary.value) {
+    return 'No preview rows are available for this import result.'
+  }
+
+  return 'No students could be resolved from this file.'
 })
 
 onBeforeUnmount(() => {
   clearPollTimer()
-  window.removeEventListener('mousemove', handleSwipeMove)
-  window.removeEventListener('mouseup', handleSwipeEnd)
-  window.removeEventListener('touchmove', handleSwipeMove)
-  window.removeEventListener('touchend', handleSwipeEnd)
 })
 
 function buildInitials(value) {
   const parts = String(value || '').split(' ').filter(Boolean)
-  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  }
   return String(value || '').slice(0, 2).toUpperCase()
 }
 
@@ -480,6 +945,13 @@ function formatEtaSeconds(totalSeconds) {
   return `${minutes}m ${seconds}s`
 }
 
+function formatFileSize(sizeInBytes) {
+  const size = Number(sizeInBytes)
+  if (!Number.isFinite(size) || size <= 0) return '0 KB'
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function openFilePicker() {
   if (stage.value === 'processing') return
   fileInputEl.value?.click()
@@ -489,18 +961,12 @@ function handleFileSelect(event) {
   const file = event?.target?.files?.[0] || null
   commitSelectedFile(file)
   if (event?.target) event.target.value = ''
-  if (selectedFile.value) {
-    runPreviewFlow()
-  }
 }
 
 function handleFileDrop(event) {
   isDragActive.value = false
   const file = event?.dataTransfer?.files?.[0] || null
   commitSelectedFile(file)
-  if (selectedFile.value) {
-    runPreviewFlow()
-  }
 }
 
 function commitSelectedFile(file) {
@@ -509,6 +975,10 @@ function commitSelectedFile(file) {
   previewSummary.value = null
   importSummary.value = null
   displayRows.value = []
+  rowFilter.value = 'all'
+  displayProgress.value = null
+  processingMode.value = 'preview'
+  stage.value = 'idle'
 
   if (!file) {
     selectedFile.value = null
@@ -524,182 +994,211 @@ function commitSelectedFile(file) {
   }
 
   selectedFile.value = file
-}
-
-function handlePillClick() {
-  if (stage.value === 'result' && importSummary.value) {
-    handlePrimaryAction()
-  }
-}
-
-function handleSwipeStart(e) {
-  if (isPrimaryActionDisabled.value) return
-  if (stage.value === 'result' && importSummary.value) return // Allow click for "Import Another"
-  
-  isSwiping.value = true
-  swipeStartX = e.type.includes('mouse') ? e.clientX : e.touches?.[0]?.clientX
-  
-  if (swipePillRef.value && swipeThumbRef.value) {
-    const pillRect = swipePillRef.value.getBoundingClientRect()
-    const thumbRect = swipeThumbRef.value.getBoundingClientRect()
-    swipeMaxTravel = pillRect.width - thumbRect.width - 10
-  }
-}
-
-function handleSwipeMove(e) {
-  if (!isSwiping.value) return
-  if (e.cancelable) e.preventDefault()
-  
-  const currentX = e.type.includes('mouse') ? e.clientX : e.touches?.[0]?.clientX
-  let deltaX = currentX - swipeStartX
-  
-  if (deltaX < 0) deltaX = 0
-  if (deltaX > swipeMaxTravel) deltaX = swipeMaxTravel
-  
-  swipeProgress.value = deltaX
-}
-
-function handleSwipeEnd() {
-  if (!isSwiping.value) return
-  isSwiping.value = false
-  
-  if (swipeProgress.value > swipeMaxTravel * 0.85) {
-    swipeProgress.value = swipeMaxTravel
-    handlePrimaryAction()
-  } else {
-    swipeProgress.value = 0
-  }
-  
-  if (stage.value !== 'processing') {
-    setTimeout(() => {
-      swipeProgress.value = 0
-    }, 300)
-  }
+  feedbackMessage.value = 'File ready. Run preview before importing.'
 }
 
 async function handlePrimaryAction() {
-  if (stage.value === 'result' && importSummary.value) {
-    resetFlow()
-    await nextTick()
-    return
-  }
-
   if (!selectedFile.value) {
-    feedbackError.value = true
-    feedbackMessage.value = 'Choose a CSV or Excel file first.'
+    openFilePicker()
     return
   }
 
-  await runImportFlow()
-}
+  if (stage.value === 'processing') return
 
-async function runPreviewFlow() {
-  stage.value = 'processing'
-  feedbackMessage.value = ''
-  feedbackError.value = false
-  previewSummary.value = null
-  importSummary.value = null
-  displayRows.value = []
-  displayProgress.value = null
-  processingLabel.value = 'Analyzing file structure...'
-  
-  try {
-    const preview = props.preview
-      ? await runMockPreview(selectedFile.value)
-      : await previewImportStudents(apiBaseUrl.value, token.value, selectedFile.value)
-      
-    previewSummary.value = preview
-    displayRows.value = extractStudentImportDisplayRows(preview)
-    
-    displayProgress.value = 100
-    await wait(180)
-    stage.value = 'result'
-    
-    if (!preview.can_commit) {
-      feedbackError.value = true
-      feedbackMessage.value = 'File has errors. Please fix highlighted rows and select an updated file.'
-    } else {
-      feedbackError.value = false
-      feedbackMessage.value = 'File looks good! Ready to import.'
-    }
-  } catch (error) {
-    stage.value = 'idle'
-    displayProgress.value = null
-    feedbackError.value = true
-    feedbackMessage.value = resolveImportErrorMessage(error)
-    selectedFile.value = null
-  }
-}
-
-async function runImportFlow() {
-  if (!previewSummary.value || !previewSummary.value.can_commit) return
-  if (!previewSummary.value.preview_token) {
-    feedbackError.value = true
-    feedbackMessage.value = 'Preview token is missing. Preview the file again before importing.'
-    stage.value = 'result'
+  if (stage.value === 'idle') {
+    await runPreviewFlow()
     return
   }
 
-  stage.value = 'processing'
-  feedbackMessage.value = ''
-  feedbackError.value = false
-  displayProgress.value = null
-  processingLabel.value = 'Queuing import job...'
-
-  try {
-    if (props.preview) {
-      await runMockImport(previewSummary.value)
-    } else {
-      const jobId = await resolveImportJobId(previewSummary.value.preview_token)
-      processingLabel.value = 'Importing students...'
-      await pollImportJob(jobId)
+  if (stage.value === 'result' && !importSummary.value) {
+    if (previewSummary.value?.can_commit) {
+      await runImportFlow()
+      return
     }
 
-    displayProgress.value = 100
-    await wait(220)
-    stage.value = 'result'
-
-    if (importSummary.value?.state === 'failed') {
-      feedbackError.value = true
-      feedbackMessage.value = 'Import finished with errors. Review the uploaded rows.'
-    } else {
-      feedbackMessage.value = 'Students were imported successfully.'
-      feedbackError.value = false
-    }
-  } catch (error) {
-    stage.value = 'result'
-    displayProgress.value = Number.isFinite(Number(importSummary.value?.percentage_completed))
-      ? Number(importSummary.value.percentage_completed)
-      : null
-    feedbackError.value = true
-    feedbackMessage.value = resolveImportErrorMessage(error)
+    openFilePicker()
+    return
   }
+
+  resetFlow()
+  await nextTick()
+  openFilePicker()
 }
 
-function triggerBlobDownload(blob, fileName) {
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', fileName)
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
+function handleSecondaryAction() {
+  if (stage.value === 'idle') {
+    resetFlow()
+    return
+  }
+
+  if (!importSummary.value) {
+    openFilePicker()
+    return
+  }
+
+  resetFlow()
+}
+
+function resolveRowStatusLabel(row) {
+  if (row.status === 'valid') {
+    return importSummary.value ? 'Imported' : 'Ready'
+  }
+
+  return importSummary.value ? 'Failed' : 'Needs Review'
 }
 
 async function downloadTemplate() {
   if (props.preview) {
-    const headers = 'Student_ID,Email,Last Name,First Name,Middle Name,Department,Course\n'
-    const blob = new Blob([headers], { type: 'text/csv;charset=utf-8;' })
-    triggerBlobDownload(blob, 'student_import_template.csv')
+    feedbackError.value = false
+    feedbackMessage.value = 'Template download is available when connected to the backend.'
     return
   }
 
   try {
     const blob = await downloadStudentImportTemplate(apiBaseUrl.value, token.value)
-    triggerBlobDownload(blob, 'student_import_template.xlsx')
+    await downloadBlobFile(blob, 'student_import_template.xlsx', {
+      title: 'Student import template',
+    })
   } catch (error) {
+    feedbackError.value = true
+    feedbackMessage.value = resolveImportErrorMessage(error)
+  }
+}
+
+async function runPreviewFlow() {
+  if (!selectedFile.value) return
+
+  stage.value = 'processing'
+  processingMode.value = 'preview'
+  processingLabel.value = 'Previewing uploaded file...'
+  displayProgress.value = null
+  feedbackMessage.value = ''
+  feedbackError.value = false
+
+  try {
+    const summary = props.preview
+      ? await runMockPreview(selectedFile.value)
+      : await previewImportStudents(apiBaseUrl.value, token.value, selectedFile.value)
+
+    previewSummary.value = summary
+    importSummary.value = null
+    displayRows.value = extractStudentImportDisplayRows(summary)
+    rowFilter.value = summary.invalid_rows > 0 ? 'issue' : 'all'
+    stage.value = 'result'
+
+    if (summary.can_commit) {
+      feedbackError.value = false
+      feedbackMessage.value = 'Preview passed. The backend is ready to accept this import.'
+    } else {
+      feedbackError.value = true
+      feedbackMessage.value = 'Preview found rows that need correction before import.'
+    }
+  } catch (error) {
+    stage.value = 'idle'
+    feedbackError.value = true
+    feedbackMessage.value = resolveImportErrorMessage(error)
+  }
+}
+
+async function runImportFlow() {
+  if (!previewSummary.value?.preview_token) {
+    feedbackError.value = true
+    feedbackMessage.value = 'Preview token missing. Preview the file again before importing.'
+    return
+  }
+
+  stage.value = 'processing'
+  processingMode.value = 'import'
+  processingLabel.value = 'Queuing student import...'
+  displayProgress.value = 0
+  feedbackMessage.value = ''
+  feedbackError.value = false
+
+  try {
+    let finalSummary = null
+
+    if (props.preview) {
+      finalSummary = await runMockImport(previewSummary.value)
+    } else {
+      const jobId = await resolveImportJobId(previewSummary.value.preview_token)
+      importSummary.value = {
+        job_id: jobId,
+        state: 'pending',
+        total_rows: Number(previewSummary.value?.valid_rows || previewSummary.value?.total_rows || 0),
+        processed_rows: 0,
+        success_count: 0,
+        failed_count: 0,
+        percentage_completed: 0,
+        errors: [],
+      }
+
+      finalSummary = await pollImportJob(jobId)
+    }
+
+    importSummary.value = finalSummary
+    displayRows.value = mergeImportStatusErrorsIntoDisplayRows(
+      extractStudentImportDisplayRows(previewSummary.value),
+      finalSummary
+    )
+    rowFilter.value = Number(finalSummary?.failed_count || 0) > 0 ? 'issue' : 'all'
+    stage.value = 'result'
+
+    if (Number(finalSummary?.failed_count || 0) > 0) {
+      feedbackError.value = true
+      feedbackMessage.value = 'Import finished, but some rows failed. Download or retry the failed rows below.'
+    } else {
+      feedbackError.value = false
+      feedbackMessage.value = 'Student import completed successfully.'
+    }
+  } catch (error) {
+    stage.value = 'result'
+    feedbackError.value = true
+    feedbackMessage.value = resolveImportErrorMessage(error)
+  }
+}
+
+async function handleRetryFailedRows() {
+  if (props.preview || !importSummary.value?.job_id) return
+
+  stage.value = 'processing'
+  processingMode.value = 'retry'
+  processingLabel.value = 'Retrying failed rows...'
+  displayProgress.value = 0
+  feedbackMessage.value = ''
+  feedbackError.value = false
+
+  try {
+    const response = await retryFailedStudentImport(apiBaseUrl.value, token.value, importSummary.value.job_id)
+    const retryJobId = String(response?.job_id || importSummary.value.job_id)
+    importSummary.value = {
+      ...importSummary.value,
+      job_id: retryJobId,
+      state: response?.status || 'pending',
+      processed_rows: 0,
+      success_count: 0,
+      failed_count: 0,
+      percentage_completed: 0,
+      errors: [],
+    }
+
+    const finalSummary = await pollImportJob(retryJobId)
+    importSummary.value = finalSummary
+    displayRows.value = mergeImportStatusErrorsIntoDisplayRows(
+      extractStudentImportDisplayRows(previewSummary.value),
+      finalSummary
+    )
+    rowFilter.value = Number(finalSummary?.failed_count || 0) > 0 ? 'issue' : 'all'
+    stage.value = 'result'
+
+    if (Number(finalSummary?.failed_count || 0) > 0) {
+      feedbackError.value = true
+      feedbackMessage.value = 'Retry finished, but some rows still failed.'
+    } else {
+      feedbackError.value = false
+      feedbackMessage.value = 'All previously failed rows were imported successfully.'
+    }
+  } catch (error) {
+    stage.value = 'result'
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
   }
@@ -710,7 +1209,9 @@ async function handleDownloadPreviewErrors() {
 
   try {
     const blob = await downloadPreviewImportErrors(apiBaseUrl.value, token.value, previewSummary.value.preview_token)
-    triggerBlobDownload(blob, `preview_errors_${previewSummary.value.preview_token}.xlsx`)
+    await downloadBlobFile(blob, `preview_${previewSummary.value.preview_token}_errors.xlsx`, {
+      title: 'Preview import errors',
+    })
   } catch (error) {
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
@@ -722,7 +1223,9 @@ async function handleDownloadPreviewRetryFile() {
 
   try {
     const blob = await downloadPreviewRetryFile(apiBaseUrl.value, token.value, previewSummary.value.preview_token)
-    triggerBlobDownload(blob, `preview_retry_${previewSummary.value.preview_token}.xlsx`)
+    await downloadBlobFile(blob, `preview_retry_${previewSummary.value.preview_token}.xlsx`, {
+      title: 'Preview retry file',
+    })
   } catch (error) {
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
@@ -733,17 +1236,17 @@ async function handleKeepValidRows() {
   if (props.preview || !previewSummary.value?.preview_token || !canKeepValidRows.value) return
 
   stage.value = 'processing'
-  feedbackMessage.value = ''
-  feedbackError.value = false
+  processingMode.value = 'preview'
   processingLabel.value = 'Keeping valid rows from preview...'
   displayProgress.value = null
+  feedbackMessage.value = ''
+  feedbackError.value = false
 
   try {
     const cleanedPreview = await removeInvalidPreviewRows(apiBaseUrl.value, token.value, previewSummary.value.preview_token)
     previewSummary.value = cleanedPreview
     displayRows.value = extractStudentImportDisplayRows(cleanedPreview)
-    displayProgress.value = 100
-    await wait(180)
+    rowFilter.value = 'all'
     stage.value = 'result'
     feedbackError.value = false
     feedbackMessage.value = 'Invalid rows were removed. The remaining rows are ready to import.'
@@ -759,7 +1262,9 @@ async function handleDownloadImportErrors() {
 
   try {
     const blob = await downloadImportErrors(apiBaseUrl.value, token.value, importSummary.value.job_id)
-    triggerBlobDownload(blob, `import_${importSummary.value.job_id}_failed_rows.xlsx`)
+    await downloadBlobFile(blob, `import_${importSummary.value.job_id}_failed_rows.xlsx`, {
+      title: 'Import failed rows',
+    })
   } catch (error) {
     feedbackError.value = true
     feedbackMessage.value = resolveImportErrorMessage(error)
@@ -767,8 +1272,7 @@ async function handleDownloadImportErrors() {
 }
 
 async function runMockPreview(file) {
-  processingLabel.value = 'Reading the uploaded file'
-  await wait(640)
+  await wait(500)
 
   return createMockImportPreviewSummary({
     fileName: file?.name || 'student_import_template.xlsx',
@@ -779,17 +1283,20 @@ async function runMockPreview(file) {
 }
 
 async function runMockImport(preview) {
-  displayProgress.value = 82
-  await wait(920)
-  importSummary.value = {
+  displayProgress.value = 78
+  await wait(900)
+
+  return {
     job_id: `preview-${Date.now()}`,
     state: 'completed',
     total_rows: preview.total_rows,
     processed_rows: preview.total_rows,
     success_count: preview.valid_rows,
-    failed_count: preview.invalid_rows,
+    failed_count: 0,
     percentage_completed: 100,
+    estimated_time_remaining_seconds: 0,
     errors: [],
+    failed_report_download_url: '',
   }
 }
 
@@ -897,7 +1404,7 @@ async function pollImportJob(jobId) {
     }
 
     if (summary.state === 'completed' || summary.state === 'failed') {
-      return
+      return summary
     }
 
     await wait(POLL_INTERVAL_MS)
@@ -905,6 +1412,7 @@ async function pollImportJob(jobId) {
 
   throw new BackendApiError('Import is taking longer than expected. Please try again in a moment.')
 }
+
 function clearPollTimer() {
   if (pollTimeoutId) {
     window.clearTimeout(pollTimeoutId)
@@ -927,24 +1435,32 @@ function resetFlow() {
   selectedFile.value = null
   if (fileInputEl.value) fileInputEl.value.value = ''
   stage.value = 'idle'
-  processingLabel.value = 'Uploading Please Wait'
+  processingMode.value = 'preview'
+  processingLabel.value = 'Preparing import preview...'
   displayProgress.value = null
   previewSummary.value = null
   importSummary.value = null
   displayRows.value = []
+  rowFilter.value = 'all'
   feedbackMessage.value = ''
   feedbackError.value = false
-  isSwiping.value = false
-  swipeProgress.value = 0
+  isDragActive.value = false
 }
 
 function resolveImportErrorMessage(error) {
   if (!(error instanceof BackendApiError)) {
-    return error?.message || 'Unable to import this file right now.'
+    return error?.message || 'Unable to process this import right now.'
   }
 
   if (error.status === 400) {
-    return error.message || 'Only .xlsx and .csv files are allowed.'
+    if (/preview_token/i.test(String(error.message || ''))) {
+      return 'The backend requires a valid preview token before import. Preview the file again first.'
+    }
+    return error.message || 'The uploaded file failed backend validation.'
+  }
+
+  if (error.status === 401) {
+    return 'Session expired. Please log in again.'
   }
 
   if (error.status === 403) {
@@ -955,15 +1471,15 @@ function resolveImportErrorMessage(error) {
     return error.message || 'The uploaded file is too large.'
   }
 
+  if (error.status === 422) {
+    return error.message || 'The backend rejected one or more import fields.'
+  }
+
   if (error.status === 429) {
-    return 'Too many import requests. Please wait before uploading again.'
+    return 'Too many import requests. Please wait before trying again.'
   }
 
-  if (error.status === 401) {
-    return 'Session expired. Please log in again.'
-  }
-
-  return error.message || 'Unable to import this file right now.'
+  return error.message || 'Unable to process this import right now.'
 }
 
 async function handleLogout() {
@@ -972,151 +1488,754 @@ async function handleLogout() {
 </script>
 
 <style scoped>
-.school-it-import{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
-.school-it-import__shell{width:100%;max-width:1120px;margin:0 auto}
-.school-it-import__body{display:flex;flex-direction:column;gap:18px;max-width:460px;margin:24px auto 0}
-.school-it-import__title-card,.school-it-import__panel{background:var(--color-surface);border-radius:32px;box-shadow:0 18px 40px rgba(15,23,42,.04)}
-.school-it-import__title-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px}
-.school-it-import__title{margin:0;font-size:clamp(18px,5vw,20px);font-weight:800;line-height:1;letter-spacing:-.04em;color:var(--color-text-primary)}
-.school-it-import__info-button{width:34px;height:34px;padding:0;border:1.2px solid color-mix(in srgb,var(--color-text-primary) 12%, transparent);border-radius:999px;background:transparent;color:var(--color-text-primary);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-import__info-note{margin:0;padding:0 8px;font-size:13px;line-height:1.45;color:var(--color-text-secondary)}
-.school-it-import__panel{padding:18px;overflow:hidden}
-.school-it-import__stage{min-height:250px;display:flex;flex-direction:column}
-.school-it-import__dropzone{width:100%;min-height:250px;padding:28px 18px 22px;border:none;border-radius:28px;background:var(--color-surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:transform .22s ease,box-shadow .28s ease,background-color .22s ease}
-.school-it-import__dropzone--active{transform:translateY(-2px);box-shadow:0 18px 34px rgba(15,23,42,.08);background:color-mix(in srgb,var(--color-surface) 86%,var(--color-primary) 14%)}
-.school-it-import__dropzone--selected{background:color-mix(in srgb,var(--color-surface) 92%,var(--color-primary) 8%)}
-.school-it-import__dropzone-icon{color:var(--color-text-primary)}
-.school-it-import__dropzone-copy{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
-.school-it-import__dropzone-title,.school-it-import__dropzone-caption,.school-it-import__dropzone-file{margin:0}
-.school-it-import__dropzone-title{font-size:14px;font-weight:600;line-height:1.35;color:var(--color-text-primary)}
-.school-it-import__dropzone-caption{font-size:13px;color:var(--color-text-secondary)}
-.school-it-import__dropzone-file{font-size:12px;font-weight:700;color:var(--color-primary)}
-.school-it-import__stage--processing{align-items:center;justify-content:center;gap:30px}
-.school-it-import__processing-label{margin:0;font-size:14px;font-weight:600;line-height:1.2;color:var(--color-text-primary);text-align:center}
-.school-it-import__processing-hint{max-width:300px;margin:-18px 0 0;font-size:12px;line-height:1.45;color:var(--color-text-secondary);text-align:center}
-.school-it-import__progress-shell{width:min(100%,286px);padding:0 6px}
-.school-it-import__progress-track{position:relative;width:100%;height:12px;border-radius:999px;background:color-mix(in srgb,var(--color-surface) 70%, var(--color-bg));overflow:hidden}
-.school-it-import__progress-track--indeterminate::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,rgba(255,255,255,0) 0%,color-mix(in srgb,var(--color-primary) 32%, white) 48%,rgba(255,255,255,0) 100%);animation:school-it-import-indeterminate 1.2s ease-in-out infinite}
-.school-it-import__progress-fill{position:absolute;inset:0 auto 0 0;min-width:18px;border-radius:999px;background:linear-gradient(90deg,var(--color-primary) 0%,color-mix(in srgb,var(--color-primary) 84%, white) 55%,var(--color-primary) 100%);box-shadow:0 8px 20px color-mix(in srgb,var(--color-primary) 24%, transparent);overflow:hidden;transition:width .34s cubic-bezier(.22,1,.36,1)}
-.school-it-import__progress-fill::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(105deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.5) 42%,rgba(255,255,255,0) 72%);animation:school-it-import-liquid 1.15s linear infinite}
-.school-it-import__progress-fill--indeterminate{width:38%;min-width:72px;transition:none;animation:school-it-import-indeterminate-bar 1.2s cubic-bezier(.22,1,.36,1) infinite}
-.school-it-import__progress-knob{position:absolute;top:50%;width:6px;height:38px;border-radius:999px;background:#111111;transform:translate(-50%,-50%);box-shadow:0 10px 16px rgba(15,23,42,.16);transition:left .34s cubic-bezier(.22,1,.36,1)}
-.school-it-import__stage--result{gap:16px}
-.school-it-import__result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.school-it-import__result-copy{display:flex;flex-direction:column;gap:6px;min-width:0}
-.school-it-import__result-title,.school-it-import__result-summary,.school-it-import__result-name,.school-it-import__result-id,.school-it-import__result-error,.school-it-import__empty{margin:0}
-.school-it-import__result-title{font-size:clamp(22px,6.5vw,28px);font-weight:800;line-height:.94;letter-spacing:-.05em;color:var(--color-text-primary)}
-.school-it-import__result-summary{font-size:13px;line-height:1.4;color:var(--color-text-secondary)}
-.school-it-import__result-reset{min-height:38px;padding:0 14px;border:none;border-radius:999px;background:color-mix(in srgb,var(--color-surface) 84%, var(--color-bg));color:var(--color-text-primary);font-size:12px;font-weight:700;white-space:nowrap}
-.school-it-import__feedback{padding:0 2px;font-size:13px;font-weight:600;line-height:1.4;color:#15803D}
-.school-it-import__feedback--error{color:#D92D20}
-.school-it-import__success-banner{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:22px;background:color-mix(in srgb,var(--color-primary) 14%, white);border:1px solid color-mix(in srgb,var(--color-primary) 24%, transparent)}
-.school-it-import__success-title,.school-it-import__success-copy{margin:0}
-.school-it-import__success-title{font-size:13px;font-weight:800;line-height:1.2;color:var(--color-text-primary)}
-.school-it-import__success-copy{font-size:12px;font-weight:600;line-height:1.45;color:var(--color-text-secondary)}
-.school-it-import__result-actions{display:flex;flex-wrap:wrap;gap:10px}
-.school-it-import__secondary-action{min-height:36px;padding:0 14px;border:none;border-radius:999px;background:color-mix(in srgb,var(--color-surface) 82%, var(--color-bg));color:var(--color-text-primary);font-size:12px;font-weight:700}
-.school-it-import__secondary-action--primary{background:color-mix(in srgb,var(--color-primary) 18%, white);color:var(--color-text-primary)}
-.school-it-import__secondary-action:disabled{opacity:.62;cursor:not-allowed}
-.school-it-import__results-list{display:flex;flex-direction:column;gap:12px;max-height:360px;overflow:auto;padding-right:2px}
-.school-it-import__result-row{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:24px;background:color-mix(in srgb,var(--color-surface) 88%, var(--color-bg))}
-.school-it-import__result-row--invalid{background:color-mix(in srgb,var(--color-surface) 76%, #FDE8E8)}
-.school-it-import__result-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.school-it-import__result-identity{display:flex;flex-direction:column;gap:4px;min-width:0}
-.school-it-import__result-name{font-size:15px;font-weight:800;line-height:1.08;color:var(--color-text-primary)}
-.school-it-import__result-id{font-size:12px;font-weight:700;line-height:1;color:var(--color-primary)}
-.school-it-import__result-status{min-height:30px;padding:0 12px;border-radius:999px;background:color-mix(in srgb,var(--color-primary) 18%, white);color:var(--color-text-primary);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.02em;white-space:nowrap}
-.school-it-import__result-status--invalid{background:#FEE2E2;color:#8A1C1C}
-.school-it-import__result-meta{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px;font-weight:600;line-height:1.3;color:var(--color-text-secondary)}
-.school-it-import__result-error{font-size:12px;line-height:1.35;color:#B42318}
-.school-it-import__empty{padding:18px 6px 8px;font-size:14px;line-height:1.5;color:var(--color-text-secondary);text-align:center}
-.school-it-import__file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.school-it-import__action-row{display:flex;justify-content:center}
-.school-it-import__swipe-pill{position:relative;width:min(100%,182px);min-height:56px;padding:0 18px 0 64px;border:none;border-radius:999px;background:var(--color-primary);color:var(--color-banner-text);display:inline-flex;align-items:center;justify-content:center;gap:10px;overflow:hidden;transition:transform .18s ease,filter .2s ease,box-shadow .28s ease}
-.school-it-import__swipe-pill:disabled{opacity:.62;cursor:not-allowed}
-.school-it-import__swipe-pill:not(:disabled):hover{filter:brightness(1.03)}
-.school-it-import__swipe-pill:not(:disabled):active{transform:scale(.985)}
-.school-it-import__swipe-thumb{position:absolute;left:5px;top:50%;width:46px;height:46px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;transform:translateY(-50%);transition:left .34s cubic-bezier(.22,1,.36,1),transform .2s ease}
-.school-it-import__swipe-pill--busy .school-it-import__swipe-thumb{left:calc(100% - 51px)}
-.school-it-import__swipe-label{font-size:12px;font-weight:700;line-height:1;letter-spacing:-.02em;transition:opacity .2s ease}
-.school-it-import__swipe-chevrons{position:absolute;right:14px;display:inline-flex;align-items:center;gap:0;color:var(--color-banner-text);opacity:.88;animation:school-it-import-chevrons 1.15s ease-in-out infinite}
-.school-it-import__swipe-pill--busy .school-it-import__swipe-chevrons,.school-it-import__swipe-pill--ready .school-it-import__swipe-chevrons{display:none}
-
-.school-it-import-stage-enter-active,.school-it-import-stage-leave-active{transition:opacity .28s ease,transform .34s cubic-bezier(.22,1,.36,1)}
-.school-it-import-stage-enter-from,.school-it-import-stage-leave-to{opacity:0;transform:translateY(8px)}
-.school-it-import-info-enter-active,.school-it-import-info-leave-active{transition:opacity .22s ease,transform .24s ease}
-.school-it-import-info-enter-from,.school-it-import-info-leave-to{opacity:0;transform:translateY(-4px)}
-
-@keyframes school-it-import-liquid{
-  from{transform:translateX(-120%)}
-  to{transform:translateX(140%)}
+.school-it-import {
+  min-height: 100vh;
+  padding: 32px 28px 72px;
+  font-family: 'Manrope', sans-serif;
 }
 
-@keyframes school-it-import-indeterminate{
-  from{transform:translateX(-100%)}
-  to{transform:translateX(100%)}
+.school-it-import__shell {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
 }
 
-@keyframes school-it-import-indeterminate-bar{
-  0%{transform:translateX(-105%)}
-  100%{transform:translateX(235%)}
+.school-it-import__body {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 24px;
 }
 
-@keyframes school-it-import-chevrons{
-  0%,100%{transform:translateX(0);opacity:.72}
-  50%{transform:translateX(4px);opacity:1}
+.school-it-import__hero,
+.school-it-import__panel,
+.school-it-import__side-card {
+  border-radius: 34px;
+  background: var(--color-surface);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
 }
 
-@media (min-width:768px){
-  .school-it-import{padding:40px 36px 60px}
-  .school-it-import__body{max-width:520px;margin-top:30px}
-  .school-it-import__panel{padding:20px}
-  .school-it-import__stage{min-height:278px}
-  .school-it-import__dropzone{min-height:278px}
+.school-it-import__hero {
+  padding: 28px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--color-primary) 18%, transparent) 0, transparent 38%),
+    linear-gradient(145deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-surface) 86%, var(--color-bg)) 100%);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 60%, transparent);
 }
 
-@media (max-width:420px){
-  .school-it-import{padding:26px 18px 118px}
-  .school-it-import__body{gap:16px}
-  .school-it-import__title-card{padding:18px 18px}
-  .school-it-import__panel{padding:16px}
-  .school-it-import__stage{min-height:232px}
-  .school-it-import__dropzone{min-height:232px;padding:22px 14px 18px}
-  .school-it-import__dropzone-icon{width:82px;height:82px}
-  .school-it-import__result-row{padding:14px}
+.school-it-import__hero-top,
+.school-it-import__panel-head,
+.school-it-import__result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-@media (prefers-reduced-motion:reduce){
-  .school-it-import__dropzone,
-  .school-it-import__progress-fill,
-  .school-it-import__progress-knob,
-  .school-it-import__swipe-pill,
-  .school-it-import__swipe-thumb,
-  .school-it-import__swipe-chevrons,
-  .school-it-import-stage-enter-active,
-  .school-it-import-stage-leave-active,
-  .school-it-import-info-enter-active,
-  .school-it-import-info-leave-active{
-    transition:none;
-    animation:none;
+.school-it-import__hero-copy,
+.school-it-import__panel-head > div:first-child,
+.school-it-import__result-head > div:first-child {
+  min-width: 0;
+}
+
+.school-it-import__eyebrow,
+.school-it-import__panel-kicker,
+.school-it-import__summary-label,
+.school-it-import__context-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.school-it-import__title,
+.school-it-import__panel-title,
+.school-it-import__side-title {
+  margin: 0;
+  color: var(--color-text-primary);
+  letter-spacing: -0.05em;
+}
+
+.school-it-import__title {
+  margin-top: 8px;
+  font-size: clamp(30px, 5vw, 50px);
+  line-height: 0.92;
+  font-weight: 800;
+}
+
+.school-it-import__subtitle,
+.school-it-import__panel-copy,
+.school-it-import__step-detail,
+.school-it-import__summary-note,
+.school-it-import__processing-detail,
+.school-it-import__empty,
+.school-it-import__side-list,
+.school-it-import__context-value {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.school-it-import__subtitle {
+  max-width: 58ch;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.school-it-import__hero-actions,
+.school-it-import__panel-actions,
+.school-it-import__result-actions,
+.school-it-import__result-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.school-it-import__step-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.school-it-import__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 70%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.school-it-import__step--active {
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.school-it-import__step--done {
+  background: color-mix(in srgb, #14b86a 9%, white);
+  border-color: color-mix(in srgb, #14b86a 24%, transparent);
+}
+
+.school-it-import__step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--color-nav);
+  color: var(--color-nav-text);
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.school-it-import__step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.school-it-import__step-title,
+.school-it-import__dropzone-title,
+.school-it-import__file-name,
+.school-it-import__processing-title,
+.school-it-import__row-name {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 800;
+}
+
+.school-it-import__step-title {
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.school-it-import__step-detail {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.school-it-import__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.82fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.school-it-import__workspace,
+.school-it-import__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.school-it-import__panel,
+.school-it-import__side-card {
+  padding: 24px;
+}
+
+.school-it-import__dropzone {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 20px;
+  padding: 26px;
+  border: 1.5px dashed color-mix(in srgb, var(--color-primary) 32%, transparent);
+  border-radius: 30px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 6%, white) 0%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.24s ease;
+}
+
+.school-it-import__dropzone--active {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--color-primary) 56%, transparent);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+}
+
+.school-it-import__dropzone-icon {
+  color: var(--color-primary);
+}
+
+.school-it-import__dropzone-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 34ch;
+}
+
+.school-it-import__dropzone-title {
+  font-size: 20px;
+  line-height: 1.05;
+}
+
+.school-it-import__dropzone-detail,
+.school-it-import__file-meta,
+.school-it-import__row-id,
+.school-it-import__row-meta {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.school-it-import__dropzone-detail,
+.school-it-import__file-meta,
+.school-it-import__processing-detail,
+.school-it-import__row-id {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.school-it-import__file-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--color-surface) 84%, var(--color-bg));
+}
+
+.school-it-import__file-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.school-it-import__file-icon,
+.school-it-import__processing-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-primary) 18%, white);
+  color: var(--color-text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.school-it-import__file-copy {
+  min-width: 0;
+}
+
+.school-it-import__file-name {
+  font-size: 15px;
+  line-height: 1.1;
+  word-break: break-word;
+}
+
+.school-it-import__file-pills,
+.school-it-import__header-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.school-it-import__status-pill,
+.school-it-import__micro-pill,
+.school-it-import__filter-pill,
+.school-it-import__header-chip {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.school-it-import__status-pill {
+  background: color-mix(in srgb, var(--color-surface) 74%, var(--color-bg));
+  color: var(--color-text-primary);
+}
+
+.school-it-import__status-pill--active {
+  background: color-mix(in srgb, #2f7bff 16%, white);
+  color: #1755c2;
+}
+
+.school-it-import__status-pill--ready {
+  background: color-mix(in srgb, #14b86a 16%, white);
+  color: #0f8a50;
+}
+
+.school-it-import__status-pill--issue {
+  background: color-mix(in srgb, #ff5a36 14%, white);
+  color: #b9361a;
+}
+
+.school-it-import__status-pill--neutral {
+  background: color-mix(in srgb, var(--color-surface) 70%, var(--color-bg));
+}
+
+.school-it-import__micro-pill,
+.school-it-import__header-chip {
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+  color: var(--color-text-secondary);
+}
+
+.school-it-import__micro-pill--mono,
+.school-it-import__context-value--mono {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+}
+
+.school-it-import__feedback {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #0f8a50;
+}
+
+.school-it-import__feedback--error {
+  color: #b9361a;
+}
+
+.school-it-import__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.school-it-import__summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 136px;
+  padding: 18px;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+}
+
+.school-it-import__summary-card--ready {
+  background: color-mix(in srgb, #14b86a 10%, white);
+}
+
+.school-it-import__summary-card--issue {
+  background: color-mix(in srgb, #ff5a36 10%, white);
+}
+
+.school-it-import__summary-card--active {
+  background: color-mix(in srgb, #2f7bff 10%, white);
+}
+
+.school-it-import__summary-value {
+  color: var(--color-text-primary);
+  font-size: clamp(24px, 5vw, 36px);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.school-it-import__summary-note {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.school-it-import__processing-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.school-it-import__processing-icon :deep(svg),
+.school-it-import__button-spinner {
+  animation: school-it-import-spin 1s linear infinite;
+}
+
+.school-it-import__processing-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.school-it-import__processing-title {
+  font-size: 18px;
+  line-height: 1.08;
+}
+
+.school-it-import__progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.school-it-import__progress-track {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 70%, var(--color-bg));
+  overflow: hidden;
+}
+
+.school-it-import__progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 48px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 72%, white) 100%);
+  transition: width 0.3s ease;
+}
+
+.school-it-import__progress-fill--indeterminate {
+  width: 32%;
+  animation: school-it-import-progress 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.school-it-import__progress-value {
+  min-width: 52px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.school-it-import__result-actions {
+  justify-content: flex-start;
+  margin-top: 18px;
+}
+
+.school-it-import__result-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.school-it-import__filter-pill {
+  border: none;
+  background: color-mix(in srgb, var(--color-surface) 82%, var(--color-bg));
+  color: var(--color-text-secondary);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.school-it-import__filter-pill--active {
+  background: var(--color-nav);
+  color: var(--color-nav-text);
+}
+
+.school-it-import__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  max-height: 480px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.school-it-import__row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+}
+
+.school-it-import__row--issue {
+  background: color-mix(in srgb, #ff5a36 9%, white);
+}
+
+.school-it-import__row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.school-it-import__row-copy {
+  min-width: 0;
+}
+
+.school-it-import__row-name {
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.school-it-import__row-id {
+  margin-top: 4px;
+  font-weight: 700;
+}
+
+.school-it-import__row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.school-it-import__row-error {
+  margin: 0;
+  color: #b9361a;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.school-it-import__empty {
+  padding: 28px 6px 2px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.school-it-import__side-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.school-it-import__side-title {
+  font-size: 22px;
+  line-height: 0.98;
+  font-weight: 800;
+}
+
+.school-it-import__side-list {
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.school-it-import__context-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.school-it-import__context-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+}
+
+.school-it-import__context-value {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.school-it-import__button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: transform 0.18s ease, filter 0.22s ease, opacity 0.2s ease;
+}
+
+.school-it-import__button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.school-it-import__button:not(:disabled):hover {
+  filter: brightness(1.03);
+}
+
+.school-it-import__button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.school-it-import__button--primary {
+  background: var(--color-primary);
+  color: var(--color-banner-text);
+}
+
+.school-it-import__button--surface {
+  background: color-mix(in srgb, var(--color-surface) 84%, var(--color-bg));
+  color: var(--color-text-primary);
+}
+
+.school-it-import__button--ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 72%, transparent);
+}
+
+.school-it-import__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes school-it-import-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.school-it-import__download-template {
-  background: color-mix(in srgb, var(--color-surface) 80%, black 20%);
-  color: var(--color-text-primary);
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  transition: opacity 0.2s ease;
+@keyframes school-it-import-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(260%);
+  }
 }
 
-.school-it-import__download-template:hover {
-  opacity: 0.8;
+@media (max-width: 1023px) {
+  .school-it-import {
+    padding: 28px 22px 56px;
+  }
+
+  .school-it-import__step-grid,
+  .school-it-import__summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .school-it-import__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .school-it-import {
+    padding: 24px 18px 46px;
+  }
+
+  .school-it-import__body {
+    gap: 18px;
+  }
+
+  .school-it-import__hero,
+  .school-it-import__panel,
+  .school-it-import__side-card {
+    border-radius: 28px;
+    padding: 20px;
+  }
+
+  .school-it-import__hero-top,
+  .school-it-import__panel-head,
+  .school-it-import__result-head {
+    flex-direction: column;
+  }
+
+  .school-it-import__hero-actions,
+  .school-it-import__panel-actions,
+  .school-it-import__result-head-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .school-it-import__button {
+    width: 100%;
+  }
+
+  .school-it-import__step-grid,
+  .school-it-import__summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .school-it-import__dropzone {
+    min-height: 184px;
+    padding: 22px 18px;
+  }
+
+  .school-it-import__file-card,
+  .school-it-import__row-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .school-it-import__progress-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .school-it-import__progress-value {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .school-it-import__button,
+  .school-it-import__dropzone,
+  .school-it-import__progress-fill,
+  .school-it-import__button-spinner,
+  .school-it-import__processing-icon :deep(svg) {
+    animation: none;
+    transition: none;
+  }
 }
 </style>

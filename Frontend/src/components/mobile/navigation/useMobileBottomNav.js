@@ -27,15 +27,7 @@ export function useMobileBottomNav() {
     }
 
     const matchPrefixes = Array.isArray(item?.matchPrefixes) ? item.matchPrefixes : []
-    const excludePrefixes = Array.isArray(item?.excludePrefixes) ? item.excludePrefixes : []
-    if (excludePrefixes.some((prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`))) {
-      return false
-    }
-    return (
-      route.path === path
-      || route.path.startsWith(`${path}/`)
-      || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
-    )
+    return route.path.startsWith(path) || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
   }
 
   function navigate(target) {

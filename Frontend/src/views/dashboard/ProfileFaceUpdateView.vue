@@ -156,7 +156,7 @@ let redirectTimeout = null
 
 const faceDetectorWasmBaseUrl =
   import.meta.env.VITE_FACE_DETECTOR_WASM_URL ||
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
 const faceDetectorModelUrl =
   import.meta.env.VITE_FACE_DETECTOR_MODEL_URL ||
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
@@ -494,24 +494,8 @@ async function captureAndRegister() {
       router.replace({ name: 'ProfileSecurity', query: { done: 'face' } })
     }, 900)
   } catch (error) {
-    setEnrollmentError(buildFaceUpdateErrorMessage(error))
+    setEnrollmentError(error?.message || 'Unable to update your Face ID right now.')
   }
-}
-
-function buildFaceUpdateErrorMessage(error) {
-  const fallbackMessage = 'Unable to update your Face ID right now.'
-  const rawMessage = String(error?.message || '').trim()
-  if (!rawMessage) return fallbackMessage
-
-  if (/insightface|warm-up|warming up|model warm-up|model download/i.test(rawMessage)) {
-    return 'Face engine warm-up is still in progress. Keep this page open and try again shortly.'
-  }
-
-  if (/took too long to respond/i.test(rawMessage)) {
-    return 'Face engine setup is still running. Please keep the backend online and retry shortly.'
-  }
-
-  return rawMessage
 }
 
 function setEnrollmentError(message) {

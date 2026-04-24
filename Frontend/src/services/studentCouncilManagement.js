@@ -9,12 +9,6 @@ export const GOVERNANCE_PERMISSION_CODES = [
   'manage_attendance',
   'manage_announcements',
   'assign_permissions',
-  'view_sanctioned_students_list',
-  'view_student_sanction_detail',
-  'approve_sanction_compliance',
-  'configure_event_sanctions',
-  'export_sanctioned_students',
-  'view_sanctions_dashboard',
 ]
 
 const BACKEND_PERMISSION_LABELS = {
@@ -27,12 +21,6 @@ const BACKEND_PERMISSION_LABELS = {
   manage_attendance: 'Manage Attendance',
   manage_announcements: 'Publish Announcements',
   assign_permissions: 'Manage Permissions',
-  view_sanctioned_students_list: 'View Sanctioned Students List',
-  view_student_sanction_detail: 'View Student Sanction Detail',
-  approve_sanction_compliance: 'Approve Sanction Compliance',
-  configure_event_sanctions: 'Configure Event Sanctions',
-  export_sanctioned_students: 'Export Sanctioned Students',
-  view_sanctions_dashboard: 'View Sanctions Dashboard',
 }
 
 const BACKEND_PERMISSION_TO_UI = {
@@ -45,12 +33,6 @@ const BACKEND_PERMISSION_TO_UI = {
   view_students: 'view-student-directory',
   manage_students: 'edit-student-profiles',
   assign_permissions: 'manage-permissions',
-  view_sanctioned_students_list: 'view-sanctioned-students-list',
-  view_student_sanction_detail: 'view-student-sanction-detail',
-  approve_sanction_compliance: 'approve-sanction-compliance',
-  configure_event_sanctions: 'configure-event-sanctions',
-  export_sanctioned_students: 'export-sanctioned-students',
-  view_sanctions_dashboard: 'view-sanctions-dashboard',
 }
 
 const UI_PERMISSION_TO_BACKEND = Object.fromEntries(
@@ -64,18 +46,6 @@ export const defaultStudentCouncilPermissionCatalog = [
     permissions: [
       { id: 'manage-events', label: 'Manage Events' },
       { id: 'publish-announcements', label: 'Publish Announcements' },
-      { id: 'configure-event-sanctions', label: 'Configure Event Sanctions' },
-      { id: 'view-sanctions-dashboard', label: 'View Sanctions Dashboard' },
-    ],
-  },
-  {
-    id: 'sanctions-management',
-    label: 'Sanctions Management',
-    permissions: [
-      { id: 'view-sanctioned-students-list', label: 'View Sanctioned Students List' },
-      { id: 'view-student-sanction-detail', label: 'View Student Sanction Detail' },
-      { id: 'approve-sanction-compliance', label: 'Approve Sanction Compliance' },
-      { id: 'export-sanctioned-students', label: 'Export Sanctioned Students' },
     ],
   },
   {
@@ -103,6 +73,92 @@ export const defaultStudentCouncilPermissionCatalog = [
     ],
   },
 ]
+
+const GOVERNANCE_PERMISSION_CATALOG_BY_UNIT_TYPE = {
+  SSG: [
+    {
+      id: 'operations',
+      label: 'Operations',
+      permissions: [
+        { id: 'manage-events', label: 'Manage Events' },
+        { id: 'publish-announcements', label: 'Publish Announcements' },
+        { id: 'manage-attendance', label: 'Manage Attendance' },
+      ],
+    },
+    {
+      id: 'student-services',
+      label: 'Student Services',
+      permissions: [
+        { id: 'view-student-directory', label: 'View Student Directory' },
+        { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+      ],
+    },
+    {
+      id: 'structure',
+      label: 'SSG Controls',
+      permissions: [
+        { id: 'create-college-level-councils', label: 'Create College Level Councils' },
+        { id: 'manage-members', label: 'Manage Members' },
+        { id: 'manage-permissions', label: 'Manage Permissions' },
+      ],
+    },
+  ],
+  SG: [
+    {
+      id: 'operations',
+      label: 'Operations',
+      permissions: [
+        { id: 'manage-events', label: 'Manage Events' },
+        { id: 'publish-announcements', label: 'Publish Announcements' },
+        { id: 'manage-attendance', label: 'Manage Attendance' },
+      ],
+    },
+    {
+      id: 'student-services',
+      label: 'Student Services',
+      permissions: [
+        { id: 'view-student-directory', label: 'View Student Directory' },
+        { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+      ],
+    },
+    {
+      id: 'structure',
+      label: 'SG Controls',
+      permissions: [
+        { id: 'create-organizations', label: 'Create Organizations' },
+        { id: 'manage-members', label: 'Manage Members' },
+        { id: 'manage-permissions', label: 'Manage Permissions' },
+      ],
+    },
+  ],
+  ORG: [
+    {
+      id: 'operations',
+      label: 'Operations',
+      permissions: [
+        { id: 'manage-events', label: 'Manage Events' },
+        { id: 'publish-announcements', label: 'Publish Announcements' },
+        { id: 'manage-attendance', label: 'Manage Attendance' },
+      ],
+    },
+    {
+      id: 'student-services',
+      label: 'Student Services',
+      permissions: [
+        { id: 'view-student-directory', label: 'View Student Directory' },
+        { id: 'edit-student-profiles', label: 'Edit Student Profiles' },
+      ],
+    },
+    {
+      id: 'structure',
+      label: 'ORG Controls',
+      permissions: [
+        { id: 'manage-members', label: 'Manage Members' },
+        { id: 'manage-permissions', label: 'Manage Permissions' },
+      ],
+    },
+  ],
+}
 
 export function createEmptyCouncilDraft() {
   return {
@@ -374,6 +430,13 @@ export function normalizePermissionCatalog(catalog = defaultStudentCouncilPermis
         : [],
     }))
     : []
+}
+
+export function getGovernancePermissionCatalogForUnitType(unitType = '') {
+  const normalizedUnitType = String(unitType || '').trim().toUpperCase()
+  return normalizePermissionCatalog(
+    GOVERNANCE_PERMISSION_CATALOG_BY_UNIT_TYPE[normalizedUnitType] || defaultStudentCouncilPermissionCatalog
+  )
 }
 
 export function normalizePermissionIds(values) {

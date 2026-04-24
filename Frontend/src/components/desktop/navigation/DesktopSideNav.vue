@@ -38,12 +38,12 @@
           </button>
         </div>
 
-        <div v-if="showMiniAssistant" ref="pillRef" class="relative w-[40px] h-[74px] mx-2 mb-1.5 z-50">
+        <div ref="pillRef" class="relative w-[40px] h-[74px] mx-2 mb-1.5 z-50">
           <div
-            class="absolute bottom-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-bottom-left"
+            class="absolute top-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-left"
             :class="isMiniOpen
-              ? 'w-90 h-137.5 translate-x-15 rounded-4xl cursor-default shadow-2xl'
-              : 'w-10 h-18.5 translate-x-0 rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95'"
+              ? 'w-[300px] h-[190px] rounded-[32px] cursor-default'
+              : 'w-[40px] h-[74px] rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95'"
             style="background: var(--color-primary);"
             @click="!isMiniOpen ? openPill() : null"
           >
@@ -64,68 +64,47 @@
               class="absolute inset-0 flex flex-col p-3 transition-opacity duration-300 delay-100"
               :class="isMiniOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'"
             >
-              <div class="flex items-center justify-between mb-2 px-1">
-                <button
-                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors flex items-center justify-center group"
-                  aria-label="Minimize chat"
-                  title="Minimize chat"
+              <div class="flex items-center justify-between mb-2">
+                <img
+                  :src="activeAuraLogo"
+                  alt="Aura"
+                  class="w-7 h-7 object-contain opacity-90 cursor-pointer transition-transform hover:scale-110"
+                  title="Collapse chat"
                   @click.stop="closeMini"
-                >
-                  <ChevronDown :size="16" :color="'var(--color-banner-text)'" class="transition-transform group-hover:scale-110" />
-                </button>
+                />
 
-                <div class="flex items-center gap-1">
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="Copy conversation"
-                    title="Copy conversation"
-                    @click.stop="copyConversation"
-                  >
-                    <Check v-if="copyStatus === 'copied'" :size="14" class="text-green-500" />
-                    <Copy v-else :size="14" :color="'var(--color-banner-text)'" />
-                  </button>
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="Refresh conversation"
-                    title="Refresh chat"
-                    :disabled="isRefreshing || !conversationId"
-                    @click.stop="refreshChat"
-                  >
-                    <RotateCw 
-                      :size="14" 
-                      :color="'var(--color-banner-text)'" 
-                      :class="{ 'animate-spin': isRefreshing }" 
-                    />
-                  </button>
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="New chat"
-                    title="New chat"
-                    @click.stop="startNewConversation"
-                  >
-                    <Plus :size="15" :color="'var(--color-banner-text)'" />
-                  </button>
-                  <button
-                    class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                    aria-label="Expand chat to full window"
-                    title="Open full chat"
-                    @click.stop="openFullChatPage"
-                  >
-                    <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
-                  </button>
-                </div>
+                <button
+                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
+                  aria-label="Expand chat to full window"
+                  title="Open full chat"
+                  @click.stop="expandToFull"
+                >
+                  <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
+                </button>
               </div>
 
               <div class="mini-messages flex-1 overflow-y-auto scrollbar-hide pb-1">
                 <TransitionGroup name="mini-bubble" tag="div" class="mini-messages-inner">
-                  <template v-for="msg in messages" :key="msg.id">
-                    <div
-                      v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
-                      :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
-                    >
-                      <ChatMarkdownMessage :text="msg.text" />
+                  <div
+                    v-for="msg in messages"
+                    :key="msg.id"
+                    :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
+                  >
+                    <div v-if="msg.html" v-html="msg.html" class="mini-chat-html-content" />
+                    <template v-else>{{ msg.text }}</template>
+
+                    <div v-if="msg.actions && msg.actions.length" class="mini-chat-actions">
+                      <button
+                        v-for="(action, i) in msg.actions"
+                        :key="i"
+                        class="mini-chat-action-btn"
+                        @click="handleAction(action)"
+                      >
+                        <component v-if="action.icon" :is="action.icon" :size="12" class="mini-action-icon" />
+                        <span>{{ action.label }}</span>
+                      </button>
                     </div>
-                  </template>
+                  </div>
 
                   <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
                     <div class="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style="animation-delay:0ms" />
@@ -166,17 +145,19 @@
     </div>
   </aside>
 
+  <AuraChatWindow />
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Maximize2, Send, ChevronDown, Copy, Plus, Check, RotateCw } from 'lucide-vue-next'
+import { Maximize2, Send, Download, ExternalLink } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
-import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
+import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
-import { resolveChatLocation, withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
+import { downloadDemoReport } from '@/services/demoReportDownload.js'
+import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const {
   messages,
@@ -184,35 +165,14 @@ const {
   isTyping,
   isMiniOpen,
   sendMessage,
-  startNewConversation,
   openPill,
   closeMini,
-  copyConversation,
-  copyStatus,
-  conversationId,
-  selectConversation,
+  expandToFull,
 } = useChat()
-
-const isRefreshing = ref(false)
-
-async function refreshChat() {
-  if (!conversationId.value || isRefreshing.value) return
-  isRefreshing.value = true
-  try {
-    await selectConversation(conversationId.value)
-  } finally {
-    setTimeout(() => {
-      isRefreshing.value = false
-    }, 600)
-  }
-}
-
-
 
 const pillRef = ref(null)
 const router = useRouter()
 const route = useRoute()
-const showMiniAssistant = computed(() => !route.path.endsWith('/chat') && !route.path.endsWith('/chat/'))
 const navItems = computed(() => getNavigationItemsForRoute(route))
 const railHeight = computed(() => Math.max(380, 150 + (navItems.value.length * 58)))
 const navRailStyle = computed(() => ({
@@ -229,32 +189,23 @@ function handleOutsideClick(event) {
 
 function isActive(item) {
   const path = item?.route
-  const normalizedPath = String(path || '')
   if (
-    normalizedPath === '/dashboard' ||
-    normalizedPath === '/exposed/dashboard' ||
-    normalizedPath === '/workspace' ||
-    normalizedPath === '/exposed/workspace' ||
-    normalizedPath === '/admin' ||
-    normalizedPath === '/exposed/admin' ||
-    normalizedPath === '/governance' ||
-    normalizedPath === '/exposed/governance' ||
-    normalizedPath === '/sg' ||
-    normalizedPath === '/exposed/sg'
+    path === '/dashboard' ||
+    path === '/exposed/dashboard' ||
+    path === '/workspace' ||
+    path === '/exposed/workspace' ||
+    path === '/admin' ||
+    path === '/exposed/admin' ||
+    path === '/governance' ||
+    path === '/exposed/governance' ||
+    path === '/sg' ||
+    path === '/exposed/sg'
   ) {
-    return route.path === normalizedPath || route.path === `${normalizedPath}/`
+    return route.path === path || route.path === `${path}/`
   }
 
   const matchPrefixes = Array.isArray(item?.matchPrefixes) ? item.matchPrefixes : []
-  const excludePrefixes = Array.isArray(item?.excludePrefixes) ? item.excludePrefixes : []
-  if (excludePrefixes.some((prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`))) {
-    return false
-  }
-  return (
-    route.path === normalizedPath
-    || route.path.startsWith(`${normalizedPath}/`)
-    || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
-  )
+  return route.path.startsWith(path) || matchPrefixes.some((prefix) => route.path.startsWith(prefix))
 }
 
 function navigate(path) {
@@ -264,12 +215,13 @@ function navigate(path) {
   router.push(target)
 }
 
-function openFullChatPage() {
-  closeMini()
-  const target = resolveChatLocation(route)
-  const resolvedTarget = router.resolve(target)
-  if (route.fullPath === resolvedTarget.fullPath) return
-  router.push(target)
+async function handleAction(action) {
+  if (action.route) {
+    navigate(action.route)
+  }
+  if (action.actionId === 'download-pdf' || action.actionId === 'download-csv') {
+    await downloadDemoReport(action.actionId.split('-')[1])
+  }
 }
 
 onMounted(() => document.addEventListener('mousedown', handleOutsideClick))
@@ -480,4 +432,71 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   82% { transform: scale(0.97); }
   100% { transform: scale(1); }
 }
+/* ── Rich Content Styles for Mini Chat ─────────────────── */
+::v-deep(.mini-chat-html-content p) { margin: 0 0 6px; }
+::v-deep(.mini-chat-html-content p:last-child) { margin: 0; }
+::v-deep(.mini-chat-html-content .mock-graph) {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 60px;
+  padding: 6px 0;
+  border-bottom: 2px solid rgba(0,0,0,0.1);
+}
+::v-deep(.mini-chat-html-content .mock-graph-bar) {
+  flex: 1;
+  background: var(--color-primary);
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  min-height: 4px;
+}
+::v-deep(.mini-chat-html-content .mock-graph-bar span) {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.8);
+}
+::v-deep(.mini-chat-html-content .mock-graph-label) {
+  text-align: center;
+  font-size: 8px;
+  font-weight: 700;
+  margin-top: 4px;
+  color: rgba(0,0,0,0.6);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-around;
+}
+::v-deep(.mini-chat-html-content .mock-graph-label span) {
+  flex: 1;
+}
+
+.mini-chat-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.mini-chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.05);
+  color: #0A0A0A;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.mini-chat-action-btn:hover { background: rgba(0,0,0,0.08); }
+.mini-action-icon { opacity: 0.7; }
 </style>

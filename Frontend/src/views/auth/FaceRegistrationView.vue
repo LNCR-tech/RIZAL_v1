@@ -100,7 +100,7 @@ const schoolName = computed(() => (
   'Your school'
 ))
 const captureTitle = computed(() => {
-  if (statusState.value === 'success') return 'Face Registered'
+  if (statusState.value === 'success') return 'All set!'
   if (statusState.value === 'submitting' || statusState.value === 'capturing') return 'Registering...'
   if (statusState.value === 'starting') return 'Preparing camera'
   if (statusState.value === 'detecting') return 'Scanning...'
@@ -126,7 +126,7 @@ const captureCopy = computed(() => {
   return 'Use the same school-branded scan flow that powers attendance check-ins.'
 })
 const panelCaption = computed(() => {
-  if (statusState.value === 'success') return 'Your face has been registered.'
+  if (statusState.value === 'success') return 'Face registered.'
   if (statusState.value === 'submitting' || statusState.value === 'capturing') return 'Hold still...'
   if (statusState.value === 'starting') return 'Warming up camera...'
   if (statusState.value === 'error') return 'Registration failed.'
@@ -149,7 +149,7 @@ const showStatusMessage = computed(() =>
 )
 const statusText = computed(() => {
   if (statusState.value === 'success') {
-    return 'Your face has been registered. Redirecting to your dashboard...'
+    return 'Face registered successfully. Redirecting to your dashboard...'
   }
 
   return statusMessage.value
@@ -166,7 +166,7 @@ const scanProgress = computed(() => {
 
 const faceDetectorWasmBaseUrl =
   import.meta.env.VITE_FACE_DETECTOR_WASM_URL ||
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
 const faceDetectorModelUrl =
   import.meta.env.VITE_FACE_DETECTOR_MODEL_URL ||
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
@@ -175,10 +175,6 @@ const faceDetectorSuppression = Number(import.meta.env.VITE_FACE_DETECTOR_SUPPRE
 const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVAL_MS ?? 200)
 const detectTimeoutMs = Number(import.meta.env.VITE_FACE_ENROLL_DETECT_TIMEOUT_MS ?? 12000)
 const captureDelayMs = Number(import.meta.env.VITE_FACE_ENROLL_CAPTURE_DELAY_MS ?? 450)
-const configuredSuccessDisplayDelayMs = Number(import.meta.env.VITE_FACE_ENROLL_SUCCESS_DISPLAY_MS ?? 2600)
-const successDisplayDelayMs = Number.isFinite(configuredSuccessDisplayDelayMs)
-  ? Math.max(1200, configuredSuccessDisplayDelayMs)
-  : 2600
 
 const setVideoEl = (el) => {
   videoEl.value = el
@@ -494,29 +490,13 @@ async function captureAndRegister() {
     }
 
     statusState.value = 'success'
-    statusMessage.value = 'Your face has been registered. Redirecting to your dashboard...'
+    statusMessage.value = 'Face registered successfully. Redirecting to your dashboard...'
     redirectTimeout = setTimeout(() => {
       router.replace({ name: 'Home' })
-    }, successDisplayDelayMs)
+    }, 900)
   } catch (error) {
-    setRegistrationError(buildRegistrationErrorMessage(error))
+    setRegistrationError(error?.message || 'Unable to register your face right now.')
   }
-}
-
-function buildRegistrationErrorMessage(error) {
-  const fallbackMessage = 'Unable to register your face right now.'
-  const rawMessage = String(error?.message || '').trim()
-  if (!rawMessage) return fallbackMessage
-
-  if (/insightface|warm-up|warming up|model warm-up|model download/i.test(rawMessage)) {
-    return 'Face engine warm-up is still in progress. Keep the page open and retry in a moment.'
-  }
-
-  if (/took too long to respond/i.test(rawMessage)) {
-    return 'Face engine setup is still running. Keep the backend/ngrok tunnel online, then retry in a minute.'
-  }
-
-  return rawMessage
 }
 
 function setRegistrationError(message) {

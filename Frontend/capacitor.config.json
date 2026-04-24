@@ -5,13 +5,14 @@
   "server": {
     "androidScheme": "https",
     "allowNavigation": [
-      "backend-api-production-eeb9.up.railway.app",
+      "ragweed-exemplary-sultry.ngrok-free.dev",
       "*.railway.app",
       "*.ngrok-free.app",
       "*.ngrok.app"
     ]
   },
   "android": {
+    "path": "aura-apk/android",
     "allowMixedContent": false
   },
   "plugins": {
@@ -19,16 +20,17 @@
       "enabled": true
     },
     "SplashScreen": {
-      "launchAutoHide": true,
-      "launchShowDuration": 2000,
+      "launchAutoHide": false,
+      "launchShowDuration": 2400,
+      "launchFadeOutDuration": 150,
       "androidScaleType": "CENTER_CROP",
-      "backgroundColor": "#EBEBEB",
+      "backgroundColor": "#050505",
       "splashFullScreen": true,
       "splashImmersive": true
     },
     "StatusBar": {
       "style": "LIGHT",
-      "backgroundColor": "#EBEBEB"
+      "backgroundColor": "#050505"
     },
     "Keyboard": {
       "resize": "none",

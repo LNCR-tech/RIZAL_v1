@@ -98,6 +98,7 @@ export function startPwaInstallSync() {
     const standaloneMediaQuery = window.matchMedia?.('(display-mode: standalone)')
     const handleDisplayModeChange = () => syncInstalledState()
     const handleBeforeInstallPrompt = (event) => {
+        event.preventDefault()
         deferredInstallPrompt.value = event
         installPromptAvailable.value = !installed.value
         installErrorMessage.value = ''

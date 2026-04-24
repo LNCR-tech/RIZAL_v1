@@ -42,17 +42,6 @@
             </p>
           </Transition>
 
-          <label class="remember-row" for="remember-me">
-            <input
-              id="remember-me"
-              v-model="rememberMe"
-              type="checkbox"
-              class="remember-row__checkbox"
-              :disabled="isLoading"
-            >
-            <span class="remember-row__label">Remember me</span>
-          </label>
-
           <BaseButton
             type="submit"
             variant="primary"
@@ -74,6 +63,29 @@
             Quick Attendance
           </BaseButton>
         </form>
+
+        <section
+          class="preview-panel transition-all duration-700 delay-150 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
+        >
+          <div class="preview-panel__copy">
+            <p class="preview-panel__eyebrow">Mock Views</p>
+            <p class="preview-panel__title">Open role previews without backend auth.</p>
+          </div>
+
+          <div class="preview-panel__grid">
+            <button
+              v-for="role in previewRoles"
+              :key="role.id"
+              type="button"
+              class="preview-panel__card"
+              @click="openRolePreview(role.location)"
+            >
+              <span class="preview-panel__label">{{ role.label }}</span>
+              <span class="preview-panel__description">{{ role.description }}</span>
+            </button>
+          </div>
+        </section>
 
         <div
           class="flex flex-col items-center justify-center gap-2 mt-1 transition-all duration-700 delay-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -117,11 +129,12 @@ import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 const {
   email,
   password,
-  rememberMe,
   isMounted,
   isLoading,
   visibleMessage,
+  previewRoles,
   handleLogin,
+  openRolePreview,
   openQuickAttendance,
 } = useLoginViewModel()
 </script>
@@ -146,23 +159,71 @@ const {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 
-.remember-row {
+.preview-panel {
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.preview-panel__copy {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 2px 4px 0;
-  color: var(--color-text-primary);
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.preview-panel__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.preview-panel__title {
+  margin: 0;
   font-size: 13px;
-  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text-primary);
 }
 
-.remember-row__checkbox {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-primary);
+.preview-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.remember-row__label {
-  line-height: 1.2;
+.preview-panel__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  min-height: 84px;
+  padding: 14px;
+  border: 1px solid var(--color-surface-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+  text-align: left;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.preview-panel__card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-surface-border));
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+}
+
+.preview-panel__label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.preview-panel__description {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
 }
 </style>

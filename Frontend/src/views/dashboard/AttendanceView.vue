@@ -161,7 +161,11 @@ import {
   resolveAttendanceCompletionState,
   resolveAttendanceActionState,
 } from '@/services/attendanceFlow.js'
-import { getCurrentPositionWithinAccuracyOrThrow, requestCameraPermission } from '@/services/devicePermissions.js'
+import {
+  getCurrentPositionWithinAccuracyOrThrow,
+  prepareLocationAccess,
+  requestCameraPermission,
+} from '@/services/devicePermissions.js'
 import {
   getEventTimeStatus,
   recordFaceScanAttendance as postFaceScanAttendance,
@@ -253,7 +257,7 @@ const faceScanVideoReadyTimeoutMs = Number(
 const faceScanGateEnabled = import.meta.env.VITE_FACE_SCAN_GATE !== 'false'
 const faceDetectorWasmBaseUrl =
   import.meta.env.VITE_FACE_DETECTOR_WASM_URL ||
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
 const faceDetectorModelUrl =
   import.meta.env.VITE_FACE_DETECTOR_MODEL_URL ||
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
@@ -499,7 +503,7 @@ function normalizeFaceScanAction(action) {
 }
 
 function isFaceScanSignOutAction(action) {
-  return ['sign_out', 'signed_out', 'check_out', 'checkout', 'time_out', 'out'].includes(action)
+  return ['sign_out', 'signed_out', 'check_out', 'checkout', 'time_out', 'timeout', 'out'].includes(action)
 }
 
 function isFaceScanSignInAction(action) {
@@ -745,6 +749,30 @@ async function getEventLocation() {
       locationMessage.value = `GPS locked at ${Math.round(accuracy)}m accuracy.`
     },
   })
+}
+
+async function warmLocationAccess() {
+  if (props.preview) return null
+
+  const access = await prepareLocationAccess({
+    enableHighAccuracy: geolocationHighAccuracy,
+    timeout: Math.max(geolocationTimeoutMs, 7000),
+    maximumAge: Math.max(geolocationMaxAgeMs, 45000),
+  }).catch(() => null)
+
+  const coords = access?.position
+  if (!coords) {
+    return access
+  }
+
+  userCoords.value = {
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    accuracy: coords.accuracy ?? null,
+    capturedAt: coords.capturedAt || new Date().toISOString(),
+  }
+
+  return access
 }
 
 function waitForLocationRetry() {
@@ -1536,6 +1564,7 @@ async function initializeAttendanceFlow() {
     return
   }
 
+  await warmLocationAccess().catch(() => null)
   successReason.value = 'recorded'
   void runAttendanceFlow()
 }

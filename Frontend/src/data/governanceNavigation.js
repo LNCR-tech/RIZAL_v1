@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   Building2,
   CalendarDays,
   LayoutGrid,
@@ -43,23 +42,6 @@ const SECTION_DEFINITIONS = {
       'Keep announcements tied to the unit that owns the event.',
     ],
   },
-  reports: {
-    key: 'reports',
-    navLabel: 'Reports',
-    route: '/governance/reports',
-    previewRoute: '/exposed/governance/reports',
-    navIcon: BarChart3,
-    panelIcon: BarChart3,
-    title: 'Reports',
-    description: 'Review scoped attendance analytics, event performance, and follow-up signals for the active governance unit.',
-    placeholderTitle: 'Governance reports',
-    placeholderDescription: 'This screen is reserved for scoped analytics, attendance reporting, and sanction follow-up views.',
-    featureList: [
-      'Inspect governance-scoped attendance reports per event.',
-      'Track engagement, demographic reach, and peak arrival windows.',
-      'Open sanction follow-up work without leaving the governance workspace.',
-    ],
-  },
   students: {
     key: 'students',
     navLabel: 'Students',
@@ -99,7 +81,6 @@ const SECTION_DEFINITIONS = {
 export const governanceSectionOrder = [
   'overview',
   'events',
-  'reports',
   'students',
   'governance',
 ]

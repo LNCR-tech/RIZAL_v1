@@ -102,14 +102,13 @@
             <div class="mobile-ai-shell">
               <div class="mobile-ai-messages" ref="scrollEl">
                 <TransitionGroup name="mobile-bubble" tag="div" class="mobile-ai-messages-inner">
-                  <template v-for="msg in messages" :key="msg.id">
-                    <div
-                      v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
-                      :class="['mobile-bubble', msg.sender === 'ai' ? 'mobile-bubble--ai' : 'mobile-bubble--user']"
-                    >
-                      <ChatMarkdownMessage :text="msg.text" />
-                    </div>
-                  </template>
+                  <div
+                    v-for="msg in messages"
+                    :key="msg.id"
+                    :class="['mobile-bubble', msg.sender === 'ai' ? 'mobile-bubble--ai' : 'mobile-bubble--user']"
+                  >
+                    {{ msg.text }}
+                  </div>
 
                   <div v-if="isTyping" key="typing" class="mobile-bubble mobile-bubble--ai mobile-bubble--typing">
                     <span class="mobile-dot" style="animation-delay: 0ms"   />
@@ -171,58 +170,8 @@
       </Transition>
     </div>
 
-    <section class="home-reports dashboard-enter dashboard-enter--5">
-      <article class="home-report-card home-report-card--summary">
-        <div class="home-report-card-head">
-          <div>
-            <p class="home-report-kicker">My Reports</p>
-            <h2>Attendance Snapshot</h2>
-          </div>
-          <span class="home-report-badge">{{ reportLoading ? 'Syncing' : 'Ready' }}</span>
-        </div>
-
-        <p v-if="reportError" class="home-report-note">{{ reportError }}</p>
-
-        <div class="home-report-stats">
-          <div v-for="card in studentSummaryCards" :key="card.id" class="home-report-stat">
-            <span>{{ card.label }}</span>
-            <strong>{{ card.value }}</strong>
-            <small>{{ card.meta }}</small>
-          </div>
-        </div>
-      </article>
-
-      <article class="home-report-card">
-        <div class="home-report-card-head">
-          <div>
-            <p class="home-report-kicker">Status Split</p>
-            <h2>Attendance Mix</h2>
-          </div>
-        </div>
-
-        <div v-if="studentPieChartData.labels.length" class="home-report-chart">
-          <ReportsPieChart :data="studentPieChartData" :options="chartOptions.pie" />
-        </div>
-        <p v-else class="home-report-empty">{{ reportLoading ? 'Loading report visuals...' : 'No attendance records yet.' }}</p>
-      </article>
-
-      <article class="home-report-card">
-        <div class="home-report-card-head">
-          <div>
-            <p class="home-report-kicker">Trend</p>
-            <h2>Attendance Over Time</h2>
-          </div>
-        </div>
-
-        <div v-if="studentTrendChartData.labels.length" class="home-report-chart">
-          <ReportsLineChart :data="studentTrendChartData" :options="chartOptions.line" />
-        </div>
-        <p v-else class="home-report-empty">{{ reportLoading ? 'Loading trend...' : 'Not enough report history yet.' }}</p>
-      </article>
-    </section>
-
     <!-- Upcoming events list (additional quick-view) -->
-    <div v-if="!searchActive && upcomingEvents.length > 1" class="mt-4 dashboard-enter dashboard-enter--6">
+    <div v-if="!searchActive && upcomingEvents.length > 1" class="mt-4 dashboard-enter dashboard-enter--5">
       <h2 class="text-[16px] font-bold mb-3 px-1" style="color: var(--color-text-primary);">Upcoming Events</h2>
       <div class="flex flex-col gap-3">
         <TransitionGroup name="list" appear>
@@ -277,20 +226,15 @@ import { Search, Send } from 'lucide-vue-next'
 import TopBar from '@/components/dashboard/TopBar.vue'
 import UniversityBanner from '@/components/dashboard/UniversityBanner.vue'
 import EventsCard from '@/components/dashboard/EventsCard.vue'
-import ReportsLineChart from '@/components/reports/ReportsLineChart.vue'
-import ReportsPieChart from '@/components/reports/ReportsPieChart.vue'
-import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 
 import { applyTheme, loadTheme, secondaryAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useStoredAuthMeta } from '@/composables/useStoredAuthMeta.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
-import { getStudentAttendanceReport, getStudentAttendanceStats } from '@/services/backendApi.js'
-import { buildLineChartData, buildPieChartData, toCount, toPercent } from '@/services/dashboardReportCharts.js'
 import { primeLocationAccess } from '@/services/devicePermissions.js'
 import { createSearchFieldAttrs } from '@/services/searchFieldAttrs.js'
-import { resolveAttendanceLocation, resolveEventDetailLocation, resolveChatLocation } from '@/services/routeWorkspace.js'
+import { resolveAttendanceLocation, resolveEventDetailLocation } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
   preview: {
@@ -305,27 +249,13 @@ const eventSearchInputAttrs = createSearchFieldAttrs('student-event-search')
 const showNotifications = ref(false)
 const isMobileAiOpen = ref(false)
 const mobileInputEl = ref(null)
-const reportLoading = ref(false)
-const reportError = ref('')
-const remoteStudentReport = ref(null)
-const remoteStudentStats = ref(null)
 const router = useRouter()
 const route = useRoute()
-const {
-  currentUser,
-  schoolSettings,
-  events,
-  attendanceRecords,
-  hasAttendanceForEvent,
-  hasOpenAttendanceForEvent,
-  apiBaseUrl,
-  token,
-} = useDashboardSession()
+const { currentUser, schoolSettings, events, hasAttendanceForEvent, hasOpenAttendanceForEvent, apiBaseUrl } = useDashboardSession()
 const authMeta = useStoredAuthMeta()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeSchoolSettings = computed(() => props.preview ? studentDashboardPreviewData.schoolSettings : schoolSettings.value)
 const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
-const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
 
 const resolvedSchoolName = computed(() => (
   activeSchoolSettings.value?.school_name ||
@@ -456,23 +386,6 @@ watch(
   { immediate: true }
 )
 
-watch(
-  [() => props.preview, apiBaseUrl, token, () => activeUser.value?.student_profile?.id],
-  async ([preview, url, authToken, studentProfileId]) => {
-    if (preview) {
-      remoteStudentReport.value = null
-      remoteStudentStats.value = null
-      reportError.value = ''
-      reportLoading.value = false
-      return
-    }
-
-    if (!url || !authToken || !studentProfileId) return
-    await loadStudentReportSnapshot(url, authToken, Number(studentProfileId))
-  },
-  { immediate: true }
-)
-
 const filteredEvents = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return displayEvents.value
@@ -528,70 +441,6 @@ const upcomingEvents = computed(() => filteredEvents.value)
 const unreadAnnouncements = computed(() =>
   0
 )
-
-const fallbackStudentReport = computed(() => deriveStudentReport(activeAttendanceRecords.value, schoolEvents.value, activeUser.value))
-const fallbackStudentStats = computed(() => deriveStudentStats(activeAttendanceRecords.value, schoolEvents.value))
-const resolvedStudentReport = computed(() => props.preview ? fallbackStudentReport.value : (remoteStudentReport.value || fallbackStudentReport.value))
-const resolvedStudentStats = computed(() => props.preview ? fallbackStudentStats.value : (remoteStudentStats.value || fallbackStudentStats.value))
-
-const studentSummaryCards = computed(() => {
-  const summary = resolvedStudentReport.value?.student || {}
-  return [
-    {
-      id: 'rate',
-      label: 'Attendance Rate',
-      value: `${toPercent(summary.attendance_rate, 1)}%`,
-      meta: 'Across completed events',
-    },
-    {
-      id: 'attended',
-      label: 'Attended',
-      value: toCount(summary.attended_events),
-      meta: `${toCount(summary.late_events)} late arrivals`,
-    },
-    {
-      id: 'absent',
-      label: 'Absent',
-      value: toCount(summary.absent_events),
-      meta: `${toCount(summary.excused_events)} excused`,
-    },
-    {
-      id: 'events',
-      label: 'Tracked Events',
-      value: toCount(summary.total_events),
-      meta: summary.last_attendance ? `Last seen ${formatCompactDate(summary.last_attendance)}` : 'No check-in yet',
-    },
-  ]
-})
-
-const studentPieChartData = computed(() => buildPieChartData([
-  { label: 'Present', value: resolvedStudentStats.value?.status_distribution?.present },
-  { label: 'Late', value: resolvedStudentStats.value?.status_distribution?.late },
-  { label: 'Absent', value: resolvedStudentStats.value?.status_distribution?.absent },
-  { label: 'Excused', value: resolvedStudentStats.value?.status_distribution?.excused },
-]))
-
-const studentTrendChartData = computed(() => buildStudentTrendChartData(resolvedStudentStats.value?.trend_data))
-
-const chartOptions = {
-  pie: {
-    plugins: {
-      legend: {
-        position: 'bottom',
-      },
-    },
-  },
-  line: {
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          precision: 0,
-        },
-      },
-    },
-  },
-}
 
 // --- Formatters ---
 function formatMonth(dt) {
@@ -660,176 +509,6 @@ function formatSearchMeta(event) {
   }
   return pieces.join(' • ') || 'Event details'
 }
-
-async function loadStudentReportSnapshot(url, authToken, studentProfileId) {
-  reportLoading.value = true
-  reportError.value = ''
-
-  try {
-    const [reportResult, statsResult] = await Promise.allSettled([
-      getStudentAttendanceReport(url, authToken, studentProfileId),
-      getStudentAttendanceStats(url, authToken, studentProfileId),
-    ])
-
-    remoteStudentReport.value = reportResult.status === 'fulfilled' ? reportResult.value : null
-    remoteStudentStats.value = statsResult.status === 'fulfilled' ? statsResult.value : null
-
-    if (reportResult.status === 'rejected' && statsResult.status === 'rejected') {
-      reportError.value = reportResult.reason?.message || statsResult.reason?.message || 'Live report data is unavailable right now.'
-    }
-  } finally {
-    reportLoading.value = false
-  }
-}
-
-function deriveStudentReport(records, eventsList, user) {
-  const eventMap = new Map((Array.isArray(eventsList) ? eventsList : []).map((event) => [Number(event?.id), event]))
-  const normalizedRecords = (Array.isArray(records) ? records : []).map((record) => {
-    const event = eventMap.get(Number(record?.event_id)) || null
-    const status = normalizeAttendanceStatus(record?.display_status || record?.status)
-
-    return {
-      id: record?.id ?? `${record?.event_id}-${record?.created_at || status}`,
-      event_name: event?.name || record?.event_name || 'Event',
-      event_date: event?.start_datetime || record?.created_at || null,
-      status,
-      display_status: status,
-      time_in: record?.time_in || null,
-      time_out: record?.time_out || null,
-      method: record?.method || 'manual',
-    }
-  })
-
-  const totals = normalizedRecords.reduce((aggregate, record) => {
-    aggregate.total += 1
-    if (record.status === 'present') aggregate.present += 1
-    if (record.status === 'late') aggregate.late += 1
-    if (record.status === 'absent') aggregate.absent += 1
-    if (record.status === 'excused') aggregate.excused += 1
-    if (record.status === 'waiting') aggregate.waiting += 1
-    return aggregate
-  }, {
-    total: 0,
-    present: 0,
-    late: 0,
-    absent: 0,
-    excused: 0,
-    waiting: 0,
-  })
-
-  const attendedEvents = totals.present + totals.late
-  const lastAttendance = normalizedRecords
-    .map((record) => record.time_in || record.event_date || null)
-    .filter(Boolean)
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null
-  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || user?.email || 'Student'
-
-  return {
-    student: {
-      student_id: user?.student_profile?.student_id || null,
-      student_name: fullName,
-      total_events: totals.total,
-      attended_events: attendedEvents,
-      late_events: totals.late,
-      incomplete_events: totals.waiting,
-      absent_events: totals.absent,
-      excused_events: totals.excused,
-      attendance_rate: totals.total > 0 ? (attendedEvents / totals.total) * 100 : 0,
-      last_attendance: lastAttendance,
-    },
-    attendance_records: normalizedRecords,
-  }
-}
-
-function deriveStudentStats(records, eventsList) {
-  const eventMap = new Map((Array.isArray(eventsList) ? eventsList : []).map((event) => [Number(event?.id), event]))
-  const distribution = {
-    present: 0,
-    late: 0,
-    absent: 0,
-    excused: 0,
-  }
-  const groupedByMonth = new Map()
-
-  for (const record of Array.isArray(records) ? records : []) {
-    const status = normalizeAttendanceStatus(record?.display_status || record?.status)
-    if (Object.hasOwn(distribution, status)) {
-      distribution[status] += 1
-    }
-
-    const event = eventMap.get(Number(record?.event_id)) || null
-    const dateValue = event?.start_datetime || record?.created_at || record?.time_in || null
-    if (!dateValue) continue
-
-    const date = new Date(dateValue)
-    if (Number.isNaN(date.getTime())) continue
-
-    const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    if (!groupedByMonth.has(period)) {
-      groupedByMonth.set(period, { present: 0, late: 0, absent: 0, excused: 0 })
-    }
-
-    const bucket = groupedByMonth.get(period)
-    if (Object.hasOwn(bucket, status)) {
-      bucket[status] += 1
-    }
-  }
-
-  const trendData = Array.from(groupedByMonth.entries())
-    .sort((left, right) => left[0].localeCompare(right[0]))
-    .flatMap(([period, counts]) => (
-      Object.entries(counts).map(([status, count]) => ({
-        period,
-        status,
-        count,
-      }))
-    ))
-
-  return {
-    status_distribution: distribution,
-    trend_data: trendData,
-  }
-}
-
-function buildStudentTrendChartData(rows = []) {
-  const grouped = new Map()
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const period = String(row?.period || '').trim()
-    if (!period) continue
-    if (!grouped.has(period)) {
-      grouped.set(period, { present: 0, late: 0, absent: 0, excused: 0 })
-    }
-
-    const bucket = grouped.get(period)
-    const status = normalizeAttendanceStatus(row?.status)
-    if (Object.hasOwn(bucket, status)) {
-      bucket[status] += toCount(row?.count)
-    }
-  }
-
-  const labels = Array.from(grouped.keys()).sort((left, right) => left.localeCompare(right))
-  return buildLineChartData(labels, [
-    { label: 'Present', data: labels.map((label) => grouped.get(label).present), borderColor: 'rgba(0,87,184,0.88)' },
-    { label: 'Late', data: labels.map((label) => grouped.get(label).late), borderColor: 'rgba(245,158,11,0.88)' },
-    { label: 'Absent', data: labels.map((label) => grouped.get(label).absent), borderColor: 'rgba(239,68,68,0.88)' },
-    { label: 'Excused', data: labels.map((label) => grouped.get(label).excused), borderColor: 'rgba(16,185,129,0.88)' },
-  ])
-}
-
-function normalizeAttendanceStatus(status) {
-  const normalized = String(status || '').trim().toLowerCase()
-  if (['present', 'late', 'absent', 'excused'].includes(normalized)) return normalized
-  return 'waiting'
-}
-
-function formatCompactDate(value) {
-  if (!value) return 'N/A'
-  try {
-    return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric' }).format(new Date(value))
-  } catch {
-    return String(value)
-  }
-}
 </script>
 
 <style scoped>
@@ -852,108 +531,6 @@ function formatCompactDate(value) {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-.home-reports {
-  display: grid;
-  gap: 18px;
-}
-
-.home-report-card {
-  padding: 18px;
-  border-radius: 28px;
-  background: var(--color-surface);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
-}
-
-.home-report-card--summary {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.home-report-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.home-report-card-head h2 {
-  margin: 4px 0 0;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: var(--color-text-primary);
-}
-
-.home-report-kicker {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.home-report-badge {
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-primary) 16%, white);
-  color: var(--color-text-always-dark);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.home-report-stats {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.home-report-stat {
-  padding: 14px;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.home-report-stat span,
-.home-report-stat small,
-.home-report-note,
-.home-report-empty {
-  color: var(--color-text-muted);
-}
-
-.home-report-stat span {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.home-report-stat strong {
-  font-size: 28px;
-  line-height: 1;
-  letter-spacing: -0.05em;
-  color: var(--color-primary);
-}
-
-.home-report-stat small,
-.home-report-note,
-.home-report-empty {
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.home-report-chart {
-  min-height: 260px;
 }
 
 .search-row {
@@ -1211,11 +788,6 @@ function formatCompactDate(value) {
     gap: 24px;
     margin-top: 10px;
   }
-
-  .home-reports {
-    grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr) minmax(280px, 1fr);
-    align-items: stretch;
-  }
 }
 
 /* ── Search shell card ────────────────────────────────── */
@@ -1358,10 +930,6 @@ function formatCompactDate(value) {
   .search-empty {
     text-align: center;
     padding: 10px 0;
-  }
-
-  .home-report-stats {
-    grid-template-columns: 1fr;
   }
 }
 

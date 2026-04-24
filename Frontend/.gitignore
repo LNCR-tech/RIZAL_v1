@@ -25,5 +25,5 @@ dist-ssr
 .env.docker
 
 # Capacitor
-android/
-ios/
+/android/
+/ios/

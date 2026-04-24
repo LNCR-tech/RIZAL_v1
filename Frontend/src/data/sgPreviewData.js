@@ -27,12 +27,6 @@ const SSG_PERMISSION_CODES = [
   'manage_attendance',
   'manage_announcements',
   'assign_permissions',
-  'view_sanctioned_students_list',
-  'view_student_sanction_detail',
-  'approve_sanction_compliance',
-  'configure_event_sanctions',
-  'export_sanctioned_students',
-  'view_sanctions_dashboard',
 ]
 
 const SG_PERMISSION_CODES = [
@@ -44,12 +38,6 @@ const SG_PERMISSION_CODES = [
   'manage_attendance',
   'manage_announcements',
   'assign_permissions',
-  'view_sanctioned_students_list',
-  'view_student_sanction_detail',
-  'approve_sanction_compliance',
-  'configure_event_sanctions',
-  'export_sanctioned_students',
-  'view_sanctions_dashboard',
 ]
 
 function isoOffset({ days = 0, hours = 0, minutes = 0 } = {}) {
