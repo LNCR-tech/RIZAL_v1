@@ -32,6 +32,7 @@ from app.schemas.school import (
     SchoolBrandingResponse,
     SchoolCreateForm,
     SchoolITAccountResponse,
+    SchoolITPasswordResetResponse,
     SchoolStatusUpdateForm,
     SchoolSummaryResponse,
     SchoolUpdateForm,
@@ -560,7 +561,10 @@ def admin_update_school_it_status(
     )
 
 
-@router.post("/admin/school-it-accounts/{user_id}/reset-password")
+@router.post(
+    "/admin/school-it-accounts/{user_id}/reset-password",
+    response_model=SchoolITPasswordResetResponse,
+)
 def admin_reset_school_it_password(
     user_id: int,
     current_user: User = Depends(get_current_admin),

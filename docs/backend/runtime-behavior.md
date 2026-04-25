@@ -18,9 +18,53 @@ This includes:
 
 - import limits and storage defaults
 - school-logo storage defaults
+- API rate limits, request body limits, trusted host defaults, and API docs exposure
 - face, liveness, geolocation, and public-attendance thresholds
 - event sync timing
 - email timeout and startup verification defaults
+
+## Anti-Abuse and Request Hardening
+
+The API now has shared abuse controls in addition to endpoint-specific validation.
+
+Runtime behavior:
+
+- Redis-backed fixed-window rate limiting is used when Redis is reachable.
+- If Redis is unavailable and `RATE_LIMIT_FAIL_OPEN=true`, the backend falls back to an in-process limiter so local/dev environments continue working.
+- Login and forgot-password endpoints have stricter per-IP/email limits.
+- Mutating requests have a broad bearer-token/IP limiter.
+- Face recognition, public attendance, and health endpoints have route-level limits because they are public or CPU-sensitive.
+- Oversized requests with a `Content-Length` above `MAX_REQUEST_BODY_SIZE_MB` are rejected with `413`.
+- Face image uploads reject non-image content types, empty files, and files larger than `FACE_IMAGE_MAX_SIZE_MB`.
+- `TRUSTED_HOSTS` enables `TrustedHostMiddleware` when set to a list other than `*`.
+- `API_DOCS_ENABLED=false` disables `/docs`, `/redoc`, and `/openapi.json`.
+
+Relevant configuration:
+
+- `RATE_LIMIT_ENABLED`
+- `RATE_LIMIT_FAIL_OPEN`
+- `RATE_LIMIT_LOGIN_COUNT`
+- `RATE_LIMIT_LOGIN_WINDOW_SECONDS`
+- `RATE_LIMIT_FORGOT_PASSWORD_COUNT`
+- `RATE_LIMIT_FORGOT_PASSWORD_WINDOW_SECONDS`
+- `RATE_LIMIT_AUTHENTICATED_MUTATION_COUNT`
+- `RATE_LIMIT_AUTHENTICATED_MUTATION_WINDOW_SECONDS`
+- `RATE_LIMIT_FACE_COUNT`
+- `RATE_LIMIT_FACE_WINDOW_SECONDS`
+- `RATE_LIMIT_PUBLIC_COUNT`
+- `RATE_LIMIT_PUBLIC_WINDOW_SECONDS`
+- `MAX_REQUEST_BODY_SIZE_MB`
+- `FACE_IMAGE_MAX_SIZE_MB`
+- `API_DOCS_ENABLED`
+- `TRUSTED_HOSTS`
+
+How to test:
+
+1. Set `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_LOGIN_COUNT=1`, and `RATE_LIMIT_LOGIN_WINDOW_SECONDS=60`.
+2. Submit the same invalid `POST /login` payload twice.
+3. Confirm the first response is the normal auth failure and the second response is `429` with `detail.code=rate_limit_exceeded` and a `Retry-After` header.
+4. Upload a `text/plain` file to `POST /api/face/register-upload` while authenticated as a student and confirm `415`.
+5. Send a request with `Content-Length` above `MAX_REQUEST_BODY_SIZE_MB` and confirm `413`.
 
 ## Email Startup Validation
 

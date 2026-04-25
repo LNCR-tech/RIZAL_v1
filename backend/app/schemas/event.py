@@ -78,6 +78,10 @@ class EventLocationVerificationRequest(BaseModel):
     accuracy_m: Optional[float] = Field(default=None, gt=0, le=5000)
 
 
+class EventStatusUpdateRequest(BaseModel):
+    status: EventStatus
+
+
 class SignOutOpenEarlyRequest(BaseModel):
     use_sign_out_grace_minutes: bool = Field(
         default=True,

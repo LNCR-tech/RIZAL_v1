@@ -6,7 +6,7 @@ from app.services.attendance_status import resolve_attendance_display_status, is
 router = APIRouter()
 
 
-@router.get("/{event_id}/attendees")
+@router.get("/{event_id}/attendees", response_model=list[Attendance])
 def get_event_attendees(
     event_id: int,
     status: Optional[str] = None,
@@ -49,7 +49,7 @@ def get_event_attendees(
     return attendances[skip : skip + limit]
 
 
-@router.get("/{event_id}/stats")
+@router.get("/{event_id}/stats", response_model=EventAttendanceStatsResponse)
 def get_event_stats(
     event_id: int,
     governance_context: GovernanceUnitType | None = Query(default=None),

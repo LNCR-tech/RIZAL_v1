@@ -26,11 +26,14 @@ from app.schemas.event import (
     EventLocationVerificationRequest,
     EventLocationVerificationResponse,
     EventStatus,
+    EventStatusUpdateRequest,
     EventTimeStatusInfo,
     EventUpdate,
     EventWithRelations,
     SignOutOpenEarlyRequest,
 )
+from app.schemas.attendance import Attendance
+from app.schemas.attendance_requests import EventAttendanceStatsResponse
 from app.services import governance_hierarchy_service
 from app.services.event_attendance_service import finalize_completed_event_attendance
 from app.services.event_geolocation import (

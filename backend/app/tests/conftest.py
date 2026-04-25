@@ -61,7 +61,11 @@ def client(test_session_factory) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db] = override_get_db
     original_email_transport = os.environ.get("EMAIL_TRANSPORT")
+    original_rate_limit_enabled = os.environ.get("RATE_LIMIT_ENABLED")
+    original_privileged_face_verification = os.environ.get("PRIVILEGED_FACE_VERIFICATION_ENABLED")
     os.environ["EMAIL_TRANSPORT"] = "disabled"
+    os.environ["RATE_LIMIT_ENABLED"] = "false"
+    os.environ["PRIVILEGED_FACE_VERIFICATION_ENABLED"] = "true"
     try:
         with TestClient(app) as test_client:
             yield test_client
@@ -71,6 +75,14 @@ def client(test_session_factory) -> Generator[TestClient, None, None]:
             os.environ.pop("EMAIL_TRANSPORT", None)
         else:
             os.environ["EMAIL_TRANSPORT"] = original_email_transport
+        if original_rate_limit_enabled is None:
+            os.environ.pop("RATE_LIMIT_ENABLED", None)
+        else:
+            os.environ["RATE_LIMIT_ENABLED"] = original_rate_limit_enabled
+        if original_privileged_face_verification is None:
+            os.environ.pop("PRIVILEGED_FACE_VERIFICATION_ENABLED", None)
+        else:
+            os.environ["PRIVILEGED_FACE_VERIFICATION_ENABLED"] = original_privileged_face_verification
 
 
 @pytest.fixture

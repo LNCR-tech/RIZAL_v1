@@ -65,6 +65,10 @@ def test_get_settings_exposes_mailjet_and_runtime_fields(monkeypatch):
     monkeypatch.setenv("MAILJET_API_SECRET", "mailjet-secret")
     monkeypatch.setenv("LOGIN_URL", "https://valid8.example/login")
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://valid8.example,https://admin.valid8.example")
+    monkeypatch.setenv("REDIS_URL", "redis://cache:6379/2")
+    monkeypatch.setenv("RATE_LIMIT_LOGIN_COUNT", "7")
+    monkeypatch.setenv("API_DOCS_ENABLED", "false")
+    monkeypatch.setenv("TRUSTED_HOSTS", "api.valid8.example,localhost")
 
     settings = get_settings()
 
@@ -85,6 +89,10 @@ def test_get_settings_exposes_mailjet_and_runtime_fields(monkeypatch):
     assert settings.mailjet_api_key == "mailjet-key"
     assert settings.mailjet_api_secret == "mailjet-secret"
     assert settings.login_url == "https://valid8.example/login"
+    assert settings.redis_url == "redis://cache:6379/2"
+    assert settings.rate_limit_login_count == 7
+    assert settings.api_docs_enabled is False
+    assert settings.trusted_hosts == ["api.valid8.example", "localhost"]
     assert settings.cors_allowed_origins == [
         "https://valid8.example",
         "https://admin.valid8.example",
@@ -108,12 +116,9 @@ def test_get_settings_normalizes_relative_storage_paths(monkeypatch):
 
 def test_get_settings_defaults_email_transport_to_disabled_when_unset(monkeypatch):
     monkeypatch.delenv("EMAIL_TRANSPORT", raising=False)
-<<<<<<< Updated upstream
     monkeypatch.delenv("MAILJET_API_KEY", raising=False)
     monkeypatch.delenv("MAILJET_API_SECRET", raising=False)
-=======
     monkeypatch.delenv("SMTP_PORT", raising=False)
->>>>>>> Stashed changes
 
     settings = get_settings()
 

@@ -34,32 +34,40 @@ def get_my_attendance(
     return [_serialize_attendance_model(attendance) for attendance in attendances]
 
 
-@router.post("/face-scan")
+@router.post("/face-scan", response_model=AttendanceActionResponse)
 def record_face_scan_attendance(
-    event_id: int,
-    student_id: str,
+    data: FaceScanAttendanceRequest | None = Body(default=None),
+    event_id: int | None = Query(default=None),
+    student_id: str | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Handle operator-driven face-scan attendance, switching between sign-in and sign-out."""
+    if data is None:
+        if event_id is None or student_id is None:
+            raise HTTPException(422, "event_id and student_id are required")
+        try:
+            data = FaceScanAttendanceRequest(event_id=event_id, student_id=student_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
-    event = _get_event_in_school_or_404(db, event_id, school_id)
+    event = _get_event_in_school_or_404(db, data.event_id, school_id)
 
     student = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
     ).filter(
-        StudentProfile.student_id == student_id,
+        StudentProfile.student_id == data.student_id,
         User.school_id == school_id,
     ).first()
 
     if not student:
-        raise HTTPException(404, f"Student {student_id} not found")
+        raise HTTPException(404, f"Student {data.student_id} not found")
 
     active_attendance = _active_attendance_for_student_event(
         db,
         student_profile_id=student.id,
-        event_id=event_id,
+        event_id=data.event_id,
     )
     if active_attendance is not None:
         sign_out_decision = _get_event_sign_out_decision(event)
@@ -73,9 +81,9 @@ def record_face_scan_attendance(
         db.commit()
         db.refresh(active_attendance)
         return {
-            "message": f"Time out recorded successfully for {student_id}",
+            "message": f"Time out recorded successfully for {data.student_id}",
             "attendance_id": active_attendance.id,
-            "student_id": student_id,
+            "student_id": data.student_id,
             "time_in": _as_utc_datetime(active_attendance.time_in),
             "time_out": _as_utc_datetime(active_attendance.time_out),
             "duration_minutes": duration_minutes,
@@ -89,20 +97,20 @@ def record_face_scan_attendance(
         db.query(AttendanceModel)
         .filter(
             AttendanceModel.student_id == student.id,
-            AttendanceModel.event_id == event_id,
+            AttendanceModel.event_id == data.event_id,
         )
         .order_by(AttendanceModel.time_in.desc(), AttendanceModel.id.desc())
         .first()
     )
     if existing and existing.time_out is not None:
-        raise HTTPException(400, f"Attendance already exists for student {student_id}")
+        raise HTTPException(400, f"Attendance already exists for student {data.student_id}")
 
     scanned_at = utc_now()
     status_value = attendance_decision["attendance_status"] or "absent"
 
     attendance = AttendanceModel(
         student_id=student.id,
-        event_id=event_id,
+        event_id=data.event_id,
         time_in=scanned_at,
         method="face_scan",
         status=status_value,
@@ -118,12 +126,12 @@ def record_face_scan_attendance(
     return {
         "message": "Attendance recorded successfully",
         "attendance_id": attendance.id,
-        "student_id": student_id,
+        "student_id": data.student_id,
         "time_in": _as_utc_datetime(attendance.time_in),
     }
 
 
-@router.post("/manual")
+@router.post("/manual", response_model=AttendanceActionResponse)
 def record_manual_attendance(
     data: ManualAttendanceRequest = Body(...),
     governance_context: GovernanceUnitType | None = Query(default=None),
@@ -218,7 +226,7 @@ def record_manual_attendance(
     }
 
 
-@router.post("/bulk")
+@router.post("/bulk", response_model=BulkAttendanceResponse)
 def record_bulk_attendance(
     data: BulkAttendanceRequest,
     governance_context: GovernanceUnitType | None = Query(default=None),
@@ -319,7 +327,7 @@ def record_bulk_attendance(
     return {"processed": len(results), "results": results}
 
 
-@router.post("/{attendance_id}/time-out")
+@router.post("/{attendance_id}/time-out", response_model=AttendanceActionResponse)
 def record_time_out(
     attendance_id: int,
     governance_context: GovernanceUnitType | None = Query(default=None),
@@ -370,15 +378,23 @@ def record_time_out(
         "duration_minutes": duration_minutes}
 
 
-@router.post("/face-scan-timeout")
+@router.post("/face-scan-timeout", response_model=AttendanceActionResponse)
 def record_face_scan_timeout(
-    event_id: int,
-    student_id: str,
+    data: FaceScanTimeoutRequest | None = Body(default=None),
+    event_id: int | None = Query(default=None),
+    student_id: str | None = Query(default=None),
     governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Record sign-out for a student selected by face-scan operator flow."""
+    if data is None:
+        if event_id is None or student_id is None:
+            raise HTTPException(422, "event_id and student_id are required")
+        try:
+            data = FaceScanTimeoutRequest(event_id=event_id, student_id=student_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     governance_units = _get_attendance_governance_units(
@@ -386,29 +402,29 @@ def record_face_scan_timeout(
         current_user=current_user,
         governance_context=governance_context,
     )
-    event = _get_event_in_school_or_404(db, event_id, school_id)
+    event = _get_event_in_school_or_404(db, data.event_id, school_id)
     _ensure_event_in_attendance_scope(event, governance_units)
 
     student = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
     ).filter(
-        StudentProfile.student_id == student_id,
+        StudentProfile.student_id == data.student_id,
         User.school_id == school_id,
     ).first()
 
     if not student:
-        raise HTTPException(404, f"Student {student_id} not found")
+        raise HTTPException(404, f"Student {data.student_id} not found")
     _ensure_student_in_attendance_scope(student, governance_units)
     _ensure_student_is_event_participant(student, event)
 
     attendance = db.query(AttendanceModel).filter(
         AttendanceModel.student_id == student.id,
-        AttendanceModel.event_id == event_id,
+        AttendanceModel.event_id == data.event_id,
         AttendanceModel.time_out.is_(None)
     ).first()
 
     if not attendance:
-        raise HTTPException(404, f"No active attendance found for student {student_id}")
+        raise HTTPException(404, f"No active attendance found for student {data.student_id}")
 
     if attendance.time_out:
         raise HTTPException(400, f"Timeout already recorded for this attendance")
@@ -426,7 +442,7 @@ def record_face_scan_timeout(
     return {
         "message": "Face scan timeout recorded successfully",
         "attendance_id": attendance.id,
-        "student_id": student_id,
+        "student_id": data.student_id,
         "time_in": _as_utc_datetime(attendance.time_in),
         "time_out": _as_utc_datetime(attendance.time_out),
         "duration_minutes": duration_minutes

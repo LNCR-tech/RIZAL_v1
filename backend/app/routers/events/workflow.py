@@ -84,13 +84,17 @@ def open_sign_out_early(
 @router.patch("/{event_id}/status", response_model=EventSchema)
 def update_event_status(
     event_id: int,
-    status: EventStatus,
+    payload: EventStatusUpdateRequest | None = Body(default=None),
+    status: EventStatus | None = Query(default=None),
     governance_context: GovernanceUnitType | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
     """Manually update event workflow status while still respecting automated timing rules."""
     try:
+        requested_status = payload.status if payload is not None else status
+        if requested_status is None:
+            raise HTTPException(status_code=422, detail="status is required")
         _ensure_event_manager(db, current_user)
         school_id = _require_school_scope(current_user)
 
@@ -112,14 +116,14 @@ def update_event_status(
             governance_context=governance_context,
         )
 
-        if status in {EventStatus.ongoing, EventStatus.upcoming}:
+        if requested_status in {EventStatus.ongoing, EventStatus.upcoming}:
             now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
             _expected_status, computed_time_status = get_expected_workflow_status(
                 db_event,
                 current_time=now_local,
             )
             conflict_detail = _build_status_conflict_detail(
-                requested_status=status,
+                requested_status=requested_status,
                 computed_time_status=computed_time_status,
                 event=db_event,
             )
@@ -127,7 +131,7 @@ def update_event_status(
                 raise HTTPException(status_code=409, detail=conflict_detail)
 
         was_completed = db_event.status == ModelEventStatus.COMPLETED
-        db_event.status = ModelEventStatus[status.value.upper()]
+        db_event.status = ModelEventStatus[requested_status.value.upper()]
 
         auto_sync_result = None
         if db_event.status not in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:

@@ -20,6 +20,58 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-25 - Add backend anti-abuse validation and rate limiting
+
+### Purpose
+
+Harden the FastAPI backend against spam, brute-force login attempts, oversized requests, and expensive face-recognition abuse while making raw JSON responses explicit through schemas.
+
+### Main files
+
+- `backend/app/core/rate_limit.py`
+- `backend/app/core/middleware.py`
+- `backend/app/routers/auth.py`
+- `backend/app/routers/attendance/check_in_out.py`
+- `backend/app/routers/face_recognition.py`
+- `backend/app/routers/public_attendance.py`
+- `backend/app/schemas/attendance_requests.py`
+- `backend/app/schemas/health.py`
+- `docker-compose.yml`
+- `docs/backend/api-overview.md`
+- `docs/backend/runtime-behavior.md`
+
+### Backend changes
+
+- added Redis-backed fixed-window rate limiting with in-process fallback
+- added broad mutation throttling middleware and stricter login, forgot-password, face, public attendance, and health route limits
+- added request body size rejection based on `MAX_REQUEST_BODY_SIZE_MB`
+- added optional `TrustedHostMiddleware` through `TRUSTED_HOSTS`
+- added `API_DOCS_ENABLED` to disable OpenAPI docs in production
+- added explicit response models for auth message responses, attendance action responses, event attendance stats, security session revocation, face reference deletion, and Campus Admin password reset
+- added explicit request schemas for attendance face scan, face scan timeout, mark-absent-no-timeout, mark-excused, and event status update flows
+- added face upload validation for image content type, empty files, and max size
+- normalized attendance sign-out duration math so SQLite/test rows with naive timestamps do not fail when the sign-out time is UTC-aware
+
+### Route or schema impact
+
+- protected routes may return `429` with `detail.code=rate_limit_exceeded` and `Retry-After`
+- `POST /api/attendance/face-scan` accepts JSON body `{ "event_id": int, "student_id": string }`
+- `POST /api/attendance/face-scan-timeout` accepts the same JSON body and still supports the legacy query form
+- `POST /api/attendance/mark-absent-no-timeout` accepts JSON body `{ "event_id": int }` and still supports the legacy query form
+- `PATCH /api/events/{event_id}/status` accepts JSON body `{ "status": "upcoming|ongoing|completed|cancelled" }` and still supports the legacy query form
+
+### Migration impact
+
+- no database migration required
+- new optional environment variables are documented in `runtime-behavior.md`
+
+### How to test
+
+1. Run `python -m pytest -q backend/app/tests/test_anti_abuse.py`.
+2. Run `python -m pytest -q backend/app/tests/test_config.py`.
+3. With rate limiting enabled, repeat the same invalid login request and confirm the second response is `429`.
+4. Upload a non-image file to `POST /api/face/register-upload` as a student and confirm `415`.
+
 ## 2026-04-25 - Normalize face verification failures to two user-facing messages
 
 ### Purpose

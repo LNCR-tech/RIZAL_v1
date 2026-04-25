@@ -110,3 +110,10 @@ class SchoolITAccountResponse(BaseModel):
     school_id: Optional[int] = None
     school_name: Optional[str] = None
     is_active: bool
+
+
+class SchoolITPasswordResetResponse(BaseModel):
+    user_id: int
+    email: str
+    temporary_password: str
+    must_change_password: bool

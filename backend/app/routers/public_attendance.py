@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
+from app.core.rate_limit import build_public_rule, client_ip_identity, enforce_rate_limit
 from app.core.timezones import utc_now
 from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
 from app.models.school import School as SchoolModel
@@ -160,10 +161,12 @@ def _ensure_face_runtime_ready(mode: str, *, context: str) -> None:
 @router.post("/events/nearby", response_model=PublicAttendanceNearbyEventsResponse)
 def list_nearby_public_events(
     payload: PublicAttendanceNearbyEventsRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """List nearby public-kiosk events that are inside the caller's live geofence and active window."""
     _ensure_public_attendance_enabled()
+    enforce_rate_limit(build_public_rule(), f"{client_ip_identity(request)}:nearby", request=request)
 
     timezone = get_event_timezone()
     now_local = datetime.now(timezone).replace(tzinfo=None, microsecond=0)
@@ -271,6 +274,7 @@ def scan_public_attendance_event(
 ):
     """Process one kiosk frame, classify each detected face, and persist valid attendance scans."""
     _ensure_public_attendance_enabled()
+    enforce_rate_limit(build_public_rule(), f"{client_ip_identity(request)}:public-scan", request=request)
     _enforce_public_scan_throttle(request, event_id)
 
     event = _get_public_event_or_404(db, event_id)

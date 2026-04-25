@@ -9,9 +9,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
+from app.core.middleware import MaxRequestBodySizeMiddleware, MutationRateLimitMiddleware
 from app.reports.router import router as reports_router
 from app.services.email_service import validate_email_delivery_on_startup
 from app.services.face_recognition import FaceRecognitionService
@@ -38,6 +40,7 @@ from app.routers import (
 )
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @asynccontextmanager
@@ -70,8 +73,18 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
-settings = get_settings()
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
+)
+
+if settings.trusted_hosts and settings.trusted_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+
+app.add_middleware(MaxRequestBodySizeMiddleware)
+app.add_middleware(MutationRateLimitMiddleware)
 
 # CORS setup
 app.add_middleware(

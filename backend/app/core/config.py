@@ -127,7 +127,25 @@ class Settings:
 
     celery_broker_url: str
     celery_result_backend: str
+    redis_url: str
     celery_task_time_limit_seconds: int
+
+    rate_limit_enabled: bool
+    rate_limit_fail_open: bool
+    rate_limit_login_count: int
+    rate_limit_login_window_seconds: int
+    rate_limit_forgot_password_count: int
+    rate_limit_forgot_password_window_seconds: int
+    rate_limit_authenticated_mutation_count: int
+    rate_limit_authenticated_mutation_window_seconds: int
+    rate_limit_face_count: int
+    rate_limit_face_window_seconds: int
+    rate_limit_public_count: int
+    rate_limit_public_window_seconds: int
+    max_request_body_size_mb: int
+    face_image_max_size_mb: int
+    api_docs_enabled: bool
+    trusted_hosts: list[str]
 
     email_timeout_seconds: int
     email_sender_email: str
@@ -201,7 +219,84 @@ def get_settings() -> Settings:
         import_rate_limit_window_seconds=APP_SETTINGS.import_rate_limit_window_seconds,
         celery_broker_url=os.getenv("CELERY_BROKER_URL", redis_url),
         celery_result_backend=os.getenv("CELERY_RESULT_BACKEND", redis_url),
+        redis_url=redis_url,
         celery_task_time_limit_seconds=APP_SETTINGS.celery_task_time_limit_seconds,
+        rate_limit_enabled=_as_bool(
+            os.getenv("RATE_LIMIT_ENABLED"),
+            APP_SETTINGS.rate_limit_enabled,
+        ),
+        rate_limit_fail_open=_as_bool(
+            os.getenv("RATE_LIMIT_FAIL_OPEN"),
+            APP_SETTINGS.rate_limit_fail_open,
+        ),
+        rate_limit_login_count=_as_int(
+            os.getenv("RATE_LIMIT_LOGIN_COUNT"),
+            APP_SETTINGS.rate_limit_login_count,
+            "RATE_LIMIT_LOGIN_COUNT",
+        ),
+        rate_limit_login_window_seconds=_as_int(
+            os.getenv("RATE_LIMIT_LOGIN_WINDOW_SECONDS"),
+            APP_SETTINGS.rate_limit_login_window_seconds,
+            "RATE_LIMIT_LOGIN_WINDOW_SECONDS",
+        ),
+        rate_limit_forgot_password_count=_as_int(
+            os.getenv("RATE_LIMIT_FORGOT_PASSWORD_COUNT"),
+            APP_SETTINGS.rate_limit_forgot_password_count,
+            "RATE_LIMIT_FORGOT_PASSWORD_COUNT",
+        ),
+        rate_limit_forgot_password_window_seconds=_as_int(
+            os.getenv("RATE_LIMIT_FORGOT_PASSWORD_WINDOW_SECONDS"),
+            APP_SETTINGS.rate_limit_forgot_password_window_seconds,
+            "RATE_LIMIT_FORGOT_PASSWORD_WINDOW_SECONDS",
+        ),
+        rate_limit_authenticated_mutation_count=_as_int(
+            os.getenv("RATE_LIMIT_AUTHENTICATED_MUTATION_COUNT"),
+            APP_SETTINGS.rate_limit_authenticated_mutation_count,
+            "RATE_LIMIT_AUTHENTICATED_MUTATION_COUNT",
+        ),
+        rate_limit_authenticated_mutation_window_seconds=_as_int(
+            os.getenv("RATE_LIMIT_AUTHENTICATED_MUTATION_WINDOW_SECONDS"),
+            APP_SETTINGS.rate_limit_authenticated_mutation_window_seconds,
+            "RATE_LIMIT_AUTHENTICATED_MUTATION_WINDOW_SECONDS",
+        ),
+        rate_limit_face_count=_as_int(
+            os.getenv("RATE_LIMIT_FACE_COUNT"),
+            APP_SETTINGS.rate_limit_face_count,
+            "RATE_LIMIT_FACE_COUNT",
+        ),
+        rate_limit_face_window_seconds=_as_int(
+            os.getenv("RATE_LIMIT_FACE_WINDOW_SECONDS"),
+            APP_SETTINGS.rate_limit_face_window_seconds,
+            "RATE_LIMIT_FACE_WINDOW_SECONDS",
+        ),
+        rate_limit_public_count=_as_int(
+            os.getenv("RATE_LIMIT_PUBLIC_COUNT"),
+            APP_SETTINGS.rate_limit_public_count,
+            "RATE_LIMIT_PUBLIC_COUNT",
+        ),
+        rate_limit_public_window_seconds=_as_int(
+            os.getenv("RATE_LIMIT_PUBLIC_WINDOW_SECONDS"),
+            APP_SETTINGS.rate_limit_public_window_seconds,
+            "RATE_LIMIT_PUBLIC_WINDOW_SECONDS",
+        ),
+        max_request_body_size_mb=_as_int(
+            os.getenv("MAX_REQUEST_BODY_SIZE_MB"),
+            APP_SETTINGS.max_request_body_size_mb,
+            "MAX_REQUEST_BODY_SIZE_MB",
+        ),
+        face_image_max_size_mb=_as_int(
+            os.getenv("FACE_IMAGE_MAX_SIZE_MB"),
+            APP_SETTINGS.face_image_max_size_mb,
+            "FACE_IMAGE_MAX_SIZE_MB",
+        ),
+        api_docs_enabled=_as_bool(
+            os.getenv("API_DOCS_ENABLED"),
+            APP_SETTINGS.api_docs_enabled,
+        ),
+        trusted_hosts=_as_csv_list(
+            os.getenv("TRUSTED_HOSTS"),
+            list(APP_SETTINGS.trusted_hosts),
+        ),
         email_timeout_seconds=APP_SETTINGS.email_timeout_seconds,
         email_sender_email=os.getenv("EMAIL_SENDER_EMAIL", "").strip(),
         email_sender_name=os.getenv("EMAIL_SENDER_NAME", "Aura Notifications").strip(),

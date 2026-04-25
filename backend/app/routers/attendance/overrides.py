@@ -5,11 +5,10 @@ from .shared import *  # noqa: F403
 router = APIRouter()
 
 
-@router.post("/events/{event_id}/mark-excused")
+@router.post("/events/{event_id}/mark-excused", response_model=MarkExcusedAttendanceResponse)
 def mark_excused_attendance(
     event_id: int,
-    student_ids: List[str],
-    reason: str,
+    payload: MarkExcusedAttendanceRequest = Body(...),
     governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -27,7 +26,7 @@ def mark_excused_attendance(
     students = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
     ).filter(
-        StudentProfile.student_id.in_(student_ids),
+        StudentProfile.student_id.in_(payload.student_ids),
         User.school_id == school_id,
     ).all()
 
@@ -41,13 +40,13 @@ def mark_excused_attendance(
 
         if attendance:
             attendance.status = AttendanceStatus.EXCUSED
-            attendance.notes = reason
+            attendance.notes = payload.reason
         else:
             attendance = AttendanceModel(
                 student_id=student.id,
                 event_id=event_id,
                 status=AttendanceStatus.EXCUSED,
-                notes=reason,
+                notes=payload.reason,
                 method="manual",
                 verified_by=current_user.id
             )
@@ -57,13 +56,21 @@ def mark_excused_attendance(
     return {"message": f"Marked {len(students)} students as excused"}
 
 
-@router.post("/mark-absent-no-timeout")
+@router.post("/mark-absent-no-timeout", response_model=MarkAbsentNoTimeoutResponse)
 def mark_absent_no_timeout(
-    event_id: int,
+    payload: MarkAbsentNoTimeoutRequest | None = Body(default=None),
+    event_id: int | None = Query(default=None),
     governance_context: GovernanceUnitType | None = Query(default=None),
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if payload is None:
+        if event_id is None:
+            raise HTTPException(422, "event_id is required")
+        try:
+            payload = MarkAbsentNoTimeoutRequest(event_id=event_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     governance_units = _get_attendance_governance_units(
@@ -72,14 +79,14 @@ def mark_absent_no_timeout(
         governance_context=governance_context,
     )
 
-    event = _get_event_in_school_or_404(db, event_id, school_id)
+    event = _get_event_in_school_or_404(db, payload.event_id, school_id)
     _ensure_event_in_attendance_scope(event, governance_units)
 
     if event.status != EventStatus.COMPLETED:
         raise HTTPException(400, "Can only mark absent for completed events")
 
     attendances_to_update = db.query(AttendanceModel).filter(
-        AttendanceModel.event_id == event_id,
+        AttendanceModel.event_id == payload.event_id,
         AttendanceModel.time_in.isnot(None),
         AttendanceModel.time_out.is_(None),
         AttendanceModel.status.in_(["present", "late", "absent"]),
@@ -101,6 +108,6 @@ def mark_absent_no_timeout(
 
     return {
         "message": f"Marked {updated_count} students as absent",
-        "event_id": event_id,
+        "event_id": payload.event_id,
         "updated_count": updated_count
     }

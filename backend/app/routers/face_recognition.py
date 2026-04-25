@@ -8,9 +8,11 @@ from __future__ import annotations
 from datetime import datetime
 import math
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
+from app.core.rate_limit import build_face_rule, enforce_rate_limit, user_identity
 from app.core.security import (
     get_current_application_user,
     get_current_student_user,
@@ -55,6 +57,28 @@ from app.services.event_workflow_status import sync_event_workflow_status
 
 router = APIRouter(prefix="/face", tags=["face-recognition"])
 face_service = FaceRecognitionService()
+
+
+def _enforce_face_endpoint_rate_limit(request: Request, current_user: UserModel, action: str) -> None:
+    enforce_rate_limit(build_face_rule(), f"{user_identity(current_user)}:{action}", request=request)
+
+
+def _validate_face_upload(file: UploadFile, image_bytes: bytes) -> None:
+    settings = get_settings()
+    content_type = (file.content_type or "").strip().lower()
+    if content_type and not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Face uploads must use an image content type.",
+        )
+    max_size_bytes = settings.face_image_max_size_mb * 1024 * 1024
+    if len(image_bytes) <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded image is empty.")
+    if len(image_bytes) > max_size_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Face image exceeds {settings.face_image_max_size_mb} MB.",
+        )
 
 
 def _require_student_profile(current_user: UserModel) -> StudentProfile:
@@ -158,10 +182,12 @@ def _ensure_face_runtime_ready(mode: str, *, context: str) -> None:
 @router.post("/register", response_model=FaceRegistrationResponse)
 def register_face_from_base64(
     payload: Base64ImageRequest,
+    request: Request,
     current_user: UserModel = Depends(get_current_student_user),
     db: Session = Depends(get_db),
 ):
     """Register a student's reference face from a base64 camera capture."""
+    _enforce_face_endpoint_rate_limit(request, current_user, "face-register")
     _ensure_face_runtime_ready(mode="single", context="face_register_base64")
     profile = _require_student_profile(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
@@ -189,14 +215,17 @@ def register_face_from_base64(
 
 @router.post("/register-upload", response_model=FaceRegistrationResponse)
 async def register_face_from_upload(
+    request: Request,
     file: UploadFile = File(...),
     current_user: UserModel = Depends(get_current_student_user),
     db: Session = Depends(get_db),
 ):
     """Register a student's reference face from an uploaded image file."""
-    _ensure_face_runtime_ready(mode="single", context="face_register_upload")
+    _enforce_face_endpoint_rate_limit(request, current_user, "face-register-upload")
     profile = _require_student_profile(current_user)
     image_bytes = await file.read()
+    _validate_face_upload(file, image_bytes)
+    _ensure_face_runtime_ready(mode="single", context="face_register_upload")
     encoding, liveness = face_service.extract_encoding_from_bytes(
         image_bytes,
         require_single_face=True,
@@ -222,10 +251,12 @@ async def register_face_from_upload(
 @router.post("/verify", response_model=FaceVerificationResponse)
 def verify_face_against_registered_students(
     payload: Base64ImageRequest,
+    request: Request,
     current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     """Match one probe image against all registered student faces in the school."""
+    _enforce_face_endpoint_rate_limit(request, current_user, "face-verify")
     _ensure_face_runtime_ready(mode="single", context="face_verify")
     school_id = get_school_id_or_403(current_user)
     image_bytes = face_service.decode_base64_image(payload.image_base64)
@@ -282,10 +313,12 @@ def verify_face_against_registered_students(
 @router.post("/face-scan-with-recognition", response_model=FaceAttendanceScanResponse)
 def record_attendance_from_face_scan(
     payload: FaceAttendanceScanRequest,
+    request: Request,
     current_user: UserModel = Depends(get_current_application_user),
     db: Session = Depends(get_db),
 ):
     """Run a student self-scan attendance flow, bound to the signed-in student account."""
+    _enforce_face_endpoint_rate_limit(request, current_user, "face-attendance")
     actor_is_student_self_scan = has_any_role(current_user, ["student"])
     if not actor_is_student_self_scan:
         raise HTTPException(

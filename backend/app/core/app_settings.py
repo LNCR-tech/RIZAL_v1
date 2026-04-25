@@ -50,6 +50,23 @@ class BackendAppSettings:
     import_rate_limit_window_seconds: int = 300
     celery_task_time_limit_seconds: int = 10800
 
+    rate_limit_enabled: bool = True
+    rate_limit_fail_open: bool = True
+    rate_limit_login_count: int = 10
+    rate_limit_login_window_seconds: int = 300
+    rate_limit_forgot_password_count: int = 5
+    rate_limit_forgot_password_window_seconds: int = 300
+    rate_limit_authenticated_mutation_count: int = 120
+    rate_limit_authenticated_mutation_window_seconds: int = 60
+    rate_limit_face_count: int = 20
+    rate_limit_face_window_seconds: int = 60
+    rate_limit_public_count: int = 30
+    rate_limit_public_window_seconds: int = 60
+    max_request_body_size_mb: int = 8
+    face_image_max_size_mb: int = 5
+    api_docs_enabled: bool = True
+    trusted_hosts: tuple[str, ...] = ("*",)
+
     email_timeout_seconds: int = 20
     email_verify_connection_on_startup: bool = True
     mailjet_api_base_url: str = "https://api.mailjet.com/v3.1/send"

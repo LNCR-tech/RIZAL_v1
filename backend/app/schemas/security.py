@@ -42,6 +42,15 @@ class RevokeSessionResponse(BaseModel):
     revoked: bool
 
 
+class RevokeOtherSessionsResponse(BaseModel):
+    revoked_count: int
+
+
+class DeleteFaceReferenceResponse(BaseModel):
+    user_id: int
+    face_reference_enrolled: bool
+
+
 class LoginHistoryItem(BaseModel):
     id: int
     user_id: Optional[int] = None

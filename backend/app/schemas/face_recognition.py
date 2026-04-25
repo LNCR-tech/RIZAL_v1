@@ -14,7 +14,7 @@ from app.schemas.event import EventLocationVerificationResponse
 
 
 class Base64ImageRequest(BaseModel):
-    image_base64: str = Field(min_length=32)
+    image_base64: str = Field(min_length=32, max_length=7_000_000)
 
 
 def _as_utc_datetime(value):

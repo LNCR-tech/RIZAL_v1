@@ -28,7 +28,18 @@ from app.schemas.attendance import (
     StudentAttendanceSummary,
     StudentListItem,
 )
-from app.schemas.attendance_requests import BulkAttendanceRequest, ManualAttendanceRequest
+from app.schemas.attendance_requests import (
+    AttendanceActionResponse,
+    BulkAttendanceRequest,
+    BulkAttendanceResponse,
+    FaceScanAttendanceRequest,
+    FaceScanTimeoutRequest,
+    ManualAttendanceRequest,
+    MarkAbsentNoTimeoutRequest,
+    MarkAbsentNoTimeoutResponse,
+    MarkExcusedAttendanceRequest,
+    MarkExcusedAttendanceResponse,
+)
 from app.services import governance_hierarchy_service
 from app.services.attendance_status import (
     ATTENDED_STATUS_VALUES,
@@ -400,14 +411,16 @@ def _complete_attendance_sign_out(
     recorded_at: datetime,
 ) -> int:
     """Close an attendance row and apply the final status matrix after sign-out."""
-    attendance.time_out = recorded_at
+    normalized_time_in = _as_utc_datetime(attendance.time_in)
+    normalized_time_out = _as_utc_datetime(recorded_at)
+    attendance.time_out = normalized_time_out
     attendance.check_out_status = "present"
     attendance.status, final_note = finalize_completed_attendance_status(
         check_in_status=attendance.check_in_status or attendance.status,
         check_out_status=attendance.check_out_status,
     )
     attendance.notes = final_note
-    duration_seconds = (attendance.time_out - attendance.time_in).total_seconds()
+    duration_seconds = (normalized_time_out - normalized_time_in).total_seconds()
     return int(max(0, duration_seconds / 60))
 
 

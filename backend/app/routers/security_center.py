@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.timezones import utc_now
+from app.core.rate_limit import build_face_rule, enforce_rate_limit, user_identity
 from app.core.security import (
     ALGORITHM,
     SECRET_KEY,
@@ -35,7 +36,9 @@ from app.schemas.face_recognition import (
     SecurityFaceVerificationResponse,
 )
 from app.schemas.security import (
+    DeleteFaceReferenceResponse,
     LoginHistoryItem,
+    RevokeOtherSessionsResponse,
     RevokeSessionResponse,
     UserSessionItem,
 )
@@ -224,7 +227,7 @@ def revoke_user_session(
     return RevokeSessionResponse(session_id=session_id, revoked=True)
 
 
-@router.post("/sessions/revoke-others")
+@router.post("/sessions/revoke-others", response_model=RevokeOtherSessionsResponse)
 def revoke_all_other_sessions(
     token: str = Depends(oauth2_scheme),
     current_user: User = Depends(get_current_application_user),
@@ -331,8 +334,10 @@ def get_face_status(
 @router.post("/face-liveness", response_model=SecurityFaceLivenessResponse)
 def check_face_liveness(
     payload: Base64ImageRequest,
+    request: Request,
     current_user: User = Depends(get_current_admin_or_campus_admin),
 ):
+    enforce_rate_limit(build_face_rule(), f"{user_identity(current_user)}:face-liveness", request=request)
     face_service.ensure_face_runtime_ready(mode="mfa", context="security_face_liveness")
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     rgb_image = face_service.load_rgb_from_bytes(image_bytes)
@@ -343,9 +348,11 @@ def check_face_liveness(
 @router.post("/face-reference", response_model=SecurityFaceReferenceResponse)
 def save_face_reference(
     payload: Base64ImageRequest,
+    request: Request,
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
+    enforce_rate_limit(build_face_rule(), f"{user_identity(current_user)}:face-reference", request=request)
     face_service.ensure_face_runtime_ready(mode="mfa", context="security_face_reference")
     image_bytes = face_service.decode_base64_image(payload.image_base64)
     try:
@@ -392,7 +399,7 @@ def save_face_reference(
     )
 
 
-@router.delete("/face-reference")
+@router.delete("/face-reference", response_model=DeleteFaceReferenceResponse)
 def delete_face_reference(
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
@@ -416,6 +423,7 @@ def verify_face_reference(
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
+    enforce_rate_limit(build_face_rule(), f"{user_identity(current_user)}:face-verify", request=request)
     face_service.ensure_face_runtime_ready(mode="mfa", context="security_face_verify")
     profile = (
         db.query(UserFaceRecognitionProfile)

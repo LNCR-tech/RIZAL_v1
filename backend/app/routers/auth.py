@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 
 from app.core.timezones import utc_now
+from app.core.rate_limit import (
+    build_forgot_password_rule,
+    build_login_rule,
+    client_ip_identity,
+    enforce_rate_limit,
+)
 from app.core.security import (
     PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT,
     authenticate_user,
@@ -19,6 +25,7 @@ from app.core.security import (
 )
 from app.core.dependencies import get_db
 from app.schemas.auth import ChangePasswordRequest, Token, LoginRequest
+from app.schemas.common import MessageResponse
 from app.schemas.password_reset import (
     ForgotPasswordRequestCreate,
     ForgotPasswordRequestResponse,
@@ -61,6 +68,10 @@ def _can_submit_public_password_reset_request(user: User | None) -> bool:
         return False
     return not _is_platform_admin_account(user)
 
+
+def _login_rate_limit_identity(request: Request, email: str) -> str:
+    return f"{client_ip_identity(request)}:email:{email.strip().lower()}"
+
 @router.post("/token", response_model=Token)
 def login_for_access_token(
     request: Request,
@@ -69,6 +80,11 @@ def login_for_access_token(
     db: Session = Depends(get_db)
 ):
     """OAuth2-compatible token endpoint (for Swagger UI)"""
+    enforce_rate_limit(
+        build_login_rule(),
+        _login_rate_limit_identity(request, form_data.username),
+        request=request,
+    )
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         record_login_history(
@@ -112,6 +128,11 @@ def login_with_email(
     db: Session = Depends(get_db)
 ):
     """Alternative login endpoint that returns extended user info"""
+    enforce_rate_limit(
+        build_login_rule(),
+        _login_rate_limit_identity(request, login_data.email),
+        request=request,
+    )
     user = authenticate_user(db, login_data.email, login_data.password)
     if not user:
         record_login_history(
@@ -149,7 +170,7 @@ def login_with_email(
     return response_payload
 
 
-@router.post("/auth/change-password")
+@router.post("/auth/change-password", response_model=MessageResponse)
 def change_password(
     payload: ChangePasswordRequest,
     current_user: User = Depends(get_current_application_user),
@@ -181,7 +202,7 @@ def change_password(
     return {"message": "Password updated successfully"}
 
 
-@router.post(PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT)
+@router.post(PASSWORD_CHANGE_PROMPT_DISMISS_ENDPOINT, response_model=MessageResponse)
 def dismiss_password_change_prompt(
     current_user: User = Depends(get_current_application_user),
     db: Session = Depends(get_db),
@@ -193,10 +214,16 @@ def dismiss_password_change_prompt(
 
 @router.post("/auth/forgot-password", response_model=ForgotPasswordRequestResponse)
 def request_forgot_password(
+    request: Request,
     payload: ForgotPasswordRequestCreate,
     db: Session = Depends(get_db),
 ):
     normalized_email = payload.email.strip().lower()
+    enforce_rate_limit(
+        build_forgot_password_rule(),
+        _login_rate_limit_identity(request, normalized_email),
+        request=request,
+    )
     target_user = (
         db.query(User)
         .options(joinedload(User.roles).joinedload(UserRole.role))

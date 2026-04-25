@@ -7,14 +7,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_database_pool_snapshot
 from app.core.dependencies import get_db
+from app.core.rate_limit import build_public_rule, rate_limit_by_ip
 from app.services.face_recognition import FaceRecognitionService
+from app.schemas.health import HealthResponse, ReadinessResponse
 
 router = APIRouter(tags=["health"])
 face_service = FaceRecognitionService()
@@ -28,8 +29,12 @@ def _database_probe(db: Session) -> tuple[bool, str | None]:
     return True, None
 
 
-@router.get("/health")
-def health_check(db: Session = Depends(get_db)):
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    dependencies=[rate_limit_by_ip(build_public_rule)],
+)
+def health_check(response: Response, db: Session = Depends(get_db)):
     database_ok, database_detail = _database_probe(db)
     bind = db.get_bind()
     face_runtime = face_service.face_runtime_status(mode="single")
@@ -50,14 +55,16 @@ def health_check(db: Session = Depends(get_db)):
         "pool": get_database_pool_snapshot(bind=bind),
     }
 
-    return JSONResponse(
-        status_code=status.HTTP_200_OK if database_ok else status.HTTP_503_SERVICE_UNAVAILABLE,
-        content=payload,
-    )
+    response.status_code = status.HTTP_200_OK if database_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+    return payload
 
 
-@router.get("/health/readiness")
-def readiness_check(db: Session = Depends(get_db)):
+@router.get(
+    "/health/readiness",
+    response_model=ReadinessResponse,
+    dependencies=[rate_limit_by_ip(build_public_rule)],
+)
+def readiness_check(response: Response, db: Session = Depends(get_db)):
     database_ok, database_detail = _database_probe(db)
     face_runtime = face_service.face_runtime_status(mode="single")
     ready = bool(database_ok and face_runtime.get("ready"))
@@ -72,7 +79,5 @@ def readiness_check(db: Session = Depends(get_db)):
         "face_runtime": face_runtime,
     }
 
-    return JSONResponse(
-        status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
-        content=payload,
-    )
+    response.status_code = status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
+    return payload
