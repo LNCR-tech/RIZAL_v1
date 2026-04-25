@@ -105,6 +105,12 @@ services:
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
       - insightface_models:/root/.insightface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     depends_on:
       db:
