@@ -81,6 +81,7 @@ services:
   seed:
     image: aura-backend:local
     command: sh -c "cd /repo/seeder && python seed.py demo"
+    profiles: ["seed"]
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       SECRET_KEY: local-dev-secret
@@ -133,7 +134,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      seed:
+      bootstrap:
         condition: service_completed_successfully
 
   worker:
