@@ -21,7 +21,12 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    event_columns = {column["name"] for column in inspector.get_columns("events")}
+    existing_tables = inspector.get_table_names()
+    event_columns = (
+        {column["name"] for column in inspector.get_columns("events")}
+        if "events" in existing_tables
+        else set()
+    )
 
     op.create_table(
         "event_types",
@@ -40,6 +45,13 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_event_types_id"), "event_types", ["id"], unique=False)
     op.create_index(op.f("ix_event_types_school_id"), "event_types", ["school_id"], unique=False)
+
+    if "events" not in existing_tables:
+        op.alter_column("event_types", "is_active", server_default=None)
+        op.alter_column("event_types", "sort_order", server_default=None)
+        op.alter_column("event_types", "created_at", server_default=None)
+        op.alter_column("event_types", "updated_at", server_default=None)
+        return
 
     if "event_type_id" not in event_columns:
         op.add_column("events", sa.Column("event_type_id", sa.Integer(), nullable=True))
@@ -135,7 +147,12 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    event_columns = {column["name"] for column in inspector.get_columns("events")}
+    existing_tables = inspector.get_table_names()
+    event_columns = (
+        {column["name"] for column in inspector.get_columns("events")}
+        if "events" in existing_tables
+        else set()
+    )
 
     if "event_type" not in event_columns:
         op.add_column(

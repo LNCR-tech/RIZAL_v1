@@ -6,6 +6,7 @@ Create Date: 2026-04-25 13:10:00.000000
 """
 
 from alembic import op
+import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -16,6 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "attendances" not in inspector.get_table_names():
+        return
     op.execute(
         """
         ALTER TABLE attendances
@@ -28,6 +33,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "attendances" not in inspector.get_table_names():
+        return
     op.execute(
         """
         ALTER TABLE attendances

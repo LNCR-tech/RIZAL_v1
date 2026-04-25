@@ -6,6 +6,7 @@ Create Date: 2026-04-25 15:20:00.000000
 """
 
 from alembic import op
+import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -142,14 +143,24 @@ def _alter_table_timestamps(table_name: str, columns: list[str], *, timezone_cla
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
     _drop_dependent_views()
     for table_name, columns in SYSTEM_TIMESTAMP_COLUMNS.items():
-        _alter_table_timestamps(table_name, columns, timezone_clause="WITH TIME ZONE")
-    _recreate_dependent_views()
+        if table_name in existing_tables:
+            _alter_table_timestamps(table_name, columns, timezone_clause="WITH TIME ZONE")
+    if "schools" in existing_tables and "users" in existing_tables:
+        _recreate_dependent_views()
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
     _drop_dependent_views()
     for table_name, columns in SYSTEM_TIMESTAMP_COLUMNS.items():
-        _alter_table_timestamps(table_name, columns, timezone_clause="WITHOUT TIME ZONE")
-    _recreate_dependent_views()
+        if table_name in existing_tables:
+            _alter_table_timestamps(table_name, columns, timezone_clause="WITHOUT TIME ZONE")
+    if "schools" in existing_tables and "users" in existing_tables:
+        _recreate_dependent_views()

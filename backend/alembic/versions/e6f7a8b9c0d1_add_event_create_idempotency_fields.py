@@ -21,6 +21,8 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "events" not in inspector.get_table_names():
+        return
     event_columns = {column["name"] for column in inspector.get_columns("events")}
     event_indexes = {index["name"] for index in inspector.get_indexes("events")}
     event_fks = {foreign_key["name"] for foreign_key in inspector.get_foreign_keys("events")}
@@ -58,6 +60,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "events" not in inspector.get_table_names():
+        return
     event_columns = {column["name"] for column in inspector.get_columns("events")}
     event_indexes = {index["name"] for index in inspector.get_indexes("events")}
     event_fks = {foreign_key["name"] for foreign_key in inspector.get_foreign_keys("events")}

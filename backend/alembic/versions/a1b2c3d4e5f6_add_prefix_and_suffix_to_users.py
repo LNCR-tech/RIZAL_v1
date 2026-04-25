@@ -20,6 +20,8 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "users" not in inspector.get_table_names():
+        return
     columns = {col["name"] for col in inspector.get_columns("users")}
 
     if "prefix" not in columns:
@@ -32,6 +34,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "users" not in inspector.get_table_names():
+        return
     columns = {col["name"] for col in inspector.get_columns("users")}
 
     if "suffix" in columns:
