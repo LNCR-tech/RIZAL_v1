@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from typing import Any, Dict, List, Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -11,6 +12,9 @@ class MultiMCPClient:
         self.sessions: Dict[str, ClientSession] = {}
         self.server_params: Dict[str, StdioServerParameters] = {}
         self.tool_map: Dict[str, str] = {} # tool_name -> server_name
+        self._tools_cache: Optional[List[Dict[str, Any]]] = None
+        self._tools_cache_at: float = 0.0
+        self._tools_lock = asyncio.Lock()
         self._load_config()
 
     def _load_config(self):
@@ -43,24 +47,41 @@ class MultiMCPClient:
         except Exception as e:
             print(f"Failed to load mcp_config.json: {e}")
 
-    async def get_all_tools(self) -> List[Dict[str, Any]]:
+    async def get_all_tools(self, *, force_refresh: bool = False, ttl_seconds: int = 300) -> List[Dict[str, Any]]:
         """
         Connects to all servers and discovers their tools, building a tool_map.
+
+        Cached by default to avoid re-listing tools on every user message.
         """
-        all_tools = []
-        for name, params in self.server_params.items():
-            try:
-                async with stdio_client(params) as (read, write):
-                    async with ClientSession(read, write) as session:
-                        await session.initialize()
-                        tools_result = await session.list_tools()
-                        for tool in tools_result.tools:
-                            tool_dict = tool.model_dump()
-                            self.tool_map[tool.name] = name
-                            all_tools.append(tool_dict)
-            except Exception as e:
-                print(f"Failed to load tools from {name}: {e}")
-        return all_tools
+        now = time.time()
+        if not force_refresh and self._tools_cache is not None and (now - self._tools_cache_at) < ttl_seconds:
+            return list(self._tools_cache)
+
+        async with self._tools_lock:
+            now = time.time()
+            if not force_refresh and self._tools_cache is not None and (now - self._tools_cache_at) < ttl_seconds:
+                return list(self._tools_cache)
+
+            all_tools: List[Dict[str, Any]] = []
+            tool_map: Dict[str, str] = {}
+            for name, params in self.server_params.items():
+                try:
+                    async with stdio_client(params) as (read, write):
+                        async with ClientSession(read, write) as session:
+                            await session.initialize()
+                            tools_result = await session.list_tools()
+                            for tool in tools_result.tools:
+                                tool_dict = tool.model_dump()
+                                tool_map[tool.name] = name
+                                all_tools.append(tool_dict)
+                except Exception as e:
+                    print(f"Failed to load tools from {name}: {e}")
+
+            # Update cache and routing map atomically.
+            self.tool_map = tool_map
+            self._tools_cache = all_tools
+            self._tools_cache_at = time.time()
+            return list(all_tools)
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """

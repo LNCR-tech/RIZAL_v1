@@ -17,11 +17,51 @@ if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
 from app.core.database import SessionLocal  # type: ignore
-from modules.core import ensure_tables, wipe_records, seed_roles, seed_permission_catalog, seed_platform_admin
+from modules.core import wipe_records, seed_roles, seed_permission_catalog, seed_platform_admin
 from modules.demo import run_demo
 from config import load_config
 
 cfg = load_config()
+
+def _ensure_backend_schema_up_to_date() -> None:
+    """
+    Ensure the database schema matches the backend models by running Alembic migrations.
+
+    The demo seeder truncates and reuses existing tables. If the DB was created from an
+    older revision, missing columns can cause runtime API failures (for example, events
+    not loading for students). Running `alembic upgrade head` here keeps the seeder
+    self-healing for typical local/dev workflows.
+    """
+    try:
+        from alembic import command
+        from alembic.config import Config
+        from alembic.runtime.migration import MigrationContext
+        from alembic.script import ScriptDirectory
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            "Alembic is required to run the demo seeder. "
+            "Install backend dependencies (pip install -r backend/requirements.txt)."
+        ) from exc
+
+    from app.core.database import engine  # imported after sys.path injection
+
+    backend_dir = repo_root / "backend"
+    alembic_ini = backend_dir / "alembic.ini"
+    if not alembic_ini.exists():
+        raise RuntimeError(f"Missing Alembic config: {alembic_ini}")
+
+    alembic_cfg = Config(str(alembic_ini))
+    # Make script_location absolute so it works when running from `seeder/`.
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+
+    script = ScriptDirectory.from_config(alembic_cfg)
+    head_revision = script.get_current_head()
+    with engine.connect() as conn:
+        current_revision = MigrationContext.configure(conn).get_current_revision()
+
+    if head_revision and current_revision != head_revision:
+        logger.info(f"Upgrading DB schema via Alembic: {current_revision} -> {head_revision}")
+        command.upgrade(alembic_cfg, "head")
 
 
 def main():
@@ -56,7 +96,7 @@ def main():
 
     db = SessionLocal()
     try:
-        ensure_tables()
+        _ensure_backend_schema_up_to_date()
         if cfg.SEED_WIPE_EXISTING:
             wipe_records(db, preserve_platform_admin=cfg.SEED_ADMIN_EMAIL)
 

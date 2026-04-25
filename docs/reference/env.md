@@ -34,6 +34,9 @@ Optional in root `.env`:
 
 - `JWT_ALGORITHM`
 - `JWT_PUBLIC_KEY`
+- `AI_PROVIDER` (optional; defaults to `openai` / OpenAI-compatible)
+- `AI_MAX_TOKENS` (optional; must be <= the model's output token limit)
+- `AI_API_VERSION` (optional; mainly for Anthropic/Gemini)
 - email transport settings
 
 Conditional email rules:

@@ -15,10 +15,18 @@ from sqlalchemy.orm import Session
 
 from lib.app_settings import APP_SETTINGS, get_cors_allowed_origins
 from lib.database import get_db, init_db, Conversation, Message, DailyUsage, SessionLocal
-from lib.auth import get_current_identity, get_token_user_id, resolve_runtime_governance_access, get_roles_from_identity
+from lib.auth import (
+    get_current_identity,
+    get_token_user_id,
+    get_token_subject,
+    resolve_backend_user_id,
+    resolve_runtime_governance_access,
+    get_roles_from_identity,
+)
 from lib.mcp_client import MultiMCPClient
 from lib.policy import get_effective_policy, summarize_scope_rules, normalize_permission, normalize_role
 from lib.llm import call_openai, call_llm_stream, _extract_text_content, _suggest_retry_max_tokens
+from lib.prompt_budget import estimate_total_prompt_tokens
 from lib.tools_logic import parse_tool_arguments, sanitize_tool_args, looks_like_tool_markup, extract_function_markup, recover_tool_call_from_message
 
 logger = logging.getLogger("uvicorn.error")
@@ -65,11 +73,16 @@ app.add_middleware(
 # Global MCP Client
 mcp_client = MultiMCPClient()
 
+HIDDEN_MESSAGE_ROLES = {"meta_summary"}
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
     # Pre-warm MCP sessions if needed
-    # await mcp_client.get_all_tools()
+    try:
+        await mcp_client.get_all_tools()
+    except Exception:
+        pass
 
 @app.get("/health")
 def health():
@@ -116,6 +129,125 @@ def _render_role_capabilities(roles: List[str], permissions: List[str]) -> tuple
 
 def _sse_event(event: str, data: Dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+def _get_prompt_budget_tokens() -> int:
+    return _env_int("ASSISTANT_PROMPT_BUDGET_TOKENS", APP_SETTINGS.prompt_budget_tokens)
+
+def _get_prompt_reserve_tokens() -> int:
+    return _env_int("ASSISTANT_PROMPT_RESERVE_COMPLETION_TOKENS", APP_SETTINGS.prompt_reserve_completion_tokens)
+
+def _get_keep_last_messages() -> int:
+    return _env_int("ASSISTANT_CONTEXT_KEEP_LAST_MESSAGES", APP_SETTINGS.context_keep_last_messages)
+
+def _get_summary_max_chars() -> int:
+    return _env_int("ASSISTANT_CONTEXT_SUMMARY_MAX_CHARS", APP_SETTINGS.context_summary_max_chars)
+
+def _get_latest_meta_summary(db: Session, conversation_id: str) -> str | None:
+    row = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id, Message.role == "meta_summary")
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    return row.content if row else None
+
+def _upsert_meta_summary(db: Session, conversation_id: str, summary_text: str) -> None:
+    db.query(Message).filter(Message.conversation_id == conversation_id, Message.role == "meta_summary").delete()
+    db.add(Message(conversation_id=conversation_id, role="meta_summary", content=summary_text))
+    db.commit()
+
+async def _summarize_for_budget(
+    *,
+    previous_summary: str | None,
+    messages_to_summarize: List[Dict[str, Any]],
+    max_chars: int,
+) -> str:
+    # Keep the summarizer prompt short and stable.
+    summarizer_messages = [
+        {
+            "role": "system",
+            "content": (
+                "Summarize the conversation context for an assistant.\n"
+                "Include: user intent, key entities (school, roles, ids), decisions made, constraints, and any open tasks.\n"
+                "Omit chit-chat. Do not include tool call JSON. Keep it concise.\n"
+                f"Hard limit: {max_chars} characters."
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "previous_summary": previous_summary or "",
+                    "messages": messages_to_summarize,
+                },
+                ensure_ascii=False,
+            ),
+        },
+    ]
+    result = await call_openai(summarizer_messages)
+    summary = _extract_text_content(result.get("content")).strip()
+    if len(summary) > max_chars:
+        summary = summary[: max_chars - 3].rstrip() + "..."
+    return summary
+
+async def _apply_prompt_budget(
+    *,
+    db: Session,
+    conversation_id: str,
+    system_prompt: str,
+    history: List[Dict[str, Any]],
+    user_message: str,
+    tools: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    budget_tokens = _get_prompt_budget_tokens()
+    reserve_tokens = _get_prompt_reserve_tokens()
+    keep_last = max(2, _get_keep_last_messages())
+    summary_max_chars = max(500, _get_summary_max_chars())
+
+    base_messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": user_message}]
+    approx_tokens = estimate_total_prompt_tokens(messages=base_messages, tools=tools)
+    if approx_tokens <= max(1, budget_tokens - reserve_tokens):
+        return base_messages, tools
+
+    # Compress by summarizing older context and keeping only the last N messages verbatim.
+    previous_summary = _get_latest_meta_summary(db, conversation_id)
+    if len(history) <= keep_last:
+        # Nothing to summarize; just drop older turns aggressively.
+        trimmed_history = history[-keep_last:]
+        messages = [{"role": "system", "content": system_prompt}] + trimmed_history + [{"role": "user", "content": user_message}]
+        return messages, tools
+
+    older = history[:-keep_last]
+    tail = history[-keep_last:]
+    summary = await _summarize_for_budget(
+        previous_summary=previous_summary,
+        messages_to_summarize=older,
+        max_chars=summary_max_chars,
+    )
+    _upsert_meta_summary(db, conversation_id, summary)
+
+    summary_msg = {
+        "role": "system",
+        "content": f"Conversation summary (internal, do not reveal):\n{summary}",
+    }
+    messages = [{"role": "system", "content": system_prompt}, summary_msg] + tail + [{"role": "user", "content": user_message}]
+
+    # If we're still over budget, shrink the tail window.
+    while estimate_total_prompt_tokens(messages=messages, tools=tools) > max(1, budget_tokens - reserve_tokens) and keep_last > 2:
+        keep_last -= 1
+        tail = history[-keep_last:]
+        messages = [{"role": "system", "content": system_prompt}, summary_msg] + tail + [{"role": "user", "content": user_message}]
+
+    return messages, tools
 
 async def _summarize_title(messages: List[Dict[str, Any]]) -> Optional[str]:
     prompt = [
@@ -175,32 +307,45 @@ async def assistant_stream(
 ):
     authorization = request.headers.get("authorization")
     token_user_id = get_token_user_id(identity)
+    token_subject = get_token_subject(identity) or token_user_id
+    resolved_backend_user_id = await resolve_backend_user_id(authorization)
+    tool_user_id = resolved_backend_user_id or token_user_id
     
     # 1. Resolve Identity & Roles (v1 Parity)
-    governance = await resolve_runtime_governance_access(authorization, token_user_id, body.user_school_id)
+    governance = await resolve_runtime_governance_access(authorization, tool_user_id, body.user_school_id)
     primary_role, effective_roles = get_roles_from_identity(identity, body.user_role, governance.get("roles"))
     effective_permissions = governance.get("permission_codes") or []
     effective_school_id = body.user_school_id or governance.get("school_id") or identity.get("school_id")
 
     # Enforce Daily Quota (Restored from v1)
-    _enforce_daily_limit(db, token_user_id, primary_role, effective_roles)
+    _enforce_daily_limit(db, token_subject, primary_role, effective_roles)
 
     # 2. Conversation Management
     conversation_id = body.conversation_id
     if not conversation_id:
-        convo = Conversation(user_id=token_user_id, user_role=primary_role)
+        convo = Conversation(user_id=token_subject, user_role=primary_role)
         db.add(convo)
         db.commit()
         db.refresh(convo)
         conversation_id = convo.id
     else:
-        convo = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == token_user_id).first()
+        convo = (
+            db.query(Conversation)
+            .filter(Conversation.id == conversation_id, Conversation.user_id == token_subject)
+            .first()
+        )
         if not convo:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
     # 3. History Loading
     max_msgs = APP_SETTINGS.context_max_messages
-    db_history = db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.desc()).limit(max_msgs).all()
+    db_history = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id, Message.role.notin_(HIDDEN_MESSAGE_ROLES))
+        .order_by(Message.created_at.desc())
+        .limit(max_msgs)
+        .all()
+    )
     history = [{"role": m.role, "content": m.content} for m in reversed(db_history)]
     
     # Save user message
@@ -212,7 +357,7 @@ async def assistant_stream(
     readable, writable, scope, cap, non_cap = _render_role_capabilities(effective_roles, effective_permissions)
     system_prompt = _render_system_prompt(
         _load_system_prompt(),
-        user_id=token_user_id,
+        user_id=tool_user_id,
         user_role=primary_role,
         effective_roles=", ".join(effective_roles),
         effective_permissions=", ".join(effective_permissions),
@@ -227,7 +372,15 @@ async def assistant_stream(
         non_capability_notes=non_cap
     )
 
-    messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": body.message}]
+    tools = await mcp_client.get_all_tools()
+    messages, tools = await _apply_prompt_budget(
+        db=db,
+        conversation_id=conversation_id,
+        system_prompt=system_prompt,
+        history=history,
+        user_message=body.message,
+        tools=tools,
+    )
 
     # 5. Background Worker & Queue (The Complex Multi-Turn logic)
     queue = asyncio.Queue()
@@ -236,7 +389,6 @@ async def assistant_stream(
         nonlocal messages
         bg_db = SessionLocal()
         try:
-            tools = await mcp_client.get_all_tools()
             final_text = ""
             final_visual = None
             
@@ -275,7 +427,7 @@ async def assistant_stream(
                     # Context Injection (Trust Headers)
                     fargs["roles"] = effective_roles
                     fargs["permissions"] = effective_permissions
-                    fargs["user_id"] = token_user_id
+                    fargs["user_id"] = tool_user_id
                     fargs["school_id"] = effective_school_id
                     fargs["authorization"] = authorization
 
@@ -340,11 +492,21 @@ async def assistant_stream(
 
 @app.get("/conversations", response_model=List[ConversationSummary])
 def list_conversations(identity: Dict[str, Any] = Depends(get_current_identity), db: Session = Depends(get_db)):
-    user_id = get_token_user_id(identity)
-    rows = db.query(Conversation).filter(Conversation.user_id == user_id).order_by(Conversation.updated_at.desc()).all()
+    user_key = get_token_subject(identity) or get_token_user_id(identity)
+    rows = (
+        db.query(Conversation)
+        .filter(Conversation.user_id == user_key)
+        .order_by(Conversation.updated_at.desc())
+        .all()
+    )
     results = []
     for convo in rows:
-        last = db.query(Message).filter(Message.conversation_id == convo.id).order_by(Message.created_at.desc()).first()
+        last = (
+            db.query(Message)
+            .filter(Message.conversation_id == convo.id, Message.role.in_(["user", "assistant"]))
+            .order_by(Message.created_at.desc())
+            .first()
+        )
         results.append(ConversationSummary(
             conversation_id=convo.id,
             title=convo.title,
@@ -355,10 +517,19 @@ def list_conversations(identity: Dict[str, Any] = Depends(get_current_identity),
 
 @app.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 def get_conversation(conversation_id: str, identity: Dict[str, Any] = Depends(get_current_identity), db: Session = Depends(get_db)):
-    user_id = get_token_user_id(identity)
-    convo = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == user_id).first()
+    user_key = get_token_subject(identity) or get_token_user_id(identity)
+    convo = (
+        db.query(Conversation)
+        .filter(Conversation.id == conversation_id, Conversation.user_id == user_key)
+        .first()
+    )
     if not convo: raise HTTPException(status_code=404, detail="Not found")
-    msgs = db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.asc()).all()
+    msgs = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id, Message.role.notin_(HIDDEN_MESSAGE_ROLES))
+        .order_by(Message.created_at.asc())
+        .all()
+    )
     
     def _parse_msg(m):
         entry = {"id": m.id, "role": m.role, "content": m.content, "created_at": m.created_at}
@@ -377,8 +548,12 @@ def get_conversation(conversation_id: str, identity: Dict[str, Any] = Depends(ge
 
 @app.delete("/conversations/{conversation_id}")
 def delete_conversation(conversation_id: str, identity: Dict[str, Any] = Depends(get_current_identity), db: Session = Depends(get_db)):
-    user_id = get_token_user_id(identity)
-    convo = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == user_id).first()
+    user_key = get_token_subject(identity) or get_token_user_id(identity)
+    convo = (
+        db.query(Conversation)
+        .filter(Conversation.id == conversation_id, Conversation.user_id == user_key)
+        .first()
+    )
     if not convo: raise HTTPException(status_code=404, detail="Not found")
     db.query(Message).filter(Message.conversation_id == conversation_id).delete()
     db.delete(convo)
@@ -387,8 +562,12 @@ def delete_conversation(conversation_id: str, identity: Dict[str, Any] = Depends
 
 @app.patch("/conversations/{conversation_id}")
 def update_conversation(conversation_id: str, body: ConversationUpdate, identity: Dict[str, Any] = Depends(get_current_identity), db: Session = Depends(get_db)):
-    user_id = get_token_user_id(identity)
-    convo = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == user_id).first()
+    user_key = get_token_subject(identity) or get_token_user_id(identity)
+    convo = (
+        db.query(Conversation)
+        .filter(Conversation.id == conversation_id, Conversation.user_id == user_key)
+        .first()
+    )
     if not convo: raise HTTPException(status_code=404, detail="Not found")
     
     convo.title = body.title.strip()

@@ -11,7 +11,17 @@ from .app_settings import APP_SETTINGS
 logger = logging.getLogger("uvicorn.error")
 
 # --- AI Configuration (Verbatim from v1) ---
-AI_PROVIDER = APP_SETTINGS.ai_provider
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+AI_PROVIDER = (os.getenv("AI_PROVIDER") or "").strip() or APP_SETTINGS.ai_provider
 AI_API_KEY = (
     os.getenv("AI_API_KEY")
     or os.getenv("OPENAI_API_KEY")
@@ -25,9 +35,9 @@ AI_API_BASE = (
     or os.getenv("GEMINI_API_BASE")
     or ""
 )
-AI_MODEL = APP_SETTINGS.ai_model
-AI_MAX_TOKENS = APP_SETTINGS.ai_max_tokens
-AI_API_VERSION = APP_SETTINGS.ai_api_version
+AI_MODEL = (os.getenv("AI_MODEL") or "").strip() or APP_SETTINGS.ai_model
+AI_MAX_TOKENS = _env_int("AI_MAX_TOKENS", APP_SETTINGS.ai_max_tokens)
+AI_API_VERSION = (os.getenv("AI_API_VERSION") or "").strip() or APP_SETTINGS.ai_api_version
 
 def _infer_ai_provider() -> str:
     explicit = AI_PROVIDER.strip().lower()
@@ -117,6 +127,17 @@ def _safe_json_load(value: Any, default: Any) -> Any:
 
 def _suggest_retry_max_tokens(error_text: str, current_max_tokens: int) -> Optional[int]:
     text_value = str(error_text or "")
+    # Common OpenAI-compatible error shape (for example Groq).
+    max_allowed_match = re.search(r"max_tokens` must be less than or equal to `(\d+)`", text_value, re.IGNORECASE)
+    if not max_allowed_match:
+        max_allowed_match = re.search(r"maximum value for `max_tokens` is\s+`?(\d+)`?", text_value, re.IGNORECASE)
+    if max_allowed_match:
+        try:
+            max_allowed = int(max_allowed_match.group(1))
+        except ValueError:
+            max_allowed = 0
+        if 0 < max_allowed < current_max_tokens:
+            return max(64, max_allowed)
     affordable_match = re.search(r"can only afford (\d+)", text_value, re.IGNORECASE)
     if affordable_match:
         try:
@@ -429,30 +450,26 @@ async def call_llm_stream(messages: List[Dict[str, Any]], tools: Optional[List[D
 
     try:
         async with httpx.AsyncClient(timeout=APP_SETTINGS.ai_request_timeout_seconds) as client:
-            async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
-                if response.status_code >= 400:
-                    err_body = await response.aread()
-                    yield {"role": "assistant", "content": f"LLM error {response.status_code}: {err_body.decode()}"}
-                    return
-
+            async def _stream_response(response: httpx.Response) -> AsyncGenerator[Dict[str, Any], None]:
+                nonlocal full_content, full_tool_calls
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
                         continue
-                    
+
                     data_str = line[6:].strip()
                     if data_str == "[DONE]":
                         break
-                    
+
                     try:
                         chunk = json.loads(data_str)
                         delta = chunk["choices"][0].get("delta", {})
-                        
+
                         # Handle Text Content
                         content = delta.get("content")
                         if content:
                             full_content += content
                             yield {"role": "assistant", "content": content, "type": "chunk"}
-                        
+
                         # Handle Tool Calls (Accumulate)
                         tool_calls = delta.get("tool_calls")
                         if tool_calls:
@@ -462,17 +479,42 @@ async def call_llm_stream(messages: List[Dict[str, Any]], tools: Optional[List[D
                                     full_tool_calls[index] = {
                                         "id": tc.get("id"),
                                         "type": "function",
-                                        "function": {"name": "", "arguments": ""}
+                                        "function": {"name": "", "arguments": ""},
                                     }
-                                
+
                                 func_delta = tc.get("function", {})
                                 if func_delta.get("name"):
                                     full_tool_calls[index]["function"]["name"] += func_delta["name"]
                                 if func_delta.get("arguments"):
                                     full_tool_calls[index]["function"]["arguments"] += func_delta["arguments"]
-                                    
+
                     except Exception as e:
                         logger.error(f"Error parsing SSE chunk: {e}")
+
+            async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
+                if response.status_code >= 400:
+                    err_body = await response.aread()
+                    err_text = err_body.decode(errors="replace")
+                    retry_max_tokens = _suggest_retry_max_tokens(err_text, int(payload.get("max_tokens") or AI_MAX_TOKENS))
+                    if retry_max_tokens and retry_max_tokens != payload.get("max_tokens"):
+                        retry_payload = dict(payload)
+                        retry_payload["max_tokens"] = retry_max_tokens
+                        async with client.stream("POST", endpoint, headers=headers, json=retry_payload) as response2:
+                            if response2.status_code >= 400:
+                                err_body2 = await response2.aread()
+                                yield {
+                                    "role": "assistant",
+                                    "content": f"LLM error {response2.status_code}: {err_body2.decode(errors='replace')}",
+                                }
+                                return
+                            async for chunk in _stream_response(response2):
+                                yield chunk
+                    else:
+                        yield {"role": "assistant", "content": f"LLM error {response.status_code}: {err_text}"}
+                        return
+                else:
+                    async for chunk in _stream_response(response):
+                        yield chunk
 
         # Final Yield: The complete message for the recursive logic to process
         final_msg = {"role": "assistant", "content": full_content}

@@ -9,7 +9,7 @@ For production bootstrapping (admin account + roles + event types only), use `bo
 ## Prerequisites
 
 - The backend's `DATABASE_URL` must be set in the root `.env` — the seeder connects through `app.core.database`, so it inherits the same connection the backend uses.
-- Run Alembic migrations first so all tables exist.
+- Run Alembic migrations first so all tables exist (the seeder will also auto-run `alembic upgrade head` as a safety net).
 - Run the backend bootstrap first (`python bootstrap.py`) so global event types and base roles are present — the seeder depends on them.
 - Install backend dependencies: `pip install -r backend/requirements.txt` from the repo root, or run inside the backend Docker container.
 

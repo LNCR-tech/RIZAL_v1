@@ -9,6 +9,10 @@ import os
 @dataclass(frozen=True)
 class AssistantAppSettings:
     context_max_messages: int = 20
+    context_keep_last_messages: int = 8
+    prompt_budget_tokens: int = 25000
+    prompt_reserve_completion_tokens: int = 2000
+    context_summary_max_chars: int = 3500
     ai_provider: str = "openai"
     ai_model: str = "deepseek-ai/DeepSeek-V3.2"
     ai_max_tokens: int = 16384

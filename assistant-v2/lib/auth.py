@@ -54,6 +54,10 @@ def get_token_user_id(identity: Dict[str, Any]) -> str:
         raise HTTPException(status_code=401, detail="Missing user identity in token")
     return user_id
 
+def get_token_subject(identity: Dict[str, Any]) -> str:
+    subject = str(identity.get("sub") or "").strip()
+    return subject
+
 def get_roles_from_identity(identity: Dict[str, Any], body_role: Optional[str] = None, extra_roles: Optional[List[str]] = None) -> tuple[str, list[str]]:
     raw_roles = identity.get("roles") or identity.get("role") or identity.get("user_role") or []
     if isinstance(raw_roles, str):
@@ -123,3 +127,22 @@ async def resolve_runtime_governance_access(authorization: Optional[str], user_i
                 "school_id": data.get("school_id") or school_id
             }
     return {"permission_codes": [], "roles": [], "school_id": school_id}
+
+async def resolve_backend_user_id(authorization: Optional[str]) -> Optional[str]:
+    """
+    Resolve the current backend `users.id` for this token.
+
+    Important: after DB wipes/reseeds, an old JWT may still be valid because the backend
+    authenticates by `sub` (email), but the embedded `user_id` claim can become stale.
+    The assistant uses the resolved backend ID for DB-scoped tool queries.
+    """
+    if not authorization:
+        return None
+    result = await request_backend("GET", "/api/users/me/", authorization)
+    if not result.get("ok"):
+        return None
+    data = result.get("data") or {}
+    user_id = data.get("id")
+    if user_id is None:
+        return None
+    return str(user_id)
