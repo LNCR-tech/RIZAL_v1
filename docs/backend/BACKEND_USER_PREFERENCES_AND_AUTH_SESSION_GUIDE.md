@@ -245,7 +245,8 @@ Covered scenarios:
 ### Manual
 
 1. Apply migrations:
-   - `alembic upgrade head`
+   - `python -m alembic upgrade head`
+   - If you see `TypeError: can't compare offset-naive and offset-aware datetimes`, your DB likely still has legacy `TIMESTAMP WITHOUT TIME ZONE` columns (not yet migrated to UTC-aware timestamps). Apply the latest Alembic migrations, then restart the backend.
 2. Login as `campus_admin`:
    - confirm the login response has `face_verification_required=true`
    - confirm `session_id` is `null`

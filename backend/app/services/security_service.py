@@ -11,7 +11,7 @@ from typing import Iterable, Optional
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.timezones import utc_now
+from app.core.timezones import ensure_utc, utc_now
 from app.models.platform_features import LoginHistory, UserSession
 from app.models.user import User
 
@@ -107,7 +107,9 @@ def assert_session_valid(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is not valid")
     if session.revoked_at is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
-    if session.expires_at < utc_now():
+    expires_at = ensure_utc(session.expires_at)
+    now = utc_now()
+    if expires_at is not None and expires_at < now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has expired")
     return session
 
