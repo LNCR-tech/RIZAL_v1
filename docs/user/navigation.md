@@ -1,8 +1,6 @@
 # Aura Navigation Map (Non-Developer)
 
-[<- Back to docs index](../../README.md)
-
-This page maps the main areas of the Aura web app to what you typically do there.
+[<- Back to Aura Overview](./overview.md)
 
 Note: Menu labels may differ slightly, but the sections below reflect the app’s primary route groups.
 

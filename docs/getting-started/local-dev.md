@@ -1,6 +1,6 @@
 # Getting Started (Local Dev, no Docker)
 
-[<- Back to docs index](../../README.md)
+[<- Back to How to Run](./how-to-run.md)
 
 This runs each service directly on your machine without Docker. Useful for faster iteration and debugging.
 

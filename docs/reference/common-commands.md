@@ -1,6 +1,6 @@
 # Common Commands
 
-[<- Back to docs index](../../README.md)
+[<- Back to Local Dev](../getting-started/local-dev.md)
 
 Quick reference for all common operations. All commands run from the repo root unless noted.
 
