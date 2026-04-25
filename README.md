@@ -55,9 +55,10 @@ docker compose up --build
 
 Start here:
 
+- [How to Run (all platforms)](./docs/getting-started/how-to-run.md)
 - [Getting Started (Docker)](./docs/getting-started/docker.md)
 - [Getting Started (Local Dev, no Docker)](./docs/getting-started/local-dev.md)
-- [Deploying to Linux](./docs/getting-started/linux-deploy.md)
+- [Deploying to Linux / AWS](./docs/getting-started/linux-deploy.md)
 - [Common Commands](./docs/reference/common-commands.md)
 - [Environment Variables](./docs/reference/env.md)
 - [Ports and URLs](./docs/reference/ports.md)
