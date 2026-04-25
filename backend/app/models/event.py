@@ -67,7 +67,7 @@ class Event(Base):
     late_until_override_at = Column(DateTime, nullable=True)
     start_datetime = Column(DateTime, nullable=False)
     end_datetime = Column(DateTime, nullable=False)
-    status = Column(Enum(EventStatus), nullable=False, default=EventStatus.UPCOMING)
+    status = Column(Enum(EventStatus, values_callable=lambda obj: [e.value for e in obj]), nullable=False, default=EventStatus.UPCOMING)
     event_type_id = Column(Integer, ForeignKey("event_types.id", ondelete="SET NULL"), nullable=True, index=True)
     # Many-to-many relationships
     departments = relationship(
