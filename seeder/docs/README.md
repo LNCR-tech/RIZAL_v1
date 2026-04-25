@@ -1,5 +1,7 @@
 # Aura Demo Seeder — Documentation
 
+[<- Back to docs index](../../README.md)
+
 This is the full technical documentation for the Aura demo seeder. It covers purpose, architecture, configuration, the probabilistic and mathematical models behind data generation, and operational guidance.
 
 ---
@@ -28,4 +30,4 @@ This is the full technical documentation for the Aura demo seeder. It covers pur
 
 ---
 
-> **Note on LaTeX math:** The math blocks in this documentation use LaTeX notation enclosed in `$$` (display) and `$` (inline) delimiters. They render correctly in any Markdown viewer that supports KaTeX or MathJax, such as GitHub, Obsidian, or VS Code with a math extension.
+> **Note on math blocks:** All math in this documentation uses fenced ` ```math ``` ` blocks, which render correctly on GitHub.
