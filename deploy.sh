@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Aura — Linux Deployment Script
+# Aura — AWS Ubuntu Deployment Script
 # =============================================================================
 # Usage:
 #   chmod +x deploy.sh
@@ -9,24 +9,24 @@
 # What this does:
 #   1. Installs Docker and Docker Compose plugin if not present
 #   2. Clones the repo (or pulls latest if already cloned)
-#   3. Creates .env from .env.example if it doesn't exist
+#   3. Creates .env from .env.production.example if it doesn't exist
 #   4. Prompts for required secrets
-#   5. Runs docker compose up --build -d
+#   5. Runs docker compose -f docker-compose.prod.yml up --build -d
 #
 # Requirements:
-#   - Ubuntu 22.04+ or Debian 12+ (or any distro with apt)
+#   - Ubuntu 22.04+ (tested on AWS EC2 Ubuntu AMI)
 #   - sudo access
-#   - Git installed (or will be installed)
 # =============================================================================
 
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# Config — edit these before running or pass as env vars
+# Config — override via environment variables before running
 # -----------------------------------------------------------------------------
 REPO_URL="${REPO_URL:-https://github.com/LNCR-tech/RIZAL_v1.git}"
 REPO_BRANCH="${REPO_BRANCH:-integrate/pilot-merge}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
+COMPOSE_FILE="docker-compose.prod.yml"
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -36,9 +36,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-info()    { echo -e "${GREEN}[aura]${NC} $*"; }
-warn()    { echo -e "${YELLOW}[warn]${NC} $*"; }
-error()   { echo -e "${RED}[error]${NC} $*"; exit 1; }
+info()  { echo -e "${GREEN}[aura]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[warn]${NC} $*"; }
+error() { echo -e "${RED}[error]${NC} $*"; exit 1; }
 
 # -----------------------------------------------------------------------------
 # 1. Install dependencies
@@ -54,7 +54,7 @@ if ! command -v docker &>/dev/null; then
     info "Installing Docker..."
     curl -fsSL https://get.docker.com | sudo sh
     sudo usermod -aG docker "$USER"
-    warn "Docker installed. You may need to log out and back in for group changes to take effect."
+    warn "Docker installed. You may need to log out and back in for group changes."
     warn "If the next steps fail with permission errors, run: newgrp docker"
 fi
 
@@ -90,34 +90,52 @@ cd "$DEPLOY_DIR"
 # 3. Set up .env
 # -----------------------------------------------------------------------------
 if [ ! -f .env ]; then
-    info "Creating .env from .env.example..."
-    cp .env.example .env
+    info "Creating .env from .env.production.example..."
+    cp .env.production.example .env
 
     echo ""
-    warn "Required secrets — these must be set before the stack will work."
+    warn "Fill in required values. Press Enter to skip optional ones."
     echo ""
 
-    read -rp "  SECRET_KEY (long random string): " SECRET_KEY_VAL
-    read -rp "  AI_API_KEY: " AI_API_KEY_VAL
-    read -rp "  AI_API_BASE (e.g. https://api.openai.com/v1): " AI_API_BASE_VAL
-    read -rp "  AI_MODEL (e.g. gpt-4o): " AI_MODEL_VAL
-    read -rp "  FRONTEND_PORT (default 80): " FRONTEND_PORT_VAL
-    FRONTEND_PORT_VAL="${FRONTEND_PORT_VAL:-80}"
+    prompt() {
+        local key="$1" label="$2" required="${3:-false}"
+        read -rp "  $label: " val
+        if [[ -z "$val" && "$required" == "true" ]]; then
+            error "$key is required and cannot be empty."
+        fi
+        [[ -n "$val" ]] && sed -i "s|^${key}=.*|${key}=${val}|" .env
+    }
 
-    sed -i "s|SECRET_KEY=.*|SECRET_KEY=${SECRET_KEY_VAL}|" .env
-    sed -i "s|AI_API_KEY=.*|AI_API_KEY=${AI_API_KEY_VAL}|" .env
-    sed -i "s|AI_API_BASE=.*|AI_API_BASE=${AI_API_BASE_VAL}|" .env
-    sed -i "s|AI_MODEL=.*|AI_MODEL=${AI_MODEL_VAL}|" .env
-    sed -i "s|FRONTEND_PORT=.*|FRONTEND_PORT=${FRONTEND_PORT_VAL}|" .env
+    prompt SECRET_KEY        "SECRET_KEY (run: openssl rand -hex 32)" true
+    prompt DB_PASSWORD        "DB_PASSWORD" true
+    prompt AI_API_KEY         "AI_API_KEY" true
+    prompt AI_API_BASE        "AI_API_BASE (e.g. https://api.openai.com/v1)" true
+    prompt AI_MODEL           "AI_MODEL (e.g. gpt-4o)" true
+
+    echo ""
+    # Detect public IP for URL defaults
+    PUBLIC_IP=$(curl -sf https://checkip.amazonaws.com || hostname -I | awk '{print $1}')
+    warn "Detected public IP: $PUBLIC_IP"
+    warn "If you have a domain, use that instead."
+    echo ""
+
+    read -rp "  Frontend public URL (default: http://${PUBLIC_IP}): " FRONTEND_URL
+    FRONTEND_URL="${FRONTEND_URL:-http://${PUBLIC_IP}}"
+
+    read -rp "  Backend public URL (default: http://${PUBLIC_IP}:8000): " BACKEND_URL
+    BACKEND_URL="${BACKEND_URL:-http://${PUBLIC_IP}:8000}"
+
+    sed -i "s|^LOGIN_URL=.*|LOGIN_URL=${FRONTEND_URL}|" .env
+    sed -i "s|^CORS_ALLOWED_ORIGINS=.*|CORS_ALLOWED_ORIGINS=${FRONTEND_URL}|" .env
+    sed -i "s|^BACKEND_ORIGIN=.*|BACKEND_ORIGIN=${BACKEND_URL}|" .env
+    sed -i "s|^BACKEND_API_BASE_URL=.*|BACKEND_API_BASE_URL=${BACKEND_URL}|" .env
 
     echo ""
     read -rp "  Enable email? (y/N): " ENABLE_EMAIL
     if [[ "${ENABLE_EMAIL,,}" == "y" ]]; then
-        read -rp "  MAILJET_API_KEY: " MAILJET_KEY_VAL
-        read -rp "  MAILJET_API_SECRET: " MAILJET_SECRET_VAL
-        sed -i "s|EMAIL_TRANSPORT=.*|EMAIL_TRANSPORT=mailjet_api|" .env
-        sed -i "s|MAILJET_API_KEY=.*|MAILJET_API_KEY=${MAILJET_KEY_VAL}|" .env
-        sed -i "s|MAILJET_API_SECRET=.*|MAILJET_API_SECRET=${MAILJET_SECRET_VAL}|" .env
+        prompt MAILJET_API_KEY    "MAILJET_API_KEY" true
+        prompt MAILJET_API_SECRET "MAILJET_API_SECRET" true
+        sed -i "s|^EMAIL_TRANSPORT=.*|EMAIL_TRANSPORT=mailjet_api|" .env
     fi
 
     info ".env configured."
@@ -126,19 +144,31 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# 4. Start the stack
+# 4. Open firewall ports (ufw)
 # -----------------------------------------------------------------------------
-info "Starting Aura stack..."
-docker compose up --build -d
+if command -v ufw &>/dev/null && sudo ufw status | grep -q "Status: active"; then
+    info "Opening firewall ports 80, 8000, 8500..."
+    sudo ufw allow 80/tcp
+    sudo ufw allow 8000/tcp
+    sudo ufw allow 8500/tcp
+fi
+
+# -----------------------------------------------------------------------------
+# 5. Build and start the stack
+# -----------------------------------------------------------------------------
+info "Building and starting Aura production stack..."
+docker compose -f "$COMPOSE_FILE" up --build -d
 
 echo ""
 info "Stack is starting. Migrations and bootstrap run automatically."
-info "Follow logs with: docker compose logs -f"
+info "Follow logs:  docker compose -f $COMPOSE_FILE logs -f"
+info "Stop stack:   docker compose -f $COMPOSE_FILE down"
 echo ""
+
+PUBLIC_IP=$(curl -sf https://checkip.amazonaws.com || hostname -I | awk '{print $1}')
 info "Once ready:"
-echo "  Frontend:        http://$(hostname -I | awk '{print $1}'):$(grep FRONTEND_PORT .env | cut -d= -f2)"
-echo "  Backend API:     http://$(hostname -I | awk '{print $1}'):8000/docs"
-echo "  Assistant API:   http://$(hostname -I | awk '{print $1}'):8500/docs"
-echo "  pgAdmin:         http://$(hostname -I | awk '{print $1}'):5050"
-echo "  Mailpit:         http://$(hostname -I | awk '{print $1}'):8025"
+echo "  Frontend:      http://${PUBLIC_IP}"
+echo "  Backend API:   http://${PUBLIC_IP}:8000/docs"
+echo "  Assistant API: http://${PUBLIC_IP}:8500/docs"
 echo ""
+warn "Remember to configure your AWS Security Group to allow inbound TCP on ports 80, 8000, and 8500."
