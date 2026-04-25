@@ -20,6 +20,52 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-25 - Normalize face verification failures to two user-facing messages
+
+### Purpose
+
+Make student self-scan attendance and privileged face verification show only two stable verification outcomes to users: `Face not found.` and `Face not match.`
+
+### Main files
+
+- `backend/app/routers/face_recognition.py`
+- `backend/app/routers/security_center.py`
+- `backend/app/services/face_recognition.py`
+- `backend/app/tests/test_routes_face.py`
+- `docs/backend/runtime-behavior.md`
+
+### Backend changes
+
+- added shared normalization for single-face verification failures
+- `POST /api/face/face-scan-with-recognition` now rewrites no-face, multi-face, encoding, and spoof/liveness verification failures to `Face not found.`
+- the same route now rewrites live/reference mismatch to `Face not match.`
+- `POST /api/auth/security/face-verify` now rewrites no-face, multi-face, encoding, and spoof/liveness verification failures to `Face not found.`
+- kept the existing safety rule that multiple faces in one frame do not proceed to attendance recording
+
+### Frontend changes
+
+- privileged face verification now shows `Face not found.` for pre-submit no-face detection and `Face not match.` for backend mismatch results
+- attendance face scan panel default error copy now uses `Face not found.`
+
+### Route or schema impact
+
+- no request or response schema changes
+- route behavior update:
+  - `POST /api/face/face-scan-with-recognition`
+  - `POST /api/auth/security/face-verify`
+
+### Migration impact
+
+- no database migration required
+- no environment/configuration changes required
+
+### How to test
+
+1. Run `python -m pytest -q backend/app/tests/test_routes_face.py`.
+2. Submit a self-scan event attendance frame with no face or multiple faces and confirm the API returns `400` with `Face not found.`
+3. Submit a self-scan event attendance frame with a different enrolled face and confirm the API returns `403` with `Face not match.`
+4. Submit a privileged `/api/auth/security/face-verify` frame with multiple faces and confirm the API returns `400` with `Face not found.`
+
 ## 2026-04-25 - Make event creation idempotent for duplicate submits
 
 ### Purpose

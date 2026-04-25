@@ -578,6 +578,30 @@ class FaceRecognitionService:
         )
 
 
+def resolve_face_verification_error_message(detail: Any) -> tuple[int, str] | None:
+    """Map low-level verification failures into stable user-facing messages."""
+    normalized_detail = str(detail or "").strip().lower()
+    if not normalized_detail:
+        return None
+
+    if (
+        "no face detected" in normalized_detail
+        or "exactly one face" in normalized_detail
+        or "unable to compute a face encoding" in normalized_detail
+        or "spoof detected" in normalized_detail
+    ):
+        return status.HTTP_400_BAD_REQUEST, "Face not found."
+
+    if (
+        "does not match" in normalized_detail
+        or "face not match" in normalized_detail
+        or "face not matched" in normalized_detail
+    ):
+        return status.HTTP_403_FORBIDDEN, "Face not match."
+
+    return None
+
+
 def is_face_scan_bypass_enabled_for_email(email: str | None) -> bool:
     """Return True when the email is explicitly allowed to bypass live face matching."""
     settings = get_settings()

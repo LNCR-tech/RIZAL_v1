@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import numpy as np
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import joinedload
 
 from app.core.dependencies import get_db
@@ -423,7 +423,7 @@ def test_face_scan_with_recognition_never_records_other_student_for_self_scan(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "The live face does not match the currently signed-in student account."
+    assert response.json()["detail"] == "Face not match."
     owner_attendance_count = (
         test_db.query(AttendanceModel)
         .filter(
@@ -442,6 +442,63 @@ def test_face_scan_with_recognition_never_records_other_student_for_self_scan(
     )
     assert owner_attendance_count == 0
     assert friend_attendance_count == 0
+
+
+def test_face_scan_with_recognition_rejects_multiple_faces_with_face_not_found(
+    client,
+    test_db,
+    monkeypatch,
+) -> None:
+    school = _create_school(test_db, code="MULTI", name="Multi Face Campus")
+    user = _create_user_with_role(
+        test_db,
+        school=school,
+        email="student.multiface@example.com",
+        role_name="student",
+    )
+    profile = _create_student_profile(test_db, user=user, seed=31, canonical=True)
+    event = _create_active_event(test_db, school=school)
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_application_user,
+        lambda db=Depends(get_db): _load_user_for_override(db, user.id),
+    )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="single"),
+    )
+    monkeypatch.setattr(
+        face_recognition.face_service,
+        "extract_encoding_from_bytes",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            HTTPException(status_code=400, detail="Image must contain exactly one face.")
+        ),
+    )
+
+    response = client.post(
+        "/api/face/face-scan-with-recognition",
+        json={
+            "event_id": event.id,
+            "image_base64": _frame_payload(),
+            "latitude": 8.1575,
+            "longitude": 123.8431,
+            "accuracy_m": 5,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Face not found."
+    attendance_count = (
+        test_db.query(AttendanceModel)
+        .filter(
+            AttendanceModel.event_id == event.id,
+            AttendanceModel.student_id == profile.id,
+        )
+        .count()
+    )
+    assert attendance_count == 0
 
 
 def test_admin_face_verify_route_accepts_canonical_reference(client, test_db, monkeypatch) -> None:
@@ -493,6 +550,56 @@ def test_admin_face_verify_route_accepts_canonical_reference(client, test_db, mo
     body = response.json()
     assert body["matched"] is True
     assert body["distance"] == 0.0
+
+
+def test_admin_face_verify_route_rejects_multiple_faces_with_face_not_found(
+    client,
+    test_db,
+    monkeypatch,
+) -> None:
+    school = _create_school(test_db, code="MFV", name="Multi Verify Campus")
+    admin_user = _create_user_with_role(
+        test_db,
+        school=school,
+        email="admin.multiverify@example.com",
+        role_name="admin",
+    )
+    test_db.add(
+        UserFaceRecognitionProfile(
+            user_id=admin_user.id,
+            face_encoding=_embedding(51).tobytes(),
+            provider="arcface",
+            reference_image_sha256="mfv123",
+        )
+    )
+    test_db.commit()
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_admin_or_campus_admin,
+        lambda db=Depends(get_db): _load_user_for_override(db, admin_user.id),
+    )
+    monkeypatch.setattr(
+        security_center.face_service,
+        "ensure_face_runtime_ready",
+        lambda **_kwargs: _runtime_status(mode="mfa"),
+    )
+    monkeypatch.setattr(
+        security_center.face_service,
+        "extract_encoding_from_bytes",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            HTTPException(status_code=400, detail="Image must contain exactly one face.")
+        ),
+    )
+
+    response = client.post(
+        "/api/auth/security/face-verify",
+        json={"image_base64": _frame_payload()},
+        headers={"Authorization": "Bearer route-test-token"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Face not found."
 
 
 def test_face_status_separates_face_runtime_and_anti_spoof_readiness(

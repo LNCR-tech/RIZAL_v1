@@ -161,6 +161,28 @@ Related guide:
 
 - [Face Engine Migration Guide](./BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
 
+## Face Verification Error Messages
+
+Student self-scan attendance and privileged face verification now normalize single-face verification failures into stable user-facing messages.
+
+Affected routes:
+
+- `POST /api/face/face-scan-with-recognition`
+- `POST /api/auth/security/face-verify`
+
+Behavior:
+
+- no detectable single face, multiple faces in one frame, encoding failure, or spoof/liveness rejection return `Face not found.`
+- a valid single live face that does not match the enrolled reference returns `Face not match.`
+- attendance is never recorded when the frame contains multiple faces because the route still requires exactly one face before any attendance write
+
+Relevant files:
+
+- `backend/app/routers/face_recognition.py`
+- `backend/app/routers/security_center.py`
+- `backend/app/services/face_recognition.py`
+- `backend/app/tests/test_routes_face.py`
+
 ## Production Bootstrap Flow
 
 Production data initialization is now limited to a single explicit command:

@@ -478,7 +478,7 @@ function startFaceDetection() {
 
     if (!detectStartedAt) detectStartedAt = now
     if (now - detectStartedAt > detectTimeoutMs) {
-      setPendingFaceError('No face detected. Please try again in a brighter area.')
+      setPendingFaceError('Face not found.')
       return
     }
 
@@ -497,7 +497,7 @@ function startFaceDetection() {
         return
       }
     } catch {
-      setPendingFaceError('Face detection failed. Please try again.')
+      setPendingFaceError('Face not found.')
       return
     }
 
@@ -606,7 +606,7 @@ async function captureAndSubmit() {
     }
 
     if (!verification?.matched) {
-      throw new Error('Face not matched. Please try again.')
+      throw new Error('Face not match.')
     }
 
     if (!verification?.access_token) {

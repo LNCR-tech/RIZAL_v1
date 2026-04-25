@@ -39,6 +39,7 @@ from app.services.face_recognition import (
     FaceRecognitionService,
     LivenessResult,
     is_face_scan_bypass_enabled_for_user,
+    resolve_face_verification_error_message,
 )
 from app.services.attendance_status import (
     finalize_completed_attendance_status,
@@ -357,12 +358,19 @@ def record_attendance_from_face_scan(
 
         _ensure_face_runtime_ready(mode="single", context="face_attendance_scan")
         image_bytes = face_service.decode_base64_image(payload.image_base64)
-        encoding, liveness = face_service.extract_encoding_from_bytes(
-            image_bytes,
-            require_single_face=True,
-            enforce_liveness=True,
-            mode="single",
-        )
+        try:
+            encoding, liveness = face_service.extract_encoding_from_bytes(
+                image_bytes,
+                require_single_face=True,
+                enforce_liveness=True,
+                mode="single",
+            )
+        except HTTPException as exc:
+            normalized_error = resolve_face_verification_error_message(exc.detail)
+            if normalized_error is None:
+                raise
+            status_code, message = normalized_error
+            raise HTTPException(status_code=status_code, detail=message) from exc
         try:
             reference_encoding = face_service.encoding_from_bytes(
                 bytes(current_student_profile.face_encoding),
@@ -388,7 +396,7 @@ def record_attendance_from_face_scan(
         if not match.matched:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="The live face does not match the currently signed-in student account.",
+                detail="Face not match.",
             )
 
         student = current_student_profile

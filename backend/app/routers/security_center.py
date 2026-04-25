@@ -49,6 +49,7 @@ from app.services.security_service import (
 )
 from app.services.user_preference_service import get_or_create_user_security_setting
 from app.services.face_recognition import FaceRecognitionService
+from app.services.face_recognition import resolve_face_verification_error_message
 
 router = APIRouter(prefix="/auth/security", tags=["security"])
 face_service = FaceRecognitionService()
@@ -347,12 +348,19 @@ def save_face_reference(
 ):
     face_service.ensure_face_runtime_ready(mode="mfa", context="security_face_reference")
     image_bytes = face_service.decode_base64_image(payload.image_base64)
-    encoding, liveness = face_service.extract_encoding_from_bytes(
-        image_bytes,
-        require_single_face=True,
-        enforce_liveness=True,
-        mode="mfa",
-    )
+    try:
+        encoding, liveness = face_service.extract_encoding_from_bytes(
+            image_bytes,
+            require_single_face=True,
+            enforce_liveness=True,
+            mode="mfa",
+        )
+    except HTTPException as exc:
+        normalized_error = resolve_face_verification_error_message(exc.detail)
+        if normalized_error is None:
+            raise
+        status_code, message = normalized_error
+        raise HTTPException(status_code=status_code, detail=message) from exc
 
     profile = (
         db.query(UserFaceRecognitionProfile)
@@ -422,12 +430,19 @@ def verify_face_reference(
     _require_current_mfa_reference(profile)
 
     image_bytes = face_service.decode_base64_image(payload.image_base64)
-    encoding, liveness = face_service.extract_encoding_from_bytes(
-        image_bytes,
-        require_single_face=True,
-        enforce_liveness=True,
-        mode="mfa",
-    )
+    try:
+        encoding, liveness = face_service.extract_encoding_from_bytes(
+            image_bytes,
+            require_single_face=True,
+            enforce_liveness=True,
+            mode="mfa",
+        )
+    except HTTPException as exc:
+        normalized_error = resolve_face_verification_error_message(exc.detail)
+        if normalized_error is None:
+            raise
+        status_code, message = normalized_error
+        raise HTTPException(status_code=status_code, detail=message) from exc
     comparison = face_service.compare_encodings(
         encoding,
         face_service.encoding_from_bytes(

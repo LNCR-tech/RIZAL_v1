@@ -102,7 +102,7 @@ const props = defineProps({
   },
   errorText: {
     type: String,
-    default: 'No face detected',
+    default: 'Face not found.',
   },
   retryText: {
     type: String,
