@@ -120,7 +120,7 @@ services:
     volumes:
       - ./backend:/app
       - import_storage:/app/storage/imports
-      - branding_storage:/app/storage/school_logos
+      - /home/ubuntu/Aura/docker-data/branding:/app/storage/school_logos
       - insightface_models:/root/.insightface
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
@@ -150,7 +150,7 @@ services:
     volumes:
       - ./backend:/app
       - import_storage:/app/storage/imports
-      - branding_storage:/app/storage/school_logos
+      - /home/ubuntu/Aura/docker-data/branding:/app/storage/school_logos
       - insightface_models:/root/.insightface
     restart: unless-stopped
     depends_on:
@@ -223,6 +223,5 @@ services:
 
 volumes:
   import_storage:
-  branding_storage:
   insightface_models:
   mailpit_data:
