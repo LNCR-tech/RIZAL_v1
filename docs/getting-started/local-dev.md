@@ -2,92 +2,207 @@
 
 [<- Back to docs index](../../README.md)
 
-This runs each service directly on your machine for debugging and faster iteration.
+This runs each service directly on your machine without Docker. Useful for faster iteration and debugging.
+
+---
 
 ## Prerequisites
 
-- Python for backend and assistant
-- PostgreSQL with `fastapi_db` and `ai_assistant`
-- Redis
-- Node.js and npm
+| Requirement | Version | Notes |
+|---|---|---|
+| Python | 3.11+ | |
+| PostgreSQL | 14+ | Must be running locally |
+| Redis | 6+ | Must be running locally |
+| Node.js | 18+ | For the frontend |
+| npm | 9+ | Comes with Node.js |
 
-## Which Env File Goes Where
+---
 
-- Root `.env`
-  Backend, assistant, and worker/beat settings.
-- `frontend/.env.development.local`
-  Frontend Vite dev settings only.
+## 1. Create the Databases
 
-Create them from:
+Connect to your local Postgres and run:
 
-- `.env.example`
-- `frontend/.env.development.local.example`
-
-## Required Root `.env` Values
-
-- `SECRET_KEY`
-- `AI_API_KEY`
-- `AI_API_BASE`
-- `AI_MODEL`
-- `DATABASE_URL`
-- `ASSISTANT_DB_URL`
-- `CELERY_BROKER_URL`
-- `CELERY_RESULT_BACKEND`
-- `BACKEND_API_BASE_URL=http://127.0.0.1:8000`
-
-## Required Frontend Local Override
-
-```env
-VITE_BACKEND_PROXY_TARGET=http://127.0.0.1:8000
+```sql
+CREATE DATABASE fastapi_db;
+CREATE DATABASE ai_assistant;
 ```
 
-Optional frontend local values:
-
-```env
-VITE_API_BASE_URL=/__backend__
-VITE_API_TIMEOUT_MS=15000
+**Linux:**
+```bash
+psql -U postgres -c "CREATE DATABASE fastapi_db;"
+psql -U postgres -c "CREATE DATABASE ai_assistant;"
 ```
 
-## Startup Order
+**Windows (PowerShell):**
+```powershell
+psql -U postgres -c "CREATE DATABASE fastapi_db;"
+psql -U postgres -c "CREATE DATABASE ai_assistant;"
+```
 
-Start services in this order to avoid startup warnings:
+---
 
-1. PostgreSQL
-2. Redis
-3. Mailpit (if `EMAIL_TRANSPORT=smtp`)
-4. Backend
-5. Assistant
-6. Frontend
+## 2. Configure Environment Files
 
-The backend will start even if Mailpit is not running — it logs a warning and continues. But email delivery will fail silently until Mailpit is up.
+**Root `.env`** — copy from example and fill in required values:
 
-## Steps
+```bash
+# Linux
+cp .env.example .env
 
-1. Copy `.env.example` to `.env` and point the connection strings at your local services.
-2. Copy `frontend/.env.development.local.example` to `frontend/.env.development.local`.
-3. Run backend migrations.
-4. Run the explicit bootstrap command.
-5. Start backend, assistant, and frontend.
+# Windows
+Copy-Item .\.env.example .\.env -Force
+```
 
-The canonical commands are in [Common Commands](../reference/common-commands.md).
+Required values to set in `.env`:
 
-## Redis on WSL
+```env
+SECRET_KEY=any-local-dev-string
+AI_API_KEY=your-api-key
+AI_API_BASE=https://api.openai.com/v1
+AI_MODEL=gpt-4o
 
-If you run Redis inside WSL, the broker URLs in `.env` must point at the WSL IP, not `127.0.0.1`:
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+ASSISTANT_DB_URL=postgresql://postgres:postgres@127.0.0.1:5432/ai_assistant
+CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0
+BACKEND_API_BASE_URL=http://127.0.0.1:8000
+LOGIN_URL=http://localhost:5173
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+```
+
+**Frontend** — copy from example:
+
+```bash
+# Linux
+cp frontend/.env.development.local.example frontend/.env.development.local
+
+# Windows
+Copy-Item .\frontend\.env.development.local.example .\frontend\.env.development.local -Force
+```
+
+---
+
+## 3. Install Dependencies
+
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+**Assistant:**
+```bash
+cd assistant-v2
+pip install -r requirements.txt
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm ci
+```
+
+---
+
+## 4. Run Migrations
+
+```bash
+cd backend
+python -m alembic upgrade heads
+```
+
+---
+
+## 5. Run Bootstrap
+
+```bash
+cd backend
+python bootstrap.py
+```
+
+This creates the platform admin account, roles, and event types. Safe to run multiple times.
+
+---
+
+## 6. Start All Services
+
+Open a separate terminal for each service. Start them in this order:
+
+**Backend:**
+```bash
+cd backend
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+**Worker:**
+```bash
+cd backend
+celery -A app.workers.celery_app.celery_app worker --loglevel=info
+```
+
+**Beat:**
+```bash
+cd backend
+celery -A app.workers.celery_app.celery_app beat --loglevel=info
+```
+
+**Assistant:**
+```bash
+cd assistant-v2
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8500
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
+## Service URLs
+
+| Service | URL |
+|---|---|
+| Frontend | `http://localhost:5173` |
+| Backend API docs | `http://localhost:8000/docs` |
+| Assistant API docs | `http://localhost:8500/docs` |
+
+---
+
+## Default Credentials
+
+| Role | Email | Password |
+|---|---|---|
+| Platform Admin | `admin@aura.com` | `AdminPass123!` |
+
+---
+
+## Redis on Windows (WSL)
+
+If Redis is running inside WSL, use the WSL IP instead of `127.0.0.1`:
 
 ```env
 CELERY_BROKER_URL=redis://<wsl-ip>:6379/0
 CELERY_RESULT_BACKEND=redis://<wsl-ip>:6379/0
 ```
 
-Get your current WSL IP:
-
+Get your WSL IP:
 ```bash
 wsl hostname -I
 ```
 
-This IP changes every time you reboot your laptop. Re-run the command after each reboot and update `.env` if Celery fails to connect.
+This IP changes on every reboot — update `.env` if Celery fails to connect.
 
-## Verification URLs
+---
 
-See: [Ports and URLs](../reference/ports.md).
+## Optional: Run the Seeder
+
+Set `SEED_DATABASE = True` in `seeder/variables.py`, then:
+
+```bash
+cd seeder
+python seed.py demo
+```
+
+This generates demo schools, students, events, and attendance records. See [Seeder docs](../../seeder/docs/README.md) for configuration options.
