@@ -1,6 +1,10 @@
 # Aura Demo Seeder — Documentation
 
-[<- Back to docs index](../../README.md)
+<!--nav-->
+[← Project Audit](../../docs/audits/project_audit.md) | [🏠 Home](/README.md) | [Ch.1 Purpose →](01-purpose.md)
+
+---
+<!--/nav-->
 
 This is the full technical documentation for the Aura demo seeder. It covers purpose, architecture, configuration, the probabilistic and mathematical models behind data generation, and operational guidance.
 

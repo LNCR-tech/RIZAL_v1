@@ -1,6 +1,10 @@
 # Repository Layout
 
-[<- Back to docs index](../../README.md)
+<!--nav-->
+[← Ports and URLs](ports.md) | [🏠 Home](/README.md) | [Backend Docs →](../backend/README.md)
+
+---
+<!--/nav-->
 
 ## Top-Level Folders
 

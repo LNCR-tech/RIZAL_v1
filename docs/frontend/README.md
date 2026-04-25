@@ -1,10 +1,14 @@
 ﻿# Frontend Documentation
 
-[<- Back to docs index](../../README.md)
-
 The frontend is a Vue 3 (Vite) SPA with optional Capacitor Android packaging.
 
 ## Start Here
+
+<!--nav-->
+[← Seeder Guide](../backend/SEEDER_GUIDE.md) | [🏠 Home](/README.md) | [Frontend Local Dev →](local-dev.md)
+
+---
+<!--/nav-->
 
 - [Local Dev](./local-dev.md)
 - [Configuration (API base URLs, proxies, runtime config)](./configuration.md)

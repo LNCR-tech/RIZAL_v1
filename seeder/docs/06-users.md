@@ -1,6 +1,10 @@
 # Chapter 6 — User and Identity Generation
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.5 Academic Structure](05-academic-structure.md) | [🏠 Home](/README.md) | [Ch.7 Governance →](07-governance.md)
+
+---
+<!--/nav-->
 
 ---
 

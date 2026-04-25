@@ -1,6 +1,10 @@
-[<- Back to docs index](../../README.md)
-
 # Backend Email Delivery Guide (Mailjet / Disabled)
+
+<!--nav-->
+[← Backend Changelog](BACKEND_CHANGELOG.md) | [🏠 Home](/README.md) | [Face Attendance Policy →](BACKEND_FACE_ATTENDANCE_MODE_POLICY.md)
+
+---
+<!--/nav-->
 
 The backend now supports exactly two outbound email modes:
 

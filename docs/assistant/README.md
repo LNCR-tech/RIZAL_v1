@@ -1,6 +1,10 @@
 # Assistant Documentation
 
-[<- Back to docs index](../../README.md)
+<!--nav-->
+[← Frontend Deployment](../frontend/deployment.md) | [🏠 Home](/README.md) | [Assistant v1 vs v2 →](../assistant-v2/v1_vs_v2_comparison.md)
+
+---
+<!--/nav-->
 
 The supported assistant service in this repository is:
 

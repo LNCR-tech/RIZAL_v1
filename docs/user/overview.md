@@ -1,6 +1,10 @@
 # Aura Overview (Non-Developer)
 
-[<- Back to docs index](../../README.md)
+<!--nav-->
+[← Assistant v1 vs v2](../assistant-v2/v1_vs_v2_comparison.md) | [🏠 Home](/README.md) | [Navigation Map →](navigation.md)
+
+---
+<!--/nav-->
 
 Aura is a student attendance system. It includes:
 

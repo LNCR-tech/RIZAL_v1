@@ -1,6 +1,10 @@
 # Deploying to AWS Ubuntu (EC2)
 
-[<- Back to How to Run](./how-to-run.md)
+<!--nav-->
+[← Local Dev](local-dev.md) | [🏠 Home](/README.md) | [Common Commands →](../reference/common-commands.md)
+
+---
+<!--/nav-->
 
 This guide covers deploying Aura on an AWS EC2 Ubuntu instance using the included `deploy.sh` script and `docker-compose.prod.yml`.
 

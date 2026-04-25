@@ -1,6 +1,10 @@
 # Chapter 4 — Deterministic Randomness and the RNG Model
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.3 Configuration](03-configuration.md) | [🏠 Home](/README.md) | [Ch.5 Academic Structure →](05-academic-structure.md)
+
+---
+<!--/nav-->
 
 ---
 

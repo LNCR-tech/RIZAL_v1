@@ -2,6 +2,12 @@
 
 # Aura Project Audit Report
 
+<!--nav-->
+[← Navigation Map](../user/navigation.md) | [🏠 Home](/README.md) | [Project Audit →](project_audit.md)
+
+---
+<!--/nav-->
+
 Audit date: 2026-04-17
 Repository: `Aura_Merged_Project`
 Audit mode: static repository review plus targeted local verification

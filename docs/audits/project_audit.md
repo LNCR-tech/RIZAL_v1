@@ -2,6 +2,12 @@
 
 # Project Audit: Student Attendance System (Aura Project)
 
+<!--nav-->
+[← Audit Report](AUDIT_REPORT.md) | [🏠 Home](/README.md) | [Seeder Docs Index →](../../seeder/docs/README.md)
+
+---
+<!--/nav-->
+
 This document provides a comprehensive audit of the **Aura Student Attendance System**, detailing its architecture, technology stack, and core modules.
 
 ---

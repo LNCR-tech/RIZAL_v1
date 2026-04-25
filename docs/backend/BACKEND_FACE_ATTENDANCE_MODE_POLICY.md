@@ -1,6 +1,10 @@
 # Face Attendance Mode Policy
 
-[<- Back to backend docs](./README.md)
+<!--nav-->
+[← Email Guide](BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md) | [🏠 Home](/README.md) | [Face Engine Migration →](BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
+
+---
+<!--/nav-->
 
 ## Purpose
 

@@ -2,6 +2,12 @@
 
 # Backend Reports Module Guide
 
+<!--nav-->
+[← Railway Deployment](BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md) | [🏠 Home](/README.md) | [Report Catalog →](REPORT_CATALOG.md)
+
+---
+<!--/nav-->
+
 ## Purpose
 
 This guide documents the reports refactor that consolidates report-related logic into a modular `app/reports` package while preserving existing API contracts.

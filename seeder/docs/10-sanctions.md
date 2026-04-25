@@ -1,6 +1,10 @@
 # Chapter 10 — Sanctions and Compliance Generation
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.9 Attendance](09-attendance.md) | [🏠 Home](/README.md) | [Ch.11 Running →](11-running.md)
+
+---
+<!--/nav-->
 
 ---
 

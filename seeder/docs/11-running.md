@@ -1,6 +1,10 @@
 # Chapter 11 — Running the Seeder
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.10 Sanctions](10-sanctions.md) | [🏠 Home](/README.md) | [Ch.12 Output →](12-output.md)
+
+---
+<!--/nav-->
 
 ---
 

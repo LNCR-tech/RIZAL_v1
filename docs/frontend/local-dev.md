@@ -1,6 +1,10 @@
 # Frontend Local Dev
 
-[<- Back to frontend index](./README.md)
+<!--nav-->
+[← Frontend Docs](README.md) | [🏠 Home](/README.md) | [Frontend Configuration →](configuration.md)
+
+---
+<!--/nav-->
 
 ## Install and Run
 

@@ -1,6 +1,10 @@
 # Getting Started (Local Dev, no Docker)
 
-[<- Back to How to Run](./how-to-run.md)
+<!--nav-->
+[← Docker](docker.md) | [🏠 Home](/README.md) | [Linux / AWS Deploy →](linux-deploy.md)
+
+---
+<!--/nav-->
 
 This runs each service directly on your machine without Docker. Useful for faster iteration and debugging.
 

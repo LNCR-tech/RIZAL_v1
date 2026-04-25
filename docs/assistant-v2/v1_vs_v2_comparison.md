@@ -2,6 +2,12 @@
 
 # Aura Assistant v1 vs. v2: Architectural Comparison
 
+<!--nav-->
+[← Assistant Docs](../assistant/README.md) | [🏠 Home](/README.md) | [Aura Overview →](../user/overview.md)
+
+---
+<!--/nav-->
+
 This document provides a comprehensive side-by-side comparison of the legacy **Assistant-v1** and the newly refactored **Assistant-v2**. The migration focuses on transforming a monolithic architecture into a clean, modular, properly decoupled structure using the official Model Context Protocol (MCP) standards.
 
 > [!WARNING]

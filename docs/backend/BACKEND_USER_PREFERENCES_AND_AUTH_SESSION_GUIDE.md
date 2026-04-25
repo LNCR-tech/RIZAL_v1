@@ -2,6 +2,12 @@
 
 # Backend User Preferences And Auth Session Guide
 
+<!--nav-->
+[← Sanctions Guide](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md) | [🏠 Home](/README.md) | [Seeder Guide →](SEEDER_GUIDE.md)
+
+---
+<!--/nav-->
+
 This guide documents the backend behavior for:
 
 - privileged face-scan MFA during login

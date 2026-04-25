@@ -1,6 +1,10 @@
-[<- Back to docs index](../../README.md)
-
 # Backend Railway / Constrained Deployment Guide
+
+<!--nav-->
+[← Face Engine Migration](BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md) | [🏠 Home](/README.md) | [Reports Module →](BACKEND_REPORTS_MODULE_GUIDE.md)
+
+---
+<!--/nav-->
 
 The repository now keeps a single compose file (`docker-compose.yml`). This page documents the constrained-platform variant for services such as Railway where you may still need a single backend container to host the web process plus optional worker sidecars.
 

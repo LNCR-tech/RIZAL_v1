@@ -1,6 +1,10 @@
 # Frontend Deployment Notes
 
-[<- Back to frontend index](./README.md)
+<!--nav-->
+[← Frontend Architecture](architecture.md) | [🏠 Home](/README.md) | [Assistant Docs →](../assistant/README.md)
+
+---
+<!--/nav-->
 
 ## Docker Image
 

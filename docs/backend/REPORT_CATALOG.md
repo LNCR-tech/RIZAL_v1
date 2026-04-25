@@ -2,6 +2,12 @@
 
 # Report Catalog
 
+<!--nav-->
+[← Reports Module](BACKEND_REPORTS_MODULE_GUIDE.md) | [🏠 Home](/README.md) | [Sanctions Guide →](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md)
+
+---
+<!--/nav-->
+
 This catalog lists practical reports for the attendance system.
 
 Role labels used below:

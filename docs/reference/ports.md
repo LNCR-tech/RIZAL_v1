@@ -1,6 +1,10 @@
 # Ports and URLs
 
-[<- Back to docs index](../../README.md)
+<!--nav-->
+[← Environment Variables](env.md) | [🏠 Home](/README.md) | [Repository Layout →](repository-layout.md)
+
+---
+<!--/nav-->
 
 These are the defaults from `docker-compose.yml`.
 

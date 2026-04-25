@@ -1,6 +1,10 @@
 # How to Run Aura
 
-[<- Back to docs index](../../README.md)
+<!--nav-->
+[🏠 Home](/README.md) | [Docker →](docker.md)
+
+---
+<!--/nav-->
 
 One command is all you need in every scenario. The stack handles database creation, migrations, bootstrap, and all services automatically.
 

@@ -1,6 +1,10 @@
 # Chapter 2 — Architecture and File Layout
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.1 Purpose](01-purpose.md) | [🏠 Home](/README.md) | [Ch.3 Configuration →](03-configuration.md)
+
+---
+<!--/nav-->
 
 ---
 

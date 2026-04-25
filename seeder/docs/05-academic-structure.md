@@ -1,6 +1,10 @@
 # Chapter 5 — Academic Structure Generation
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.4 RNG Model](04-rng.md) | [🏠 Home](/README.md) | [Ch.6 Users →](06-users.md)
+
+---
+<!--/nav-->
 
 ---
 

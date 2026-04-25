@@ -1,6 +1,10 @@
 # Chapter 3 — Configuration System
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.2 Architecture](02-architecture.md) | [🏠 Home](/README.md) | [Ch.4 RNG Model →](04-rng.md)
+
+---
+<!--/nav-->
 
 ---
 

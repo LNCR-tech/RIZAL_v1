@@ -1,6 +1,10 @@
 # Common Commands
 
-[<- Back to Local Dev](../getting-started/local-dev.md)
+<!--nav-->
+[← Linux / AWS Deploy](../getting-started/linux-deploy.md) | [🏠 Home](/README.md) | [Environment Variables →](env.md)
+
+---
+<!--/nav-->
 
 Quick reference for all common operations. All commands run from the repo root unless noted.
 

@@ -1,6 +1,10 @@
 # Aura Navigation Map (Non-Developer)
 
-[<- Back to Aura Overview](./overview.md)
+<!--nav-->
+[← Aura Overview](overview.md) | [🏠 Home](/README.md) | [Audit Report →](../audits/AUDIT_REPORT.md)
+
+---
+<!--/nav-->
 
 Note: Menu labels may differ slightly, but the sections below reflect the app’s primary route groups.
 

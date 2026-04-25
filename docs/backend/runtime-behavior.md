@@ -1,6 +1,10 @@
 # Backend Runtime Behavior
 
-[<- Back to backend index](./README.md)
+<!--nav-->
+[← API Overview](api-overview.md) | [🏠 Home](/README.md) | [Backend Changelog →](BACKEND_CHANGELOG.md)
+
+---
+<!--/nav-->
 
 This page documents backend behaviors that affect startup or runtime even if no route contract changed.
 

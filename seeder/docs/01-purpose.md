@@ -1,6 +1,10 @@
 # Chapter 1 — Purpose and Design Philosophy
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Seeder Docs Index](README.md) | [🏠 Home](/README.md) | [Ch.2 Architecture →](02-architecture.md)
+
+---
+<!--/nav-->
 
 ---
 

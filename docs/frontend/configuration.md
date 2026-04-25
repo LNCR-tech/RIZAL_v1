@@ -1,6 +1,10 @@
 # Frontend Configuration
 
-[<- Back to frontend index](./README.md)
+<!--nav-->
+[← Frontend Local Dev](local-dev.md) | [🏠 Home](/README.md) | [Frontend Architecture →](architecture.md)
+
+---
+<!--/nav-->
 
 This page is the frontend-specific env matrix.
 

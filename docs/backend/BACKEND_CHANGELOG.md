@@ -2,6 +2,12 @@
 
 # Backend Change Log
 
+<!--nav-->
+[← Runtime Behavior](runtime-behavior.md) | [🏠 Home](/README.md) | [Email Guide →](BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
+
+---
+<!--/nav-->
+
 This file records backend behavior changes that should stay visible after code merges.
 
 ## Documentation Rule

@@ -2,6 +2,12 @@
 
 # Backend Face Engine Migration Guide
 
+<!--nav-->
+[← Face Attendance Policy](BACKEND_FACE_ATTENDANCE_MODE_POLICY.md) | [🏠 Home](/README.md) | [Railway Deployment →](BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
+
+---
+<!--/nav-->
+
 This guide documents the backend migration from the legacy `face_recognition` / dlib runtime to the current unified InsightFace face-engine design:
 
 - single-face enrollment and attendance: InsightFace + SCRFD + ArcFace

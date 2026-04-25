@@ -1,6 +1,10 @@
 # Aura Demo Seeder
 
-[<- Back to backend docs](./README.md)
+<!--nav-->
+[← User Preferences & Auth](BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md) | [🏠 Home](/README.md) | [Frontend Docs →](../frontend/README.md)
+
+---
+<!--/nav-->
 
 The seeder generates a full production-scale demo dataset for Aura — multiple schools, complete academic hierarchies, governance structures, students, events, attendance records, sanctions, and compliance history. It is designed for QA, demos, and AI assistant stress-testing, not for bootstrapping a real deployment.
 

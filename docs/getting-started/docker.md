@@ -1,6 +1,10 @@
 # Getting Started (Docker)
 
-[<- Back to How to Run](./how-to-run.md)
+<!--nav-->
+[← How to Run](how-to-run.md) | [🏠 Home](/README.md) | [Local Dev →](local-dev.md)
+
+---
+<!--/nav-->
 
 This is the fastest way to run the full system locally from the repo root.
 

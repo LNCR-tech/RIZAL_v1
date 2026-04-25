@@ -1,6 +1,10 @@
 # Chapter 8 — Event Generation and the Chaos Engine
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.7 Governance](07-governance.md) | [🏠 Home](/README.md) | [Ch.9 Attendance →](09-attendance.md)
+
+---
+<!--/nav-->
 
 ---
 

@@ -2,6 +2,12 @@
 
 # Backend Sanctions Management Guide
 
+<!--nav-->
+[← Report Catalog](REPORT_CATALOG.md) | [🏠 Home](/README.md) | [User Preferences & Auth →](BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md)
+
+---
+<!--/nav-->
+
 ## Purpose
 
 This guide documents the sanctions data-model baseline introduced for sanctions management in Aura.

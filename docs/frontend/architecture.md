@@ -1,6 +1,10 @@
 # Frontend Architecture
 
-[<- Back to frontend index](./README.md)
+<!--nav-->
+[← Frontend Configuration](configuration.md) | [🏠 Home](/README.md) | [Frontend Deployment →](deployment.md)
+
+---
+<!--/nav-->
 
 ## Folder Map (`frontend/src`)
 

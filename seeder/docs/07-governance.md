@@ -1,6 +1,10 @@
 # Chapter 7 — Governance Hierarchy Generation
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.6 Users](06-users.md) | [🏠 Home](/README.md) | [Ch.8 Events →](08-events.md)
+
+---
+<!--/nav-->
 
 ---
 

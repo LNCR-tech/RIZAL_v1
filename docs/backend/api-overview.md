@@ -1,6 +1,10 @@
 # Backend API Overview
 
-[<- Back to backend index](./README.md)
+<!--nav-->
+[← Backend Docs](README.md) | [🏠 Home](/README.md) | [Runtime Behavior →](runtime-behavior.md)
+
+---
+<!--/nav-->
 
 ## Base Paths
 

@@ -1,6 +1,10 @@
 # Chapter 9 — Attendance Generation
 
-[<- Back to index](./README.md)
+<!--nav-->
+[← Ch.8 Events](08-events.md) | [🏠 Home](/README.md) | [Ch.10 Sanctions →](10-sanctions.md)
+
+---
+<!--/nav-->
 
 ---
 
