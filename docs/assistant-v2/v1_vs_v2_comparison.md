@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Aura Assistant v1 vs. v2: Architectural Comparison
 
 <!--nav-->

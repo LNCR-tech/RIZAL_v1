@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Report Catalog
 
 <!--nav-->

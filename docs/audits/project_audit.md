@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Project Audit: Student Attendance System (Aura Project)
 
 <!--nav-->

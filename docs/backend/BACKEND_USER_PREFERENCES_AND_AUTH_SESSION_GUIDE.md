@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Backend User Preferences And Auth Session Guide
 
 <!--nav-->

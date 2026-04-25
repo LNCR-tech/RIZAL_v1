@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Backend Reports Module Guide
 
 <!--nav-->

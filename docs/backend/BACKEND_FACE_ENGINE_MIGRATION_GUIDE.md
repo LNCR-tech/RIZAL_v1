@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Backend Face Engine Migration Guide
 
 <!--nav-->

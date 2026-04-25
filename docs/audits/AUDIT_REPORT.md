@@ -1,5 +1,3 @@
-﻿[<- Back to docs index](../../README.md)
-
 # Aura Project Audit Report
 
 <!--nav-->
