@@ -1,25 +1,39 @@
+# =============================================================================
+# Aura — Production Compose (AWS Ubuntu)
+# Zero-config: ./start.sh  is all you need on a fresh server.
+# All services start automatically in the correct order.
+# Seeder runs only when SEED_DATABASE=True in seeder/variables.py.
+# =============================================================================
+
 services:
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+
   db:
     image: postgres:15
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-fastapi_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker-init:/docker-entrypoint-initdb.d
+      - ./docker-init:/docker-entrypoint-initdb.d   # creates ai_assistant DB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-fastapi_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    # No host port exposure — only reachable by other containers
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # No host port exposure
+
+  # ---------------------------------------------------------------------------
+  # Init jobs — run once in order, then exit
+  # ---------------------------------------------------------------------------
 
   migrate:
     build:
@@ -27,9 +41,9 @@ services:
       dockerfile: Dockerfile.prod
     image: aura-backend:prod
     command: alembic upgrade heads
-    env_file: .env
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-fastapi_db}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
     depends_on:
       db:
         condition: service_healthy
@@ -38,25 +52,44 @@ services:
   bootstrap:
     image: aura-backend:prod
     command: python bootstrap.py
-    env_file: .env
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-fastapi_db}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: "no"
 
+  seed:
+    image: aura-backend:prod
+    command: sh -c "cd /repo/seeder && python seed.py demo"
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
+    volumes:
+      - .:/repo
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Application services
+  # ---------------------------------------------------------------------------
+
   backend:
     image: aura-backend:prod
     ports:
       - "8000:8000"
-    env_file: .env
+    env_file:
+      - ./.env
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-fastapi_db}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      LOGIN_URL: ${LOGIN_URL:?LOGIN_URL is required}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
+      LOGIN_URL: ${LOGIN_URL:-http://localhost}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -69,29 +102,31 @@ services:
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
       - insightface_models:/root/.insightface
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
-      bootstrap:
+      seed:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   worker:
     image: aura-backend:prod
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
-    env_file: .env
+    env_file:
+      - ./.env
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-fastapi_db}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
     volumes:
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
@@ -106,11 +141,13 @@ services:
   beat:
     image: aura-backend:prod
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info
-    env_file: .env
+    env_file:
+      - ./.env
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-fastapi_db}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
     restart: unless-stopped
     depends_on:
       db:
@@ -123,10 +160,12 @@ services:
     image: aura-assistant:prod
     ports:
       - "8500:8500"
-    env_file: .env
+    env_file:
+      - ./.env
     environment:
-      APP_DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-fastapi_db}
-      ASSISTANT_DB_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/ai_assistant
+      APP_DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
+      ASSISTANT_DB_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/ai_assistant
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
     restart: unless-stopped
     depends_on:
       db:
@@ -141,7 +180,7 @@ services:
     ports:
       - "80:80"
     environment:
-      BACKEND_ORIGIN: ${BACKEND_ORIGIN:?BACKEND_ORIGIN is required}
+      BACKEND_ORIGIN: ${BACKEND_ORIGIN:-http://backend:8000}
     restart: unless-stopped
     depends_on:
       backend:

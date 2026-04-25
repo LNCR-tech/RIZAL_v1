@@ -1,4 +1,16 @@
+# =============================================================================
+# Aura — Local Development Compose
+# Zero-config: docker compose up --build  is all you need.
+# All services start automatically in the correct order.
+# Seeder runs only when SEED_DATABASE=True in seeder/variables.py.
+# =============================================================================
+
 services:
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+
   db:
     image: postgres:15
     restart: always
@@ -7,42 +19,45 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fastapi_db
     ports:
-      - "5433:5432"   # changed
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker-init:/docker-entrypoint-initdb.d
+      - ./docker-init:/docker-entrypoint-initdb.d   # creates ai_assistant DB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
     restart: always
     ports:
-      - "6380:6379"   # changed
+      - "6380:6379"
 
   mailpit:
     image: axllent/mailpit:latest
     restart: always
     ports:
-      - "1026:1025"   # changed
-      - "8026:8025"   # changed
+      - "1026:1025"
+      - "8025:8025"
     environment:
       MP_DATA_FILE: /data/mailpit.db
     volumes:
       - mailpit_data:/data
 
+  # ---------------------------------------------------------------------------
+  # Init jobs — run once in order, then exit
+  # ---------------------------------------------------------------------------
+
   migrate:
     build:
       context: ./backend
-    image: rizal-backend:local
+    image: aura-backend:local
     command: alembic upgrade heads
-    env_file:
-      - ./.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      SECRET_KEY: local-dev-secret
     volumes:
       - ./backend:/app
     depends_on:
@@ -51,12 +66,11 @@ services:
     restart: "no"
 
   bootstrap:
-    image: rizal-backend:local
+    image: aura-backend:local
     command: python bootstrap.py
-    env_file:
-      - ./.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      SECRET_KEY: local-dev-secret
     volumes:
       - ./backend:/app
     depends_on:
@@ -65,12 +79,11 @@ services:
     restart: "no"
 
   seed:
-    image: rizal-backend:local
+    image: aura-backend:local
     command: sh -c "cd /repo/seeder && python seed.py demo"
-    env_file:
-      - ./.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      SECRET_KEY: local-dev-secret
     volumes:
       - .:/repo
     depends_on:
@@ -78,20 +91,23 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  # ---------------------------------------------------------------------------
+  # Application services
+  # ---------------------------------------------------------------------------
+
   backend:
-    build:
-      context: ./backend
-    image: rizal-backend:local
+    image: aura-backend:local
     ports:
-      - "8001:8000"   # changed
+      - "8000:8000"
     env_file:
       - ./.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      LOGIN_URL: http://localhost:5174   # updated
-      CORS_ALLOWED_ORIGINS: http://localhost:5174,http://127.0.0.1:5174
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
+      LOGIN_URL: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
@@ -106,24 +122,22 @@ services:
       - branding_storage:/app/storage/school_logos
       - insightface_models:/root/.insightface
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 40s
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
-      bootstrap:
+      seed:
         condition: service_completed_successfully
 
   worker:
-    build:
-      context: ./backend
-    image: rizal-backend:local
+    image: aura-backend:local
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
     env_file:
       - ./.env
@@ -131,8 +145,12 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     volumes:
       - ./backend:/app
+      - import_storage:/app/storage/imports
+      - branding_storage:/app/storage/school_logos
+      - insightface_models:/root/.insightface
     restart: unless-stopped
     depends_on:
       db:
@@ -141,14 +159,15 @@ services:
         condition: service_started
 
   beat:
-    build:
-      context: ./backend
-    image: rizal-backend:local
+    image: aura-backend:local
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info
     env_file:
       - ./.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     volumes:
       - ./backend:/app
     restart: unless-stopped
@@ -158,28 +177,32 @@ services:
       redis:
         condition: service_started
 
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "5174:180"   # changed
-    environment:
-      PORT: 180
-      BACKEND_ORIGIN: http://localhost:8001   # updated
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-
   assistant:
     build: ./assistant-v2
+    image: aura-assistant:local
+    ports:
+      - "8500:8500"
     env_file:
       - ./.env
     environment:
       APP_DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       ASSISTANT_DB_URL: postgresql://postgres:postgres@db:5432/ai_assistant
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     depends_on:
       db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    image: aura-frontend:local
+    ports:
+      - "5173:80"
+    environment:
+      BACKEND_ORIGIN: http://backend:8000
+    depends_on:
+      backend:
         condition: service_healthy
     restart: unless-stopped
 
@@ -190,7 +213,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: admin123
     ports:
-      - "5051:80"   # changed
+      - "5050:80"
     depends_on:
       db:
         condition: service_healthy

@@ -1,23 +1,37 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Aura — Production Stack Manager
+# Aura — One-Click Deploy Script (Ubuntu / AWS EC2)
 # =============================================================================
-# Usage:
-#   chmod +x start.sh
-#   ./start.sh            — start (or restart) the full stack
+# Double-click this file in a file manager, or run:
+#   chmod +x start.sh && ./start.sh
+#
+# What it does (fully automatic, no prompts):
+#   1. Installs git, docker, and docker compose plugin if missing
+#   2. Clones the repo or pulls latest code
+#   3. Creates .env with safe defaults if it doesn't exist
+#   4. Opens firewall ports if ufw is active
+#   5. Builds and starts the full stack
+#
+# Optional subcommands:
+#   ./start.sh            — first-time setup + start (default)
 #   ./start.sh stop       — stop all services
 #   ./start.sh restart    — stop then start
 #   ./start.sh update     — pull latest code and rebuild
 #   ./start.sh logs       — follow all logs
-#   ./start.sh logs <svc> — follow logs for one service (e.g. backend)
+#   ./start.sh logs <svc> — follow logs for one service
 #   ./start.sh status     — show running containers
 #   ./start.sh reset      — stop and wipe all volumes (DELETES DATABASE)
 # =============================================================================
 
 set -euo pipefail
 
+# -----------------------------------------------------------------------------
+# Config — override via env vars before running if needed
+# -----------------------------------------------------------------------------
+REPO_URL="${REPO_URL:-https://github.com/LNCR-tech/RIZAL_v1.git}"
+REPO_BRANCH="${REPO_BRANCH:-integrate/pilot-merge}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
 COMPOSE_FILE="docker-compose.prod.yml"
-COMPOSE="docker compose -f $COMPOSE_FILE"
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -33,119 +47,248 @@ warn()    { echo -e "${YELLOW}[warn]${NC} $*"; }
 error()   { echo -e "${RED}[error]${NC} $*"; exit 1; }
 section() { echo -e "\n${CYAN}==> $*${NC}"; }
 
-# -----------------------------------------------------------------------------
-# Guards
-# -----------------------------------------------------------------------------
-[ -f "$COMPOSE_FILE" ] || error "Run this script from the repo root (docker-compose.prod.yml not found)."
-[ -f ".env" ]          || error ".env not found. Run ./deploy.sh first to configure the environment."
+CMD="${1:-setup}"
 
-CMD="${1:-start}"
+# =============================================================================
+# setup — install deps, clone/pull, configure .env, start stack
+# =============================================================================
+do_setup() {
 
-# -----------------------------------------------------------------------------
-# Commands
-# -----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # 1. Install dependencies
+  # ---------------------------------------------------------------------------
+  section "Checking dependencies..."
+
+  if ! command -v git &>/dev/null; then
+      info "Installing git..."
+      sudo apt-get update -qq && sudo apt-get install -y -qq git
+  fi
+
+  if ! command -v curl &>/dev/null; then
+      info "Installing curl..."
+      sudo apt-get update -qq && sudo apt-get install -y -qq curl
+  fi
+
+  if ! command -v docker &>/dev/null; then
+      info "Installing Docker..."
+      curl -fsSL https://get.docker.com | sudo sh
+      sudo usermod -aG docker "$USER"
+      # Apply group without requiring logout
+      exec sg docker "$0 $*"
+  fi
+
+  if ! docker compose version &>/dev/null 2>&1; then
+      info "Installing Docker Compose plugin..."
+      sudo apt-get update -qq && sudo apt-get install -y -qq docker-compose-plugin
+  fi
+
+  info "Docker:         $(docker --version)"
+  info "Docker Compose: $(docker compose version)"
+
+  # ---------------------------------------------------------------------------
+  # 2. Clone or pull repo
+  # ---------------------------------------------------------------------------
+  section "Syncing repository..."
+
+  if [ -d "$DEPLOY_DIR/.git" ]; then
+      info "Repo found at $DEPLOY_DIR — pulling latest..."
+      cd "$DEPLOY_DIR"
+      git fetch origin
+      git checkout "$REPO_BRANCH"
+      git pull --rebase origin "$REPO_BRANCH"
+  else
+      info "Cloning repo to $DEPLOY_DIR..."
+      sudo mkdir -p "$DEPLOY_DIR"
+      sudo chown "$USER":"$USER" "$DEPLOY_DIR"
+      git clone --branch "$REPO_BRANCH" "$REPO_URL" "$DEPLOY_DIR"
+      cd "$DEPLOY_DIR"
+  fi
+
+  cd "$DEPLOY_DIR"
+
+  # ---------------------------------------------------------------------------
+  # 3. Create .env with safe defaults (no prompts)
+  # ---------------------------------------------------------------------------
+  if [ ! -f .env ]; then
+      section "Creating .env with defaults..."
+
+      # Detect public IP
+      PUBLIC_IP=$(curl -sf --max-time 3 https://checkip.amazonaws.com 2>/dev/null \
+                  || curl -sf --max-time 3 https://api.ipify.org 2>/dev/null \
+                  || hostname -I | awk '{print $1}')
+
+      # Generate a random secret key
+      SECRET=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
+
+      cat > .env <<EOF
+# Auto-generated by start.sh on $(date)
+# Edit this file to customize your deployment.
+
+SECRET_KEY=${SECRET}
+
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=fastapi_db
+
+LOGIN_URL=http://${PUBLIC_IP}
+CORS_ALLOWED_ORIGINS=http://${PUBLIC_IP}
+BACKEND_ORIGIN=http://${PUBLIC_IP}:8000
+BACKEND_API_BASE_URL=http://${PUBLIC_IP}:8000
+ASSISTANT_ORIGIN=http://${PUBLIC_IP}:8500
+
+AI_API_KEY=
+AI_API_BASE=
+AI_MODEL=
+AI_MAX_TOKENS=8192
+
+EMAIL_TRANSPORT=disabled
+EMAIL_SENDER_EMAIL=notifications@example.com
+EMAIL_SENDER_NAME=Aura Notifications
+EMAIL_REPLY_TO=notifications@example.com
+MAILJET_API_KEY=
+MAILJET_API_SECRET=
+
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USE_TLS=false
+SMTP_USE_STARTTLS=true
+SMTP_USERNAME=
+SMTP_PASSWORD=
+
+UVICORN_WORKERS=2
+ASSISTANT_AUTO_MIGRATE=true
+JWT_ALGORITHM=HS256
+EOF
+
+      info ".env created. Public IP set to: $PUBLIC_IP"
+      warn "AI features require AI_API_KEY, AI_API_BASE, and AI_MODEL in .env"
+  else
+      info ".env already exists — skipping."
+  fi
+
+  # ---------------------------------------------------------------------------
+  # 4. Open firewall ports
+  # ---------------------------------------------------------------------------
+  if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
+      section "Configuring firewall..."
+      sudo ufw allow 80/tcp   >/dev/null
+      sudo ufw allow 8000/tcp >/dev/null
+      sudo ufw allow 8500/tcp >/dev/null
+      info "Ports 80, 8000, 8500 opened."
+  fi
+
+  # ---------------------------------------------------------------------------
+  # 5. Build and start
+  # ---------------------------------------------------------------------------
+  do_start
+}
+
+# =============================================================================
+# start
+# =============================================================================
 do_start() {
-    section "Starting Aura production stack..."
+  cd "$DEPLOY_DIR"
+  section "Building and starting Aura..."
 
-    # 1. Pull images that don't need building (postgres, redis)
-    info "Pulling base images..."
-    $COMPOSE pull db redis
+  docker compose -f "$COMPOSE_FILE" up --build -d
 
-    # 2. Build app images
-    info "Building app images..."
-    $COMPOSE build --parallel backend assistant frontend
+  echo ""
+  docker compose -f "$COMPOSE_FILE" ps
+  echo ""
 
-    # 3. Start infrastructure first and wait for healthy DB
-    info "Starting database and redis..."
-    $COMPOSE up -d db redis
+  PUBLIC_IP=$(curl -sf --max-time 3 https://checkip.amazonaws.com 2>/dev/null \
+              || curl -sf --max-time 3 https://api.ipify.org 2>/dev/null \
+              || hostname -I | awk '{print $1}')
 
-    info "Waiting for database to be healthy..."
-    until $COMPOSE exec -T db pg_isready -U "${DB_USER:-postgres}" -d "${DB_NAME:-fastapi_db}" &>/dev/null; do
-        echo -n "."
-        sleep 2
-    done
-    echo ""
-    info "Database is ready."
-
-    # 4. Run migrations
-    info "Running migrations..."
-    $COMPOSE run --rm migrate
-
-    # 5. Run bootstrap
-    info "Running bootstrap..."
-    $COMPOSE run --rm bootstrap
-
-    # 6. Start all app services
-    info "Starting backend, worker, beat, assistant, frontend..."
-    $COMPOSE up -d backend worker beat assistant frontend
-
-    # 7. Print status
-    echo ""
-    $COMPOSE ps
-    echo ""
-
-    PUBLIC_IP=$(curl -sf https://checkip.amazonaws.com 2>/dev/null || hostname -I | awk '{print $1}')
-    info "Stack is up."
-    echo "  Frontend:      http://${PUBLIC_IP}"
-    echo "  Backend API:   http://${PUBLIC_IP}:8000/docs"
-    echo "  Assistant API: http://${PUBLIC_IP}:8500/docs"
-    echo ""
-    info "Follow logs: ./start.sh logs"
+  info "Stack is up. Services start in order: db → migrate → bootstrap → seed (if enabled) → backend → frontend"
+  echo ""
+  echo "  Frontend:      http://${PUBLIC_IP}"
+  echo "  Backend API:   http://${PUBLIC_IP}:8000/docs"
+  echo "  Assistant API: http://${PUBLIC_IP}:8500/docs"
+  echo ""
+  info "Follow logs:  ./start.sh logs"
+  info "Check status: ./start.sh status"
+  echo ""
+  warn "AWS Security Group: ensure inbound TCP is open on ports 80, 8000, 8500."
 }
 
+# =============================================================================
+# stop
+# =============================================================================
 do_stop() {
-    section "Stopping Aura production stack..."
-    $COMPOSE down
-    info "Stack stopped."
+  cd "$DEPLOY_DIR"
+  section "Stopping Aura..."
+  docker compose -f "$COMPOSE_FILE" down
+  info "Stack stopped."
 }
 
+# =============================================================================
+# restart
+# =============================================================================
 do_restart() {
-    do_stop
-    do_start
+  do_stop
+  do_start
 }
 
+# =============================================================================
+# update — pull latest code and rebuild
+# =============================================================================
 do_update() {
-    section "Pulling latest code..."
-    git fetch origin
-    git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)"
-    info "Code updated. Rebuilding and restarting..."
-    do_stop
-    do_start
+  cd "$DEPLOY_DIR"
+  section "Pulling latest code..."
+  git fetch origin
+  git pull --rebase origin "$REPO_BRANCH"
+  info "Rebuilding and restarting..."
+  docker compose -f "$COMPOSE_FILE" up --build -d
+  info "Update complete."
 }
 
+# =============================================================================
+# logs
+# =============================================================================
 do_logs() {
-    local svc="${2:-}"
-    if [ -n "$svc" ]; then
-        $COMPOSE logs -f "$svc"
-    else
-        $COMPOSE logs -f
-    fi
+  cd "$DEPLOY_DIR"
+  local svc="${2:-}"
+  if [ -n "$svc" ]; then
+      docker compose -f "$COMPOSE_FILE" logs -f "$svc"
+  else
+      docker compose -f "$COMPOSE_FILE" logs -f
+  fi
 }
 
+# =============================================================================
+# status
+# =============================================================================
 do_status() {
-    $COMPOSE ps
+  cd "$DEPLOY_DIR"
+  docker compose -f "$COMPOSE_FILE" ps
 }
 
+# =============================================================================
+# reset — wipe everything including volumes
+# =============================================================================
 do_reset() {
-    echo ""
-    warn "WARNING: This will stop all services and DELETE all data including the database."
-    read -rp "  Type YES to confirm: " confirm
-    [[ "$confirm" == "YES" ]] || { info "Aborted."; exit 0; }
-    section "Wiping stack and volumes..."
-    $COMPOSE down -v
-    info "Done. Run ./start.sh to start fresh."
+  cd "$DEPLOY_DIR"
+  echo ""
+  warn "WARNING: This stops all services and DELETES all data including the database."
+  read -rp "  Type YES to confirm: " confirm
+  [[ "$confirm" == "YES" ]] || { info "Aborted."; exit 0; }
+  section "Wiping stack and volumes..."
+  docker compose -f "$COMPOSE_FILE" down -v
+  info "Done. Run ./start.sh to start fresh."
 }
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Dispatch
-# -----------------------------------------------------------------------------
+# =============================================================================
 case "$CMD" in
-    start)          do_start ;;
-    stop)           do_stop ;;
-    restart)        do_restart ;;
-    update)         do_update ;;
-    logs)           do_logs "$@" ;;
-    status)         do_status ;;
-    reset)          do_reset ;;
-    *)              error "Unknown command: $CMD. Usage: ./start.sh [start|stop|restart|update|logs|status|reset]" ;;
+  setup|"")   do_setup ;;
+  start)      do_start ;;
+  stop)       do_stop ;;
+  restart)    do_restart ;;
+  update)     do_update ;;
+  logs)       do_logs "$@" ;;
+  status)     do_status ;;
+  reset)      do_reset ;;
+  *)          error "Unknown command: $CMD. Usage: ./start.sh [setup|start|stop|restart|update|logs|status|reset]" ;;
 esac
