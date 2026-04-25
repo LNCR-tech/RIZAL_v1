@@ -2,13 +2,28 @@
 
 [<- Back to docs index](../../README.md)
 
-This guide covers deploying Aura to a Linux server using the included `deploy.sh` script. The script handles everything from Docker installation to running the stack in one command.
+This guide covers running Aura on a Linux machine using the included `deploy.sh` script. It works for both local Linux development and production server deployment — the difference is only in how you configure `.env`.
 
 ## Prerequisites
 
 - Ubuntu 22.04+ or Debian 12+ (other distros with `apt` should work)
 - A user with `sudo` access
-- Ports `80`, `8000`, `8500`, `5050`, `8025` open on the server firewall
+- Ports `80`, `8000`, `8500`, `5050`, `8025` open on the server firewall (production only)
+
+## Local Linux vs Production
+
+| | Local Linux | Production Server |
+|---|---|---|
+| `SECRET_KEY` | Any string | Long random string (`openssl rand -hex 32`) |
+| `DATABASE_URL` | Leave as default (uses Docker container) | External Postgres or leave as default |
+| `LOGIN_URL` | `http://localhost` | `https://yourdomain.com` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost` | `https://yourdomain.com` |
+| `BACKEND_ORIGIN` | Leave as default | `https://yourdomain.com` or backend URL |
+| `FRONTEND_PORT` | Any free port (e.g. `5173`) | `80` or `443` |
+| `EMAIL_TRANSPORT` | `disabled` | `mailjet_api` |
+| HTTPS | Not needed | Use a reverse proxy (nginx, Caddy) |
+
+For local Linux, the defaults in `.env.example` are fine except for `SECRET_KEY` and the AI credentials. For production, see the full variable list in [Environment Variables](../reference/env.md#production-setup).
 
 ## Running the Deploy Script
 
