@@ -12,7 +12,7 @@ Schools are selected from a fixed pool of 21 names in `data.py` using `rng.sampl
 	ext{selected\_schools} = \text{sample}(\text{SCHOOL\_NAMES},\ k = \min(N_s,\ 21))
 ```
 
-where math`N_s` is `SEED_N_SCHOOLS`. If you request more than 21 schools, the seeder silently caps at 21.
+where `N_s` is `SEED_N_SCHOOLS`. If you request more than 21 schools, the seeder silently caps at 21.
 
 Each school gets:
 - A `school_name` (the full name from the pool)
@@ -26,15 +26,18 @@ Each school gets:
 
 The college/program dataset in `data.py` contains 15 colleges, each with a list of programs. For each school, the seeder:
 
-1. Draws the number of colleges: math`n_c \sim \text{Uniform}(\text{min\_colleges},\ \text{max\_colleges})`
-2. Samples math`n_c` colleges without replacement from the 15 available
+1. Draws the number of colleges:
+   ```math
+   n_c \sim \text{Uniform}(\text{min\_colleges},\ \text{max\_colleges})
+   ```
+2. Samples `n_c` colleges without replacement from the 15 available
 3. For each selected college, draws the number of programs:
 
 ```math
 n_p \sim \text{Uniform}(\max(1,\ \text{min\_programs}),\ |\text{programs for this college}|)
 ```
 
-4. Samples math`n_p` programs without replacement from that college's program list
+4. Samples `n_p` programs without replacement from that college's program list
 
 The result is a dict `{college_name: [program_names]}` that is unique per school. Two schools will rarely have the same academic structure.
 

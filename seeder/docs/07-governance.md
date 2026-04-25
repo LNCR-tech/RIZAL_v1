@@ -81,7 +81,11 @@ ORG_PERMISSIONS = [VIEW_STUDENTS, MANAGE_EVENTS, MANAGE_ATTENDANCE]
 
 Announcements are generated for governance units using templates from `data.py`.
 
-**SSG announcements:** $k \sim \text{Uniform}(2, 4)$ announcements are sampled without replacement from the 5 announcement templates and created for the SSG unit.
+**SSG announcements:** Between 2 and 4 announcements are sampled without replacement from the 5 announcement templates and created for the SSG unit.
+
+```math
+k \sim \text{Uniform}(2, 4)
+```
 
 **SG announcements:** Each SG unit has a 70% probability of getting one announcement:
 
@@ -115,9 +119,9 @@ Officers are assigned per governance unit by sampling from the leader pool **wit
 
 | Unit type | Officers per unit |
 |-----------|------------------|
-| SSG | $k \sim \text{Uniform}(3, 5)$ |
-| SG | $k \sim \text{Uniform}(1, 3)$ per SG unit |
-| ORG | $k \sim \text{Uniform}(1, 2)$ per ORG unit |
+| SSG | `k ~ Uniform(3, 5)` |
+| SG | `k ~ Uniform(1, 3)` per SG unit |
+| ORG | `k ~ Uniform(1, 2)` per ORG unit |
 
 Each officer is assigned:
 - The appropriate role (`ssg`, `sg`, or `org`) via `assign_role()`
@@ -132,7 +136,7 @@ For each officer, the number of permissions granted is:
 k_\text{perms} \sim \text{Uniform}(1,\ |\text{unit\_permission\_set}|)
 ```
 
-Then $k_\text{perms}$ permissions are sampled without replacement from the unit's permission set. This means:
+Then `k_perms` permissions are sampled without replacement from the unit's permission set. This means:
 
 - Some officers have nearly full permissions
 - Some officers have minimal permissions

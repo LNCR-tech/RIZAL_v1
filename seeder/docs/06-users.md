@@ -27,7 +27,7 @@ After the first name is drawn, a suffix may be stored in the `User.suffix` colum
 ```
 
 
-where math`p_\text{suffix}` = `SEED_USER_SUFFIX_PROBABILITY` (default 0.3). If applied, a suffix is drawn uniformly from `["Jr.", "Sr.", "II", "III", "IV"]` and stored in `User.suffix`. The first name itself is left unmodified.
+where `p_suffix` = `SEED_USER_SUFFIX_PROBABILITY` (default 0.3). If applied, a suffix is drawn uniformly from `["Jr.", "Sr.", "II", "III", "IV"]` and stored in `User.suffix`. The first name itself is left unmodified.
 
 With the default probability, approximately 30% of students will have a non-null `suffix` column.
 
@@ -44,7 +44,10 @@ Student emails are derived deterministically from the generated name and school 
 Where:
 - `first_name_part` = first token of the first name, lowercased (handles suffixes like "Jr.")
 - `last_name_part` = last token of the last name, lowercased (handles compound surnames like "Dela Cruz")
-- `number` = math`n \sim \text{Uniform}(1, 99)`
+- `number`:
+  ```math
+  n \sim \text{Uniform}(1, 99)
+  ```
 
 Example: `james.smith42@aurauniversity.edu.ph`
 
