@@ -20,7 +20,7 @@ This guide covers running Aura on a Linux machine using the included `deploy.sh`
 | `CORS_ALLOWED_ORIGINS` | `http://localhost` | `https://yourdomain.com` |
 | `BACKEND_ORIGIN` | Leave as default | `https://yourdomain.com` or backend URL |
 | `FRONTEND_PORT` | Any free port (e.g. `5173`) | `80` or `443` |
-| `EMAIL_TRANSPORT` | `disabled` | `mailjet_api` |
+| `EMAIL_TRANSPORT` | `disabled` or `smtp` (Mailpit) | `mailjet_api` |
 | HTTPS | Not needed | Use a reverse proxy (nginx, Caddy) |
 
 For local Linux, the defaults in `.env.example` are fine except for `SECRET_KEY` and the AI credentials. For production, see the full variable list in [Environment Variables](../reference/env.md#production-setup).
