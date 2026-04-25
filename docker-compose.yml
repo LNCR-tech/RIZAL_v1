@@ -21,7 +21,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /home/ubuntu/Aura/docker-data/postgres:/var/lib/postgresql/data
       - ./docker-init:/docker-entrypoint-initdb.d   # creates ai_assistant DB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
@@ -222,7 +222,6 @@ services:
         condition: service_healthy
 
 volumes:
-  postgres_data:
   import_storage:
   branding_storage:
   insightface_models:
