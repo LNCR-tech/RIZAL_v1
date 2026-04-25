@@ -24,29 +24,29 @@ The gate probability represents the fraction of students who "managed to record"
 
 For each eligible event, the seeder iterates over all student profiles. Each student independently passes or fails the gate:
 
-$$
+```math
 \text{student passes gate} \iff U(0,1) \leq p_g
-$$
+```
 
 For students who pass the gate, an absence decision is made:
 
-$$
+```math
 \text{absent} = \begin{cases}
 \text{True} & \text{if } U(0,1) \leq 0.25 \\
 \text{False} & \text{otherwise}
 \end{cases}
-$$
+```
 
 The base absence probability is fixed at 25%. This is a simplification — in a real system, absence probability would vary per student based on their history. The seeder uses a uniform rate for all students.
 
 For present students, the status is further split:
 
-$$
+```math
 \text{status} = \begin{cases}
 \text{present} & \text{with probability } 0.80 \\
 \text{late} & \text{with probability } 0.20
 \end{cases}
-$$
+```
 
 ---
 
@@ -54,9 +54,9 @@ $$
 
 For a school with $n_s$ students and $n_e$ events, the expected number of attendance records is:
 
-$$
+```math
 E[\text{records}] = n_s \times \sum_{i=1}^{n_e} p_{g,i}
-$$
+```
 
 where $p_{g,i}$ is the gate probability for event $i$.
 
@@ -64,13 +64,13 @@ For a completed event, $p_{g,i} = 1.0$, so it contributes $n_s$ records. For an 
 
 With default settings (1,000–2,000 students, 30–100 events, ~57% completed), the expected attendance volume per school is approximately:
 
-$$
+```math
 E[\text{records}] \approx 1500 \times (0.573 \times 65 \times 1.0 + 0.049 \times 65 \times 0.45 + 0.039 \times 65 \times 0.08)
-$$
+```
 
-$$
+```math
 \approx 1500 \times (37.2 + 1.4 + 0.2) \approx 1500 \times 38.8 \approx 58{,}200 \text{ records per school}
-$$
+```
 
 With 5 schools, this is approximately 291,000 attendance records total.
 

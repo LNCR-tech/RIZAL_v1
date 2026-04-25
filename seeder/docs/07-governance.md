@@ -59,9 +59,9 @@ SG_PERMISSIONS = [
 
 For each SG unit, 0–2 ORG units are created:
 
-$$
+```math
 n_\text{org} \sim \text{Uniform}(0, 2)
-$$
+```
 
 - `unit_code`: `ORG-{sg.id}-{j}`
 - `unit_name`: `"{dept_code} Sub-Org {j+1}"`
@@ -85,9 +85,9 @@ Announcements are generated for governance units using templates from `data.py`.
 
 **SG announcements:** Each SG unit has a 70% probability of getting one announcement:
 
-$$
+```math
 X \sim \text{Bernoulli}(0.70)
-$$
+```
 
 If it fires, one announcement template is drawn uniformly and prefixed with the department code.
 
@@ -101,9 +101,9 @@ Officers are drawn from the student body using a two-stage process.
 
 The top ~15% of students are designated as the leader pool:
 
-$$
+```math
 n_\text{leaders} = \max\left(5,\ \lfloor 0.15 \times n_\text{students} \rfloor\right)
-$$
+```
 
 The floor of 5 ensures there are always enough leaders even for very small student counts. Leaders are sampled without replacement from the full student list.
 
@@ -128,9 +128,9 @@ Each officer is assigned:
 
 For each officer, the number of permissions granted is:
 
-$$
+```math
 k_\text{perms} \sim \text{Uniform}(1,\ |\text{unit\_permission\_set}|)
-$$
+```
 
 Then $k_\text{perms}$ permissions are sampled without replacement from the unit's permission set. This means:
 
@@ -144,9 +144,9 @@ Then $k_\text{perms}$ permissions are sampled without replacement from the unit'
 
 After officer assignment, ~10% of students receive a governance note:
 
-$$
+```math
 n_\text{notes} = \max\left(1,\ \lfloor 0.10 \times n_\text{students} \rfloor\right)
-$$
+```
 
 Students are sampled without replacement. For each noted student:
 

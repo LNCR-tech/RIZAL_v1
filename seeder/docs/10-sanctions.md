@@ -21,12 +21,12 @@ The sanction record links:
 
 Each sanction record is independently resolved with probability 0.30:
 
-$$
+```math
 \text{resolved} = \begin{cases}
 \text{True} & \text{if } U(0,1) < 0.30 \\
 \text{False} & \text{otherwise}
 \end{cases}
-$$
+```
 
 This means approximately 30% of sanctions are `COMPLIED` and 70% remain `PENDING`. This ratio is intentional — it reflects a realistic scenario where most sanctions are still outstanding at any given time, which makes the sanctions dashboard non-trivial to look at.
 
@@ -62,35 +62,35 @@ For each resolved sanction record, a `SanctionComplianceHistory` entry is create
 
 The expected number of sanction records is:
 
-$$
+```math
 E[\text{sanctions}] = E[\text{attendance records}] \times P(\text{absent}) = E[\text{attendance records}] \times 0.25
-$$
+```
 
 Using the estimate from [Chapter 9](./09-attendance.md):
 
-$$
+```math
 E[\text{sanctions}] \approx 291{,}000 \times 0.25 \approx 72{,}750 \text{ records}
-$$
+```
 
 Of these, approximately 30% are resolved:
 
-$$
+```math
 E[\text{complied}] \approx 72{,}750 \times 0.30 \approx 21{,}825
-$$
+```
 
-$$
+```math
 E[\text{pending}] \approx 72{,}750 \times 0.70 \approx 50{,}925
-$$
+```
 
 Each sanction record has 2 items, so:
 
-$$
+```math
 E[\text{sanction items}] \approx 72{,}750 \times 2 = 145{,}500
-$$
+```
 
-$$
+```math
 E[\text{compliance history entries}] \approx 21{,}825 \times 2 = 43{,}650
-$$
+```
 
 ---
 

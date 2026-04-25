@@ -8,9 +8,9 @@
 
 Schools are selected from a fixed pool of 21 names in `data.py` using `rng.sample()` — sampling without replacement. This guarantees no duplicate school names regardless of how many schools are requested.
 
-$$
+```math
 \text{selected\_schools} = \text{sample}(\text{SCHOOL\_NAMES},\ k = \min(N_s,\ 21))
-$$
+```
 
 where $N_s$ is `SEED_N_SCHOOLS`. If you request more than 21 schools, the seeder silently caps at 21.
 
@@ -30,9 +30,9 @@ The college/program dataset in `data.py` contains 15 colleges, each with a list 
 2. Samples $n_c$ colleges without replacement from the 15 available
 3. For each selected college, draws the number of programs:
 
-$$
+```math
 n_p \sim \text{Uniform}(\max(1,\ \text{min\_programs}),\ |\text{programs for this college}|)
-$$
+```
 
 4. Samples $n_p$ programs without replacement from that college's program list
 

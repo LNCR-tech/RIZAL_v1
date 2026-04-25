@@ -16,9 +16,9 @@ This instance is created once in `seed.py` and passed through to every function 
 
 The consequence is total reproducibility:
 
-$$
+```math
 \text{output} = f(\text{SEED\_RANDOMIZER\_KEY},\ \text{config})
-$$
+```
 
 Given the same key and the same configuration, the seeder produces byte-for-byte identical data on every run, on any machine, regardless of Python version (within the same major version, as `random.Random` is deterministic within a version).
 
@@ -38,9 +38,9 @@ The alternative — multiple independent RNG instances per subsystem — would a
 
 The most common operation in the seeder is uniform sampling from a list. Python's `random.Random.choice(seq)` draws uniformly:
 
-$$
+```math
 P(X = x_i) = \frac{1}{n}, \quad i \in \{1, \ldots, n\}
-$$
+```
 
 where $n$ is the length of the sequence. This is used for:
 
@@ -55,9 +55,9 @@ where $n$ is the length of the sequence. This is used for:
 
 `rng.randint(a, b)` draws uniformly from the closed interval $[a, b]$:
 
-$$
+```math
 P(X = k) = \frac{1}{b - a + 1}, \quad k \in \{a, a+1, \ldots, b\}
-$$
+```
 
 Used for:
 
@@ -82,9 +82,9 @@ Used for:
 
 `rng.uniform(a, b)` draws from the continuous uniform distribution:
 
-$$
+```math
 X \sim \text{Uniform}(a, b), \quad f(x) = \frac{1}{b-a}, \quad x \in [a, b]
-$$
+```
 
 Used for:
 
@@ -99,9 +99,9 @@ Used for:
 
 `rng.random()` draws from $\text{Uniform}(0, 1)$. Comparing it against a threshold $p$ gives a Bernoulli trial:
 
-$$
+```math
 X \sim \text{Bernoulli}(p): \quad P(X = 1) = p, \quad P(X = 0) = 1 - p
-$$
+```
 
 Used for:
 
@@ -122,9 +122,9 @@ Used for:
 
 `rng.choices(population, weights, k)` samples with replacement using a categorical distribution:
 
-$$
+```math
 P(X = x_i) = \frac{w_i}{\sum_{j=1}^{n} w_j}
-$$
+```
 
 Used for:
 
@@ -132,15 +132,15 @@ Used for:
 
 - **Event scope assignment** — fixed weights `{"school": 15, "department": 25, "program": 60}` give:
 
-$$
+```math
 P(\text{program-scoped}) = \frac{60}{100} = 0.60, \quad P(\text{department-scoped}) = 0.25, \quad P(\text{school-wide}) = 0.15
-$$
+```
 
 - **Attendance status** — for present students, `rng.choices(["present", "late"], weights=[80, 20])` gives:
 
-$$
+```math
 P(\text{present}) = 0.80, \quad P(\text{late}) = 0.20
-$$
+```
 
 ---
 
@@ -162,13 +162,13 @@ The chaos engine introduces a layer of variance that is consistent within a sing
 
 At the start of `run_demo()`, two probabilities are rolled once for the entire run:
 
-$$
+```math
 p_c \sim \text{Uniform}(0.02, 0.07) \quad \text{(cancellation base probability)}
-$$
+```
 
-$$
+```math
 p_e \sim \text{Uniform}(0.10, 0.25) \quad \text{(emergency cutoff probability)}
-$$
+```
 
 These govern event status and attendance gate probabilities across the entire dataset. Every seeded universe has a different "climate" — some universes have more cancellations, some have more emergency cutoffs. This is what makes the dataset feel like a real school system rather than a synthetic one.
 

@@ -14,17 +14,17 @@ Student names are drawn independently from three pools in `data.py`:
 
 Each draw is independent and uniform:
 
-$$
+```math
 \text{first} \sim \text{Uniform}(\text{FIRST\_NAMES}), \quad \text{last} \sim \text{Uniform}(\text{LAST\_NAMES}), \quad \text{middle} \sim \text{Uniform}(\text{MIDDLE\_NAMES})
-$$
+```
 
 ### Suffix Application
 
 After the first name is drawn, a suffix may be stored in the `User.suffix` column:
 
-$$
+```math
 \text{suffix\_applied} = \begin{cases} \text{True} & \text{if } U(0,1) \leq p_\text{suffix} \\ \text{False} & \text{otherwise} \end{cases}
-$$
+```
 
 where $p_\text{suffix}$ = `SEED_USER_SUFFIX_PROBABILITY` (default 0.3). If applied, a suffix is drawn uniformly from `["Jr.", "Sr.", "II", "III", "IV"]` and stored in `User.suffix`. The first name itself is left unmodified.
 
@@ -73,15 +73,15 @@ while True:
 
 The probability of needing a retry is:
 
-$$
+```math
 P(\text{collision on attempt } k) = \frac{k-1}{90000}
-$$
+```
 
 At 2,000 students, the expected number of retries is approximately:
 
-$$
+```math
 E[\text{retries}] = \sum_{k=1}^{2000} \frac{k-1}{90000} \approx \frac{2000 \times 1999}{2 \times 90000} \approx 22
-$$
+```
 
 This is negligible.
 
@@ -119,9 +119,9 @@ The bcrypt cost factor is set to `rounds=6` for students (fast, suitable for dem
 
 The bcrypt work factor doubles with each increment:
 
-$$
+```math
 \text{time}(r) \approx 2^{r-6} \times \text{time}(6)
-$$
+```
 
 | rounds | Relative cost |
 |--------|--------------|
@@ -138,15 +138,15 @@ At `rounds=6` with 10 parallel workers, hashing 2,000 passwords takes approximat
 
 Students are not distributed uniformly across programs. Before student generation begins, each program in the school's program pool is assigned a random weight:
 
-$$
+```math
 w_i \sim \text{Uniform}(10, 100), \quad i \in \{1, \ldots, |\text{program\_pool}|\}
-$$
+```
 
 Students are then assigned via weighted sampling with replacement:
 
-$$
+```math
 P(\text{student assigned to program } i) = \frac{w_i}{\sum_{j} w_j}
-$$
+```
 
 This produces realistic enrollment skew. In a school with 5 programs, one program might have weight 95 and another weight 12, resulting in roughly 8× more students in the popular program.
 
