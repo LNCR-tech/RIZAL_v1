@@ -8,13 +8,13 @@ This runs each service directly on your machine without Docker. Useful for faste
 
 ## Prerequisites
 
-| Requirement | Version | Notes |
-|---|---|---|
-| Python | 3.11+ | |
-| PostgreSQL | 14+ | Must be running locally |
-| Redis | 6+ | Must be running locally |
-| Node.js | 18+ | For the frontend |
-| npm | 9+ | Comes with Node.js |
+| Requirement | Version | Linux | Windows |
+|---|---|---|---|
+| Python | 3.11+ | `apt install python3` | [python.org](https://www.python.org/downloads/) |
+| PostgreSQL | 14+ | `apt install postgresql` | [postgresql.org](https://www.postgresql.org/download/windows/) |
+| Redis | 6+ | `apt install redis` | Run via WSL (see note below) |
+| Node.js | 18+ | `apt install nodejs` | [nodejs.org](https://nodejs.org/) |
+| npm | 9+ | Comes with Node.js | Comes with Node.js |
 
 ---
 
@@ -135,9 +135,17 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 **Worker:**
+
 ```bash
+# Linux
 cd backend
 celery -A app.workers.celery_app.celery_app worker --loglevel=info
+```
+
+```powershell
+# Windows — requires --pool=solo, otherwise Celery crashes
+cd backend
+celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo
 ```
 
 **Beat:**
@@ -178,9 +186,20 @@ npm run dev
 
 ---
 
-## Redis on Windows (WSL)
+## Redis on Windows
 
-If Redis is running inside WSL, use the WSL IP instead of `127.0.0.1`:
+Redis does not have an official native Windows build. The recommended approach is to run it inside WSL:
+
+```powershell
+# Install WSL if not already installed
+wsl --install
+
+# Inside WSL
+sudo apt update && sudo apt install redis -y
+sudo service redis start
+```
+
+Then use the WSL IP in `.env` instead of `127.0.0.1`:
 
 ```env
 CELERY_BROKER_URL=redis://<wsl-ip>:6379/0
@@ -188,7 +207,7 @@ CELERY_RESULT_BACKEND=redis://<wsl-ip>:6379/0
 ```
 
 Get your WSL IP:
-```bash
+```powershell
 wsl hostname -I
 ```
 

@@ -83,6 +83,9 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 # Celery worker
 celery -A app.workers.celery_app.celery_app worker --loglevel=info
 
+# Celery worker (Windows — requires --pool=solo)
+celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo
+
 # Celery beat
 celery -A app.workers.celery_app.celery_app beat --loglevel=info
 ```
