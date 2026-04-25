@@ -62,17 +62,20 @@ For each resolved sanction record, a `SanctionComplianceHistory` entry is create
 
 The expected number of sanction records is:
 
+
 ```math
 E[\text{sanctions}] = E[\text{attendance records}] \times P(\text{absent}) = E[\text{attendance records}] \times 0.25
 ```
 
 Using the estimate from [Chapter 9](./09-attendance.md):
 
+
 ```math
 E[\text{sanctions}] \approx 291{,}000 \times 0.25 \approx 72{,}750 \text{ records}
 ```
 
 Of these, approximately 30% are resolved:
+
 
 ```math
 E[\text{complied}] \approx 72{,}750 \times 0.30 \approx 21{,}825

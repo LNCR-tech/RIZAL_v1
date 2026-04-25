@@ -8,13 +8,13 @@
 
 Not every event generates attendance records. The chaos engine assigns a gate probability to each event based on its status:
 
-| Event status | Gate probability $p_g$ |
+| Event status | Gate probability math`p_g` |
 |---|---|
-| `COMPLETED` | $1.0$ (all students eligible) |
-| `ONGOING` | $p_g \sim \text{Uniform}(0.20, 0.70)$ |
-| `CANCELLED` (emergency) | $p_g \sim \text{Uniform}(0.01, 0.15)$ |
-| `CANCELLED` (pre-emptive) | $0.0$ (no attendance) |
-| `UPCOMING` | $0.0$ (no attendance — hallucination protection) |
+| `COMPLETED` | math`1.0` (all students eligible) |
+| `ONGOING` | math`p_g \sim \text{Uniform}(0.20, 0.70)` |
+| `CANCELLED` (emergency) | math`p_g \sim \text{Uniform}(0.01, 0.15)` |
+| `CANCELLED` (pre-emptive) | math`0.0` (no attendance) |
+| `UPCOMING` | math`0.0` (no attendance — hallucination protection) |
 
 The gate probability represents the fraction of students who "managed to record" attendance for that event. For a completed event, all students are eligible. For an ongoing event, only a partial snapshot exists. For an emergency cancellation, only a tiny fraction recorded before the event was cut short.
 
@@ -52,15 +52,16 @@ For present students, the status is further split:
 
 ## 9.3 Expected Attendance Volume
 
-For a school with $n_s$ students and $n_e$ events, the expected number of attendance records is:
+
+For a school with math`n_s` students and math`n_e` events, the expected number of attendance records is:
 
 ```math
 E[\text{records}] = n_s \times \sum_{i=1}^{n_e} p_{g,i}
 ```
 
-where $p_{g,i}$ is the gate probability for event $i$.
+where math`p_{g,i}` is the gate probability for event i.
 
-For a completed event, $p_{g,i} = 1.0$, so it contributes $n_s$ records. For an ongoing event with $p_{g,i} = 0.45$ (midpoint of the range), it contributes $0.45 \times n_s$ records.
+For a completed event, math`p_{g,i} = 1.0`, so it contributes math`n_s` records. For an ongoing event with math`p_{g,i} = 0.45` (midpoint of the range), it contributes math`0.45 \times n_s` records.
 
 With default settings (1,000–2,000 students, 30–100 events, ~57% completed), the expected attendance volume per school is approximately:
 

@@ -54,7 +54,8 @@ t_\text{end} = t_\text{event} + d \times 3600 \text{ seconds}
 
 ## 8.3 The Chaos Engine — Event Status Model
 
-The chaos engine determines the status of each event based on its temporal relationship to the current wall-clock time $t_\text{now}$.
+
+The chaos engine determines the status of each event based on its temporal relationship to the current wall-clock time math`t_\text{now}`.
 
 ### Per-Run Chaos Parameters
 
@@ -74,7 +75,8 @@ These are fixed for the entire run. Every school in the same run shares the same
 
 For each event, status is assigned based on three temporal cases:
 
-**Case 1: Past event** ($t_\text{end} < t_\text{now}$)
+
+**Case 1: Past event** (math`t_\text{end} < t_\text{now}`)
 
 ```math
 \text{status} = \begin{cases}
