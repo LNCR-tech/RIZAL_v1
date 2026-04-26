@@ -25,7 +25,7 @@ Visit `http://localhost:5173`.
 **First time on a fresh server:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/integrate/pilot-merge/start.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/Pre-Production-v1/start.sh | bash
 ```
 
 Or if you already cloned the repo:
@@ -67,7 +67,7 @@ Windows can't run `start.sh` directly. SSH into the server and run it there:
 
 ```powershell
 ssh ubuntu@<your-server-ip>
-curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/integrate/pilot-merge/start.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/Pre-Production-v1/start.sh | bash
 ```
 
 Or use Git Bash / WSL on your Windows machine:
@@ -128,7 +128,7 @@ For production, open these inbound TCP ports in your EC2 Security Group:
 
 ## CI/CD — Automatic Deployment
 
-Pushing to `main`, `master`, or `integrate/pilot-merge` triggers automatic deployment:
+Pushing to `main`, `master`, `integrate/pilot-merge`, or `Pre-Production-v1` triggers automatic deployment:
 
 1. **CI** — validates compose configs, compiles backend, lints and builds frontend
 2. **CD** — if CI passes, SSHs into AWS and deploys the new code

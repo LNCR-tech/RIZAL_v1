@@ -134,6 +134,6 @@ psql -U postgres -c "CREATE DATABASE ai_assistant;"
 ```bash
 git add -A
 git commit -m "your message"
-git pull --rebase origin integrate/pilot-merge
+git pull --rebase origin Pre-Production-v1
 git push
 ```
