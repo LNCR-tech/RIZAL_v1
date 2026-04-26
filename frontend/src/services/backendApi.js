@@ -449,7 +449,7 @@ export async function deleteProgram(baseUrl, token, programId) {
 }
 
 export async function getSchoolSettings(baseUrl, token, requestOptions = {}) {
-    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me', '/api/school-settings/me', '/school-settings/me'], {
+    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me', '/api/school-settings/me'], {
         method: 'GET',
         token,
         ...requestOptions,
@@ -457,7 +457,7 @@ export async function getSchoolSettings(baseUrl, token, requestOptions = {}) {
 }
 
 export async function updateSchoolSettings(baseUrl, token, payload) {
-    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school-settings/me', '/school-settings/me'], {
+    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school-settings/me'], {
         method: 'PUT',
         token,
         headers: {
