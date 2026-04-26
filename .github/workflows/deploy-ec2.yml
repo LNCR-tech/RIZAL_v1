@@ -170,15 +170,16 @@ jobs:
             docker image prune -f
 
             # Wait for backend health
-            echo ">>> Waiting for backend health check..."
-            for i in $(seq 1 30); do
-              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+            BACKEND_PORT=$(grep -oP '^BACKEND_PORT=\K.*' .env 2>/dev/null || echo "8001")
+            echo ">>> Waiting for backend health check on port ${BACKEND_PORT}..."
+            for i in $(seq 1 45); do
+              if curl -sf "http://localhost:${BACKEND_PORT}/health" > /dev/null 2>&1; then
                 echo ">>> Backend is healthy!"
                 break
               fi
-              if [ "$i" -eq 30 ]; then
-                echo ">>> Backend health check timed out after 60s"
-                docker compose -f docker-compose.prod.yml logs backend
+              if [ "$i" -eq 45 ]; then
+                echo ">>> Backend health check timed out after 90s"
+                docker compose -f docker-compose.prod.yml logs backend --tail 30
                 exit 1
               fi
               sleep 2
