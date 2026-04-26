@@ -137,7 +137,7 @@ async def root():
             "programs": "/api/programs",
             "departments": "/api/departments",
             "attendance": "/api/attendance",
-            "school_settings": "/school-settings",
+            "school_settings": "/api/school-settings",
             "admin_import": "/api/admin/import-students",
             "school_branding": "/api/school/me",
             "audit_logs": "/api/audit-logs",

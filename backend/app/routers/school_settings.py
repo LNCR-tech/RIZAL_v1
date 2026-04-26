@@ -21,7 +21,7 @@ from app.schemas.school_settings import (
     SchoolSettingsUpdate,
 )
 
-router = APIRouter(prefix="/school-settings", tags=["school-settings"])
+router = APIRouter(prefix="/api/school-settings", tags=["school-settings"])
 
 LEGACY_USER_IMPORT_DEPRECATION_DETAIL = (
     "Legacy school-scoped import routes under /school-settings/me/users/import* are gone. "
