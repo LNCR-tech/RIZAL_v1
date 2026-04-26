@@ -97,6 +97,15 @@ jobs:
     if: github.ref == 'refs/heads/aura_ci_cd' && github.event_name == 'push'
 
     steps:
+      - name: Verify deploy secrets exist
+        run: |
+          test -n "${{ secrets.SERVER_HOST }}" || (echo "SERVER_HOST is missing" && exit 1)
+          test -n "${{ secrets.SERVER_USER }}" || (echo "SERVER_USER is missing" && exit 1)
+          test -n "${{ secrets.SERVER_PORT }}" || (echo "SERVER_PORT is missing" && exit 1)
+          test -n "${{ secrets.SERVER_APP_DIR }}" || (echo "SERVER_APP_DIR is missing" && exit 1)
+          test -n "${{ secrets.SERVER_SSH_KEY }}" || (echo "SERVER_SSH_KEY is missing" && exit 1)
+          echo "All deploy secrets exist."
+
       - name: Deploy through SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
