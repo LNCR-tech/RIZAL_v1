@@ -729,10 +729,6 @@ function setRegistrationError(message) {
   box-shadow: none;
 }
 
-.face-gate-panel :deep(.scan-video) {
-  transform: scaleX(-1);
-}
-
 .face-gate-panel :deep(.scan-photo--placeholder) {
   color: color-mix(in srgb, var(--color-primary, #0057b8) 22%, #7b7b72 78%);
 }

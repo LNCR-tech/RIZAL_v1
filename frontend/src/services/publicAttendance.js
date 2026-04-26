@@ -11,18 +11,6 @@ function toOptionalString(value, fallback = '') {
     return normalized.length ? normalized : fallback
 }
 
-const ISO_DATETIME_WITHOUT_TIMEZONE_PATTERN = /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/
-const ISO_TIMEZONE_SUFFIX_PATTERN = /([zZ]|[+-]\d{2}:\d{2})$/
-
-function toOptionalUtcDateTimeString(value, fallback = null) {
-    const normalized = toOptionalString(value, fallback)
-    if (!normalized) return normalized
-    if (ISO_TIMEZONE_SUFFIX_PATTERN.test(normalized)) return normalized
-    if (!ISO_DATETIME_WITHOUT_TIMEZONE_PATTERN.test(normalized)) return normalized
-
-    return `${normalized.replace(' ', 'T')}Z`
-}
-
 function toOptionalNumber(value, fallback = null) {
     const normalized = Number(value)
     return Number.isFinite(normalized) ? normalized : fallback
@@ -124,8 +112,8 @@ function normalizeOutcome(payload = {}) {
         confidence: toOptionalNumber(payload.confidence, null),
         threshold: toOptionalNumber(payload.threshold, null),
         liveness: normalizeLiveness(payload.liveness),
-        time_in: toOptionalUtcDateTimeString(payload.time_in, null),
-        time_out: toOptionalUtcDateTimeString(payload.time_out, null),
+        time_in: toOptionalString(payload.time_in, null),
+        time_out: toOptionalString(payload.time_out, null),
         duration_minutes: toOptionalNumber(payload.duration_minutes, null),
     }
 }

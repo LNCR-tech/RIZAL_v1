@@ -1,5 +1,4 @@
 const MANILA_OFFSET_SUFFIX = '+08:00'
-const UTC_SUFFIX = 'Z'
 const TIMEZONE_PATTERN = /([zZ]|[+-]\d{2}:\d{2})$/
 
 function normalizeLower(value) {
@@ -17,17 +16,6 @@ export function parseEventDateTime(value) {
     const normalizedValue = TIMEZONE_PATTERN.test(String(value))
         ? String(value)
         : `${value}${MANILA_OFFSET_SUFFIX}`
-
-    return new Date(normalizedValue)
-}
-
-export function parseAttendanceDateTime(value) {
-    if (!value) return new Date(Number.NaN)
-
-    const normalized = String(value).replace(' ', 'T')
-    const normalizedValue = TIMEZONE_PATTERN.test(normalized)
-        ? normalized
-        : `${normalized}${UTC_SUFFIX}`
 
     return new Date(normalizedValue)
 }

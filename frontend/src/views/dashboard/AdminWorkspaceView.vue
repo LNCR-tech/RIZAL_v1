@@ -976,8 +976,11 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 
 <style scoped>
 .admin-view {
-  min-height: 100vh;
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px calc(env(safe-area-inset-bottom, 0px) + 108px);
+  min-height: 100dvh;
+  padding:
+    calc(env(safe-area-inset-top, 0px) + clamp(16px, 3.8vw, 24px))
+    clamp(12px, 4vw, 20px)
+    calc(env(safe-area-inset-bottom, 0px) + clamp(112px, 15vh, 148px));
   background: var(--color-bg);
   color: var(--color-text-primary);
   font-family: Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -990,11 +993,11 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 18px;
+  gap: clamp(10px, 3vw, 16px);
+  margin-top: clamp(16px, 4vw, 22px);
 }
 
 .admin-view__header-copy {
@@ -1016,17 +1019,20 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__header h1 {
   margin: 4px 0 0;
   color: var(--color-text-primary);
-  font-size: 2rem;
+  font-size: clamp(1.7rem, 8vw, 2.35rem);
   font-weight: 800;
-  line-height: 1;
+  line-height: 0.96;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .admin-view__header p:not(.admin-view__eyebrow) {
   margin: 8px 0 0;
+  max-width: 58ch;
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: clamp(0.84rem, 3.6vw, 0.94rem);
   line-height: 1.45;
+  text-wrap: pretty;
 }
 
 .admin-view__icon-button,
@@ -1056,8 +1062,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 16px;
+  gap: clamp(8px, 2.5vw, 10px);
+  margin-top: clamp(14px, 4vw, 18px);
 }
 
 .admin-view__summary-item {
@@ -1065,8 +1071,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  min-height: 92px;
-  padding: 12px;
+  min-height: clamp(88px, 13vh, 112px);
+  padding: clamp(10px, 3vw, 14px);
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 8px;
   background: var(--color-surface);
@@ -1082,15 +1088,17 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 
 .admin-view__summary-item span,
 .admin-view__summary-item small {
-  font-size: 0.76rem;
+  font-size: clamp(0.68rem, 2.7vw, 0.78rem);
   line-height: 1.25;
   opacity: 0.82;
+  overflow-wrap: anywhere;
 }
 
 .admin-view__summary-item strong {
   margin-top: auto;
-  font-size: 1.9rem;
+  font-size: clamp(1.45rem, 8vw, 2.1rem);
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .admin-view__tabs {
@@ -1098,7 +1106,9 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   top: calc(env(safe-area-inset-top, 0px) + 8px);
   z-index: 8;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(62px, 1fr);
+  grid-template-columns: repeat(5, minmax(62px, 1fr));
   gap: 6px;
   margin-top: 14px;
   padding: 6px;
@@ -1107,6 +1117,13 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.admin-view__tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .admin-view__tab {
@@ -1116,22 +1133,25 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   justify-content: center;
   gap: 4px;
   min-width: 0;
-  min-height: 54px;
+  min-height: clamp(50px, 8vh, 58px);
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--color-text-secondary);
   font: inherit;
-  font-size: 0.7rem;
+  font-size: clamp(0.62rem, 2.4vw, 0.72rem);
   font-weight: 700;
   cursor: pointer;
+  scroll-snap-align: start;
 }
 
 .admin-view__tab span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.08;
+  text-align: center;
 }
 
 .admin-view__tab--active {
@@ -1173,8 +1193,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__scope {
-  position: relative;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
 }
 
@@ -1185,19 +1204,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__scope select {
-  flex: 1;
-  min-width: 0;
   height: 48px;
-  padding-right: 20px;
-  text-overflow: ellipsis;
   text-align: right;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  box-shadow: none;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
 }
 
 .admin-view__feedback {
@@ -1221,8 +1229,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__content {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-top: 14px;
+  gap: clamp(12px, 3vw, 16px);
+  margin-top: clamp(12px, 3vw, 16px);
 }
 
 .admin-view__mobile-breath {
@@ -1242,7 +1250,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__panel,
 .admin-view__section,
 .admin-view__card {
-  padding: 14px;
+  padding: clamp(12px, 3.4vw, 16px);
 }
 
 .admin-view__panel--accent {
@@ -1258,6 +1266,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .admin-view__panel-head h2,
@@ -1265,10 +1274,11 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__card h3 {
   margin: 2px 0 0;
   color: var(--color-text-primary);
-  font-size: 1rem;
+  font-size: clamp(0.95rem, 3.4vw, 1.08rem);
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .admin-view__panel--accent .admin-view__panel-head h2 {
@@ -1298,7 +1308,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__button-row,
 .admin-view__swatches {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
   gap: 8px;
 }
 
@@ -1312,16 +1322,21 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   justify-content: center;
   gap: 8px;
   min-height: 46px;
+  min-width: 0;
+  padding-block: 8px;
   border: 0;
   border-radius: 8px;
   font: inherit;
   font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
 
 .admin-view__action {
-  padding: 0 10px;
+  padding: 8px 10px;
   background: #ffffff;
   color: #164e63;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
@@ -1459,7 +1474,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 
 .admin-view__segment-group {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 84px), 1fr));
   gap: 6px;
   margin-top: 12px;
   padding: 4px;
@@ -1471,7 +1486,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   min-height: 38px;
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 0.78rem;
+  font-size: clamp(0.7rem, 2.6vw, 0.78rem);
 }
 
 .admin-view__segment--active {
@@ -1622,7 +1637,14 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   }
 
   .admin-view__header h1 {
-    font-size: 2.4rem;
+    font-size: clamp(2.1rem, 4vw, 2.5rem);
+  }
+
+  .admin-view__tabs {
+    grid-auto-flow: row;
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
   }
 
   .admin-view__tools {
@@ -1683,11 +1705,6 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   .admin-view__tab {
     min-height: 50px;
     font-size: 0.64rem;
-  }
-
-  .admin-view__button-row,
-  .admin-view__action-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

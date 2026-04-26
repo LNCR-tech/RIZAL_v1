@@ -1,26 +1,28 @@
 <template>
-  <RouterView v-slot="{ Component, route }">
-    <Suspense timeout="0">
-      <template #default>
-        <Transition name="page-fade" mode="out-in">
-          <component :is="Component" :key="resolveRouteViewKey(route, Component)" />
-        </Transition>
-      </template>
+  <div class="app-layout-outlet">
+    <RouterView v-slot="{ Component, route }">
+      <Transition name="page-fade" mode="out-in">
+        <Suspense timeout="0">
+          <template #default>
+            <component :is="Component" :key="resolveRouteViewKey(route, Component)" />
+          </template>
 
-      <template #fallback>
-        <div class="app-layout-outlet__fallback" aria-live="polite" aria-busy="true">
-          <div class="app-layout-outlet__fallback-card">
-            <span class="app-layout-outlet__fallback-pulse" aria-hidden="true" />
+          <template #fallback>
+            <div class="app-layout-outlet__fallback" aria-live="polite" aria-busy="true">
+              <div class="app-layout-outlet__fallback-card">
+                <span class="app-layout-outlet__fallback-pulse" aria-hidden="true" />
 
-            <div class="app-layout-outlet__fallback-copy">
-              <strong class="app-layout-outlet__fallback-title">Loading workspace</strong>
-              <span class="app-layout-outlet__fallback-subtitle">Preparing the next screen.</span>
+                <div class="app-layout-outlet__fallback-copy">
+                  <strong class="app-layout-outlet__fallback-title">Loading workspace</strong>
+                  <span class="app-layout-outlet__fallback-subtitle">Preparing the next screen.</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </template>
-    </Suspense>
-  </RouterView>
+          </template>
+        </Suspense>
+      </Transition>
+    </RouterView>
+  </div>
 </template>
 
 <script setup>
@@ -49,6 +51,11 @@ function resolveRouteViewKey(route, component) {
 </script>
 
 <style scoped>
+.app-layout-outlet {
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition: opacity 0.2s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
@@ -66,18 +73,15 @@ function resolveRouteViewKey(route, component) {
 }
 
 .app-layout-outlet__fallback {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 9999;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background:
-    radial-gradient(circle at top, rgba(170, 255, 0, 0.12), transparent 30%),
-    rgba(5, 5, 5, 0.78);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: transparent;
+  pointer-events: none;
 }
 
 .app-layout-outlet__fallback-card {

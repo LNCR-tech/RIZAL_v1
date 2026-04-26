@@ -177,11 +177,12 @@
 <script setup>
 import { ref } from 'vue'
 import logBackground from '@/assets/images/login_bg.jpg'
+import { withBase } from '@/services/appPath.js'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
 const passwordVisible = ref(false)
 const developerViewOpen = ref(false)
-const auraLogoWhite = '/logos/aura_logo_white.png'
+const auraLogoWhite = withBase('logos/aura_logo_white.png')
 const heroBackgroundStyle = {
   backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.32) 100%), url(${logBackground})`,
 }
