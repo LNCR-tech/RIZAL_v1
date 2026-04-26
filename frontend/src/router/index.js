@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
 import {
     clearDashboardSession,
     getDefaultAuthenticatedRoute,
@@ -12,6 +12,7 @@ import {
 import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView, preloadPlatformViews } from '@/router/platformView.js'
+import { hashRouterEnabled, readEnvFlag } from '@/services/appPath.js'
 
 const AppLayout = () => import('@/layouts/AppLayout.vue')
 const authView = (viewName) => createPlatformView(`auth/${viewName}`)
@@ -65,10 +66,6 @@ const schoolItRoutePreloads = [
 const adminRoutePreloads = [
     'dashboard/AdminWorkspaceView',
 ]
-
-function readEnvFlag(value = '') {
-    return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase())
-}
 
 const previewRoutesEnabled = import.meta.env.DEV || readEnvFlag(import.meta.env.VITE_ENABLE_PREVIEW_ROUTES)
 const apiLabEnabled = import.meta.env.DEV || readEnvFlag(import.meta.env.VITE_ENABLE_API_LAB)
@@ -805,7 +802,9 @@ const routes = [
 ]
 
 const router = createRouter({
-    history: createWebHistory(import.meta.env.BASE_URL),
+    history: hashRouterEnabled
+        ? createWebHashHistory(import.meta.env.BASE_URL)
+        : createWebHistory(import.meta.env.BASE_URL),
     routes,
     scrollBehavior() {
         return { left: 0, top: 0 }

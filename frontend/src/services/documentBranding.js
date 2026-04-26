@@ -3,9 +3,10 @@ import { resolveLoadableMediaUrl } from '@/services/backendMedia.js'
 import { AUTH_META_CHANGED_EVENT, getStoredAuthMeta } from '@/services/localAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
+import { withBase } from '@/services/appPath.js'
 
 const DEFAULT_TITLE = 'Aura'
-const DEFAULT_ICON_PATH = '/logos/aura.png'
+const DEFAULT_ICON_PATH = withBase('logos/aura.png')
 const DEFAULT_ICON_URL = DEFAULT_ICON_PATH
 let brandingRequestId = 0
 

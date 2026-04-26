@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
-const defaultSchoolLogo = '/logos/aura.png'
+import { withBase } from '@/services/appPath.js'
+
+const defaultSchoolLogo = withBase('logos/aura.png')
 const DARK_MODE_STORAGE_KEY = 'aura_dark_mode'
 
 function readStoredDarkModePreference() {
@@ -31,9 +33,9 @@ function persistDarkModePreference(value) {
  * Global Dark Mode State
  */
 export const isDarkMode = ref(readStoredDarkModePreference())
-export const activeAuraLogo = ref('/logos/aura_logo_black.png')
-export const surfaceAuraLogo = ref('/logos/aura_logo_black.png')
-export const secondaryAuraLogo = ref('/logos/aura_logo_black.png')
+export const activeAuraLogo = ref(withBase('logos/aura_logo_black.png'))
+export const surfaceAuraLogo = ref(withBase('logos/aura_logo_black.png'))
+export const secondaryAuraLogo = ref(withBase('logos/aura_logo_black.png'))
 let currentActiveTheme = null
 let nativeStatusBarSyncPromise = null
 
@@ -238,8 +240,8 @@ function getContrastYIQ(hexcolor) {
 export function resolveAuraLogoForBackground(backgroundColor) {
     const contrastText = getContrastYIQ(backgroundColor)
     return contrastText === '#FFFFFF'
-        ? '/logos/aura_logo_white.png'
-        : '/logos/aura_logo_black.png'
+        ? withBase('logos/aura_logo_white.png')
+        : withBase('logos/aura_logo_black.png')
 }
 
 export function toggleDarkMode() {

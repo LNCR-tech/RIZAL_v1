@@ -820,7 +820,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-const jrmsuLogoUrl = '/logos/aura.png'
 import {
   changePassword,
   createSchoolWithSchoolIt,
@@ -838,6 +837,9 @@ import {
   updateSchoolSettings,
   verifyFaceReference,
 } from '@/services/backendApi.js'
+import { withBase } from '@/services/appPath.js'
+
+const jrmsuLogoUrl = withBase('logos/aura.png')
 
 const apiBaseUrl = ref(resolveApiBaseUrl())
 
