@@ -165,6 +165,11 @@ jobs:
 
             cp .env.production .env
 
+            # Pre-create external volumes (safe to run if they already exist)
+            for vol in aura_postgres_data aura_import_storage aura_branding_storage aura_insightface_models aura_pgadmin_data; do
+              docker volume create "$vol" 2>/dev/null || true
+            done
+
             docker compose -f docker-compose.prod.yml config --quiet
             docker compose -f docker-compose.prod.yml up -d --build
             docker image prune -f

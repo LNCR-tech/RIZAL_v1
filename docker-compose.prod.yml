@@ -186,10 +186,30 @@ services:
       db:
         condition: service_healthy
 
+# ---------------------------------------------------------------------------
+# Volumes — critical data volumes are marked external to prevent accidental
+# deletion via `docker compose down -v` or `docker volume prune`.
+# Pre-create on the server with:
+#   docker volume create aura_postgres_data
+#   docker volume create aura_import_storage
+#   docker volume create aura_branding_storage
+#   docker volume create aura_insightface_models
+#   docker volume create aura_pgadmin_data
+# ---------------------------------------------------------------------------
 volumes:
   postgres_data:
+    name: aura_postgres_data
+    external: true
   import_storage:
+    name: aura_import_storage
+    external: true
   branding_storage:
+    name: aura_branding_storage
+    external: true
   insightface_models:
+    name: aura_insightface_models
+    external: true
   pgadmin_data:
+    name: aura_pgadmin_data
+    external: true
 
