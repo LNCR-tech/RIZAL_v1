@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-EMAIL_LOGIN_URL = "https://supervirulently-downless-keven.ngrok-free.dev"
+import os
+
+EMAIL_LOGIN_URL = os.environ.get("LOGIN_URL", "http://localhost")
 
 
 def _resolve_email_login_url(login_url: str | None) -> str:
