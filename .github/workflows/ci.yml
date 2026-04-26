@@ -7,6 +7,7 @@ on:
       - master
       - integrate/pilot-merge
       - Pre-Production-v1
+      - aura_ci_cd
   pull_request:
 
 env:
