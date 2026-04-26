@@ -19,17 +19,28 @@ jobs:
   # ===========================================================================
 
   compose-config:
+    name: Validate Compose
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare env file
+      - name: Create CI env file
         run: cp .env.example .env
+      - name: Check for unresolved merge conflicts
+        run: |
+          if grep -R -n -E '^(<<<<<<<|>>>>>>>|=======$)' . \
+            --exclude-dir=.git \
+            --exclude='.env' \
+            --exclude='.env.example'; then
+            echo "Unresolved merge conflict markers found."
+            exit 1
+          fi
       - name: Validate local compose config
         run: docker compose config --quiet
       - name: Validate production compose config
         run: docker compose -f docker-compose.prod.yml config --quiet
 
   backend-checks:
+    name: Backend Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +51,7 @@ jobs:
         run: python -m compileall Backend Assistant
 
   frontend-checks:
+    name: Frontend Checks
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -56,13 +68,25 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: [compose-config, backend-checks, frontend-checks]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create CI env file
+        run: cp .env.example .env
+      - name: Build production images
+        run: docker compose -f docker-compose.prod.yml build
+
   # ===========================================================================
   # CD — deploy to AWS (only on push to deploy branches, never on PRs)
   # ===========================================================================
 
   deploy:
+    name: Deploy to EC2
     runs-on: ubuntu-latest
-    needs: [compose-config, backend-checks, frontend-checks]
+    needs: docker-build
     if: github.event_name == 'push'
     environment: production
     concurrency:
@@ -70,8 +94,22 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - name: Deploy to AWS
-        uses: appleboy/ssh-action@v1
+      - name: Verify deploy secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.AWS_HOST }}" ] && missing="$missing AWS_HOST"
+          [ -z "${{ secrets.AWS_USER }}" ] && missing="$missing AWS_USER"
+          [ -z "${{ secrets.AWS_SSH_PRIVATE_KEY }}" ] && missing="$missing AWS_SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.AWS_PROJECT_PATH }}" ] && missing="$missing AWS_PROJECT_PATH"
+          if [ -n "$missing" ]; then
+            echo "Missing secrets:$missing"
+            echo "Add them at: Settings → Secrets → Actions"
+            exit 1
+          fi
+          echo "All deploy secrets present."
+
+      - name: Deploy through SSH
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
@@ -88,16 +126,17 @@ jobs:
 
             cd "$DEPLOY_DIR"
 
-            # Pull latest code
-            echo ">>> Pulling latest code..."
-            git fetch origin
+            # Force-sync to match GitHub exactly (no merge conflicts)
+            echo ">>> Syncing code..."
+            git fetch origin "$BRANCH"
             git checkout "$BRANCH"
-            git pull origin "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            # Validate compose before starting
+            echo ">>> Validating compose config..."
+            docker compose -f "$COMPOSE_FILE" config --quiet
 
             # Rebuild and restart (volumes are preserved — data is safe)
-            # --build   = rebuild images with new code
-            # -d        = detached mode
-            # NO -v     = volumes (database, uploads, models) are never deleted
             echo ">>> Rebuilding and restarting stack..."
             docker compose -f "$COMPOSE_FILE" up --build -d
 
@@ -109,7 +148,7 @@ jobs:
                 break
               fi
               if [ "$i" -eq 30 ]; then
-                echo ">>> WARNING: Backend health check timed out after 60s"
+                echo ">>> Backend health check timed out after 60s"
                 echo ">>> Check logs: docker compose -f $COMPOSE_FILE logs backend"
                 exit 1
               fi
@@ -119,5 +158,8 @@ jobs:
             # Clean up old dangling images to save disk space
             echo ">>> Cleaning up old images..."
             docker image prune -f
+
+            # Show running containers
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
             echo "=== Deploy complete ==="
