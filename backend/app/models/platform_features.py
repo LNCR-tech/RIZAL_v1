@@ -114,20 +114,6 @@ class LoginHistory(Base):
     school = relationship("School")
 
 
-class SchoolSubscriptionReminder(Base):
-    __tablename__ = "school_subscription_reminders"
-
-    id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
-    reminder_type = Column(Text, nullable=False, default="renewal_warning")
-    status = Column(Text, nullable=False, default="pending", index=True)
-    due_at = Column(DateTime(timezone=True), nullable=False, index=True)
-    sent_at = Column(DateTime(timezone=True), nullable=True)
-    error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
-
-    school = relationship("School")
-
 
 class DataGovernanceSetting(Base):
     __tablename__ = "data_governance_settings"
@@ -189,6 +175,17 @@ class DataRequest(Base):
     requested_by_user = relationship("User", foreign_keys=[requested_by_user_id])
     target_user = relationship("User", foreign_keys=[target_user_id])
     handled_by_user = relationship("User", foreign_keys=[handled_by_user_id])
+    items = relationship("DataRequestItem", back_populates="data_request", cascade="all, delete-orphan")
+
+
+class DataRequestItem(Base):
+    __tablename__ = "data_request_items"
+
+    data_request_id = Column(BigInteger, ForeignKey("data_requests.id", ondelete="CASCADE"), primary_key=True)
+    item_key = Column(Text, primary_key=True)
+    item_value = Column(Text, nullable=True)
+
+    data_request = relationship("DataRequest", back_populates="items")
 
 
 class DataRetentionRunLog(Base):
@@ -203,23 +200,6 @@ class DataRetentionRunLog(Base):
 
     school = relationship("School")
 
-
-class NotificationLog(Base):
-    __tablename__ = "notification_logs"
-
-    id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), nullable=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    category = Column(Text, nullable=False, index=True)
-    channel = Column(Text, nullable=False, default="email")
-    status = Column(Text, nullable=False, default="queued", index=True)
-    subject = Column(Text, nullable=False)
-    message = Column(Text, nullable=False)
-    error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
-
-    school = relationship("School")
-    user = relationship("User")
 
 
 # Compatibility aliases

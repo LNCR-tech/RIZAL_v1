@@ -129,6 +129,17 @@ class SanctionRecordItem(Base):
 
     sanction_record = relationship("SanctionRecord", back_populates="items")
     compliance_history = relationship("SanctionComplianceHistory", back_populates="sanction_item")
+    attributes = relationship("SanctionItemAttribute", back_populates="sanction_item", cascade="all, delete-orphan")
+
+
+class SanctionItemAttribute(Base):
+    __tablename__ = "sanction_item_attributes"
+
+    sanction_record_item_id = Column(BigInteger, ForeignKey("sanction_record_items.id", ondelete="CASCADE"), primary_key=True)
+    attribute_key = Column(Text, primary_key=True)
+    attribute_value = Column(Text, nullable=True)
+
+    sanction_item = relationship("SanctionRecordItem", back_populates="attributes")
 
 
 # Compatibility alias — old code used SanctionItem

@@ -44,6 +44,17 @@ class BulkImportError(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     job = relationship("BulkImportJob", back_populates="errors")
+    error_cells = relationship("BulkImportErrorCell", back_populates="error", cascade="all, delete-orphan")
+
+
+class BulkImportErrorCell(Base):
+    __tablename__ = "bulk_import_error_cells"
+
+    error_id = Column(BigInteger, ForeignKey("bulk_import_errors.id", ondelete="CASCADE"), primary_key=True)
+    column_name = Column(Text, primary_key=True)
+    raw_value = Column(Text, nullable=True)
+
+    error = relationship("BulkImportError", back_populates="error_cells")
 
 
 class EmailDeliveryLog(Base):

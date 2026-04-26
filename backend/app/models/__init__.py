@@ -12,22 +12,29 @@ from app.models.program import Program
 from app.models.event import Event
 from app.models.event_type import EventType
 from app.models.school import School, SchoolSetting, SchoolAuditLog
-from app.models.import_job import BulkImportJob, BulkImportError, EmailDeliveryLog
+from app.models.subscription import SubscriptionPlan, SchoolSubscription, SchoolSubscriptionReminder
+from app.models.import_job import BulkImportJob, BulkImportError, BulkImportErrorCell, EmailDeliveryLog
 from app.models.password_reset_request import PasswordResetRequest
+from app.models.notifications import (
+    NotificationChannel,
+    NotificationTopic,
+    UserNotificationChannelSetting,
+    UserNotificationTopicSetting,
+    NotificationLog,
+    NotificationLogAttribute,
+)
 from app.models.platform_features import (
     UserAppPreference,
     UserNotificationPreference,
-    NotificationLog,
     UserSecuritySetting,
     UserFaceProfile,
     MfaChallenge,
     UserSession,
     LoginHistory,
-    SchoolSubscriptionSetting,
-    SchoolSubscriptionReminder,
     DataGovernanceSetting,
     UserPrivacyConsent,
     DataRequest,
+    DataRequestItem,
     DataRetentionRunLog,
 )
 from app.models.governance_hierarchy import (
@@ -45,6 +52,7 @@ from app.models.sanctions import (
     SanctionComplianceHistory,
     SanctionDelegation,
     SanctionItem,
+    SanctionItemAttribute,
     SanctionRecord,
 )
 
@@ -63,24 +71,32 @@ __all__ = [
     "School",
     "SchoolSetting",
     "SchoolAuditLog",
+    "SubscriptionPlan",
+    "SchoolSubscription",
+    "SchoolSubscriptionReminder",
     "BulkImportJob",
     "BulkImportError",
+    "BulkImportErrorCell",
     "EmailDeliveryLog",
     "PasswordResetRequest",
+    "NotificationChannel",
+    "NotificationTopic",
+    "UserNotificationChannelSetting",
+    "UserNotificationTopicSetting",
+    "NotificationLog",
+    "NotificationLogAttribute",
     "UserAppPreference",
     "UserNotificationPreference",
-    "NotificationLog",
     "UserSecuritySetting",
     "UserFaceProfile",
     "UserFaceRecognitionProfile",
     "MfaChallenge",
     "UserSession",
     "LoginHistory",
-    "SchoolSubscriptionSetting",
-    "SchoolSubscriptionReminder",
     "DataGovernanceSetting",
     "UserPrivacyConsent",
     "DataRequest",
+    "DataRequestItem",
     "DataRetentionRunLog",
     "GovernanceUnit",
     "GovernanceMember",
@@ -93,6 +109,7 @@ __all__ = [
     "EventType",
     "SanctionRecord",
     "SanctionItem",
+    "SanctionItemAttribute",
     "SanctionDelegation",
     "SanctionComplianceHistory",
     "ClearanceDeadline",

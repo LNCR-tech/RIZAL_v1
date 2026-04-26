@@ -100,22 +100,6 @@ class SchoolEventPolicy(Base):
         return self.default_sign_out_grace_minutes
 
 
-class SchoolSubscription(Base):
-    __tablename__ = "school_subscriptions"
-
-    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), primary_key=True)
-    plan_id = Column(BigInteger, ForeignKey("subscription_plans.id", ondelete="RESTRICT"), nullable=False)
-    status = Column(Text, nullable=False, default="trial")
-    starts_on = Column(Date, nullable=False)
-    ends_on = Column(Date, nullable=True)
-    renewal_date = Column(Date, nullable=True)
-    auto_renew = Column(Boolean, nullable=False, default=False)
-    reminder_days_before = Column(Integer, nullable=False, default=14)
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
-    updated_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-
-    school = relationship("School", back_populates="subscription")
-
 
 class SchoolAuditLog(Base):
     __tablename__ = "school_audit_logs"
