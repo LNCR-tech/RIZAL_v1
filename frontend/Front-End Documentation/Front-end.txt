@@ -1,0 +1,6 @@
+# Front-End Documentation
+
+## Overview
+This document describes how to set up, develop, and maintain the front-end for **VALID8**. It outlines coding conventions, component usage, and best practices to ensure a consistent and maintainable codebase.
+
+---
