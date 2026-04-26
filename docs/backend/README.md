@@ -10,6 +10,7 @@
 
 - [Backend API Overview](./api-overview.md)
 - [Backend Runtime Behavior](./runtime-behavior.md)
+- [Normalized Schema (aura_norm) Guide](./BACKEND_DB_NORMALIZED_SCHEMA_GUIDE.md)
 
 ## Existing Guides
 

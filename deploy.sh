@@ -154,7 +154,29 @@ if command -v ufw &>/dev/null && sudo ufw status | grep -q "Status: active"; the
 fi
 
 # -----------------------------------------------------------------------------
-# 5. Build and start the stack
+# 5. Create data directories and fix ownership
+#    postgres=999, pgadmin=5050, appuser (backend/worker)=1000
+# -----------------------------------------------------------------------------
+DATA_DIR="/home/ubuntu/Aura/docker-data"
+info "Preparing data directories under $DATA_DIR ..."
+
+sudo mkdir -p \
+  "$DATA_DIR/postgres" \
+  "$DATA_DIR/pgadmin" \
+  "$DATA_DIR/imports" \
+  "$DATA_DIR/branding" \
+  "$DATA_DIR/insightface"
+
+sudo chown -R 999:999   "$DATA_DIR/postgres"
+sudo chown -R 5050:5050 "$DATA_DIR/pgadmin"
+sudo chown -R 1000:1000 "$DATA_DIR/imports"
+sudo chown -R 1000:1000 "$DATA_DIR/branding"
+sudo chown -R 1000:1000 "$DATA_DIR/insightface"
+
+info "Data directories ready."
+
+# -----------------------------------------------------------------------------
+# 6. Build and start the stack
 # -----------------------------------------------------------------------------
 info "Building and starting Aura production stack..."
 docker compose -f "$COMPOSE_FILE" up --build -d

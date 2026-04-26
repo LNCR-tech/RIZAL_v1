@@ -26,6 +26,7 @@ from app.models.governance_hierarchy import (
     GovernanceUnitType,
 )
 from app.models.sanctions import (
+    AcademicPeriod,
     ClearanceDeadline,
     ClearanceDeadlineStatus,
     EventSanctionConfig,
@@ -85,7 +86,7 @@ def _build_full_name(user: User) -> str:
     return full_name or user.email
 
 
-def _resolve_academic_term(source_date: datetime | date | None) -> tuple[str, str]:
+def _resolve_academic_term(db: Session, school_id: int, source_date: datetime | date | None) -> AcademicPeriod | None:
     if source_date is None:
         source_date = utc_now()
     if isinstance(source_date, datetime):
@@ -107,7 +108,15 @@ def _resolve_academic_term(source_date: datetime | date | None) -> tuple[str, st
     else:
         semester = "summer"
 
-    return school_year, semester
+    return (
+        db.query(AcademicPeriod)
+        .filter(
+            AcademicPeriod.school_id == school_id,
+            AcademicPeriod.school_year == school_year,
+            AcademicPeriod.semester == semester,
+        )
+        .first()
+    )
 
 
 def _get_event_scope_ids(event: EventModel) -> tuple[set[int], set[int]]:
@@ -205,9 +214,10 @@ def _load_active_event_delegations(
 ) -> list[SanctionDelegation]:
     return (
         db.query(SanctionDelegation)
+        .join(EventModel)
         .options(joinedload(SanctionDelegation.delegated_to_governance_unit))
         .filter(
-            SanctionDelegation.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionDelegation.event_id == event_id,
             SanctionDelegation.is_active.is_(True),
         )
@@ -468,8 +478,9 @@ def get_event_sanction_config(
     )
     config = (
         db.query(EventSanctionConfig)
+        .join(EventModel)
         .filter(
-            EventSanctionConfig.school_id == school_id,
+            EventModel.school_id == school_id,
             EventSanctionConfig.event_id == event_id,
         )
         .first()
@@ -494,8 +505,9 @@ def upsert_event_sanction_config(
     )
     config = (
         db.query(EventSanctionConfig)
+        .join(EventModel)
         .filter(
-            EventSanctionConfig.school_id == school_id,
+            EventModel.school_id == school_id,
             EventSanctionConfig.event_id == event_id,
         )
         .first()
@@ -504,7 +516,6 @@ def upsert_event_sanction_config(
 
     if config is None:
         config = EventSanctionConfig(
-            school_id=school_id,
             event_id=event_id,
             sanctions_enabled=payload.sanctions_enabled,
             item_definitions_json=normalized_items,
@@ -582,6 +593,7 @@ def list_event_sanctioned_students(
 
     query = (
         db.query(SanctionRecord)
+        .join(EventModel)
         .options(
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.user),
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.department),
@@ -589,7 +601,7 @@ def list_event_sanctioned_students(
             selectinload(SanctionRecord.items),
         )
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.event_id == event_id,
         )
         .order_by(SanctionRecord.created_at.desc(), SanctionRecord.id.desc())
@@ -732,6 +744,7 @@ def approve_student_sanction(
     )
     sanction_record = (
         db.query(SanctionRecord)
+        .join(EventModel)
         .options(
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.user),
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.department),
@@ -739,7 +752,7 @@ def approve_student_sanction(
             selectinload(SanctionRecord.items),
         )
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.event_id == event_id,
             SanctionRecord.student_profile_id == student_profile.id,
         )
@@ -763,19 +776,19 @@ def approve_student_sanction(
             item.status = SanctionItemStatus.COMPLIED
             item.complied_at = complied_at
 
-        school_year, semester = _resolve_academic_term(event.end_datetime)
+        period = _resolve_academic_term(db, school_id, event.end_datetime)
+        compliance_term_label = period.label if period else "Unknown Term"
+        academic_period_id = period.id if period else None
+
         if sanction_record.items:
             for item in sanction_record.items:
                 db.add(
                     SanctionComplianceHistory(
-                        school_id=school_id,
-                        event_id=event.id,
                         sanction_record_id=sanction_record.id,
-                        sanction_item_id=item.id,
-                        student_profile_id=student_profile.id,
+                        sanction_record_item_id=item.id,
+                        academic_period_id=academic_period_id,
+                        compliance_term_label=compliance_term_label,
                         complied_on=complied_at.date(),
-                        school_year=school_year,
-                        semester=semester,
                         complied_by_user_id=current_user.id,
                         notes="Sanction item marked complied.",
                     )
@@ -783,14 +796,11 @@ def approve_student_sanction(
         else:
             db.add(
                 SanctionComplianceHistory(
-                    school_id=school_id,
-                    event_id=event.id,
                     sanction_record_id=sanction_record.id,
-                    sanction_item_id=None,
-                    student_profile_id=student_profile.id,
+                    sanction_record_item_id=None,
+                    academic_period_id=academic_period_id,
+                    compliance_term_label=compliance_term_label,
                     complied_on=complied_at.date(),
-                    school_year=school_year,
-                    semester=semester,
                     complied_by_user_id=current_user.id,
                     notes="Sanction marked complied.",
                 )
@@ -842,9 +852,10 @@ def get_event_delegation_config(
     )
     rows = (
         db.query(SanctionDelegation)
+        .join(EventModel)
         .options(joinedload(SanctionDelegation.delegated_to_governance_unit))
         .filter(
-            SanctionDelegation.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionDelegation.event_id == event_id,
             SanctionDelegation.is_active.is_(True),
         )
@@ -918,8 +929,9 @@ def set_event_delegation_config(
 
     config = (
         db.query(EventSanctionConfig)
+        .join(EventModel)
         .filter(
-            EventSanctionConfig.school_id == school_id,
+            EventModel.school_id == school_id,
             EventSanctionConfig.event_id == event_id,
         )
         .first()
@@ -928,8 +940,9 @@ def set_event_delegation_config(
 
     existing_rows = (
         db.query(SanctionDelegation)
+        .join(EventModel)
         .filter(
-            SanctionDelegation.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionDelegation.event_id == event_id,
         )
         .all()
@@ -950,7 +963,6 @@ def set_event_delegation_config(
         if existing_row is None:
             db.add(
                 SanctionDelegation(
-                    school_id=school_id,
                     event_id=event.id,
                     sanction_config_id=sanction_config_id,
                     delegated_by_user_id=current_user.id,
@@ -1034,8 +1046,9 @@ def get_governance_sanctions_dashboard(
             SanctionRecord.status,
             func.count(SanctionRecord.id),
         )
+        .join(EventModel)
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.event_id.in_([event.id for event in events] or [0]),
         )
         .group_by(SanctionRecord.event_id, SanctionRecord.status)
@@ -1116,6 +1129,7 @@ def get_my_sanctions(
     )
     records = (
         db.query(SanctionRecord)
+        .join(EventModel)
         .options(
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.user),
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.department),
@@ -1123,7 +1137,7 @@ def get_my_sanctions(
             selectinload(SanctionRecord.items),
         )
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.student_profile_id == student_profile.id,
         )
         .order_by(SanctionRecord.created_at.desc(), SanctionRecord.id.desc())
@@ -1149,6 +1163,7 @@ def get_student_sanctions_detail(
     )
     records = (
         db.query(SanctionRecord)
+        .join(EventModel)
         .options(
             joinedload(SanctionRecord.event).joinedload(EventModel.departments),
             joinedload(SanctionRecord.event).joinedload(EventModel.programs),
@@ -1158,7 +1173,7 @@ def get_student_sanctions_detail(
             selectinload(SanctionRecord.items),
         )
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.student_profile_id == target_profile.id,
         )
         .order_by(SanctionRecord.created_at.desc(), SanctionRecord.id.desc())
@@ -1228,8 +1243,9 @@ def create_clearance_deadline(
 
     active_rows = (
         db.query(ClearanceDeadline)
+        .join(EventModel)
         .filter(
-            ClearanceDeadline.school_id == school_id,
+            EventModel.school_id == school_id,
             ClearanceDeadline.event_id == event.id,
             ClearanceDeadline.status == ClearanceDeadlineStatus.ACTIVE,
         )
@@ -1239,7 +1255,6 @@ def create_clearance_deadline(
         row.status = ClearanceDeadlineStatus.CLOSED
 
     deadline = ClearanceDeadline(
-        school_id=school_id,
         event_id=event.id,
         declared_by_user_id=current_user.id,
         target_governance_unit_id=payload.target_governance_unit_id,
@@ -1253,9 +1268,10 @@ def create_clearance_deadline(
 
     pending_rows = (
         db.query(SanctionRecord)
+        .join(EventModel)
         .options(joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.user))
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.event_id == event.id,
             SanctionRecord.status == SanctionComplianceStatus.PENDING,
         )
@@ -1295,12 +1311,13 @@ def get_active_clearance_deadline(
 
     query = (
         db.query(ClearanceDeadline)
+        .join(EventModel)
         .options(
             joinedload(ClearanceDeadline.event).joinedload(EventModel.departments),
             joinedload(ClearanceDeadline.event).joinedload(EventModel.programs),
         )
         .filter(
-            ClearanceDeadline.school_id == school_id,
+            EventModel.school_id == school_id,
             ClearanceDeadline.status == ClearanceDeadlineStatus.ACTIVE,
         )
         .order_by(ClearanceDeadline.deadline_at.asc(), ClearanceDeadline.id.asc())
@@ -1320,8 +1337,9 @@ def get_active_clearance_deadline(
             event_id
             for (event_id,) in (
                 db.query(SanctionRecord.event_id)
+                .join(EventModel)
                 .filter(
-                    SanctionRecord.school_id == school_id,
+                    EventModel.school_id == school_id,
                     SanctionRecord.student_profile_id == student_profile.id,
                     SanctionRecord.status == SanctionComplianceStatus.PENDING,
                 )
@@ -1382,6 +1400,7 @@ def export_event_sanctions_excel(
 
     records = (
         db.query(SanctionRecord)
+        .join(EventModel)
         .options(
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.user),
             joinedload(SanctionRecord.student_profile).joinedload(StudentProfile.department),
@@ -1389,7 +1408,7 @@ def export_event_sanctions_excel(
             selectinload(SanctionRecord.items),
         )
         .filter(
-            SanctionRecord.school_id == school_id,
+            EventModel.school_id == school_id,
             SanctionRecord.event_id == event.id,
         )
         .order_by(SanctionRecord.id.asc())
@@ -1580,8 +1599,9 @@ def generate_sanctions_for_completed_event(
 
     config = (
         db.query(EventSanctionConfig)
+        .join(EventModel)
         .filter(
-            EventSanctionConfig.school_id == event.school_id,
+            EventModel.school_id == event.school_id,
             EventSanctionConfig.event_id == event.id,
             EventSanctionConfig.sanctions_enabled.is_(True),
         )
@@ -1623,8 +1643,9 @@ def generate_sanctions_for_completed_event(
         student_profile_id
         for (student_profile_id,) in (
             db.query(SanctionRecord.student_profile_id)
+            .join(EventModel)
             .filter(
-                SanctionRecord.school_id == event.school_id,
+                EventModel.school_id == event.school_id,
                 SanctionRecord.event_id == event.id,
             )
             .all()
@@ -1653,7 +1674,6 @@ def generate_sanctions_for_completed_event(
         )
 
         sanction_record = SanctionRecord(
-            school_id=event.school_id,
             event_id=event.id,
             sanction_config_id=config.id,
             student_profile_id=student_profile.id,

@@ -168,6 +168,8 @@ class Settings:
     school_logo_max_file_size_mb: int
     school_logo_public_prefix: str
     cors_allowed_origins: list[str]
+    aura_norm_enabled: bool
+    aura_norm_schema: str
 
 
 def get_settings() -> Settings:
@@ -322,4 +324,6 @@ def get_settings() -> Settings:
             os.getenv("CORS_ALLOWED_ORIGINS"),
             ["http://localhost:5173", "http://127.0.0.1:5173"],
         ),
+        aura_norm_enabled=_as_bool(os.getenv("AURA_NORM_ENABLED"), False),
+        aura_norm_schema=(os.getenv("AURA_NORM_SCHEMA") or "aura_norm").strip() or "aura_norm",
     )

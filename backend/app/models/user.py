@@ -1,49 +1,38 @@
-"""Use: Defines database models for users, roles, and student profiles.
-Where to use: Use this when the backend needs to store or load users, roles, and student profiles data.
-Role: Model layer. It maps Python objects to database tables and relationships.
-"""
+from __future__ import annotations
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    ForeignKey,
-    Integer,
-    LargeBinary,
-    String,
-    UniqueConstraint,
-)
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.core.timezones import utc_now
 from app.models.base import Base
 from app.utils.passwords import hash_password_bcrypt, verify_password_bcrypt
 
+
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=True)
-    password_hash = Column(String(255), nullable=False)
-    prefix = Column(String(20), nullable=True)
-    first_name = Column(String(100))
-    middle_name = Column(String(100))
-    last_name = Column(String(100))
-    suffix = Column(String(20), nullable=True)
-    is_active = Column(Boolean, default=True, index=True)
-    must_change_password = Column(Boolean, default=True, nullable=False, index=True)
+    id = Column(BigInteger, primary_key=True)
+    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=True)
+    email = Column(Text, unique=True, nullable=False, index=True)
+    password_hash = Column(Text, nullable=False)
+    prefix = Column(Text, nullable=True)
+    first_name = Column(Text, nullable=True)
+    middle_name = Column(Text, nullable=True)
+    last_name = Column(Text, nullable=True)
+    suffix = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    must_change_password = Column(Boolean, default=True, nullable=False)
     should_prompt_password_change = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
-    # Relationships
+    school = relationship("School", back_populates="users")
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    school = relationship("School", back_populates="users")
-    face_profile = relationship("UserFaceProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     faculty_profile = relationship("FacultyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    face_profile = relationship("UserFaceProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
-    def set_password(self, password: str):
+    def set_password(self, password: str) -> None:
         if len(password) < 8:
             raise ValueError("Password must be at least 8 characters")
         self.password_hash = hash_password_bcrypt(password)
@@ -51,81 +40,60 @@ class User(Base):
     def check_password(self, password: str) -> bool:
         return verify_password_bcrypt(password, self.password_hash)
 
+
 class UserRole(Base):
     __tablename__ = "user_roles"
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    role_id = Column(BigInteger, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
+    assigned_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    assigned_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
-    user = relationship("User", back_populates="roles")
+    user = relationship("User", back_populates="roles", foreign_keys=[user_id])
     role = relationship("Role")
 
 
-# app/models/user.py (StudentProfile class)
 class StudentProfile(Base):
     __tablename__ = "student_profiles"
     __table_args__ = (
-        UniqueConstraint("school_id", "student_id", name="uq_student_profiles_school_student_id"),
+        UniqueConstraint("school_id", "student_number", name="student_profiles_school_id_student_number_key"),
     )
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
-    school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=False)
-    student_id = Column(String(50), index=True)
-    department_id = Column(Integer, ForeignKey("departments.id", ondelete="RESTRICT"), index=True)
-    program_id = Column(Integer, ForeignKey("programs.id", ondelete="RESTRICT"), index=True)
-    year_level = Column(Integer, nullable=False, default=1)
-    face_encoding = Column(LargeBinary)
-    embedding_provider = Column(String(32), nullable=True)
-    embedding_dtype = Column(String(16), nullable=True)
-    embedding_dimension = Column(Integer, nullable=True)
-    embedding_normalized = Column(Boolean, nullable=False, default=True)
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=True)
+    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=False)
+    student_number = Column(Text, nullable=False, index=True)
+    department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="RESTRICT"), index=True, nullable=True)
+    program_id = Column(BigInteger, ForeignKey("programs.id", ondelete="RESTRICT"), index=True, nullable=True)
+    year_level = Column(BigInteger, nullable=False, default=1)
+    section = Column(Text, nullable=True, index=True)
+    rfid_tag = Column(Text, unique=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
-    is_face_registered = Column(Boolean, default=False, index=True)
-    face_image_url = Column(String(500), nullable=True)
-    registration_complete = Column(Boolean, default=False, index=True)
-
-    section = Column(String(50), nullable=True, index=True)
-    rfid_tag = Column(String(100), unique=True, nullable=True)
-    last_face_update = Column(DateTime(timezone=True), nullable=True)
-
-    # Relationships
     user = relationship("User", back_populates="student_profile")
     school = relationship("School", back_populates="student_profiles")
-    attendances = relationship("Attendance", back_populates="student", cascade="all, delete-orphan")
-
     department = relationship("Department")
     program = relationship("Program")
+    attendance_records = relationship("AttendanceRecord", back_populates="student", cascade="all, delete-orphan")
 
-    def update_face_encoding(
-        self,
-        embedding: bytes,
-        *,
-        provider: str | None = None,
-        dtype: str | None = None,
-        dimension: int | None = None,
-        normalized: bool = True,
-    ) -> None:
-        """Persist one face embedding plus its canonical serialization metadata."""
-        if len(embedding) > 8192:
-            raise ValueError("Face embedding too large (max 8192 bytes)")
-        self.face_encoding = embedding
-        self.embedding_provider = provider
-        self.embedding_dtype = dtype
-        self.embedding_dimension = dimension
-        self.embedding_normalized = normalized
-        self.is_face_registered = True
-        self.last_face_update = utc_now()
+    # Compatibility property — old code used student_id, new schema uses student_number
+    @property
+    def student_id(self) -> str | None:
+        return self.student_number
+
+    @student_id.setter
+    def student_id(self, value: str) -> None:
+        self.student_number = value
 
 
 class FacultyProfile(Base):
     __tablename__ = "faculty_profiles"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
-    department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True)
-    program_id = Column(Integer, ForeignKey("programs.id", ondelete="SET NULL"), nullable=True, index=True)
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True)
+    program_id = Column(BigInteger, ForeignKey("programs.id", ondelete="SET NULL"), nullable=True, index=True)
 
     user = relationship("User", back_populates="faculty_profile")
     department = relationship("Department")

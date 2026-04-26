@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aura ERD Viewer</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<div id="toolbar">
+  <span id="title">Aura ERD</span>
+  <label>Zoom
+    <input type="range" id="zoom-slider" min="20" max="200" value="100" step="5" />
+    <span id="zoom-label">100%</span>
+  </label>
+  <label>Connector
+    <select id="conn-style">
+      <option value="elbow">Elbow</option>
+      <option value="straight">Straight</option>
+      <option value="curve">Curve</option>
+    </select>
+  </label>
+  <label>Theme
+    <select id="theme-select">
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+      <option value="blueprint">Blueprint</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="show-fk-only" /> FK only</label>
+  <label><input type="checkbox" id="show-labels" checked /> Labels</label>
+  <button id="btn-fit">Fit</button>
+  <button id="btn-reset">Reset</button>
+</div>
+
+<div id="viewport">
+  <svg id="connector-layer" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="canvas"></div>
+</div>
+
+<div id="minimap-wrap">
+  <canvas id="minimap"></canvas>
+</div>
+
+<div id="tooltip"></div>
+
+<script src="./script.js"></script>
+</body>
+</html>

@@ -1,33 +1,22 @@
-"""Use: Defines database models for academic programs.
-Where to use: Use this when the backend needs to store or load academic programs data.
-Role: Model layer. It maps Python objects to database tables and relationships.
-"""
+from __future__ import annotations
 
-# app/models/program.py
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
+
 from app.models.base import Base
-from app.models.associations import program_department_association, event_program_association
+from app.models.associations import program_departments, event_programs
+
 
 class Program(Base):
     __tablename__ = "programs"
     __table_args__ = (
-        UniqueConstraint("school_id", "name", name="uq_programs_school_name"),
+        UniqueConstraint("school_id", "name", name="programs_school_id_name_key"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=True)
-    name = Column(String, nullable=False)
+    id = Column(BigInteger, primary_key=True)
+    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(Text, nullable=False)
 
-    # Relationships
-    departments = relationship(
-        "Department",
-        secondary=program_department_association,
-        back_populates="programs",
-    )
-    events = relationship(
-        "Event",
-        secondary=event_program_association,
-        back_populates="programs",
-    )
     school = relationship("School")
+    departments = relationship("Department", secondary=program_departments, back_populates="programs")
+    events = relationship("Event", secondary=event_programs, back_populates="programs")

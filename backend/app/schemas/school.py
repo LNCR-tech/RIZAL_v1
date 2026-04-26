@@ -27,13 +27,13 @@ class SchoolBrandingResponse(BaseModel):
     school_name: str
     school_code: Optional[str] = None
     logo_url: Optional[str] = None
-    primary_color: str
+    primary_color: str = "#162F65"
     secondary_color: Optional[str] = None
-    event_default_early_check_in_minutes: int
-    event_default_late_threshold_minutes: int
-    event_default_sign_out_grace_minutes: int
-    subscription_status: str
-    active_status: bool
+    event_default_early_check_in_minutes: int = 30
+    event_default_late_threshold_minutes: int = 10
+    event_default_sign_out_grace_minutes: int = 15
+    subscription_status: str = "trial"
+    active_status: bool = True
     created_at: datetime
     updated_at: datetime
 
@@ -43,6 +43,27 @@ class SchoolBrandingResponse(BaseModel):
         return _as_utc_datetime(value)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_school(cls, school) -> "SchoolBrandingResponse":
+        branding = school.branding
+        policies = school.event_policies
+        sub = school.subscription
+        return cls(
+            school_id=school.id,
+            school_name=school.display_name,
+            school_code=school.school_code,
+            logo_url=branding.logo_url if branding else None,
+            primary_color=branding.primary_color if branding else "#162F65",
+            secondary_color=branding.secondary_color if branding else None,
+            event_default_early_check_in_minutes=policies.default_early_check_in_minutes if policies else 30,
+            event_default_late_threshold_minutes=policies.default_late_threshold_minutes if policies else 10,
+            event_default_sign_out_grace_minutes=policies.default_sign_out_grace_minutes if policies else 15,
+            subscription_status=sub.status if sub else "trial",
+            active_status=school.is_active,
+            created_at=school.created_at,
+            updated_at=school.updated_at,
+        )
 
 
 class SchoolCreateForm(BaseModel):
@@ -117,3 +138,7 @@ class SchoolITPasswordResetResponse(BaseModel):
     email: str
     temporary_password: str
     must_change_password: bool
+
+
+# Compatibility alias
+SchoolOut = SchoolBrandingResponse

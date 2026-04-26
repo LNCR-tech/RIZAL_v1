@@ -1,53 +1,75 @@
-"""Use: Defines database models for attendance records.
-Where to use: Use this when the backend needs to store or load attendance records data.
-Role: Model layer. It maps Python objects to database tables and relationships.
-"""
+from __future__ import annotations
 
-# app/models/attendance.py
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
-from app.models.base import Base
-from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
+
+from sqlalchemy import BigInteger, Column, DateTime, Float, ForeignKey, Text, UniqueConstraint
+from sqlalchemy.orm import relationship
+
 from app.core.timezones import utc_now
+from app.models.base import Base
+
 
 class AttendanceStatus(PyEnum):
-    PRESENT = "present"  # Must match database exactly
+    PRESENT = "present"
     LATE = "late"
     ABSENT = "absent"
     EXCUSED = "excused"
 
 
-class Attendance(Base):
-    __tablename__ = "attendances"
-
-    id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("student_profiles.id", ondelete="CASCADE"), index=True)
-    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), index=True)
-    time_in = Column(DateTime(timezone=True), nullable=False, default=utc_now)
-    time_out = Column(DateTime(timezone=True))
-    method = Column(String(50))  # "face_scan", "manual", etc.
-    status = Column(
-        PG_ENUM(
-            'present', 'late', 'absent', 'excused',  # Explicit lowercase values
-            name='attendancestatus',
-            create_type=True  # Use existing type
-        ),
-        default='present',  # Lowercase default
-        nullable=False
+class AttendanceRecord(Base):
+    __tablename__ = "attendance_records"
+    __table_args__ = (
+        UniqueConstraint("student_profile_id", "event_id", name="attendance_records_student_profile_id_event_id_key"),
     )
-    check_in_status = Column(String(16), nullable=True)
-    check_out_status = Column(String(16), nullable=True)
-    verified_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))  # Who verified (SSG/admin)
-    notes = Column(String(500))  # Reason for excused absence, etc.
+
+    id = Column(BigInteger, primary_key=True)
+    student_profile_id = Column(BigInteger, ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_id = Column(BigInteger, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    time_in = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    time_out = Column(DateTime(timezone=True), nullable=True)
+    method_code = Column(Text, ForeignKey("attendance_methods.code", ondelete="RESTRICT"), nullable=False)
+    status_code = Column(Text, ForeignKey("attendance_statuses.code", ondelete="RESTRICT"), nullable=False, default="present")
+    check_in_status = Column(Text, nullable=True)
+    check_out_status = Column(Text, nullable=True)
+    verified_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    notes = Column(Text, nullable=True)
     geo_distance_m = Column(Float, nullable=True)
     geo_effective_distance_m = Column(Float, nullable=True)
     geo_latitude = Column(Float, nullable=True)
     geo_longitude = Column(Float, nullable=True)
     geo_accuracy_m = Column(Float, nullable=True)
-    liveness_label = Column(String(32), nullable=True)
+    liveness_label = Column(Text, nullable=True)
     liveness_score = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
-    # Relationships
-    student = relationship("StudentProfile", back_populates="attendances")
-    event = relationship("Event")
+    student = relationship("StudentProfile", back_populates="attendance_records")
+    event = relationship("Event", back_populates="attendance_records")
+
+    @property
+    def status(self) -> str:
+        return self.status_code
+
+    @status.setter
+    def status(self, value) -> None:
+        self.status_code = value.value if isinstance(value, AttendanceStatus) else value
+
+    @property
+    def method(self) -> str:
+        return self.method_code
+
+    @method.setter
+    def method(self, value: str) -> None:
+        self.method_code = value
+
+    @property
+    def student_id(self) -> int:
+        return self.student_profile_id
+
+    @property
+    def verified_by(self) -> int:
+        return self.verified_by_user_id
+
+
+# Compatibility alias
+Attendance = AttendanceRecord

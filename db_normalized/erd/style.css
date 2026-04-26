@@ -1,0 +1,300 @@
+/* ── Themes ─────────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #eef2f8;
+  --vp-bg:     #dde4f0;
+  --card:      #ffffff;
+  --card-hdr:  #1a3a6b;
+  --card-hdr-fg: #ffffff;
+  --card-row:  #f7f9fd;
+  --card-row-alt: #eef3fb;
+  --card-border: #b0c4de;
+  --fg:        #0e1c2f;
+  --muted:     #5a6e8a;
+  --conn:      #3a7bd5;
+  --conn-label:#2c5fa8;
+  --pk:        #0f9d58;
+  --fk:        #1a73e8;
+  --uq:        #e37400;
+  --toolbar-bg:#1a2d4a;
+  --toolbar-fg:#d0dff5;
+  --accent:    #4a9eff;
+  --shadow:    0 2px 10px rgba(0,0,0,0.15);
+}
+
+[data-theme="dark"] {
+  --bg:        #0d1117;
+  --vp-bg:     #161b22;
+  --card:      #1c2333;
+  --card-hdr:  #0d2044;
+  --card-hdr-fg: #a8c8ff;
+  --card-row:  #1c2333;
+  --card-row-alt: #1a2030;
+  --card-border: #2d3f5e;
+  --fg:        #c9d1d9;
+  --muted:     #8b949e;
+  --conn:      #58a6ff;
+  --conn-label:#79c0ff;
+  --pk:        #3fb950;
+  --fk:        #58a6ff;
+  --uq:        #e3b341;
+  --toolbar-bg:#010409;
+  --toolbar-fg:#c9d1d9;
+  --accent:    #58a6ff;
+  --shadow:    0 2px 12px rgba(0,0,0,0.5);
+}
+
+[data-theme="blueprint"] {
+  --bg:        #0a1628;
+  --vp-bg:     #0c1e38;
+  --card:      #0e2244;
+  --card-hdr:  #0a1628;
+  --card-hdr-fg: #7ec8e3;
+  --card-row:  #0e2244;
+  --card-row-alt: #0c1e38;
+  --card-border: #1e4080;
+  --fg:        #a8d8ea;
+  --muted:     #5a8aaa;
+  --conn:      #4fc3f7;
+  --conn-label:#81d4fa;
+  --pk:        #80cbc4;
+  --fk:        #4fc3f7;
+  --uq:        #ffcc80;
+  --toolbar-bg:#060e1c;
+  --toolbar-fg:#7ec8e3;
+  --accent:    #4fc3f7;
+  --shadow:    0 2px 12px rgba(0,0,0,0.6);
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  height: 44px;
+  background: var(--toolbar-bg);
+  color: var(--toolbar-fg);
+  font-size: 13px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+#title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+#toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+#toolbar input[type="range"] { width: 80px; accent-color: var(--accent); }
+#toolbar select, #toolbar input[type="file"] {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--toolbar-fg);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+#toolbar button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+#toolbar button:hover { filter: brightness(1.15); }
+
+/* ── Viewport ───────────────────────────────────────────────────────────── */
+#viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--vp-bg);
+  background-image:
+    radial-gradient(circle, rgba(100,140,200,0.18) 1px, transparent 1px);
+  background-size: 28px 28px;
+  cursor: grab;
+}
+#viewport:active { cursor: grabbing; }
+
+/* ── SVG connector layer ────────────────────────────────────────────────── */
+#connector-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  transform-origin: 0 0;
+}
+
+.conn-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: crosshair;
+}
+
+.conn-line {
+  fill: none;
+  stroke: var(--conn);
+  stroke-width: 1.6;
+  stroke-dasharray: none;
+  transition: stroke 0.15s;
+}
+
+.conn-group:hover .conn-line {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+}
+
+.conn-label {
+  font-size: 10px;
+  fill: var(--conn-label);
+  text-anchor: middle;
+  pointer-events: none;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* ── Canvas (table container) ───────────────────────────────────────────── */
+#canvas {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+/* ── Table Cards ────────────────────────────────────────────────────────── */
+.erd-table {
+  position: absolute;
+  min-width: 200px;
+  max-width: 340px;
+  border: 1.5px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  user-select: none;
+  transition: box-shadow 0.15s;
+}
+
+.erd-table:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  z-index: 10;
+}
+
+.erd-table.dragging {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  z-index: 100;
+  opacity: 0.92;
+}
+
+.erd-table-header {
+  background: var(--card-hdr);
+  color: var(--card-hdr-fg);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px 6px 0 0;
+  cursor: move;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.erd-table-body {
+  overflow-y: visible;
+  cursor: default;
+}
+
+.erd-col {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  gap: 4px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+
+.erd-col:nth-child(odd)  { background: var(--card-row); }
+.erd-col:nth-child(even) { background: var(--card-row-alt); }
+
+.erd-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 3px;
+  border-radius: 3px;
+  text-align: center;
+  min-width: 20px;
+  color: #fff;
+  background: transparent;
+}
+
+.erd-badge.pk { background: var(--pk); }
+.erd-badge.fk { background: var(--fk); }
+.erd-badge.uq { background: var(--uq); }
+
+.erd-col-name {
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.erd-col-type {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ── Minimap ────────────────────────────────────────────────────────────── */
+#minimap-wrap {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  border: 1.5px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  opacity: 0.85;
+}
+#minimap-wrap:hover { opacity: 1; }
+#minimap { display: block; }
+
+/* ── Tooltip ────────────────────────────────────────────────────────────── */
+#tooltip {
+  display: none;
+  position: fixed;
+  background: var(--toolbar-bg);
+  color: var(--toolbar-fg);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
