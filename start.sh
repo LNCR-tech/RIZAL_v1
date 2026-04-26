@@ -32,6 +32,7 @@ REPO_URL="${REPO_URL:-https://github.com/LNCR-tech/RIZAL_v1.git}"
 REPO_BRANCH="${REPO_BRANCH:-Pre-Production-v1}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
 COMPOSE_FILE="docker-compose.prod.yml"
+DATA_DIR="/home/ubuntu/Aura/docker-data"
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -48,6 +49,31 @@ error()   { echo -e "${RED}[error]${NC} $*"; exit 1; }
 section() { echo -e "\n${CYAN}==> $*${NC}"; }
 
 CMD="${1:-setup}"
+
+# =============================================================================
+# ensure_data_dirs — create bind-mount directories with correct ownership
+#   postgres  → uid 999  (postgres container user)
+#   pgadmin   → uid 5050 (pgadmin container user)
+#   imports / branding / insightface → uid 1000 (appuser in backend/worker)
+# =============================================================================
+ensure_data_dirs() {
+  section "Preparing data directories under $DATA_DIR ..."
+
+  sudo mkdir -p \
+    "$DATA_DIR/postgres" \
+    "$DATA_DIR/pgadmin" \
+    "$DATA_DIR/imports" \
+    "$DATA_DIR/branding" \
+    "$DATA_DIR/insightface"
+
+  sudo chown -R 999:999   "$DATA_DIR/postgres"
+  sudo chown -R 5050:5050 "$DATA_DIR/pgadmin"
+  sudo chown -R 1000:1000 "$DATA_DIR/imports"
+  sudo chown -R 1000:1000 "$DATA_DIR/branding"
+  sudo chown -R 1000:1000 "$DATA_DIR/insightface"
+
+  info "Data directories ready."
+}
 
 # =============================================================================
 # setup — install deps, clone/pull, configure .env, start stack
@@ -188,6 +214,7 @@ EOF
 # =============================================================================
 do_start() {
   cd "$DEPLOY_DIR"
+  ensure_data_dirs
   section "Building and starting Aura..."
 
   docker compose -f "$COMPOSE_FILE" up --build -d
@@ -238,6 +265,7 @@ do_update() {
   section "Pulling latest code..."
   git fetch origin
   git pull --rebase origin "$REPO_BRANCH"
+  ensure_data_dirs
   info "Rebuilding and restarting..."
   docker compose -f "$COMPOSE_FILE" up --build -d
   info "Update complete."

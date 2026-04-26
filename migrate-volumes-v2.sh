@@ -115,10 +115,16 @@ migrate_one "pgAdmin config"        "pgadmin"     "rizal_v1_pgadmin_data"      "
 # -----------------------------------------------
 echo ""
 echo ">>> Fixing ownership..."
-run sudo chown -R 999:999  "$DATA_DIR/postgres"
+run sudo chown -R 999:999   "$DATA_DIR/postgres"
 run sudo chown -R 5050:5050 "$DATA_DIR/pgadmin"
-echo "    ✓ postgres → 999:999"
-echo "    ✓ pgadmin  → 5050:5050"
+run sudo chown -R 1000:1000 "$DATA_DIR/imports"
+run sudo chown -R 1000:1000 "$DATA_DIR/branding"
+run sudo chown -R 1000:1000 "$DATA_DIR/insightface"
+echo "    ✓ postgres    → 999:999"
+echo "    ✓ pgadmin     → 5050:5050"
+echo "    ✓ imports     → 1000:1000 (appuser)"
+echo "    ✓ branding    → 1000:1000 (appuser)"
+echo "    ✓ insightface → 1000:1000 (appuser)"
 
 # -----------------------------------------------
 # 5. Summary
