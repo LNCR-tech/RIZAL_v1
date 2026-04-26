@@ -82,6 +82,23 @@ services:
     restart: "no"
 
   # ---------------------------------------------------------------------------
+  # Optional seed job — never runs automatically
+  # Usage: docker compose --profile seed -f docker-compose.prod.yml run --rm seed
+  # ---------------------------------------------------------------------------
+
+  seed:
+    image: aura-backend:prod
+    command: python seed_demo.py
+    environment:
+      <<: *backend-env
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles:
+      - seed
+
+  # ---------------------------------------------------------------------------
   # Application services
   # ---------------------------------------------------------------------------
 
@@ -160,7 +177,7 @@ services:
     ports:
       - "5050:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@aura.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@aura.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
     volumes:
       - pgadmin_data:/var/lib/pgadmin
