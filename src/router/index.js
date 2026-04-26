@@ -66,6 +66,40 @@ const adminRoutePreloads = [
     'dashboard/AdminWorkspaceView',
 ]
 
+function readEnvFlag(value = '') {
+    return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase())
+}
+
+const previewRoutesEnabled = import.meta.env.DEV || readEnvFlag(import.meta.env.VITE_ENABLE_PREVIEW_ROUTES)
+const apiLabEnabled = import.meta.env.DEV || readEnvFlag(import.meta.env.VITE_ENABLE_API_LAB)
+
+function resolveDisabledPreviewRouteRedirect(path = '') {
+    const normalizedPath = String(path || '').trim()
+    if (!normalizedPath.startsWith('/exposed/')) return ''
+
+    if (normalizedPath === '/exposed/face-scan') {
+        return '/quick-attendance'
+    }
+
+    if (normalizedPath === '/exposed/sg') {
+        return '/governance'
+    }
+
+    if (normalizedPath.startsWith('/exposed/sg/')) {
+        return `/governance/${normalizedPath.slice('/exposed/sg/'.length)}`
+    }
+
+    if (normalizedPath === '/exposed/dashboard/sg') {
+        return '/governance'
+    }
+
+    if (normalizedPath.startsWith('/exposed/dashboard/sg/')) {
+        return `/governance/${normalizedPath.slice('/exposed/dashboard/sg/'.length)}`
+    }
+
+    return normalizedPath.replace(/^\/exposed/, '')
+}
+
 function preloadRouteContextViews(path = '') {
     const normalizedPath = String(path || '')
 
@@ -784,6 +818,17 @@ router.beforeEach(async (to) => {
     const isAuthenticated = hasSessionToken()
     const mustChangePassword = needsStoredPasswordChange()
     const privilegedPendingFace = hasPrivilegedPendingFace()
+
+    if (!apiLabEnabled && to.name === 'ApiLab') {
+        return { name: 'Login' }
+    }
+
+    if (!previewRoutesEnabled) {
+        const previewRedirectPath = resolveDisabledPreviewRouteRedirect(to.path)
+        if (previewRedirectPath) {
+            return previewRedirectPath
+        }
+    }
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: 'Login' }

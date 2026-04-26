@@ -12,11 +12,14 @@
 import { ref, nextTick } from 'vue'
 
 // ─── Shared singleton state ───────────────────────────────────────────────────
+const isAuraChatUnderDevelopment = ref(true)
+const auraChatNoticeTitle = 'Feature under development'
+const auraChatNoticeText = 'Talk with Aura is under development. This feature will be available in a future release.'
 const messages   = ref([
   {
     id: 1,
     sender: 'ai',
-    text: "Hello! I'm Aura AI, your campus assistant. I can help with your schedule, attendance, events, and school updates. What would you like to do today?",
+    text: auraChatNoticeText,
   }
 ])
 const inputText  = ref('')
@@ -113,7 +116,10 @@ async function simulateAiResponse(userMessage) {
 // ─── Public actions ───────────────────────────────────────────────────────────
 async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text || isTyping.value) return
+  if (!text || isTyping.value || isAuraChatUnderDevelopment.value) {
+    inputText.value = ''
+    return
+  }
 
   messages.value.push({ id: Date.now(), sender: 'user', text })
   inputText.value = ''
@@ -176,6 +182,9 @@ function closeAll() {
 // ─── Composable export ────────────────────────────────────────────────────────
 export function useChat() {
   return {
+    isAuraChatUnderDevelopment,
+    auraChatNoticeTitle,
+    auraChatNoticeText,
     messages,
     inputText,
     isTyping,

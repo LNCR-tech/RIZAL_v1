@@ -16,7 +16,7 @@
         ref="windowEl"
         class="aura-chat-window"
         role="dialog"
-        aria-label="Aura AI Chat"
+        aria-label="Talk with Aura"
         @click.stop
       >
         <!-- ── Header ─────────────────────────────────────────────── -->
@@ -25,7 +25,7 @@
             <img :src="activeAuraLogo" alt="Aura" class="chat-logo" />
             <div class="chat-header-title">
               <span class="chat-title">Aura AI</span>
-              <span class="chat-subtitle">Your campus assistant</span>
+              <span class="chat-subtitle">{{ auraChatNoticeTitle }}</span>
             </div>
           </div>
 
@@ -84,19 +84,22 @@
 
         <!-- ── Input bar ──────────────────────────────────────────── -->
         <div class="chat-input-wrap">
+          <p v-if="isAuraChatUnderDevelopment" class="chat-disabled-note">
+            {{ auraChatNoticeText }}
+          </p>
           <div class="chat-input-row">
             <input
               ref="inputEl"
               v-model="inputText"
               class="chat-input"
               type="text"
-              placeholder="Ask Aura anything..."
-              :disabled="isTyping"
+              :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura anything...'"
+              :disabled="isTyping || isAuraChatUnderDevelopment"
               @keyup.enter="sendMessage"
             />
             <button
               class="chat-send-btn"
-              :disabled="!inputText.trim() || isTyping"
+              :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
               aria-label="Send message"
               @click="sendMessage"
             >
@@ -120,6 +123,9 @@ import { useRouter } from 'vue-router'
 const windowEl = ref(null)
 
 const {
+  isAuraChatUnderDevelopment,
+  auraChatNoticeTitle,
+  auraChatNoticeText,
   messages,
   inputText,
   isTyping,
@@ -145,7 +151,7 @@ const inputEl = ref(null)
 
 // Auto-focus input when window opens
 watch(isFullOpen, (val) => {
-  if (val) {
+  if (val && !isAuraChatUnderDevelopment.value) {
     setTimeout(() => inputEl.value?.focus(), 350)
   }
 })
@@ -365,6 +371,17 @@ watch(isFullOpen, (val) => {
 .chat-input-wrap {
   padding: 10px 14px 16px;
   flex-shrink: 0;
+}
+
+.chat-disabled-note {
+  margin: 0 2px 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #0a0a0a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .chat-input-row {

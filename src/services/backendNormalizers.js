@@ -14,6 +14,23 @@ function toOptionalString(value, fallback = null) {
     return normalized.length ? normalized : fallback
 }
 
+function normalizeUtcDateTimeString(value, fallback = null) {
+    const normalized = toOptionalString(value, fallback)
+    if (!normalized) return fallback
+
+    const timezoneSuffixPattern = /(z|[+\-]\d{2}:\d{2})$/i
+    if (timezoneSuffixPattern.test(normalized)) {
+        return normalized
+    }
+
+    const isoLikeValue = normalized.replace(' ', 'T')
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?$/.test(isoLikeValue)) {
+        return `${isoLikeValue}Z`
+    }
+
+    return normalized
+}
+
 function toOptionalNumber(value, fallback = null) {
     const normalized = Number(value)
     return Number.isFinite(normalized) ? normalized : fallback
@@ -476,7 +493,7 @@ export function normalizeNotificationLogItem(item = null) {
         metadata_json: item.metadata_json && typeof item.metadata_json === 'object'
             ? item.metadata_json
             : null,
-        created_at: toOptionalString(item.created_at, nowIso()),
+        created_at: normalizeUtcDateTimeString(item.created_at, nowIso()),
     }
 }
 

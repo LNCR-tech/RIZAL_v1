@@ -27,13 +27,13 @@ const hideMobileNav = computed(() => (
 
 <style scoped>
 .mobile-app-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--color-bg);
   font-family: 'Manrope', sans-serif;
 }
 
 .mobile-app-layout__main {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding-bottom: 112px;
 }
 

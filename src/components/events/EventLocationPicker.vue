@@ -140,6 +140,9 @@ const formattedRadius = computed(() => (
     : 'No radius yet'
 ))
 
+const defaultMapCenter = [12.8797, 121.7740]
+const defaultMapZoom = 5
+
 let leafletRef = null
 let mapInstance = null
 let markerInstance = null
@@ -183,6 +186,17 @@ async function initializeMap() {
   loadError.value = ''
 
   try {
+    await waitForStableMapContainer(containerEl)
+
+    if (
+      isComponentUnmounted
+      || initSequence !== mapInitSequence
+      || !isUsableMapContainer(containerEl)
+      || mapEl.value !== containerEl
+    ) {
+      return
+    }
+
     const [leafletModule] = await Promise.all([
       import('leaflet'),
       import('leaflet/dist/leaflet.css'),
@@ -201,12 +215,16 @@ async function initializeMap() {
     mapInstance = leafletRef.map(containerEl, {
       zoomControl: false,
       attributionControl: true,
+      center: defaultMapCenter,
+      zoom: defaultMapZoom,
     })
 
     leafletRef.control.zoom({ position: 'bottomright' }).addTo(mapInstance)
     leafletRef.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
+      updateWhenIdle: true,
+      keepBuffer: 2,
     }).addTo(mapInstance)
 
     mapInstance.on('click', handleMapClick)
@@ -256,7 +274,9 @@ function observeMapResize() {
   if (!mapEl.value || typeof ResizeObserver === 'undefined') return
 
   resizeObserver = new ResizeObserver(() => {
-    mapInstance?.invalidateSize()
+    if (isUsableMapContainer(mapEl.value)) {
+      safeMapOperation(() => mapInstance?.invalidateSize())
+    }
   })
   resizeObserver.observe(mapEl.value)
 }
@@ -265,9 +285,13 @@ function scheduleMapInvalidate() {
   if (!mapInstance) return
 
   nextTick(() => {
-    mapInstance?.invalidateSize()
+    if (isUsableMapContainer(mapEl.value)) {
+      safeMapOperation(() => mapInstance?.invalidateSize())
+    }
     invalidateTimeoutId = window.setTimeout(() => {
-      mapInstance?.invalidateSize()
+      if (isUsableMapContainer(mapEl.value)) {
+        safeMapOperation(() => mapInstance?.invalidateSize())
+      }
       invalidateTimeoutId = 0
     }, 220)
   })
@@ -352,8 +376,10 @@ function syncSelectionOnMap({
     removeRadiusPreview()
 
     if (focus) {
-      mapInstance.fitWorld({
-        padding: [24, 24],
+      safeMapOperation(() => {
+        mapInstance.setView(defaultMapCenter, defaultMapZoom, {
+          animate: false,
+        })
       })
     }
 
@@ -384,14 +410,18 @@ function syncSelectionOnMap({
   if (!focus) return
 
   if (radiusPreview) {
-    mapInstance.fitBounds(radiusPreview.getBounds().pad(0.24), {
-      maxZoom: 17,
+    safeMapOperation(() => {
+      mapInstance.fitBounds(radiusPreview.getBounds().pad(0.24), {
+        maxZoom: 17,
+      })
     })
     return
   }
 
-  mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), 16), {
-    animate: true,
+  safeMapOperation(() => {
+    mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), 16), {
+      animate: true,
+    })
   })
 }
 
@@ -487,6 +517,38 @@ function toFiniteNumber(value) {
   if (value == null || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function isUsableMapContainer(element) {
+  if (!element?.isConnected) return false
+
+  const rect = element.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0
+}
+
+async function waitForStableMapContainer(element) {
+  if (typeof window === 'undefined') return
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    if (isComponentUnmounted || element !== mapEl.value) return
+    if (isUsableMapContainer(element)) return
+
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+  }
+}
+
+function safeMapOperation(operation) {
+  try {
+    operation()
+  } catch (error) {
+    const message = String(error?.message || '')
+    if (message.toLowerCase().includes('infinite number of tiles')) {
+      loadError.value = 'The map is still sizing. Reopen this panel or use current location if it does not appear.'
+      return
+    }
+
+    throw error
+  }
 }
 
 function formatCoordinate(value) {

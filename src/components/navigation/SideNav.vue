@@ -62,7 +62,7 @@
                 class="text-[8px] font-extrabold text-center leading-snug transition-colors duration-200"
                 style="color: var(--color-banner-text);"
               >
-                Talk to<br>Aura Ai
+                Aura AI<br>Soon
               </span>
             </div>
 
@@ -135,13 +135,13 @@
                     v-model="inputText"
                     class="bg-transparent outline-none text-[11px] w-full placeholder-black/40 font-medium"
                     :style="{ color: 'var(--color-banner-text)' }"
-                    placeholder="Ask Aura..."
-                    :disabled="isTyping"
+                    :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
+                    :disabled="isTyping || isAuraChatUnderDevelopment"
                     @keyup.enter="sendMessage"
                   />
                   <button
                     @click="sendMessage"
-                    :disabled="!inputText.trim() || isTyping"
+                    :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
                     class="cursor-pointer transition-opacity hover:opacity-100 disabled:opacity-40 flex-shrink-0"
                     :class="inputText.trim() ? 'opacity-100' : 'opacity-60'"
                   >
@@ -173,6 +173,7 @@ import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.j
 
 // ── Chat state from singleton composable ──────────────────
 const {
+  isAuraChatUnderDevelopment,
   messages,
   inputText,
   isTyping,

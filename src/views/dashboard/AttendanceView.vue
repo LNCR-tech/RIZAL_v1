@@ -154,6 +154,36 @@
           <span class="success-btn-text">Go Back</span>
         </button>
       </section>
+
+      <Transition name="attendance-failure-pop">
+        <div
+          v-if="attendanceFailure"
+          class="attendance-failure-layer"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="attendance-failure-title"
+          aria-describedby="attendance-failure-message"
+        >
+          <section class="attendance-failure-card">
+            <span class="attendance-failure-card__icon" aria-hidden="true">
+              <ShieldX :size="28" :stroke-width="2.4" />
+            </span>
+            <p class="attendance-failure-card__eyebrow">Check-in blocked</p>
+            <h2 id="attendance-failure-title">Face verification failed</h2>
+            <p id="attendance-failure-message">
+              {{ attendanceFailure.message }}
+            </p>
+            <button
+              class="attendance-failure-card__action"
+              type="button"
+              @click="retryAttendanceFailure"
+            >
+              <ScanFace :size="17" :stroke-width="2.3" />
+              <span>Scan Again</span>
+            </button>
+          </section>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -170,6 +200,7 @@ import {
   ChevronsRight,
   ArrowUpRight,
   ArrowRight,
+  ShieldX,
 } from 'lucide-vue-next'
 import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
 import { initFaceScanDetector, resetFaceScanDetector } from '@/composables/useFaceScanDetector.js'
@@ -263,6 +294,7 @@ const videoReady = ref(false)
 const faceDetected = ref(false)
 const faceScanError = ref(false)
 const faceScanProgress = ref(0)
+const attendanceFailure = ref(null)
 const lastSuccessfulAttendanceOutcome = ref(null)
 let faceDetectRaf = null
 let faceProgressRaf = null
@@ -280,7 +312,6 @@ const faceDetectHoldMs = Number(import.meta.env.VITE_FACE_SCAN_DETECT_HOLD_MS ??
 const faceScanVideoReadyTimeoutMs = Number(
   import.meta.env.VITE_FACE_SCAN_VIDEO_READY_TIMEOUT_MS ?? faceScanTimeoutMs
 )
-const faceScanGateEnabled = import.meta.env.VITE_FACE_SCAN_GATE !== 'false'
 const faceDetectorWasmBaseUrl =
   import.meta.env.VITE_FACE_DETECTOR_WASM_URL ||
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
@@ -293,6 +324,17 @@ const faceDetectorIntervalMs = Number(import.meta.env.VITE_FACE_DETECTOR_INTERVA
 const geolocationTimeoutMs = Number(import.meta.env.VITE_GEOLOCATION_TIMEOUT_MS ?? 6000)
 const geolocationMaxAgeMs = Number(import.meta.env.VITE_GEOLOCATION_MAX_AGE_MS ?? 0)
 const geolocationHighAccuracy = import.meta.env.VITE_GEOLOCATION_HIGH_ACCURACY !== 'false'
+const faceVerificationFailureCodes = new Set([
+  'face_frame_required',
+  'face_mismatch',
+  'face_not_recognized',
+  'face_not_registered',
+  'face_reenrollment_required',
+  'liveness_failed',
+  'no_face_detected',
+  'single_face_required',
+  'spoof_detected',
+])
 const successReceiptDateFormatter = new Intl.DateTimeFormat('en-PH', {
   weekday: 'short',
   month: 'short',
@@ -788,6 +830,70 @@ function resolveLocationErrorMessage(source, fallback = 'Unable to verify your l
   return message || fallback
 }
 
+function createFaceVerificationError(message, code = 'face_verification_failed') {
+  const error = new Error(message || 'Face verification failed. Please scan your own face again.')
+  error.isFaceVerificationFailure = true
+  error.code = code
+  return error
+}
+
+function getErrorDetail(source) {
+  return source?.details?.detail ?? source?.detail ?? source?.details ?? null
+}
+
+function getErrorCode(source) {
+  const detail = getErrorDetail(source)
+  if (detail && typeof detail === 'object') {
+    return String(detail.code || detail.reason_code || '').trim()
+  }
+  return String(source?.code || source?.reason_code || '').trim()
+}
+
+function isBypassedLiveness(liveness = null) {
+  const label = String(liveness?.label || '').trim().toLowerCase()
+  const reason = String(liveness?.reason || '').trim().toLowerCase()
+  return label === 'bypassed' || reason === 'face_scan_bypass'
+}
+
+function isFaceVerificationFailure(source) {
+  if (source?.isFaceVerificationFailure) return true
+  const code = getErrorCode(source).toLowerCase()
+  if (faceVerificationFailureCodes.has(code)) return true
+
+  const message = String(source?.message || resolveLocationErrorMessage(source, '') || '').toLowerCase()
+  return (
+    message.includes('face') ||
+    message.includes('liveness') ||
+    message.includes('spoof') ||
+    message.includes('matching student')
+  )
+}
+
+function resolveFaceVerificationFailureMessage(source) {
+  if (isBypassedLiveness(source?.liveness)) {
+    return 'The backend reported that face verification was bypassed. Attendance was not accepted by this app.'
+  }
+
+  const detail = getErrorDetail(source)
+  if (detail && typeof detail === 'object') {
+    const detailMessage = String(detail.message || detail.detail || detail.reason || '').trim()
+    if (detailMessage) return detailMessage
+  }
+
+  const message = String(source?.message || '').trim()
+  if (message) return message
+  return 'We could not match the live scan to your student account. Please scan your own face again.'
+}
+
+function assertFaceVerificationAccepted(result) {
+  if (isBypassedLiveness(result?.liveness)) {
+    throw createFaceVerificationError(
+      resolveFaceVerificationFailureMessage(result),
+      'face_scan_bypass'
+    )
+  }
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -961,6 +1067,8 @@ async function recordFaceScanAttendance() {
     throw new Error(result.message || 'The server could not record your attendance.')
   }
 
+  assertFaceVerificationAccepted(result)
+
   if (result?.geo?.time_status) {
     eventTimeStatus.value = result.geo.time_status
   }
@@ -1121,6 +1229,16 @@ async function attemptRecordAttendance() {
       lastSuccessfulAttendanceOutcome.value = attendanceOutcome
       return
     } catch (error) {
+      if (isFaceVerificationFailure(error)) {
+        attendanceFailure.value = {
+          message: resolveFaceVerificationFailureMessage(error),
+          code: getErrorCode(error) || 'face_verification_failed',
+        }
+        capturedFaceDataUrl.value = ''
+        flowStep.value = 'face'
+        throw error
+      }
+
       recordingFailed.value = true
       locationStatus.value = 'error'
       locationError.value = resolveLocationErrorMessage(
@@ -1153,6 +1271,7 @@ async function goBack() {
 
 function retryFaceScan() {
   faceScanError.value = false
+  attendanceFailure.value = null
   faceDetected.value = false
   videoReady.value = false
   capturedFaceDataUrl.value = ''
@@ -1164,6 +1283,16 @@ function retryFaceScan() {
     return
   }
   if (flowStep.value === 'face') startFaceProgress()
+}
+
+function retryAttendanceFailure() {
+  attendanceFailure.value = null
+  recordingFailed.value = false
+  locationStatus.value = 'idle'
+  locationError.value = ''
+  capturedFaceDataUrl.value = ''
+  flowStep.value = 'face'
+  void nextTick(() => runAttendanceFlow())
 }
 
 function captureVideoFrame() {
@@ -1323,24 +1452,7 @@ function waitForFaceOrTimeout() {
   })
 }
 
-async function completeFaceCaptureFallback() {
-  if (faceScanProgress.value <= 0) {
-    startFaceProgress()
-  } else if (faceScanProgress.value < faceScanProgressMax) {
-    animateFaceProgress(faceScanProgressMax, Math.max(180, faceScanProgressDuration / 2))
-  }
-  await delay(Math.max(320, faceScanProgressDuration))
-  animateFaceProgress(100, 260)
-  await delay(260)
-}
-
 async function waitForFaceDetection() {
-  if (!faceScanGateEnabled) {
-    animateFaceProgress(100, 240)
-    await delay(240)
-    return
-  }
-
   while (true) {
     faceScanError.value = false
 
@@ -1353,9 +1465,9 @@ async function waitForFaceDetection() {
 
     const detectorReady = await ensureFaceDetector()
     if (!detectorReady) {
-      faceScanError.value = false
-      await completeFaceCaptureFallback()
-      return
+      faceScanError.value = true
+      await waitForRetry()
+      continue
     }
 
     startFaceDetection()
@@ -1373,9 +1485,9 @@ async function waitForFaceDetection() {
     stopFaceDetection()
 
     if (result === 'timeout') {
-      faceScanError.value = false
-      await completeFaceCaptureFallback()
-      return
+      faceScanError.value = true
+      await waitForRetry()
+      continue
     }
 
     faceScanError.value = true
@@ -1529,6 +1641,9 @@ function stopFaceDetection() {
 watch(flowStep, (step) => {
   if (step === 'face') {
     faceScanError.value = false
+    if (!attendanceFailure.value) {
+      capturedFaceDataUrl.value = ''
+    }
     locationMessage.value = 'Checking event location...'
     clearLocationVerificationState()
     return
@@ -2166,6 +2281,110 @@ onBeforeUnmount(() => {
   letter-spacing: -0.01em;
 }
 
+.attendance-failure-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 18px max(24px, env(safe-area-inset-bottom, 24px));
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.08), rgba(10, 10, 10, 0.46));
+}
+
+.attendance-failure-card {
+  width: min(100%, 360px);
+  padding: 20px;
+  border-radius: 26px;
+  background: #ffffff;
+  box-shadow: 0 26px 60px rgba(8, 15, 24, 0.28);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  border: 1px solid rgba(190, 18, 60, 0.14);
+}
+
+.attendance-failure-card__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.attendance-failure-card__eyebrow {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b91c1c;
+}
+
+.attendance-failure-card h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 800;
+}
+
+#attendance-failure-message {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.attendance-failure-card__action {
+  width: 100%;
+  min-height: 50px;
+  border: none;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.attendance-failure-card__action:active {
+  transform: scale(0.98);
+}
+
+.attendance-failure-pop-enter-active,
+.attendance-failure-pop-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.attendance-failure-pop-enter-active .attendance-failure-card,
+.attendance-failure-pop-leave-active .attendance-failure-card {
+  transition: transform 220ms ease, opacity 180ms ease;
+}
+
+.attendance-failure-pop-enter-from,
+.attendance-failure-pop-leave-to {
+  opacity: 0;
+}
+
+.attendance-failure-pop-enter-from .attendance-failure-card,
+.attendance-failure-pop-leave-to .attendance-failure-card {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+}
+
 @media (min-width: 768px) {
   .attendance-page {
     padding-top: 0;
@@ -2176,6 +2395,16 @@ onBeforeUnmount(() => {
   .attendance-shell {
     max-width: 380px;
     min-height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attendance-failure-pop-enter-active,
+  .attendance-failure-pop-leave-active,
+  .attendance-failure-pop-enter-active .attendance-failure-card,
+  .attendance-failure-pop-leave-active .attendance-failure-card,
+  .attendance-failure-card__action {
+    transition: none;
   }
 }
 
