@@ -6,6 +6,7 @@ on:
       - main
       - master
       - integrate/pilot-merge
+      - Pre-Production-v1
   pull_request:
 
 jobs:
