@@ -4,7 +4,6 @@ Thumbs.db
 .idea/
 .vscode/
 .amazonq/
-.kilo/
 
 # Python
 __pycache__/
@@ -29,13 +28,16 @@ logs/
 
 # Environment / secrets
 .env
-Frontend/.env.local
+.env.local
+.env.backup.*
+*.env
 
 # Database / local artifacts
 *.db
 *.sqlite
 *.sqlite3
 postgres_data/
+docker-data/
 Backend/smoke.db
 Backend/storage/imports/
 Backend/storage/school_logos/
@@ -50,3 +52,9 @@ Backend/face_encodings.pkl
 Backend/.alembic.ini.swp
 Backend/.venv/
 GITHUB/
+
+# SSH keys
+*.pem
+
+# Security quick-start docs (local only)
+QUICK_START_SECURITY.md
