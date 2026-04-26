@@ -10,6 +10,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import ValidationError
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -211,12 +212,15 @@ async def create_school(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    payload = SchoolCreateForm(
-        school_name=school_name,
-        primary_color=primary_color,
-        secondary_color=_normalize_optional(secondary_color),
-        school_code=_normalize_optional(school_code),
-    )
+    try:
+        payload = SchoolCreateForm(
+            school_name=school_name,
+            primary_color=primary_color,
+            secondary_color=_normalize_optional(secondary_color),
+            school_code=_normalize_optional(school_code),
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.errors())
     _ensure_unique_school(db, school_name=payload.school_name, school_code=payload.school_code)
 
     logo_url = None
@@ -279,17 +283,20 @@ async def admin_create_school_with_school_it(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    payload = AdminSchoolItCreateForm(
-        school_name=school_name,
-        primary_color=primary_color,
-        secondary_color=_normalize_optional(secondary_color),
-        school_code=_normalize_optional(school_code),
-        school_it_email=school_it_email.strip().lower(),
-        school_it_first_name=school_it_first_name,
-        school_it_middle_name=_normalize_optional(school_it_middle_name),
-        school_it_last_name=school_it_last_name,
-        school_it_password=_normalize_optional(school_it_password),
-    )
+    try:
+        payload = AdminSchoolItCreateForm(
+            school_name=school_name,
+            primary_color=primary_color,
+            secondary_color=_normalize_optional(secondary_color),
+            school_code=_normalize_optional(school_code),
+            school_it_email=school_it_email.strip().lower(),
+            school_it_first_name=school_it_first_name,
+            school_it_middle_name=_normalize_optional(school_it_middle_name),
+            school_it_last_name=school_it_last_name,
+            school_it_password=_normalize_optional(school_it_password),
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.errors())
 
     _ensure_unique_school(db, school_name=payload.school_name, school_code=payload.school_code)
 
@@ -624,15 +631,18 @@ async def update_school(
     db: Session = Depends(get_db),
 ):
     school = _get_school_for_current_user_or_404(db, current_user)
-    payload = SchoolUpdateForm(
-        school_name=_normalize_optional(school_name),
-        primary_color=_normalize_optional(primary_color),
-        secondary_color=_normalize_optional(secondary_color),
-        school_code=_normalize_optional(school_code),
-        event_default_early_check_in_minutes=event_default_early_check_in_minutes,
-        event_default_late_threshold_minutes=event_default_late_threshold_minutes,
-        event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
-    )
+    try:
+        payload = SchoolUpdateForm(
+            school_name=_normalize_optional(school_name),
+            primary_color=_normalize_optional(primary_color),
+            secondary_color=_normalize_optional(secondary_color),
+            school_code=_normalize_optional(school_code),
+            event_default_early_check_in_minutes=event_default_early_check_in_minutes,
+            event_default_late_threshold_minutes=event_default_late_threshold_minutes,
+            event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.errors())
 
     proposed_school_name = payload.school_name if payload.school_name is not None else (school.school_name or school.name)
     proposed_school_code = payload.school_code if school_code is not None else school.school_code
