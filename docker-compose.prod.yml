@@ -15,9 +15,9 @@ x-backend-env: &backend-env
   SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
 
 x-backend-volumes: &backend-volumes
-  - import_storage:/app/storage/imports
-  - branding_storage:/app/storage/school_logos
-  - insightface_models:/home/appuser/.insightface
+  - ./docker-data/imports:/app/storage/imports
+  - ./docker-data/branding:/app/storage/school_logos
+  - ./docker-data/insightface:/home/appuser/.insightface
 
 x-depends-infra: &depends-infra
   db:
@@ -39,7 +39,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-fastapi_db}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./docker-data/postgres:/var/lib/postgresql/data
       - ./docker-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-fastapi_db}"]
@@ -180,36 +180,15 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@aura.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - ./docker-data/pgadmin:/var/lib/pgadmin
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
 
 # ---------------------------------------------------------------------------
-# Volumes — critical data volumes are marked external to prevent accidental
-# deletion via `docker compose down -v` or `docker volume prune`.
-# Pre-create on the server with:
-#   docker volume create aura_postgres_data
-#   docker volume create aura_import_storage
-#   docker volume create aura_branding_storage
-#   docker volume create aura_insightface_models
-#   docker volume create aura_pgadmin_data
+# Volumes — all persistent data uses host bind mounts under ./docker-data/
+# to prevent accidental data loss from `docker compose down -v` or
+# `docker volume prune`. Data lives on the host filesystem.
 # ---------------------------------------------------------------------------
-volumes:
-  postgres_data:
-    name: aura_postgres_data
-    external: true
-  import_storage:
-    name: aura_import_storage
-    external: true
-  branding_storage:
-    name: aura_branding_storage
-    external: true
-  insightface_models:
-    name: aura_insightface_models
-    external: true
-  pgadmin_data:
-    name: aura_pgadmin_data
-    external: true
 
