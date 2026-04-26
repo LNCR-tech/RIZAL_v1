@@ -60,11 +60,32 @@ def _split_sql_statements(sql: str) -> list[str]:
     return statements
 
 
+import os
+import sys
+
 def _load_normalized_schema_sql() -> str:
-    # versions/ -> alembic/ -> backend/ -> repo root
-    repo_root = Path(__file__).resolve().parents[3]
-    sql_path = repo_root / "db_normalized" / "new_db_schema.sql"
-    return sql_path.read_text(encoding="utf-8")
+    print(f"DEBUG: [f19c2a7b3d10] Current working directory: {os.getcwd()}", flush=True)
+    
+    # Define possible locations for schema.sql
+    possible_paths = [
+        # Relative to this script (inside backend/alembic/versions/)
+        Path(__file__).absolute().parents[2] / "app" / "db" / "schema.sql",
+        # Relative to current working directory (usually /app or backend/)
+        Path("app/db/schema.sql"),
+        Path("backend/app/db/schema.sql"),
+        # Absolute paths common in Docker
+        Path("/app/app/db/schema.sql"),
+        Path("/app/db/schema.sql"),
+    ]
+    
+    for sql_path in possible_paths:
+        print(f"DEBUG: [f19c2a7b3d10] Checking path: {sql_path}", flush=True)
+        if sql_path.exists():
+            print(f"DEBUG: [f19c2a7b3d10] FOUND schema.sql at: {sql_path}", flush=True)
+            return sql_path.read_text(encoding="utf-8")
+            
+    print(f"ERROR: [f19c2a7b3d10] schema.sql NOT FOUND!", flush=True)
+    raise FileNotFoundError("Could not find schema.sql in any searched location.")
 
 
 def upgrade() -> None:
