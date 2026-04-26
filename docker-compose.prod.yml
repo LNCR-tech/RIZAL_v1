@@ -1,8 +1,3 @@
-# =============================================================================
-# Aura — Production Compose
-# Backend + Database Only
-# =============================================================================
-
 services:
   db:
     image: postgres:15
@@ -74,7 +69,7 @@ services:
       SMTP_USE_STARTTLS: ${SMTP_USE_STARTTLS:-true}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
     volumes:
       - import_storage:/app/storage/imports
       - branding_storage:/app/storage/school_logos
