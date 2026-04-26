@@ -32,7 +32,7 @@ services:
   # ---------------------------------------------------------------------------
 
   db:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
