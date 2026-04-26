@@ -137,7 +137,7 @@ function goToLogin() {
 <style>
 .app-safe-area {
   min-height: 100dvh;
-  background: var(--color-bg, #050505);
+  background: var(--color-bg, #EBEBEB);
 }
 
 .app-boot-screen,
