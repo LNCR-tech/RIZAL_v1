@@ -9,6 +9,7 @@ Create Date: 2026-04-27
 from __future__ import annotations
 
 import sys
+import os
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -21,18 +22,28 @@ depends_on = None
 
 
 def _load_normalized_schema_sql() -> str:
-    # Migration script is in backend/alembic/versions/
-    # parents[2] is the 'backend' directory
-    backend_root = Path(__file__).absolute().parents[2]
-    sql_path = backend_root / "app" / "db" / "schema.sql"
+    print(f"DEBUG: Current working directory: {os.getcwd()}", flush=True)
     
-    print(f"DEBUG: Calculated sql_path: {sql_path}", flush=True)
+    # Define possible locations for schema.sql
+    possible_paths = [
+        # Relative to this script (inside backend/alembic/versions/)
+        Path(__file__).absolute().parents[2] / "app" / "db" / "schema.sql",
+        # Relative to current working directory (usually /app or backend/)
+        Path("app/db/schema.sql"),
+        Path("backend/app/db/schema.sql"),
+        # Absolute paths common in Docker
+        Path("/app/app/db/schema.sql"),
+        Path("/app/db/schema.sql"),
+    ]
     
-    if not sql_path.exists():
-        print(f"ERROR: schema.sql NOT FOUND at {sql_path}", flush=True)
-        raise FileNotFoundError(f"Could not find schema.sql at {sql_path}")
-        
-    return sql_path.read_text(encoding="utf-8")
+    for sql_path in possible_paths:
+        print(f"DEBUG: Checking path: {sql_path}", flush=True)
+        if sql_path.exists():
+            print(f"DEBUG: FOUND schema.sql at: {sql_path}", flush=True)
+            return sql_path.read_text(encoding="utf-8")
+            
+    print(f"ERROR: schema.sql NOT FOUND in any of the {len(possible_paths)} locations!", flush=True)
+    raise FileNotFoundError("Could not find schema.sql in any searched location.")
 
 
 def _split_sql_statements(sql: str) -> list[str]:
@@ -89,7 +100,8 @@ def upgrade() -> None:
                 stmt_stripped = statement.strip()
                 if stmt_stripped:
                     # Print first 50 chars of statement for debugging
-                    print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...", flush=True)
+                    if (i + 1) % 10 == 0 or (i + 1) == len(statements):
+                        print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...", flush=True)
                     conn.execute(stmt_stripped)
             print("DEBUG: All statements executed successfully!", flush=True)
     except Exception as e:
