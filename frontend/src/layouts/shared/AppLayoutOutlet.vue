@@ -1,26 +1,26 @@
 <template>
   <div class="app-layout-outlet">
     <RouterView v-slot="{ Component, route }">
-      <Transition name="page-fade" mode="out-in">
-        <Suspense timeout="0">
-          <template #default>
+      <Suspense timeout="0">
+        <template #default>
+          <Transition name="page-fade" mode="out-in">
             <component :is="Component" :key="resolveRouteViewKey(route, Component)" />
-          </template>
+          </Transition>
+        </template>
 
-          <template #fallback>
-            <div class="app-layout-outlet__fallback" aria-live="polite" aria-busy="true">
-              <div class="app-layout-outlet__fallback-card">
-                <span class="app-layout-outlet__fallback-pulse" aria-hidden="true" />
+        <template #fallback>
+          <div class="app-layout-outlet__fallback" aria-live="polite" aria-busy="true">
+            <div class="app-layout-outlet__fallback-card">
+              <span class="app-layout-outlet__fallback-pulse" aria-hidden="true" />
 
-                <div class="app-layout-outlet__fallback-copy">
-                  <strong class="app-layout-outlet__fallback-title">Loading workspace</strong>
-                  <span class="app-layout-outlet__fallback-subtitle">Preparing the next screen.</span>
-                </div>
+              <div class="app-layout-outlet__fallback-copy">
+                <strong class="app-layout-outlet__fallback-title">Loading workspace</strong>
+                <span class="app-layout-outlet__fallback-subtitle">Preparing the next screen.</span>
               </div>
             </div>
-          </template>
-        </Suspense>
-      </Transition>
+          </div>
+        </template>
+      </Suspense>
     </RouterView>
   </div>
 </template>
@@ -73,15 +73,18 @@ function resolveRouteViewKey(route, component) {
 }
 
 .app-layout-outlet__fallback {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: transparent;
-  pointer-events: none;
+  background:
+    radial-gradient(circle at top, rgba(170, 255, 0, 0.12), transparent 30%),
+    rgba(5, 5, 5, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .app-layout-outlet__fallback-card {
