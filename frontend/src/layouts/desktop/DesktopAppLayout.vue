@@ -26,5 +26,6 @@ useProtectedShellSession()
   min-height: 100dvh;
   margin-left: 80px;
   padding-bottom: 32px;
+  background: var(--color-bg);
 }
 </style>
