@@ -77,7 +77,6 @@ jobs:
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           port: 22
-          script_stop: true
           command_timeout: 10m
           script: |
             set -euo pipefail
