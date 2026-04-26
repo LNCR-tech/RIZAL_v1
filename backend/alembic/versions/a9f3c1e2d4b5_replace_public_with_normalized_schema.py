@@ -67,37 +67,27 @@ def _split_sql_statements(sql: str) -> list[str]:
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    raw_conn = bind.connection.dbapi_connection
-    cursor = raw_conn.cursor()
+    print(f"DEBUG: Starting normalization migration...")
+    sql = _load_normalized_schema_sql()
+    statements = _split_sql_statements(sql)
+    print(f"DEBUG: Loaded {len(statements)} SQL statements from schema.sql")
 
-    raw_sql = _load_normalized_schema_sql()
-    raw_sql = raw_sql.replace("CREATE SCHEMA IF NOT EXISTS aura_norm;", "")
-    raw_sql = raw_sql.replace("SET search_path TO aura_norm, public;", "")
-    # Remove the extension line from the SQL — we handle it separately below.
-    raw_sql = raw_sql.replace("CREATE EXTENSION IF NOT EXISTS citext;", "")
-
-    cursor.execute("CREATE SCHEMA IF NOT EXISTS public")
-    cursor.execute("GRANT ALL ON SCHEMA public TO public")
-    cursor.execute("CREATE EXTENSION IF NOT EXISTS citext SCHEMA public")
-    # Set search_path for the remainder of this transaction.
-    cursor.execute("SELECT set_config('search_path', 'public', false)")
-
-    for stmt in _split_sql_statements(raw_sql):
-        stripped = stmt.strip()
-        if not stripped or stripped.startswith("--"):
-            continue
-        if stripped.upper() in {"BEGIN", "COMMIT"}:
-            continue
-        cursor.execute(stripped)
-
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS alembic_version "
-        "(version_num VARCHAR(32) NOT NULL, "
-        "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
-    )
-    cursor.execute(f"INSERT INTO alembic_version (version_num) VALUES ('{revision}') ON CONFLICT (version_num) DO NOTHING")
-    cursor.close()
+    with op.get_context().autocommit_block():
+        bind = op.get_bind()
+        conn = bind.connection.dbapi_connection.cursor()
+        
+        try:
+            for i, statement in enumerate(statements):
+                stmt_stripped = statement.strip()
+                if stmt_stripped:
+                    # Print first 50 chars of statement for debugging
+                    print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...")
+                    conn.execute(stmt_stripped)
+            print("DEBUG: All statements executed successfully!")
+        except Exception as e:
+            print(f"ERROR: Migration failed!")
+            print(f"ERROR DETAILS: {str(e)}")
+            raise
 
 
 def downgrade() -> None:
