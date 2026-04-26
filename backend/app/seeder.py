@@ -18,10 +18,10 @@ load_dotenv()
 
 LEGACY_PLACEHOLDER_ADMIN_EMAIL = "admin@yourdomain.com"
 
-DEFAULT_ROLE_NAMES = [
-    "admin",
-    "campus_admin",
-    "student",
+DEFAULT_ROLES: list[dict] = [
+    {"name": "admin", "display_name": "Administrator"},
+    {"name": "campus_admin", "display_name": "Campus Administrator"},
+    {"name": "student", "display_name": "Student"},
 ]
 
 DEFAULT_EVENT_TYPE_DEFINITIONS = [
@@ -50,12 +50,21 @@ def create_tables() -> None:
 
 def seed_roles(db: Session, role_names: list[str] | None = None) -> None:
     """Seed required roles."""
-    required_role_names = role_names or DEFAULT_ROLE_NAMES
-    existing_role_names = {role.name for role in db.query(Role).all()}
+    roles_to_seed = DEFAULT_ROLES
+    if role_names is not None:
+        name_set = set(role_names)
+        roles_to_seed = [r for r in DEFAULT_ROLES if r["name"] in name_set]
+        # Also handle any extra names not in DEFAULT_ROLES
+        known_names = {r["name"] for r in DEFAULT_ROLES}
+        for extra in role_names:
+            if extra not in known_names:
+                roles_to_seed.append({"name": extra, "display_name": extra.replace("_", " ").title()})
 
-    for role_name in required_role_names:
-        if role_name not in existing_role_names:
-            db.add(Role(name=role_name))
+    existing_role_codes = {role.code for role in db.query(Role).all()}
+
+    for role_def in roles_to_seed:
+        if role_def["name"] not in existing_role_codes:
+            db.add(Role(code=role_def["name"], display_name=role_def["display_name"]))
 
     db.commit()
     print("Roles seeded")
@@ -86,9 +95,14 @@ def seed_event_types(db: Session) -> None:
 
 
 def _get_or_create_role(db: Session, role_name: str) -> Role:
-    role = db.query(Role).filter(Role.name == role_name).first()
+    role = db.query(Role).filter(Role.code == role_name).first()
     if role is None:
-        role = Role(name=role_name)
+        # Look up display_name from defaults, fall back to title-cased name
+        display_name = next(
+            (r["display_name"] for r in DEFAULT_ROLES if r["name"] == role_name),
+            role_name.replace("_", " ").title(),
+        )
+        role = Role(code=role_name, display_name=display_name)
         db.add(role)
         db.flush()
     return role

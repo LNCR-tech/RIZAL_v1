@@ -14,7 +14,7 @@ from app.core.security import (
     has_any_role,
 )
 from app.core.dependencies import get_db
-from app.models.platform_features import NotificationLog
+from app.models.notifications import NotificationLog
 from app.reports.system import router as system_reports_router
 from app.models.user import User
 from app.schemas.notification import (

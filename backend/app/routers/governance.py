@@ -26,9 +26,9 @@ from app.models.platform_features import (
     DataGovernanceSetting,
     DataRequest,
     DataRetentionRunLog,
-    NotificationLog,
     UserPrivacyConsent,
 )
+from app.models.notifications import NotificationLog
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.schemas.governance import (

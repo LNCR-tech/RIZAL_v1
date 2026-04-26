@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from app.core.timezones import utc_now
 from app.models.attendance import Attendance
 from app.models.event import Event
-from app.models.platform_features import NotificationLog, UserNotificationPreference
+from app.models.platform_features import UserNotificationPreference
+from app.models.notifications import NotificationLog
 from app.models.user import StudentProfile, User
 from app.services.attendance_status import ATTENDED_STATUS_VALUES
 from app.services.email_service import EmailDeliveryError, send_plain_email

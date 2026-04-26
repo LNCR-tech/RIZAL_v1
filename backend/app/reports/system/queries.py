@@ -14,7 +14,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.import_job import BulkImportJob
-from app.models.platform_features import NotificationLog
+from app.models.notifications import NotificationLog
 from app.models.school import SchoolAuditLog
 from app.models.user import User
 from app.repositories.import_repository import ImportRepository

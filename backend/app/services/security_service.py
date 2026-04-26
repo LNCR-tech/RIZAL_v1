@@ -5,6 +5,7 @@ Role: Service layer. It keeps business logic out of the route files.
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 from typing import Iterable, Optional
 
@@ -81,7 +82,7 @@ def create_user_session(
 ) -> UserSession:
     now = utc_now()
     session = UserSession(
-        id=session_id,
+        id=uuid.UUID(session_id),
         user_id=user.id,
         token_jti=token_jti,
         ip_address=_request_ip(request),

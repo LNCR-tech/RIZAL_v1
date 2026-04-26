@@ -20,7 +20,7 @@ from app.core.security import (
 from app.core.dependencies import get_db
 from app.models.event import Event
 from app.models.import_job import BulkImportJob
-from app.models.platform_features import SchoolSubscriptionReminder, SchoolSubscriptionSetting
+from app.models.subscription import SchoolSubscriptionReminder, SchoolSubscription
 from app.models.role import Role
 from app.models.school import School
 from app.models.user import User, UserRole
@@ -47,10 +47,10 @@ def _resolve_school_id(current_user: User, requested_school_id: int | None = Non
     return actor_school_id
 
 
-def _get_or_create_subscription_setting(db: Session, school_id: int) -> SchoolSubscriptionSetting:
+def _get_or_create_subscription_setting(db: Session, school_id: int) -> SchoolSubscription:
     setting = (
-        db.query(SchoolSubscriptionSetting)
-        .filter(SchoolSubscriptionSetting.school_id == school_id)
+        db.query(SchoolSubscription)
+        .filter(SchoolSubscription.school_id == school_id)
         .first()
     )
     if setting:
@@ -60,7 +60,7 @@ def _get_or_create_subscription_setting(db: Session, school_id: int) -> SchoolSu
     if school is None:
         raise HTTPException(status_code=404, detail="School not found")
 
-    setting = SchoolSubscriptionSetting(
+    setting = SchoolSubscription(
         school_id=school_id,
         plan_name=getattr(school, "subscription_plan", "free") or "free",
         renewal_date=getattr(school, "subscription_end", None),
@@ -80,7 +80,7 @@ def _month_window(reference: datetime | None = None) -> tuple[datetime, datetime
     return month_start, next_month
 
 
-def _build_metrics(db: Session, *, school_id: int, setting: SchoolSubscriptionSetting) -> SubscriptionUsageMetrics:
+def _build_metrics(db: Session, *, school_id: int, setting: SchoolSubscription) -> SubscriptionUsageMetrics:
     month_start, next_month = _month_window()
     user_count = (
         db.query(func.count(User.id))
@@ -207,12 +207,12 @@ def run_subscription_reminders(
     is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
 
     if is_platform_admin and school_id is None:
-        settings_rows = db.query(SchoolSubscriptionSetting).all()
+        settings_rows = db.query(SchoolSubscription).all()
     else:
         scoped_school_id = _resolve_school_id(current_user, school_id)
         settings_rows = (
-            db.query(SchoolSubscriptionSetting)
-            .filter(SchoolSubscriptionSetting.school_id == scoped_school_id)
+            db.query(SchoolSubscription)
+            .filter(SchoolSubscription.school_id == scoped_school_id)
             .all()
         )
 

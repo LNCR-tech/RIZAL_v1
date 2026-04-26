@@ -43,7 +43,6 @@ if config.config_file_name is not None:
 # IMPORT YOUR BASE HERE - adjust this import to match your project structure
 # This is the most critical change needed
 from app.models.aura_norm.base import AuraNormBase
-from app.models.aura_norm import models  # noqa: F401 — registers all models
 target_metadata = AuraNormBase.metadata
 from app.models import associations
 from app.models import attendance
