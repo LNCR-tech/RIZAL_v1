@@ -20,6 +20,42 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-25 - Add pgvector-backed student face search
+
+### Purpose
+
+Scale face attendance matching so large multi-school deployments do not have to load every registered face embedding into Python for each scan.
+
+### Main files
+
+- `Backend/app/services/attendance_face_scan.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/public_attendance.py`
+- `Backend/alembic/versions/f7a8b9c0d1e2_add_student_face_embeddings_vector_index.py`
+- `Backend/scripts/backfill_student_face_embeddings.py`
+
+### Runtime behavior
+
+- added optional PostgreSQL `pgvector` matching through a dedicated `student_face_embeddings` index table
+- public kiosk scans try event-scoped vector search first, then school-wide vector search only when needed to classify an out-of-scope known student
+- `POST /api/face/verify` uses the same vector index when the school's index is complete
+- if PostgreSQL, `pgvector`, the table, or school index coverage is unavailable, the backend falls back to the existing ORM candidate loading and numpy cosine matching
+- new or updated student face registrations sync their embedding into the vector table when the table is available
+
+### Migration impact
+
+- migration creates the `vector` extension and `student_face_embeddings` table on PostgreSQL
+- migration creates school/scope indexes plus a cosine vector index, preferring HNSW and falling back to IVFFlat on older pgvector installs
+- existing registered faces are not decoded inside Alembic; run `python scripts/backfill_student_face_embeddings.py` from `Backend/` after migration to populate the vector table for existing rows
+
+### How to test
+
+1. Run `alembic upgrade head` against PostgreSQL with `pgvector` installed.
+2. From `Backend/`, run `python scripts/backfill_student_face_embeddings.py`.
+3. Run `python -m pytest -q app/tests/test_public_attendance.py app/tests/test_routes_face.py`.
+4. Register or re-register a student face, then confirm `student_face_embeddings` contains one active row for that `student_profile_id`.
+5. Submit `POST /public-attendance/events/{event_id}/multi-face-scan` and confirm attendance still records while avoiding full school-wide embedding loads when the index is complete.
+
 ## 2026-04-25 - Add backend anti-abuse validation and rate limiting
 
 ### Purpose

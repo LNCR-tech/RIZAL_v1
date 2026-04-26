@@ -74,7 +74,7 @@ db (healthy)
 - Running `docker compose up --build` multiple times is safe — migrations and bootstrap are both idempotent.
 - Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). For local email capture, set `EMAIL_TRANSPORT=smtp` with `SMTP_HOST=mailpit` and open Mailpit at `http://localhost:8025`. For production, use `EMAIL_TRANSPORT=mailjet_api` with `MAILJET_API_KEY` and `MAILJET_API_SECRET`.
 - The default admin credentials are set in `backend/app/core/app_settings.py` (`default_admin_email` / `default_admin_password`).
-- The repo-root `docker-compose.yml` is local-stack oriented and hardcodes internal container URLs. For external production infra, update those URLs or use a Compose override.
+- The repo-root `docker-compose.yml` defaults to the local Postgres container, but honors `DATABASE_URL` and `ASSISTANT_DB_URL` from `.env` when you need to point the stack at an external Postgres host.
 
 ## Moving to Production
 

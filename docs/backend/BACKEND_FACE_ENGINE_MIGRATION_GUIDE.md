@@ -264,7 +264,38 @@ Removed:
 - `face-recognition`
 - `face_recognition_models`
 
-`faiss-cpu` is present for the future optional vector index helper in `Backend/app/services/face_engine/vector_store.py`. It is not required for the current request path because the main matching logic still falls back to numpy batch cosine search.
+`faiss-cpu` is still present for the optional in-process vector helper in `Backend/app/services/face_engine/vector_store.py`, but the preferred scalable multi-school attendance search path is now PostgreSQL `pgvector` because it keeps school/event filtering and persistence in the same database.
+
+## Scalable attendance face search
+
+Large multi-school deployments should use the PostgreSQL `pgvector` path added for attendance matching. The backend now supports an optional `student_face_embeddings` table that mirrors active registered student embeddings from `student_profiles`.
+
+When the table and extension exist, and the school's vector rows cover all current canonical registered faces, these paths use vector nearest-neighbor search before falling back to ORM candidate loading:
+
+- `POST /api/face/verify`
+- `POST /public-attendance/events/{event_id}/multi-face-scan`
+
+The public kiosk flow searches in this order:
+
+1. event-scoped vector rows for eligible department/program/campus-wide students
+2. school-wide vector rows only when an event has scope restrictions and the backend needs to distinguish a known but out-of-scope student from an unknown face
+3. existing ORM plus numpy matching when the vector index is unavailable or incomplete
+
+New student face registrations call `sync_student_face_embedding_index()` after the profile row is saved. For existing databases, apply the migration and run:
+
+```bash
+cd Backend
+python scripts/backfill_student_face_embeddings.py
+```
+
+The migration is PostgreSQL-only and creates:
+
+- `student_face_embeddings`
+- a school active-row index
+- a school/department/program active-row index
+- a cosine vector index on `embedding`, preferring HNSW and falling back to IVFFlat on older pgvector installs
+
+If `pgvector` is not installed on the PostgreSQL server, install it before running `alembic upgrade head`.
 
 Container note:
 

@@ -31,6 +31,7 @@ from app.services.attendance_face_scan import (
     get_registered_face_candidates_for_school,
     persist_public_attendance_scan,
     resolve_face_match_scope,
+    resolve_face_match_scope_with_pgvector,
     resolve_public_attendance_phase,
     student_display_name,
 )
@@ -320,15 +321,8 @@ def scan_public_attendance_event(
             outcomes=[],
         )
 
-    event_candidates = get_registered_face_candidates_for_event(db, event)
-    # Event-scoped candidates decide whether a face is actually eligible for
-    # this event. School-wide candidates let us tell "known student, wrong
-    # scope" apart from "no registered student matched this face".
-    school_candidates = (
-        event_candidates
-        if not event.departments and not event.programs
-        else get_registered_face_candidates_for_school(db, event.school_id)
-    )
+    event_candidates = None
+    school_candidates = None
     seen_student_ids: set[int] = set()
     cooldown_student_ids = {
         student_id.strip()
@@ -362,14 +356,36 @@ def scan_public_attendance_event(
             )
             continue
 
-        match_scope, student, match = resolve_face_match_scope(
+        vector_match = resolve_face_match_scope_with_pgvector(
+            db,
             face_service=face_service,
             encoding=probe.encoding,
-            event_candidates=event_candidates,
-            school_candidates=school_candidates,
+            event=event,
             threshold=payload.threshold,
             mode="group",
         )
+        if vector_match is not None:
+            match_scope, student, match = vector_match
+        else:
+            if event_candidates is None:
+                event_candidates = get_registered_face_candidates_for_event(db, event)
+            # Event-scoped candidates decide whether a face is actually eligible
+            # for this event. School-wide candidates let us tell "known student,
+            # wrong scope" apart from "no registered student matched this face".
+            if school_candidates is None:
+                school_candidates = (
+                    event_candidates
+                    if not event.departments and not event.programs
+                    else get_registered_face_candidates_for_school(db, event.school_id)
+                )
+            match_scope, student, match = resolve_face_match_scope(
+                face_service=face_service,
+                encoding=probe.encoding,
+                event_candidates=event_candidates,
+                school_candidates=school_candidates,
+                threshold=payload.threshold,
+                mode="group",
+            )
         if match_scope == "no_match" or student is None or match.candidate is None:
             outcomes.append(
                 PublicAttendanceFaceOutcome(
