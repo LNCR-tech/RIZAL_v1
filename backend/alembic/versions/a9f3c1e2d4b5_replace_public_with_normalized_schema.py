@@ -20,8 +20,10 @@ depends_on = None
 
 
 def _load_normalized_schema_sql() -> str:
-    repo_root = Path(__file__).resolve().parents[3]
-    sql_path = repo_root / "db_normalized" / "new_db_schema.sql"
+    # Migration script is in backend/alembic/versions/
+    # parents[2] is the 'backend' directory
+    backend_root = Path(__file__).resolve().parents[2]
+    sql_path = backend_root / "app" / "db" / "schema.sql"
     return sql_path.read_text(encoding="utf-8")
 
 
