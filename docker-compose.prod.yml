@@ -12,7 +12,7 @@ x-backend-env: &backend-env
   DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
   CELERY_BROKER_URL: redis://redis:6379/0
   CELERY_RESULT_BACKEND: redis://redis:6379/0
-  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+  SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
 
 x-backend-volumes: &backend-volumes
   - import_storage:/app/storage/imports
@@ -131,7 +131,7 @@ services:
     environment:
       APP_DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
       ASSISTANT_DB_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/ai_assistant
-      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
     restart: unless-stopped
     depends_on:
       db:
