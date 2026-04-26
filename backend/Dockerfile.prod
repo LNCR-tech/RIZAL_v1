@@ -16,10 +16,11 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY backend/ .
+COPY db_normalized/ ./db_normalized/
 
 RUN useradd --create-home --no-log-init appuser && chown -R appuser:appuser /app
 USER appuser
