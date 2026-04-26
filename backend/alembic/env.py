@@ -13,13 +13,16 @@ from alembic import context
 import os
 import sys
 from pathlib import Path
+
+# Add project root to sys.path before any app imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 from app.core.config import get_settings
 
 try:
     from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional in runtime envs
+except ImportError:
     load_dotenv = None
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 if load_dotenv is not None:
     root_env_path = Path(__file__).resolve().parents[2] / ".env"
