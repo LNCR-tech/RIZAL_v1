@@ -20,7 +20,7 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./docker-data/postgres:/var/lib/postgresql/data
       - ./docker-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-db}"]
@@ -88,9 +88,9 @@ services:
       MAILJET_API_SECRET: ${MAILJET_API_SECRET}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
     volumes:
-      - import_storage:/app/storage/imports
-      - branding_storage:/app/storage/school_logos
-      - insightface_storage:/root/.insightface
+      - ./docker-data/imports:/app/storage/imports
+      - ./docker-data/branding:/app/storage/school_logos
+      - ./docker-data/insightface:/root/.insightface
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -117,9 +117,9 @@ services:
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
       SECRET_KEY: ${SECRET_KEY}
     volumes:
-      - import_storage:/app/storage/imports
-      - branding_storage:/app/storage/school_logos
-      - insightface_storage:/root/.insightface
+      - ./docker-data/imports:/app/storage/imports
+      - ./docker-data/branding:/app/storage/school_logos
+      - ./docker-data/insightface:/root/.insightface
     restart: always
     depends_on:
       postgres:
@@ -186,14 +186,9 @@ services:
     ports:
       - "5050:80"
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - ./docker-data/pgadmin:/var/lib/pgadmin
     depends_on:
       postgres:
         condition: service_healthy
 
-volumes:
-  postgres_data:
-  import_storage:
-  branding_storage:
-  insightface_storage:
-  pgadmin_data:
+

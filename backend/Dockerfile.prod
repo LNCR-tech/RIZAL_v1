@@ -21,7 +21,9 @@ RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN useradd --create-home --no-log-init appuser && chown -R appuser:appuser /app
+RUN useradd --create-home --no-log-init appuser \
+    && mkdir -p /home/appuser/.insightface/models \
+    && chown -R appuser:appuser /app /home/appuser/.insightface
 USER appuser
 
 EXPOSE 8000
