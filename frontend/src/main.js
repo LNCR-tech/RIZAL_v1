@@ -13,6 +13,7 @@ import { startNativeEventNotificationSync } from '@/services/eventNotificationSy
 import { getStoredAuthMeta, hasPrivilegedPendingFace } from '@/services/localAuth.js'
 import { registerAuraServiceWorker, startMobileFullscreenSync } from '@/services/mobileFullscreen.js'
 import { startPwaInstallSync } from '@/services/pwaInstall.js'
+import { startRealtimeSessionSync } from '@/services/realtimeSessionSync.js'
 import { bootstrapStoredSessionPersistence, hasStoredSessionToken } from '@/services/sessionPersistence.js'
 import { SESSION_EXPIRED_EVENT } from '@/services/sessionExpiry.js'
 import { initializeStoredFontSize } from '@/services/userPreferences.js'
@@ -62,6 +63,7 @@ scheduleNonCriticalStartupTask(() => startPwaInstallSync())
 scheduleNonCriticalStartupTask(() => registerAuraServiceWorker())
 scheduleNonCriticalStartupTask(() => startMobileFullscreenSync())
 scheduleNonCriticalStartupTask(() => startNativeEventNotificationSync())
+scheduleNonCriticalStartupTask(() => startRealtimeSessionSync())
 
 // Session expiry listener
 if (typeof window !== 'undefined') {

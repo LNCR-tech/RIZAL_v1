@@ -37,6 +37,16 @@
       </div>
     </section>
 
+    <section v-else-if="isDesktop" class="desktop-notice-screen">
+      <div class="desktop-notice-card">
+        <p class="desktop-notice-eyebrow">Mobile only for now</p>
+        <h1 class="desktop-notice-title">Please use mobile to continue.</h1>
+        <p class="desktop-notice-message">
+          Desktop is under development for better GPS accuracy.
+        </p>
+      </div>
+    </section>
+
     <RouterView v-else />
 
     <Transition name="mobile-fullscreen-hint">
@@ -65,6 +75,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterView } from 'vue-router'
 import AppBootLoader from '@/components/ui/AppBootLoader.vue'
 import { bootSplashVisible, markBootSplashReady, notifyBootSplashMounted } from '@/services/bootSplash.js'
@@ -76,9 +87,12 @@ import { clearDashboardSession } from '@/composables/useDashboardSession.js'
 import { useRouter } from 'vue-router'
 import NotificationsPanel from '@/components/dashboard/NotificationsPanel.vue'
 import { useNotifications } from '@/composables/useNotifications.js'
+import { useDeviceStore } from '@/stores/device.js'
 
 const router = useRouter()
+const deviceStore = useDeviceStore()
 const networkOnline = computed(() => isOnline.value)
+const { isDesktop } = storeToRefs(deviceStore)
 const {
   showNotifications,
   notificationItems,
@@ -123,11 +137,12 @@ function goToLogin() {
 <style>
 .app-safe-area {
   min-height: 100dvh;
-  background: var(--color-bg, #050505);
+  background: var(--color-bg, #EBEBEB);
 }
 
 .app-boot-screen,
-.app-fatal-screen {
+.app-fatal-screen,
+.desktop-notice-screen {
   position: fixed;
   inset: 0;
   z-index: 11000;
@@ -144,7 +159,8 @@ function goToLogin() {
   background: #050505;
 }
 
-.app-fatal-card {
+.app-fatal-card,
+.desktop-notice-card {
   width: min(100%, 360px);
   border-radius: 24px;
   padding: 28px 24px;
@@ -152,6 +168,44 @@ function goToLogin() {
   box-shadow: 0 18px 48px rgba(10,10,10,0.08);
   text-align: center;
   font-family: 'Manrope', sans-serif;
+}
+
+.desktop-notice-screen {
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 40%),
+    linear-gradient(180deg, #050505 0%, #101114 100%);
+}
+
+.desktop-notice-card {
+  width: min(100%, 420px);
+  background: rgba(12, 14, 18, 0.88);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 24px 72px rgba(0,0,0,0.32);
+}
+
+.desktop-notice-eyebrow {
+  margin: 0;
+  color: rgba(255,255,255,0.62);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.desktop-notice-title {
+  margin: 14px 0 0;
+  color: #FFFFFF;
+  font-size: clamp(28px, 4vw, 34px);
+  font-weight: 800;
+  line-height: 1.08;
+}
+
+.desktop-notice-message {
+  margin: 14px 0 0;
+  color: rgba(255,255,255,0.72);
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .app-fatal-title {

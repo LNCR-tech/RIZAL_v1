@@ -56,7 +56,7 @@
                 class="text-[8px] font-extrabold text-center leading-snug transition-colors duration-200"
                 style="color: var(--color-banner-text);"
               >
-                Talk to<br>Aura Ai
+                Aura AI<br>Soon
               </span>
             </div>
 
@@ -124,14 +124,14 @@
                     type="text"
                     class="bg-transparent outline-none text-[11px] w-full placeholder-black/40 font-medium"
                     :style="{ color: 'var(--color-banner-text)' }"
-                    placeholder="Ask Aura..."
-                    :disabled="isTyping"
+                    :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
+                    :disabled="isTyping || isAuraChatUnderDevelopment"
                     @keyup.enter="sendMessage"
                   />
                   <button
                     class="cursor-pointer transition-opacity hover:opacity-100 disabled:opacity-40 flex-shrink-0"
                     :class="inputText.trim() ? 'opacity-100' : 'opacity-60'"
-                    :disabled="!inputText.trim() || isTyping"
+                    :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
                     @click="sendMessage"
                   >
                     <Send :size="14" :color="'var(--color-banner-text)'" />
@@ -160,6 +160,7 @@ import { downloadDemoReport } from '@/services/demoReportDownload.js'
 import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const {
+  isAuraChatUnderDevelopment,
   messages,
   inputText,
   isTyping,

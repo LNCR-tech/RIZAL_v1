@@ -1,83 +1,34 @@
 /**
  * useChat — AI Chat Composable
  *
+ * Owns all chat state and message logic.
+ * Backend integration: replace the simulateAiResponse() function
+ * with a real API call (e.g. POST /api/chat/message) when ready.
+ *
  * Shared as a singleton (module-level refs) so SideNav mini-chat
  * and the floating AuraChatWindow stay perfectly in sync.
  */
 
 import { ref, nextTick } from 'vue'
-import { getStoredAuthMeta } from '@/services/localAuth.js'
-import { resolveAssistantBaseUrl } from '@/services/assistantBaseUrl.js'
-import {
-  streamAssistantReply,
-  listAssistantConversations,
-  getAssistantConversation,
-  deleteAssistantConversation,
-  AssistantApiError,
-} from '@/services/assistantApi.js'
 
 // ─── Shared singleton state ───────────────────────────────────────────────────
+const isAuraChatUnderDevelopment = ref(true)
+const auraChatNoticeTitle = 'Feature under development'
+const auraChatNoticeText = 'Talk with Aura is under development. This feature will be available in a future release.'
 const messages   = ref([
-  { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }
+  {
+    id: 1,
+    sender: 'ai',
+    text: auraChatNoticeText,
+  }
 ])
 const inputText  = ref('')
 const isTyping   = ref(false)
-const currentToolCall = ref(null)
-const typingConversationId = ref(null)
 const isMiniOpen = ref(false)
 const isFullOpen = ref(false)
-const conversationId = ref(loadStoredConversationId())
-const conversations = ref([])
-const isLoadingConversations = ref(false)
-const conversationsError = ref(null)
-const copyStatus = ref('idle')
 
+// Holds a ref to the messages scroll container (set by the active chat view)
 const scrollEl   = ref(null)
-let copyResetTimer = null
-
-function getAssistantErrorMessage(error) {
-  const status = Number(error?.status || 0)
-  const message = String(error?.message || '').trim()
-
-  if (status === 401) {
-    return 'Your session expired. Log in again so Aura can use your account scope.'
-  }
-
-  if (status === 403 && message) {
-    return message
-  }
-
-  if (message) {
-    return message
-  }
-
-  return 'Something went wrong while contacting Aura Assistant. Please try again.'
-}
-
-function loadStoredConversationId() {
-  try {
-    const raw = localStorage.getItem('aura_assistant_conversation_id')
-    const trimmed = String(raw || '').trim()
-    return trimmed || null
-  } catch {
-    return null
-  }
-}
-
-function storeConversationId(value) {
-  const normalized = String(value || '').trim()
-  conversationId.value = normalized || null
-
-  try {
-    if (conversationId.value) {
-      localStorage.setItem('aura_assistant_conversation_id', conversationId.value)
-    } else {
-      localStorage.removeItem('aura_assistant_conversation_id')
-    }
-  } catch {
-    // Ignore storage errors and keep the in-memory value.
-  }
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function scrollToBottom() {
@@ -88,279 +39,110 @@ function scrollToBottom() {
   })
 }
 
-function getAuthToken() {
-  return String(localStorage.getItem('aura_token') || '').trim()
-}
+// ─── Backend stub — replace this function with your real API call ─────────────
+async function simulateAiResponse(userMessage) {
+  /**
+   * TODO: Replace with:
+   * const { data } = await api.post('/chat/message', { message: userMessage })
+   * return data.reply
+   */
+  await new Promise(resolve => setTimeout(resolve, 1400))
 
-function normalizeConversationTitle(convo) {
-  const raw = String(convo?.title || '').trim()
-  if (raw) return raw
-  const fallback = String(convo?.last_message || '').trim()
-  return fallback ? fallback.slice(0, 44) : 'New chat'
-}
+  const normalizedMessage = userMessage.trim().toLowerCase()
 
-function resetToGreeting() {
-  messages.value = [
-    { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' },
-  ]
-}
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(normalizedMessage)) {
+    return "Hello! I'm Aura AI. I'm here to help you navigate your campus tools. I'm still running in demo mode for now, but once the backend is connected I'll be able to answer with live school data."
+  }
 
-function resetChatState() {
-  resetToGreeting()
-  storeConversationId(null)
-  conversations.value = []
-  typingConversationId.value = null
-  isTyping.value = false
-  isMiniOpen.value = false
-  isFullOpen.value = false
-  conversationsError.value = null
-}
+  if (normalizedMessage.includes('schedule')) {
+    return "I can help with schedules. Right now I'm in frontend demo mode, so I can't load live class data yet, but this is where I would guide you through your upcoming classes and time slots."
+  }
 
-function formatConversationText() {
-  return (messages.value || [])
-    .map((msg) => {
-      const sender = msg?.sender === 'user' ? 'You' : 'Aura'
-      const text = String(msg?.text ?? '').trim()
-      if (!text) return null
-      return `${sender}: ${text}`
-    })
-    .filter(Boolean)
-    .join('\n\n')
-}
+  if (normalizedMessage.includes('attendance')) {
+    return "I can help with attendance. Once the backend is connected, I'll be able to check attendance records, event participation, and status updates for you."
+  }
 
-async function copyConversation() {
-  const text = formatConversationText()
-  if (!text) return false
+  if (normalizedMessage.includes('event')) {
+    return "I can help you track campus events. In the full version, I'll be able to show event details, schedules, and attendance-related information in real time."
+  }
 
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-    } else {
-      const el = document.createElement('textarea')
-      el.value = text
-      el.setAttribute('readonly', '')
-      el.style.position = 'fixed'
-      el.style.left = '-9999px'
-      el.style.top = '0'
-      document.body.appendChild(el)
-      el.select()
-      document.execCommand('copy')
-      document.body.removeChild(el)
+  if (normalizedMessage.includes('create a college') || normalizedMessage.includes('college of engineering')) {
+    return {
+      text: "I've successfully set up the College of Engineering. I have also initialized the primary governance structure and sent an onboarding notification to the assigned Campus Admin.",
+      actions: [
+        {
+          label: "View in Admin Workspace",
+          route: "/exposed/admin/schools",
+          icon: "ExternalLink"
+        }
+      ]
     }
-
-    copyStatus.value = 'copied'
-    if (copyResetTimer) clearTimeout(copyResetTimer)
-    copyResetTimer = setTimeout(() => { copyStatus.value = 'idle' }, 1200)
-    return true
-  } catch {
-    copyStatus.value = 'failed'
-    if (copyResetTimer) clearTimeout(copyResetTimer)
-    copyResetTimer = setTimeout(() => { copyStatus.value = 'idle' }, 1500)
-    return false
-  }
-}
-
-async function streamAiResponse(userMessage, { token, userMeta } = {}) {
-  const msgId = Date.now() + 1
-  messages.value.push({ id: msgId, sender: 'ai', text: '', visual: null })
-  const msgIdx = messages.value.length - 1
-
-  try {
-    return await streamAssistantReply({
-      baseUrl: resolveAssistantBaseUrl(),
-      token,
-      message: userMessage,
-      conversationId: conversationId.value,
-      userMeta,
-      onMessageChunk: (chunk, meta) => {
-        if (messages.value[msgIdx] !== undefined) {
-          messages.value[msgIdx] = {
-            ...messages.value[msgIdx],
-            text: (messages.value[msgIdx].text || '') + chunk,
-          }
-        }
-        if (meta?.conversationId) {
-          storeConversationId(meta.conversationId)
-          typingConversationId.value = meta.conversationId
-        }
-        scrollToBottom()
-      },
-      onVisualization: (viz, meta) => {
-        if (messages.value[msgIdx] !== undefined) {
-          messages.value[msgIdx] = {
-            ...messages.value[msgIdx],
-            visual: viz,
-          }
-        }
-        if (meta?.conversationId) {
-          storeConversationId(meta.conversationId)
-        }
-        scrollToBottom()
-      },
-      onToolCall: (toolName) => {
-        currentToolCall.value = toolName
-      },
-      onToolDone: () => {
-        currentToolCall.value = null
-      },
-    })
-  } catch (err) {
-    const idx = messages.value.findIndex((m) => m.id === msgId)
-    if (idx >= 0) messages.value.splice(idx, 1)
-    throw err
-  }
-}
-
-async function refreshConversations() {
-  const token = getAuthToken()
-  conversationsError.value = null
-
-  if (!token) {
-    conversations.value = []
-    return []
   }
 
-  isLoadingConversations.value = true
-  try {
-    const data = await listAssistantConversations({ baseUrl: resolveAssistantBaseUrl(), token })
-    conversations.value = Array.isArray(data) ? data : []
-    return conversations.value
-  } catch (err) {
-    conversationsError.value = err instanceof AssistantApiError
-      ? `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}`
-      : (err?.message || 'Failed to load conversations.')
-    conversations.value = []
-    return []
-  } finally {
-    isLoadingConversations.value = false
-  }
-}
-
-async function startNewConversation() {
-  storeConversationId(null)
-  resetToGreeting()
-}
-
-async function selectConversation(targetConversationId) {
-  const token = getAuthToken()
-  const normalized = String(targetConversationId || '').trim()
-  if (!token || !normalized) return false
-
-  try {
-    const convo = await getAssistantConversation({
-      baseUrl: resolveAssistantBaseUrl(),
-      token,
-      conversationId: normalized,
-    })
-
-    const mapped = (convo?.messages || []).map((m, idx) => ({
-      id: idx + 1,
-      sender: m?.role === 'user' ? 'user' : 'ai',
-      text: String(m?.content ?? ''),
-      visual: m?.visual_data?.visual ?? null,
-    }))
-
-    messages.value = mapped.length
-      ? mapped
-      : [{ id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }]
-
-    storeConversationId(convo?.conversation_id || normalized)
-    scrollToBottom()
-    return true
-  } catch (err) {
-    if (err instanceof AssistantApiError && err.status === 404) {
-      await startNewConversation()
-      await refreshConversations()
-      return false
+  if (normalizedMessage.includes('show me graph') || normalizedMessage.includes('engineering students')) {
+    return {
+      text: "Here is the enrollment distribution for the College of Engineering across its designated programs:",
+      html: `
+        <p><strong>College of Engineering Overview</strong></p>
+        <div class="mock-graph">
+          <div class="mock-graph-bar" style="height: 80%"><span style="color:#0a0a0a; font-weight: 800;">800</span></div>
+          <div class="mock-graph-bar" style="height: 45%"><span style="color:#0a0a0a; font-weight: 800;">450</span></div>
+          <div class="mock-graph-bar" style="height: 60%"><span style="color:#0a0a0a; font-weight: 800;">600</span></div>
+        </div>
+        <div class="mock-graph-label">
+          <span>BSCE</span>
+          <span>BSEE</span>
+          <span>BSME</span>
+        </div>
+      `,
+      actions: [
+        {
+          label: "Download as PDF",
+          actionId: "download-pdf",
+          icon: "Download"
+        },
+        {
+          label: "Download as CSV",
+          actionId: "download-csv",
+          icon: "Download"
+        }
+      ]
     }
-    throw err
   }
-}
 
-async function removeConversation(targetConversationId) {
-  const token = getAuthToken()
-  const normalized = String(targetConversationId || '').trim()
-  if (!token || !normalized) return false
-
-  await deleteAssistantConversation({
-    baseUrl: resolveAssistantBaseUrl(),
-    token,
-    conversationId: normalized,
-  })
-
-  if (conversationId.value === normalized) {
-    await startNewConversation()
-  }
-  await refreshConversations()
-  return true
-}
-
-function getActiveConversationLabel() {
-  const current = conversationId.value
-  if (!current) return 'New chat'
-
-  const match = (conversations.value || []).find((c) => String(c?.conversation_id || '') === current)
-  if (!match) return 'Continuing chat'
-  return normalizeConversationTitle(match)
+  return { text: "I'm here and ready to help. This chat is still using a frontend-only demo response for now, but once the backend is connected I'll be able to give real answers based on your school data." }
 }
 
 // ─── Public actions ───────────────────────────────────────────────────────────
 async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text || isTyping.value) return
+  if (!text || isTyping.value || isAuraChatUnderDevelopment.value) {
+    inputText.value = ''
+    return
+  }
 
   messages.value.push({ id: Date.now(), sender: 'user', text })
   inputText.value = ''
   isTyping.value  = true
-  typingConversationId.value = conversationId.value
   scrollToBottom()
 
   try {
-    const token = getAuthToken()
-    const userMeta = getStoredAuthMeta()
-    if (!token) {
-      messages.value.push({
-        id: Date.now() + 1,
-        sender: 'ai',
-        text: 'Please log in first so I can access your campus account scope.',
-      })
-      return
-    }
-
-    try {
-      const result = await streamAiResponse(text, { token, userMeta })
-      if (result?.conversationId && result.conversationId !== conversationId.value) {
-        storeConversationId(result.conversationId)
-      }
-      refreshConversations()
-    } catch (err) {
-      const isConversationNotFound = err instanceof AssistantApiError
-        && err.status === 404
-        && /conversation not found/i.test(String(err.message || ''))
-
-      if (isConversationNotFound && conversationId.value) {
-        storeConversationId(null)
-        const result = await streamAiResponse(text, { token, userMeta })
-        if (result?.conversationId) storeConversationId(result.conversationId)
-        refreshConversations()
-      } else {
-        throw err
-      }
-    }
-  } catch (error) {
-    if (typeof console !== 'undefined') {
-      console.warn('Aura assistant request failed:', error)
-    }
-
+    const reply = await simulateAiResponse(text)
+    messages.value.push({ 
+      id: Date.now() + 1, 
+      sender: 'ai', 
+      text: reply.text || (typeof reply === 'string' ? reply : ''),
+      html: reply.html || null,
+      actions: reply.actions || null
+    })
+  } catch {
     messages.value.push({
       id: Date.now() + 1,
       sender: 'ai',
-      text: getAssistantErrorMessage(error),
+      text: 'Something went wrong. Please try again.'
     })
   } finally {
     isTyping.value = false
-    typingConversationId.value = null
-    currentToolCall.value = null
     scrollToBottom()
   }
 }
@@ -370,20 +152,24 @@ function closeMini() { isMiniOpen.value = false }
 
 function openFull()  {
   isFullOpen.value = true
+  // Mini stays open in background; full window takes focus
 }
 
 function closeFull() { isFullOpen.value = false }
 
 function openPill()  {
+  // Called when user clicks the collapsed lime pill
   isMiniOpen.value = true
 }
 
 function expandToFull() {
-  isMiniOpen.value = false
+  // Called from mini chat's Maximize button
+  isMiniOpen.value = false   // hide the mini pill — full window takes over
   isFullOpen.value = true
 }
 
 function minimizeToMini() {
+  // Called from full chat's Minimize button
   isFullOpen.value = false
   isMiniOpen.value = true
 }
@@ -396,26 +182,16 @@ function closeAll() {
 // ─── Composable export ────────────────────────────────────────────────────────
 export function useChat() {
   return {
+    isAuraChatUnderDevelopment,
+    auraChatNoticeTitle,
+    auraChatNoticeText,
     messages,
     inputText,
     isTyping,
-    currentToolCall,
-    typingConversationId,
     isMiniOpen,
     isFullOpen,
-    conversationId,
-    conversations,
-    isLoadingConversations,
-    conversationsError,
     scrollEl,
-    copyStatus,
     sendMessage,
-    copyConversation,
-    refreshConversations,
-    startNewConversation,
-    selectConversation,
-    removeConversation,
-    getActiveConversationLabel,
     openMini,
     closeMini,
     openFull,
@@ -424,6 +200,5 @@ export function useChat() {
     expandToFull,
     minimizeToMini,
     closeAll,
-    resetChatState,
   }
 }

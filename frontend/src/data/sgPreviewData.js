@@ -7,12 +7,13 @@ import {
   normalizeUserWithRelations,
 } from '@/services/backendNormalizers.js'
 import { mapGovernanceMemberToCouncilMember } from '@/services/studentCouncilManagement.js'
+import { withBase } from '@/services/appPath.js'
 
 const PREVIEW_SCHOOL = normalizeSchoolSettings({
   school_id: 701,
   school_name: 'Jose Rizal Memorial State University',
   school_code: 'JRMSU',
-  logo_url: '/logos/aura.png',
+  logo_url: withBase('logos/aura.png'),
   primary_color: '#AAFF00',
   secondary_color: '#64748B',
   accent_color: '#0A0A0A',

@@ -17,15 +17,15 @@ useProtectedShellSession()
 
 <style scoped>
 .desktop-app-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--color-bg);
   font-family: 'Manrope', sans-serif;
 }
 
 .desktop-app-layout__main {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin-left: 80px;
   padding-bottom: 32px;
+  background: var(--color-bg);
 }
 </style>
-

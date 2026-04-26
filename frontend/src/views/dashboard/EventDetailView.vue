@@ -28,7 +28,7 @@
           </div>
           <div class="summary-item">
             <MapPin :size="17" aria-hidden="true" />
-            <span>{{ locationText }}</span>
+            <span>{{ venueText }}</span>
           </div>
         </div>
       </section>
@@ -56,9 +56,9 @@
         <article class="detail-panel">
           <header class="panel-header">
             <MapPin :size="17" aria-hidden="true" />
-            <h2>Location</h2>
+            <h2>Venue</h2>
           </header>
-          <p class="venue-name">{{ locationText }}</p>
+          <p class="venue-name">{{ venueText }}</p>
           <p class="venue-coordinates">{{ coordinateSummary }}</p>
           <button
             class="detail-action"
@@ -261,7 +261,7 @@ const startTimeText = computed(() => formatTimeOnly(startDate.value))
 const endDateText = computed(() => formatDateOnly(endDate.value))
 const endTimeText = computed(() => formatTimeOnly(endDate.value))
 
-const locationText = computed(() => {
+const venueText = computed(() => {
   const location = event.value?.location || event.value?.venue || event.value?.address
   return String(location || 'Location not set').trim()
 })
@@ -281,16 +281,9 @@ const dateRange = computed(() => {
 
 const geoLatitude = computed(() => Number(event.value?.geo_latitude))
 const geoLongitude = computed(() => Number(event.value?.geo_longitude))
-function isValidLatitude(value) {
-  return Number.isFinite(value) && value >= -90 && value <= 90
-}
-
-function isValidLongitude(value) {
-  return Number.isFinite(value) && value >= -180 && value <= 180
-}
 
 const hasGeo = computed(() =>
-  isValidLatitude(geoLatitude.value) && isValidLongitude(geoLongitude.value)
+  Number.isFinite(geoLatitude.value) && Number.isFinite(geoLongitude.value)
 )
 
 const latitudeText = computed(() => {
@@ -353,7 +346,7 @@ const mapDestination = computed(() => {
   if (hasGeo.value) {
     return `${geoLatitude.value},${geoLongitude.value}`
   }
-  const fallback = locationText.value.trim()
+  const fallback = venueText.value.trim()
   return fallback || ''
 })
 

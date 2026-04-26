@@ -56,7 +56,7 @@
             class="text-[9px] font-extrabold text-left leading-[1.1]"
             style="color: var(--color-search-pill-text);"
           >
-            Talk to<br>Aura Ai
+            Aura AI<br>Soon
           </span>
         </button>
       </div>
@@ -76,7 +76,7 @@
           id="mobile-ai-panel"
           class="mobile-ai-panel md:hidden"
           role="region"
-          aria-label="Aura AI chat"
+          aria-label="Talk with Aura"
         >
           <div class="mobile-ai-panel-inner">
             <div class="mobile-ai-shell">
@@ -105,13 +105,13 @@
                     v-model="inputText"
                     class="mobile-ai-input-field"
                     type="text"
-                    placeholder="Ask Aura..."
-                    :disabled="isTyping"
+                    :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
+                    :disabled="isTyping || isAuraChatUnderDevelopment"
                     @keyup.enter="sendMessage"
                   />
                   <button
                     class="mobile-ai-send-btn"
-                    :disabled="!inputText.trim() || isTyping"
+                    :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
                     aria-label="Send message"
                     type="button"
                     @click="sendMessage"
@@ -373,6 +373,7 @@ function showToast(message) {
 
 // --- Chat & Panel Logic ---
 const {
+  isAuraChatUnderDevelopment,
   messages,
   inputText,
   isTyping,
@@ -437,9 +438,11 @@ function toggleMobileAi() {
 watch(isMobileAiOpen, (open) => {
   if (open) {
     closeAll()
-    nextTick(() => {
-      setTimeout(() => mobileInputEl.value?.focus(), 220)
-    })
+    if (!isAuraChatUnderDevelopment.value) {
+      nextTick(() => {
+        setTimeout(() => mobileInputEl.value?.focus(), 220)
+      })
+    }
   }
 })
 

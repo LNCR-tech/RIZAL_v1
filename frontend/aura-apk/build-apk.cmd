@@ -14,7 +14,7 @@ if /I not "%BUILD_MODE%"=="debug" if /I not "%BUILD_MODE%"=="release" (
 )
 
 if not exist "%APP_DIR%\package.json" (
-  echo [build-apk] Could not find aura-frontend\package.json
+  echo [build-apk] Could not find frontend\package.json
   exit /b 1
 )
 
@@ -27,13 +27,13 @@ if errorlevel 1 (
 set "NODE_OPTIONS=--max-old-space-size=4096"
 
 if /I "%BUILD_MODE%"=="release" (
-  echo [build-apk] Building release APK from aura-frontend...
+  echo [build-apk] Building release APK from frontend...
   call npm run android:build:release
   if errorlevel 1 goto :fail
   set "APK_SOURCE=%ROOT_DIR%android\app\build\outputs\apk\release\app-release.apk"
   set "APK_TARGET=%OUTPUT_DIR%\Aura-release.apk"
 ) else (
-  echo [build-apk] Building debug APK from aura-frontend...
+  echo [build-apk] Building debug APK from frontend...
   call npm run android:build:debug
   if errorlevel 1 goto :fail
   set "APK_SOURCE=%ROOT_DIR%android\app\build\outputs\apk\debug\app-debug.apk"

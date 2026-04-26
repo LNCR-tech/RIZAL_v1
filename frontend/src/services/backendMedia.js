@@ -7,6 +7,7 @@ const BACKEND_MEDIA_PREFIXES = [
   'uploads/',
 ]
 const mediaProbeCache = new Map()
+const mediaObjectUrlCache = new Map()
 
 export function resolveBackendMediaUrl(value, baseUrl = '') {
   return resolveBackendMediaCandidates(value, baseUrl)[0] || null
@@ -37,8 +38,9 @@ export async function resolveLoadableMediaUrl(values = [], baseUrl = '') {
   if (!candidates.length) return null
 
   for (const candidate of candidates) {
-    if (await canLoadMediaUrl(candidate)) {
-      return candidate
+    const loadableUrl = await materializeLoadableMediaUrl(candidate)
+    if (loadableUrl) {
+      return loadableUrl
     }
   }
 
@@ -141,6 +143,65 @@ function canLoadMediaUrl(value) {
 
   mediaProbeCache.set(normalized, probe)
   return probe
+}
+
+async function materializeLoadableMediaUrl(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return null
+
+  if (
+    normalized.startsWith('data:')
+    || normalized.startsWith('blob:')
+    || typeof window === 'undefined'
+  ) {
+    return normalized
+  }
+
+  if (await canLoadMediaUrl(normalized)) {
+    return normalized
+  }
+
+  if (!isNgrokMediaUrl(normalized)) {
+    return null
+  }
+
+  const cachedObjectUrl = mediaObjectUrlCache.get(normalized)
+  if (cachedObjectUrl) return cachedObjectUrl
+
+  try {
+    const response = await fetch(normalized, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+    })
+
+    if (!response.ok) return null
+
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType && !contentType.toLowerCase().startsWith('image/')) {
+      return null
+    }
+
+    const blob = await response.blob()
+    if (!blob.size || (blob.type && !blob.type.toLowerCase().startsWith('image/'))) {
+      return null
+    }
+
+    const objectUrl = URL.createObjectURL(blob)
+    mediaObjectUrlCache.set(normalized, objectUrl)
+    return objectUrl
+  } catch {
+    return null
+  }
+}
+
+function isNgrokMediaUrl(value) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return /(?:^|\.)ngrok(?:-free)?\.(?:app|dev|io)$/.test(hostname)
+  } catch {
+    return false
+  }
 }
 
 function looksLikeBackendAssetPath(pathname) {

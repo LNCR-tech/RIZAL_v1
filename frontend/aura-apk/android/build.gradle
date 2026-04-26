@@ -24,6 +24,16 @@ allprojects {
     }
 }
 
+subprojects { subproject ->
+    if (subproject.name == 'capacitor-android') {
+        subproject.tasks.matching { task ->
+            task.name == 'processDebugManifest' || task.name == 'processReleaseManifest'
+        }.configureEach {
+            doNotTrackState('Capacitor manifest processing can produce unreadable tracked outputs on Windows.')
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

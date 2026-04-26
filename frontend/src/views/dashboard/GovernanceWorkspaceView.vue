@@ -1338,7 +1338,6 @@ import {
   getEvents as getCampusEvents,
   updateEvent as updateBackendEvent,
 } from '@/services/backendApi.js'
-import { createIdempotencyKey } from '@/services/idempotency.js'
 import { useGovernanceWorkspace } from '@/composables/useGovernanceWorkspace.js'
 import { useAiDemo } from '@/services/aiDemoHandler.js'
 import { normalizeGovernanceContext } from '@/services/governanceScope.js'
@@ -1449,7 +1448,6 @@ const announcementDraft = ref(createAnnouncementDraft())
 const isEventEditorOpen = ref(false)
 const isEventEditorSaving = ref(false)
 const eventEditorError = ref('')
-const pendingEventCreateRequestKey = ref('')
 const editingEvent = ref(null)
 const eventListFilter = ref('all')
 const expandedEventId = ref(null)
@@ -2784,11 +2782,10 @@ function openEventEditor() {
   isEventEditorOpen.value = true
 }
 
-function closeEventEditor(force = false) {
-  if (isEventEditorSaving.value && !force) return
+function closeEventEditor() {
+  if (isEventEditorSaving.value) return
   isEventEditorOpen.value = false
   eventEditorError.value = ''
-  pendingEventCreateRequestKey.value = ''
   editingEvent.value = null
 }
 
@@ -3016,8 +3013,6 @@ function buildScopedEventParams() {
 }
 
 async function handleEventEditorSave(payload) {
-  if (isEventEditorSaving.value) return
-
   const isEditingExistingEvent = Boolean(editingEvent.value?.id)
 
   if (props.preview) {
@@ -3062,24 +3057,13 @@ async function handleEventEditorSave(payload) {
         ...payload,
       })
     } else {
-      if (!pendingEventCreateRequestKey.value) {
-        pendingEventCreateRequestKey.value = createIdempotencyKey('governance-event')
-      }
-
       const scopedPayload = buildScopedEventPayload(payload)
       const createdEvent = await createGovernanceEvent(
         apiBaseUrl.value,
         token.value,
         scopedPayload.payload,
         scopedPayload.params,
-        {
-          headers: {
-            'X-Idempotency-Key': pendingEventCreateRequestKey.value,
-          },
-        }
       )
-
-      closeEventEditor(true)
 
       events.value = sortEventFeed([
         createdEvent || {
@@ -3088,13 +3072,10 @@ async function handleEventEditorSave(payload) {
         },
         ...events.value,
       ])
-      pendingEventCreateRequestKey.value = ''
-      return
     }
 
-    closeEventEditor(true)
+    closeEventEditor()
   } catch (error) {
-    pendingEventCreateRequestKey.value = ''
     eventEditorError.value = error?.message || (
       isEditingExistingEvent
         ? 'Unable to save the event changes.'

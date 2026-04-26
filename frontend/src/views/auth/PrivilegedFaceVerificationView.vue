@@ -312,7 +312,7 @@ async function loadFaceStatus() {
       return
     }
 
-    if (!nextStatus.face_verification_required) {
+    if (!nextStatus.face_verification_required && nextStatus.face_reference_enrolled) {
       await routeIntoUnlockedSession()
       return
     }
@@ -478,7 +478,7 @@ function startFaceDetection() {
 
     if (!detectStartedAt) detectStartedAt = now
     if (now - detectStartedAt > detectTimeoutMs) {
-      setPendingFaceError('Face not found.')
+      setPendingFaceError('No face detected. Please try again in a brighter area.')
       return
     }
 
@@ -497,7 +497,7 @@ function startFaceDetection() {
         return
       }
     } catch {
-      setPendingFaceError('Face not found.')
+      setPendingFaceError('Face detection failed. Please try again.')
       return
     }
 
@@ -606,7 +606,7 @@ async function captureAndSubmit() {
     }
 
     if (!verification?.matched) {
-      throw new Error('Face not match.')
+      throw new Error('Face not matched. Please try again.')
     }
 
     if (!verification?.access_token) {

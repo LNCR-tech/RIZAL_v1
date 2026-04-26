@@ -45,6 +45,15 @@ function parsePositiveNumber(value) {
   return Number.isFinite(normalized) && normalized > 0 ? normalized : null
 }
 
+function readFirstAbsoluteUrl(values = []) {
+  for (const value of values) {
+    const normalized = normalizeAbsoluteUrl(value)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
 const PROJECT_ENV_FILES = [
   '.env',
   '.env.local',
@@ -64,6 +73,18 @@ const runtimeConfig = {}
 const nativeApiBaseUrl = normalizeAbsoluteUrl(
   env.VITE_NATIVE_API_BASE_URL || env.VITE_BACKEND_PROXY_TARGET
 )
+
+const webApiBaseUrl = readFirstAbsoluteUrl([
+  env.AURA_API_BASE_URL
+  || '',
+  env.VITE_WEB_API_BASE_URL || '',
+  env.VITE_API_BASE_URL || '',
+  nativeApiBaseUrl,
+])
+
+if (webApiBaseUrl) {
+  runtimeConfig.apiBaseUrl = webApiBaseUrl
+}
 
 if (nativeApiBaseUrl) {
   runtimeConfig.nativeApiBaseUrl = nativeApiBaseUrl
