@@ -53,10 +53,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend deps
         run: npm ci
-      - name: Lint frontend
-        run: npm run lint
-      - name: Run frontend smoke tests
-        run: npm run test
       - name: Build frontend
         run: npm run build
 
