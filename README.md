@@ -5,7 +5,7 @@
 Aura is a student attendance system with:
 
 - `backend/`: FastAPI API, Alembic migrations, Celery workers, and the production bootstrap script
-- `assistant-v2/`: the active assistant service backed by Postgres
+- `assistant/`: the active assistant service backed by Postgres
 - `frontend/`: Vue 3 (Vite) SPA plus optional Capacitor assets
 
 ## Quick Start (Docker)
@@ -95,4 +95,4 @@ Audits:
 
 - Redis/Celery is optional for a bare API boot, but background jobs require Redis plus worker/beat.
 - Non-secret backend defaults live in `backend/app/core/app_settings.py`.
-- Non-secret assistant defaults live in `assistant-v2/lib/app_settings.py`.
+- Non-secret assistant defaults live in `assistant/lib/app_settings.py`.

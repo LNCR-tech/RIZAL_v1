@@ -159,9 +159,9 @@ Important:
 ## Source Of Truth
 
 - Backend env parsing: `backend/app/core/config.py`
-- Assistant DB/auth/env loading: `assistant-v2/lib/database.py`, `assistant-v2/lib/auth.py`, `assistant-v2/lib/llm.py`
+- Assistant DB/auth/env loading: `assistant/lib/database.py`, `assistant/lib/auth.py`, `assistant/lib/llm.py`
 - Backend non-secret defaults: `backend/app/core/app_settings.py`
-- Assistant non-secret defaults: `assistant-v2/lib/app_settings.py`
+- Assistant non-secret defaults: `assistant/lib/app_settings.py`
 - Frontend dev env loading: `frontend/vite.config.js`
 - Frontend runtime env rendering: `frontend/runtime-config.js.template`
 

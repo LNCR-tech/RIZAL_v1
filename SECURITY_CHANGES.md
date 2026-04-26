@@ -45,7 +45,7 @@
 
 **Impact:** Container runs as non-root user
 
-### 6. Assistant-v2/Dockerfile
+### 6. assistant/Dockerfile
 **Changes:**
 - Added `--no-log-init` flag to `useradd` command
 

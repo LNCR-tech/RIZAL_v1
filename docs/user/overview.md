@@ -1,7 +1,7 @@
 # Aura Overview (Non-Developer)
 
 <!--nav-->
-[← Assistant v1 vs v2](../assistant-v2/v1_vs_v2_comparison.md) | [🏠 Home](/README.md) | [Navigation Map →](navigation.md)
+[← Assistant v1 vs v2](../assistant/v1_vs_v2_comparison.md) | [🏠 Home](/README.md) | [Navigation Map →](navigation.md)
 
 ---
 <!--/nav-->

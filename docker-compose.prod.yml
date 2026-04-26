@@ -126,7 +126,7 @@ services:
     depends_on: *depends-infra
 
   assistant:
-    build: ./assistant-v2
+    build: ./assistant
     image: aura-assistant:prod
     ports:
       - "8500:8500"

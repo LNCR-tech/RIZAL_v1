@@ -145,7 +145,7 @@ services:
         condition: service_started
 
   assistant:
-    build: ./assistant-v2
+    build: ./assistant
     image: aura-assistant:production
     ports:
       - "8500:8500"

@@ -96,7 +96,7 @@ pip install -r requirements.txt
 
 **Assistant:**
 ```bash
-cd assistant-v2
+cd assistant
 pip install -r requirements.txt
 ```
 
@@ -160,7 +160,7 @@ celery -A app.workers.celery_app.celery_app beat --loglevel=info
 
 **Assistant:**
 ```bash
-cd assistant-v2
+cd assistant
 python -m uvicorn main:app --reload --host 127.0.0.1 --port 8500
 ```
 

@@ -1,25 +1,25 @@
 # Assistant Documentation
 
 <!--nav-->
-[← Frontend Deployment](../frontend/deployment.md) | [🏠 Home](/README.md) | [Assistant v1 vs v2 →](../assistant-v2/v1_vs_v2_comparison.md)
+[← Frontend Deployment](../frontend/deployment.md) | [🏠 Home](/README.md) | [Assistant v1 vs v2 →](../assistant/v1_vs_v2_comparison.md)
 
 ---
 <!--/nav-->
 
 The supported assistant service in this repository is:
 
-- `assistant-v2/`
+- `assistant/`
 
 Key configuration notes:
 
-- non-secret assistant defaults now live in `assistant-v2/lib/app_settings.py`
+- non-secret assistant defaults now live in `assistant/lib/app_settings.py`
 - secrets and runtime URLs remain env-driven
-- production compose and main docs target `assistant-v2` only
+- production compose and main docs target `assistant` only
 
 ## Prompt Size / Token Budgeting
 
 The assistant sends a system prompt + recent conversation history to the LLM on every message. To keep requests under a
-token cap (for example ~25k input tokens), `assistant-v2` supports server-side prompt budgeting:
+token cap (for example ~25k input tokens), `assistant` supports server-side prompt budgeting:
 
 - Older context is summarized into an internal `meta_summary` message (hidden from conversation APIs/UI).
 - Only the most recent messages are sent verbatim, plus the summary when needed.
@@ -34,4 +34,4 @@ Environment overrides (optional):
 
 ## Existing Docs
 
-- [v1 vs v2 Comparison](../assistant-v2/v1_vs_v2_comparison.md)
+- [v1 vs v2 Comparison](../assistant/v1_vs_v2_comparison.md)

@@ -31,7 +31,7 @@ class MultiMCPClient:
                     # Ensure the current venv's python is used instead of system "python"
                     command = sys.executable if server.get("command") == "python" else server.get("command")
                     
-                    # Resolve relative paths in args to absolute paths based on Assistant-v2 base dir
+                    # Resolve relative paths in args to absolute paths based on assistant base dir
                     args = []
                     for arg in server.get("args", []):
                         if arg.startswith("mcp_servers/"):

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 # Setup logging
-logger = logging.getLogger("assistant-v2.db")
+logger = logging.getLogger("assistant.db")
 
 # Load environment variables
 assistant_v2_root = Path(__file__).resolve().parent.parent

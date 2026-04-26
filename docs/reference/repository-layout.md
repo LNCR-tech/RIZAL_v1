@@ -9,7 +9,7 @@
 ## Top-Level Folders
 
 - `backend/`: FastAPI API, Alembic migrations, Celery workers/beat, and the production bootstrap script
-- `assistant-v2/`: Active assistant service
+- `assistant/`: Active assistant service
 - `frontend/`: Vue 3 (Vite) SPA plus Capacitor assets
 - `docs/`: Documentation
 - `docker-init/`: Postgres init scripts mounted by the local Docker stack

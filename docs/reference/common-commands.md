@@ -98,7 +98,7 @@ celery -A app.workers.celery_app.celery_app beat --loglevel=info
 
 ## Assistant (Manual)
 
-Run from `assistant-v2/`:
+Run from `assistant/`:
 
 ```bash
 python -m uvicorn main:app --reload --host 127.0.0.1 --port 8500
