@@ -70,7 +70,10 @@ services:
 
   bootstrap:
     image: aura-backend:prod
-    command: python bootstrap.py
+    command: >
+      python bootstrap.py
+      --admin-email "${ADMIN_EMAIL:-admin@aura.com}"
+      --admin-password "${ADMIN_PASSWORD:-AdminPass123!}"
     environment:
       <<: *backend-env
     depends_on:
