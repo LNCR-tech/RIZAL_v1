@@ -88,7 +88,7 @@ jobs:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: docker-build
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'aura_ci_cd')
     environment: production
     concurrency:
       group: deploy-production
