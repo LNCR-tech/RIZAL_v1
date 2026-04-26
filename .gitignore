@@ -4,6 +4,7 @@ Thumbs.db
 .idea/
 .vscode/
 .amazonq/
+.kilo/
 
 # Python
 __pycache__/
@@ -15,12 +16,12 @@ __pycache__/
 
 # Node / frontend builds
 node_modules/
-Frontend/node_modules/
-Frontend/dist/
-Frontend/dist-ssr/
-Frontend/.vite/
-Frontend/.pnp.*
-Frontend/.yarn/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+frontend/.pnp.*
+frontend/.yarn/
 
 # Logs
 *.log

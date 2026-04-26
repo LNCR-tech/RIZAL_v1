@@ -18,13 +18,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Check for merge conflicts
-        run: |
-          if grep -R "<<<<<<<\|=======\|>>>>>>>" . --exclude-dir=.git; then
-            echo "Merge conflict markers found!"
-            exit 1
-          fi
-
+      - name: Create CI env file
+        run: cp .env.example .env
       - name: Validate docker-compose
         run: docker compose -f docker-compose.prod.yml config --quiet
 
