@@ -9,8 +9,10 @@ Or via docker compose:
 
 from __future__ import annotations
 
+import math
 import os
 import random
+import struct
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -46,6 +48,17 @@ from app.utils.passwords import hash_password_bcrypt  # noqa: E402
 STUDENTS_PER_SCHOOL = 2000
 DEFAULT_PASSWORD = hash_password_bcrypt("Student@123")
 ADMIN_PASSWORD = hash_password_bcrypt("Admin@123")
+EMBEDDING_DIM = 512
+EMBEDDING_DTYPE = "float32"
+EMBEDDING_PROVIDER = "seed-demo"
+
+
+def _generate_face_embedding() -> bytes:
+    """Generate a random normalized 512-d float32 embedding (2048 bytes)."""
+    raw = [random.gauss(0, 1) for _ in range(EMBEDDING_DIM)]
+    norm = math.sqrt(sum(x * x for x in raw))
+    normalized = [x / norm for x in raw]
+    return struct.pack(f"{EMBEDDING_DIM}f", *normalized)
 
 SCHOOLS = [
     {
@@ -420,6 +433,7 @@ def _create_students_batch(
 
             session.add(UserRole(user_id=user.id, role_id=student_role_id))
 
+            embedding = _generate_face_embedding()
             profile = StudentProfile(
                 user_id=user.id,
                 school_id=school.id,
@@ -428,6 +442,12 @@ def _create_students_batch(
                 program_id=prog_id,
                 year_level=year,
                 section=section,
+                face_encoding=embedding,
+                embedding_provider=EMBEDDING_PROVIDER,
+                embedding_dtype=EMBEDDING_DTYPE,
+                embedding_dimension=EMBEDDING_DIM,
+                embedding_normalized=True,
+                is_face_registered=True,
             )
             session.add(profile)
             user_ids.append(user.id)
