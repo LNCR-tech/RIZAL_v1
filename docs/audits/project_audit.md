@@ -1,7 +1,7 @@
 # Project Audit: Student Attendance System (Aura Project)
 
 <!--nav-->
-[← Audit Report](AUDIT_REPORT.md) | [🏠 Home](/README.md) | [Seeder Docs Index →](../../seeder/docs/README.md)
+[← Audit Report](AUDIT_REPORT.md) | [🏠 Home](/README.md)
 
 ---
 <!--/nav-->

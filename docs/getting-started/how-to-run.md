@@ -86,11 +86,8 @@ Every `docker compose up --build` or `./start.sh` runs these in order with no ma
 db (healthy)
   └── migrate        — runs Alembic migrations, creates all tables
         └── bootstrap  — creates admin account, roles, event types
-              └── seed*  — generates demo schools, students, events
-                    └── backend / worker / beat / assistant / frontend
+              └── backend / worker / beat / assistant / frontend
 ```
-
-\* Seed only runs when `SEED_DATABASE = True` in `seeder/variables.py`.
 
 ---
 
@@ -99,10 +96,6 @@ db (healthy)
 | Role | Email | Password |
 |---|---|---|
 | Platform Admin | `admin@aura.com` | `AdminPass123!` |
-| Campus Admin *(seeded)* | `admin@<school-domain>` | `CampusAdmin123!` |
-| Students *(seeded)* | see `seeder/storage/seeder_outputs/` | `Student123!` |
-
-Campus admin and student accounts only exist if the seeder ran.
 
 ---
 
@@ -130,3 +123,41 @@ For production, open these inbound TCP ports in your EC2 Security Group:
 | 80 | Frontend |
 | 8000 | Backend API |
 | 8500 | Assistant API |
+
+---
+
+## CI/CD — Automatic Deployment
+
+Pushing to `main`, `master`, or `integrate/pilot-merge` triggers automatic deployment:
+
+1. **CI** — validates compose configs, compiles backend, lints and builds frontend
+2. **CD** — if CI passes, SSHs into AWS and deploys the new code
+
+### Setup (one time)
+
+Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions** and add:
+
+| Secret | Value |
+|---|---|
+| `AWS_SSH_PRIVATE_KEY` | Full contents of your `.pem` key file |
+| `AWS_HOST` | Your EC2 public IP (e.g. `54.123.45.67`) |
+| `AWS_USER` | SSH username (usually `ubuntu`) |
+| `AWS_PROJECT_PATH` | Project path on server (default: `/opt/aura`) |
+
+Then go to **Settings** → **Environments** → **New environment** → name it `production` and save.
+
+### What happens on deploy
+
+```
+git push origin main
+      ↓
+CI: compile + lint + build (GitHub runners)
+      ↓ passes
+CD: SSH into AWS → git pull → docker compose up --build -d
+      ↓
+Health check: waits for backend /health to respond
+      ↓
+Cleanup: removes old Docker images to save disk
+```
+
+Data is **never deleted** — Docker volumes (`postgres_data`, `import_storage`, etc.) persist across rebuilds.

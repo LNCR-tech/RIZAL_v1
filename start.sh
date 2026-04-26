@@ -200,7 +200,7 @@ do_start() {
               || curl -sf --max-time 3 https://api.ipify.org 2>/dev/null \
               || hostname -I | awk '{print $1}')
 
-  info "Stack is up. Services start in order: db → migrate → bootstrap → seed (if enabled) → backend → frontend"
+  info "Stack is up. Services start in order: db → migrate → bootstrap → backend → frontend"
   echo ""
   echo "  Frontend:      http://${PUBLIC_IP}"
   echo "  Backend API:   http://${PUBLIC_IP}:8000/docs"

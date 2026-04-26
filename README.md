@@ -1,5 +1,7 @@
 # Aura (Student Attendance System)
 
+⚠️ **SECURITY ALERT**: Critical security issues found and fixed. Review [SECURITY_ALERT.md](SECURITY_ALERT.md) before deployment.
+
 Aura is a student attendance system with:
 
 - `backend/`: FastAPI API, Alembic migrations, Celery workers, and the production bootstrap script
@@ -7,6 +9,8 @@ Aura is a student attendance system with:
 - `frontend/`: Vue 3 (Vite) SPA plus optional Capacitor assets
 
 ## Quick Start (Docker)
+
+⚠️ **SECURITY NOTICE**: Before production deployment, complete [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md).
 
 ```powershell
 # 1. Copy and configure environment
@@ -52,6 +56,13 @@ docker compose up --build
 ```
 
 ## Documentation
+
+Security (READ FIRST):
+
+- [🚨 Security Alert](SECURITY_ALERT.md) - CRITICAL: Immediate actions required
+- [Security Audit Summary](SECURITY_AUDIT_SUMMARY.md) - Overview of findings and fixes
+- [Security Checklist](SECURITY_CHECKLIST.md) - Pre-deployment checklist
+- [Security Hardening Guide](docs/SECURITY_HARDENING.md) - Architecture and best practices
 
 Start here:
 

@@ -118,22 +118,6 @@ npm run build   # production build
 
 ---
 
-## Seeder (Manual)
-
-Run from `seeder/`:
-
-```bash
-python seed.py demo
-
-# With overrides
-python seed.py demo --schools 3 --min-students 500 --max-students 1000
-python seed.py demo --credentials-format tsv
-```
-
-Seeder only runs if `SEED_DATABASE = True` in `seeder/variables.py`.
-
----
-
 ## Database (Manual)
 
 Create databases (first time only):

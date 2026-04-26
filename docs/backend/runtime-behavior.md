@@ -225,7 +225,6 @@ Relevant files:
 - `backend/app/routers/face_recognition.py`
 - `backend/app/routers/security_center.py`
 - `backend/app/services/face_recognition.py`
-- `backend/app/tests/test_routes_face.py`
 
 ## Production Bootstrap Flow
 
@@ -255,7 +254,6 @@ Relevant files:
 - `Backend/alembic/versions/e6f7a8b9c0d1_add_event_create_idempotency_fields.py`
 - `backend/app/models/event.py`
 - `backend/app/routers/events/crud.py`
-- `backend/app/tests/test_api.py`
 
 ## Event Type Lookup
 
@@ -267,12 +265,8 @@ Event categorization now uses a dedicated lookup relation instead of a free-text
 - `POST /api/events` and `PATCH /api/events/{event_id}` accept `event_type_id`.
 - student attendance report endpoints still preserve the existing chart payload shape, but now use the related event type name when present and only fall back to `Regular Events` when no type is assigned.
 
-## How to Test
-
-1. Run `pytest backend/app/tests/test_config.py backend/app/tests/test_email_service.py backend/app/tests/test_seeder.py backend/app/tests/test_audit_log_timezones.py`.
-2. Run `pytest backend/app/tests/test_admin_import_preview_flow.py` to confirm import storage still honors the centralized backend settings object.
-3. In Docker, run `python - <<'PY'\nfrom app.core.config import get_settings\nprint(get_settings().import_storage_dir)\nPY` and confirm it prints `/app/storage/imports`.
-3. Start the API and confirm:
+1. In Docker, run `python - <<'PY'\nfrom app.core.config import get_settings\nprint(get_settings().import_storage_dir)\nPY` and confirm it prints `/app/storage/imports`.
+2. Start the API and confirm:
    - `EMAIL_TRANSPORT=disabled` allows startup with a warning
    - `EMAIL_TRANSPORT=mailjet_api` fails fast when credentials are incomplete
 4. Run `python backend/bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123!` on a clean database and confirm the admin account is created without any demo schools or sample users.

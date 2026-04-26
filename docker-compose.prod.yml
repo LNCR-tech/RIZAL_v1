@@ -2,7 +2,6 @@
 # Aura — Production Compose (AWS Ubuntu)
 # Zero-config: ./start.sh  is all you need on a fresh server.
 # All services start automatically in the correct order.
-# Seeder runs only when SEED_DATABASE=True in seeder/variables.py.
 # =============================================================================
 
 services:
@@ -51,27 +50,16 @@ services:
 
   bootstrap:
     image: aura-backend:prod
-    command: python bootstrap.py
+    command: python bootstrap.py --admin-email "${ADMIN_EMAIL}" --admin-password "${ADMIN_PASSWORD}"
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
-      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
+      SECRET_KEY: ${SECRET_KEY}
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: "no"
 
-  seed:
-    image: aura-backend:prod
-    command: sh -c "cd /repo/seeder && python seed.py demo"
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-fastapi_db}
-      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
-    volumes:
-      - .:/repo
-    depends_on:
-      bootstrap:
-        condition: service_completed_successfully
-    restart: "no"
+
 
   # ---------------------------------------------------------------------------
   # Application services
@@ -114,7 +102,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      seed:
+      bootstrap:
         condition: service_completed_successfully
 
   worker:

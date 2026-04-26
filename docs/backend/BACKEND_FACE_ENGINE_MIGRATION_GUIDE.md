@@ -249,7 +249,7 @@ What it does:
 
 `Backend/requirements.txt` now contains the pinned runtime dependency set used by backend containers.
 
-`Backend/requirements-dev.txt` now contains test tooling layered on top of runtime deps (for local/CI testing only).
+
 
 Runtime requirements include:
 
@@ -332,13 +332,6 @@ Environment note:
 - Alembic now loads repo-root `.env` first (then falls back to `Backend/.env` when present) so migration commands follow the shared env-file strategy
 
 ## Verification commands
-
-Run tests:
-
-```powershell
-python -m pip install -r Backend/requirements-dev.txt
-python -m pytest -q Backend/app/tests/test_face_recognition_schemas.py Backend/app/tests/test_face_engines.py Backend/app/tests/test_public_attendance.py Backend/app/tests/test_routes_face.py
-```
 
 Smoke-check production backend image requirements:
 

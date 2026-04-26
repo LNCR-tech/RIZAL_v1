@@ -10,3 +10,12 @@ vite-dev.log
 .env
 .env.*
 !.env.docker.example
+docs
+aura-apk
+scripts
+.dockerignore
+.gitignore
+docker-compose.yml
+generate_icons.ps1
+OLD_FRONTEND_UI_BRIEF.md
+build_log.txt
