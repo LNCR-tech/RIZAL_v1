@@ -1,16 +1,4 @@
-# =============================================================================
-# Aura — Local Development Compose
-# Zero-config: docker compose up --build  is all you need.
-# All services start automatically in the correct order.
-# Seeder runs only when SEED_DATABASE=True in seeder/variables.py.
-# =============================================================================
-
 services:
-
-  # ---------------------------------------------------------------------------
-  # Infrastructure
-  # ---------------------------------------------------------------------------
-
   db:
     image: postgres:15
     restart: always
@@ -21,8 +9,8 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - /home/ubuntu/Aura/docker-data/postgres:/var/lib/postgresql/data
-      - ./docker-init:/docker-entrypoint-initdb.d   # creates ai_assistant DB
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
       interval: 5s
@@ -46,10 +34,6 @@ services:
     volumes:
       - mailpit_data:/data
 
-  # ---------------------------------------------------------------------------
-  # Init jobs — run once in order, then exit
-  # ---------------------------------------------------------------------------
-
   migrate:
     build:
       context: ./backend
@@ -57,7 +41,7 @@ services:
     command: alembic upgrade heads
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
-      SECRET_KEY: local-dev-secret
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     volumes:
       - ./backend:/app
     depends_on:
@@ -70,31 +54,13 @@ services:
     command: python bootstrap.py
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
-      SECRET_KEY: local-dev-secret
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     volumes:
       - ./backend:/app
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: "no"
-
-  seed:
-    image: aura-backend:local
-    command: sh -c "cd /repo/seeder && python seed.py demo"
-    profiles: ["seed"]
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
-      SECRET_KEY: local-dev-secret
-    volumes:
-      - .:/repo
-    depends_on:
-      bootstrap:
-        condition: service_completed_successfully
-    restart: "no"
-
-  # ---------------------------------------------------------------------------
-  # Application services
-  # ---------------------------------------------------------------------------
 
   backend:
     image: aura-backend:local
@@ -106,11 +72,8 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-<<<<<<< HEAD
-      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
-=======
       REDIS_URL: redis://redis:6379/0
->>>>>>> 7b44e6f (Add Validation every endpoint)
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
       LOGIN_URL: http://localhost:5173
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
@@ -124,8 +87,8 @@ services:
     volumes:
       - ./backend:/app
       - import_storage:/app/storage/imports
-      - /home/ubuntu/Aura/docker-data/branding:/app/storage/school_logos
-      - /home/ubuntu/Aura/docker-data/insightface:/root/.insightface
+      - branding_storage:/app/storage/school_logos
+      - insightface_models:/root/.insightface
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -150,12 +113,13 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     volumes:
       - ./backend:/app
       - import_storage:/app/storage/imports
-      - /home/ubuntu/Aura/docker-data/branding:/app/storage/school_logos
-      - /home/ubuntu/Aura/docker-data/insightface:/root/.insightface
+      - branding_storage:/app/storage/school_logos
+      - insightface_models:/root/.insightface
     restart: unless-stopped
     depends_on:
       db:
@@ -172,6 +136,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fastapi_db
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-local-dev-secret}
     volumes:
       - ./backend:/app
@@ -183,7 +148,8 @@ services:
         condition: service_started
 
   assistant:
-    build: ./assistant-v2
+    build:
+      context: ./assistant-v2
     image: aura-assistant:local
     ports:
       - "8500:8500"
@@ -220,11 +186,15 @@ services:
     ports:
       - "5050:80"
     volumes:
-      - /home/ubuntu/Aura/docker-data/pgadmin:/var/lib/pgadmin
+      - pgadmin_data:/var/lib/pgadmin
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
+  postgres_data:
   import_storage:
+  branding_storage:
+  insightface_models:
   mailpit_data:
+  pgadmin_data:
