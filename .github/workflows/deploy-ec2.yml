@@ -23,7 +23,11 @@ jobs:
 
       - name: Check for unresolved merge conflicts
         run: |
-          if grep -R "<<<<<<<\|=======\|>>>>>>>" . --exclude-dir=.git; then
+          if grep -R -n -E '^(<<<<<<<|>>>>>>>|=======$)' . \
+            --exclude-dir=.git \
+            --exclude='.env' \
+            --exclude='.env.example' \
+            --exclude='.env.production.example'; then
             echo "Unresolved merge conflict markers found."
             exit 1
           fi

@@ -252,6 +252,8 @@ def update_event(
         )
 
         was_completed = db_event.status == ModelEventStatus.COMPLETED
+        fields_set = _get_payload_fields_set(event_update)
+        event_type_id = getattr(event_update, "event_type_id", None)
 
         new_start = (
             event_update.start_datetime
@@ -356,11 +358,11 @@ def update_event(
         db_event.late_until_override_at = late_until_override_at
         if event_update.status is not None:
             db_event.status = ModelEventStatus[event_update.status.value.upper()]
-        if event_update.event_type_id is not None or "event_type_id" in _get_payload_fields_set(event_update):
+        if event_type_id is not None or "event_type_id" in fields_set:
             db_event.event_type = _resolve_event_type(
                 db,
                 school_id=school_id,
-                event_type_id=event_update.event_type_id,
+                event_type_id=event_type_id,
             )
 
         resolved_scope = _resolve_governance_event_write_scope(

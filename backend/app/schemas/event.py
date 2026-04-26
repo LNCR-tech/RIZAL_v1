@@ -175,6 +175,7 @@ class EventUpdate(BaseModel):
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None
+    event_type_id: Optional[int] = Field(default=None, gt=0)
     department_ids: Optional[List[int]] = None
     program_ids: Optional[List[int]] = None
 

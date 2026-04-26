@@ -20,6 +20,51 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-26 - Fix CI conflict-marker detection and event/audit compatibility regressions
+
+### Purpose
+
+Make the `aura_ci_cd` pipeline gate deployment correctly by avoiding false-positive merge conflict checks, restoring Manila audit-log timestamps in API responses, and preventing partial event update payloads from crashing when `event_type_id` is absent.
+
+### Main files
+
+- `.github/workflows/deploy-ec2.yml`
+- `backend/app/schemas/audit.py`
+- `backend/app/schemas/event.py`
+- `backend/app/routers/events/crud.py`
+- `docs/backend/runtime-behavior.md`
+- `docs/backend/BACKEND_CHANGELOG.md`
+
+### Backend changes
+
+- narrowed the CI merge-conflict grep to only match real Git conflict markers anchored at the start of a line
+- excluded `.env`, `.env.example`, and `.env.production.example` from that conflict-marker scan
+- preserved Manila-local `+08:00` audit log offsets in `/api/audit-logs` response serialization instead of coercing them back to UTC `Z`
+- restored optional `event_type_id` support on `EventUpdate`
+- updated event patch handling to use a compatibility-safe `getattr(...)` plus payload field-set detection before touching `event_type_id`
+
+### Route or schema impact
+
+- `GET /api/audit-logs`
+  - `created_at` now stays serialized with the Manila-local `+08:00` offset produced by the service layer
+- `PATCH /api/events/{event_id}`
+  - accepts partial payloads without `event_type_id`
+  - still accepts explicit `event_type_id` updates when provided
+
+### Migration impact
+
+- no database migration required
+- CI/runtime behavior change:
+  - deployment on `push` to `aura_ci_cd` still depends on compose validation, backend tests, and Docker image build success
+  - compose validation no longer fails on non-conflict separator lines such as comment banners made of `=`
+
+### How to test
+
+1. Run `docker compose -f docker-compose.prod.yml config --quiet`.
+2. Run `pytest -q backend/app/tests/test_audit_log_timezones.py`.
+3. Run `pytest -q backend/app/tests/test_governance_hierarchy_api.py -k update_event_can_add_and_clear_near_start_attendance_override_windows`.
+4. Run `cd backend && pytest -q app/tests`.
+
 ## 2026-04-25 - Add backend anti-abuse validation and rate limiting
 
 ### Purpose

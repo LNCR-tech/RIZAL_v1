@@ -123,7 +123,13 @@ Relevant files:
 
 - `backend/app/core/timezones.py`
 - `backend/app/reports/system/service.py`
+- `backend/app/schemas/audit.py`
 - `backend/app/routers/school_settings.py`
+
+Runtime details:
+
+- `GET /api/audit-logs` keeps the Manila-local `+08:00` response offset produced by the report service instead of coercing it back to `Z` during schema serialization.
+- naive audit timestamps from SQLite tests or legacy rows are still treated as UTC before conversion, so responses remain deterministic.
 
 ## Attendance Timestamp Storage
 
@@ -265,6 +271,7 @@ Event categorization now uses a dedicated lookup relation instead of a free-text
 - `events.event_type_id` references `event_types.id`.
 - `GET /api/events` returns `event_type_id` plus a nested `event_type` object when one is assigned.
 - `POST /api/events` and `PATCH /api/events/{event_id}` accept `event_type_id`.
+- `PATCH /api/events/{event_id}` also tolerates partial payloads that omit `event_type_id`, so schedule-only updates do not raise compatibility errors.
 - student attendance report endpoints still preserve the existing chart payload shape, but now use the related event type name when present and only fall back to `Regular Events` when no type is assigned.
 
 ## How to Test
@@ -279,6 +286,7 @@ Event categorization now uses a dedicated lookup relation instead of a free-text
 5. Open the audit log endpoints and confirm returned `created_at` values include a `+08:00` offset.
 6. Run `python -m alembic upgrade head` and confirm the migration creates `event_types`, adds `events.event_type_id`, and backfills legacy `events.event_type` values if they exist.
 7. Open `GET /api/events/` and confirm the endpoint returns `200` plus `event_type_id` / `event_type` fields for typed events.
-8. Run `python -m alembic upgrade head` again after the timezone migrations and confirm the latest revisions convert attendance plus system timestamps to `TIMESTAMP WITH TIME ZONE`.
-9. Check a session, notification, governance, or password-reset API response and confirm returned datetime fields include explicit UTC offsets instead of naive strings.
-10. Call `POST /api/events/` twice with the same `X-Idempotency-Key` as the same user and confirm both responses return the same event ID while only one row is stored.
+8. Call `PATCH /api/events/{event_id}` with only `start_datetime` and `end_datetime` and confirm the route returns `200` while still recalculating near-start attendance override fields.
+9. Run `python -m alembic upgrade head` again after the timezone migrations and confirm the latest revisions convert attendance plus system timestamps to `TIMESTAMP WITH TIME ZONE`.
+10. Check a session, notification, governance, or password-reset API response and confirm returned datetime fields include explicit UTC offsets instead of naive strings.
+11. Call `POST /api/events/` twice with the same `X-Idempotency-Key` as the same user and confirm both responses return the same event ID while only one row is stored.

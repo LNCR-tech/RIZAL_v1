@@ -9,13 +9,13 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
-def _as_utc_datetime(value):
-    """Normalize naive datetimes as UTC so API responses include an explicit offset."""
+def _ensure_datetime_has_timezone(value):
+    """Keep API response offsets intact while treating naive DB values as UTC."""
     if not isinstance(value, datetime):
         return value
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+    return value
 
 
 class SchoolAuditLogSearchItem(BaseModel):
@@ -31,7 +31,7 @@ class SchoolAuditLogSearchItem(BaseModel):
     @field_validator("created_at", mode="before")
     @classmethod
     def normalize_created_at_timezone(cls, value):
-        return _as_utc_datetime(value)
+        return _ensure_datetime_has_timezone(value)
 
     model_config = ConfigDict(from_attributes=True)
 
