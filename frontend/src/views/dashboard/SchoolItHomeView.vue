@@ -399,15 +399,9 @@ const collegeDemographics = computed(() => {
     }
   })
 
-  if (countsByDept.size === 0 || (countsByDept.size === 1 && countsByDept.has('unassigned'))) {
-    if (filteredDepartments.value.length >= 2) {
-      return filteredDepartments.value.slice(0, 4).map((dept, idx) => ({
-        id: dept.id,
-        shortLabel: dept.acronym || dept.name,
-        count: Math.floor(Math.random() * 500) + 100,
-        color: VIBRANT_COLORS[idx % VIBRANT_COLORS.length]
-      })).sort((a, b) => b.count - a.count)
-    }
+  // If no students at all, return empty array
+  if (countsByDept.size === 0) {
+    return []
   }
 
   let index = 0
@@ -434,7 +428,9 @@ const collegeDemographics = computed(() => {
 })
 
 const totalSchoolStudents = computed(() => {
-  return collegeDemographics.value.reduce((acc, item) => acc + item.count, 0)
+  // Calculate total from actual student count
+  const students = filteredUsers.value.filter((user) => String(user.role || '').toLowerCase() === 'student')
+  return students.length
 })
 
 
