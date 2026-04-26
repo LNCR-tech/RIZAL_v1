@@ -61,11 +61,9 @@ Model registration updates:
 - `Backend/app/models/__init__.py` now exports the sanctions models.
 - `Backend/alembic/env.py` imports sanctions models so metadata resolution includes sanctions tables.
 
-## Validation and Test Coverage
+## Validation
 
-Test file: `Backend/app/tests/test_sanctions_models.py`
-
-Covered checks:
+The following validation rules are enforced by the ORM models and migrations:
 
 - sanctions tables are registered in SQLAlchemy metadata
 - event sanction config uniqueness per event
@@ -74,15 +72,8 @@ Covered checks:
 - sanction delegation uniqueness per event and delegated governance unit
 - clearance deadline default status is `active`
 
-Run:
+Sanction record auto-generation after event completion workflow transition:
 
-1. `python -m pytest -q Backend/app/tests/test_sanctions_models.py`
-
-Step 8 behavior test file: `Backend/tests/test_sanctions.py`
-
-Covered checks:
-
-- sanction record auto-generation after event completion workflow transition
 - scope enforcement:
   - `SSG` sees all records for accessible events
   - `SG` sees only scoped/delegated records
@@ -90,10 +81,6 @@ Covered checks:
 - delegation grant changes access for sanctions list endpoints
 - approve action creates compliance history rows and remains idempotent on repeated approve calls
 - student personal sanctions view isolation (`/api/sanctions/students/me`)
-
-Run:
-
-1. `python -m pytest -q Backend/tests/test_sanctions.py`
 
 ## Routes and Service
 
@@ -238,14 +225,9 @@ Dispatch behavior:
 - sanctions service dispatches these through Celery task `.apply_async(...)`
 - email senders use existing email transport via `send_plain_email`
 
-## End-to-end Test Commands
+## End-to-end Verification
 
-1. `python -m pytest -q Backend/app/tests/test_sanctions_models.py`
-2. `python -m pytest -q Backend/app/tests/test_sanctions_api.py`
-3. `python -m pytest -q Backend/app/tests/test_auth_task_dispatcher.py`
-4. `python -m pytest -q Backend/app/tests/test_event_workflow_status.py`
-5. `python -m pytest -q Backend/app/tests/test_governance_hierarchy_api.py`
-6. `python -m pytest -q Backend/tests/test_sanctions.py`
+Manual verification steps:
 
 Sanctions role-fallback verification:
 

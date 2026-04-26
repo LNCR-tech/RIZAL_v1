@@ -18,6 +18,7 @@ These are the defaults from `docker-compose.yml`.
   - OpenAPI docs: `http://localhost:8500/docs`
   - Health: `http://localhost:8500/health`
 - pgAdmin: `http://localhost:5050`
+- Log viewer: `http://localhost:8088`
 - Postgres: `localhost:5433` on the host and `db:5432` inside the Docker network
 - Redis: `localhost:6379`
 
@@ -33,6 +34,7 @@ These are the defaults from `docker-compose.yml`.
 ## Notes
 
 - `5433` is used in Docker to avoid conflicts with a local Postgres already bound to `5432`.
+- `8088` is used by the local log viewer, which reads container stdout/stderr through the read-only Docker socket mount.
 - The frontend reverse-proxies:
   - `/__backend__/...` to the backend origin
   - `/__assistant__/...` to the assistant origin

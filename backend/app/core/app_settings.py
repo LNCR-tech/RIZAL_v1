@@ -51,7 +51,7 @@ class BackendAppSettings:
     celery_task_time_limit_seconds: int = 10800
 
     rate_limit_enabled: bool = True
-    rate_limit_fail_open: bool = True
+    rate_limit_fail_open: bool = False
     rate_limit_login_count: int = 10
     rate_limit_login_window_seconds: int = 300
     rate_limit_forgot_password_count: int = 5
@@ -64,8 +64,8 @@ class BackendAppSettings:
     rate_limit_public_window_seconds: int = 60
     max_request_body_size_mb: int = 8
     face_image_max_size_mb: int = 5
-    api_docs_enabled: bool = True
-    trusted_hosts: tuple[str, ...] = ("*",)
+    api_docs_enabled: bool = False
+    trusted_hosts: tuple[str, ...] = ()
 
     email_timeout_seconds: int = 20
     email_verify_connection_on_startup: bool = True
@@ -84,7 +84,7 @@ class BackendAppSettings:
     default_subscription_status: str = "trial"
     default_subscription_plan: str = "free"
     default_admin_email: str = "admin@aura.com"
-    default_admin_password: str = "AdminPass123!"
+    default_admin_password: str = ""
 
     demo_seed_email_domain: str = "demo.aura.dev"
     demo_seed_schools: int = 5

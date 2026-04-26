@@ -34,7 +34,9 @@ from app.schemas.face_recognition import (
 )
 from app.services.attendance_face_scan import (
     get_registered_face_candidates_for_school,
+    resolve_school_face_match_with_pgvector,
     student_display_name,
+    sync_student_face_embedding_index,
 )
 from app.services.event_attendance_service import get_event_participant_student_ids
 from app.services.face_recognition import (
@@ -204,6 +206,8 @@ def register_face_from_base64(
     )
     profile.registration_complete = True
     db.commit()
+    sync_student_face_embedding_index(db, profile)
+    db.commit()
     db.refresh(profile)
 
     return FaceRegistrationResponse(
@@ -239,6 +243,8 @@ async def register_face_from_upload(
     )
     profile.registration_complete = True
     db.commit()
+    sync_student_face_embedding_index(db, profile)
+    db.commit()
     db.refresh(profile)
 
     return FaceRegistrationResponse(
@@ -267,18 +273,30 @@ def verify_face_against_registered_students(
         mode="single",
     )
 
-    candidates = get_registered_face_candidates_for_school(db, school_id)
-    if not candidates:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No registered student faces found in this school.",
-        )
-
-    match = face_service.find_best_match(
-        encoding,
-        [scoped_candidate.candidate for scoped_candidate in candidates],
+    vector_match = resolve_school_face_match_with_pgvector(
+        db,
+        face_service=face_service,
+        encoding=encoding,
+        school_id=school_id,
         mode="single",
     )
+    candidates = None
+    student = None
+    if vector_match is not None:
+        student, match = vector_match
+    else:
+        candidates = get_registered_face_candidates_for_school(db, school_id)
+        if not candidates:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No registered student faces found in this school.",
+            )
+
+        match = face_service.find_best_match(
+            encoding,
+            [scoped_candidate.candidate for scoped_candidate in candidates],
+            mode="single",
+        )
     if not match.matched or match.candidate is None:
         return FaceVerificationResponse(
             match_found=False,
@@ -288,11 +306,12 @@ def verify_face_against_registered_students(
             liveness=liveness.to_dict(),
         )
 
-    student_lookup = {
-        scoped_candidate.candidate.identifier: scoped_candidate.student
-        for scoped_candidate in candidates
-    }
-    student = student_lookup.get(match.candidate.identifier)
+    if student is None:
+        student_lookup = {
+            scoped_candidate.candidate.identifier: scoped_candidate.student
+            for scoped_candidate in candidates or []
+        }
+        student = student_lookup.get(match.candidate.identifier)
     if student is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

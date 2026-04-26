@@ -28,7 +28,9 @@ logs/
 
 # Environment / secrets
 .env
-Frontend/.env.local
+.env.local
+.env.backup.*
+*.env
 
 # Database / local artifacts
 *.db

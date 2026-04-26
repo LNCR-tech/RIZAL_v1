@@ -20,50 +20,41 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
-## 2026-04-26 - Fix CI conflict-marker detection and event/audit compatibility regressions
+## 2026-04-25 - Add pgvector-backed student face search
 
 ### Purpose
 
-Make the `aura_ci_cd` pipeline gate deployment correctly by avoiding false-positive merge conflict checks, restoring Manila audit-log timestamps in API responses, and preventing partial event update payloads from crashing when `event_type_id` is absent.
+Scale face attendance matching so large multi-school deployments do not have to load every registered face embedding into Python for each scan.
 
 ### Main files
 
-- `.github/workflows/deploy-ec2.yml`
-- `backend/app/schemas/audit.py`
-- `backend/app/schemas/event.py`
-- `backend/app/routers/events/crud.py`
-- `docs/backend/runtime-behavior.md`
-- `docs/backend/BACKEND_CHANGELOG.md`
+- `Backend/app/services/attendance_face_scan.py`
+- `Backend/app/routers/face_recognition.py`
+- `Backend/app/routers/public_attendance.py`
+- `Backend/alembic/versions/f7a8b9c0d1e2_add_student_face_embeddings_vector_index.py`
+- `Backend/scripts/backfill_student_face_embeddings.py`
 
-### Backend changes
+### Runtime behavior
 
-- narrowed the CI merge-conflict grep to only match real Git conflict markers anchored at the start of a line
-- excluded `.env`, `.env.example`, and `.env.production.example` from that conflict-marker scan
-- preserved Manila-local `+08:00` audit log offsets in `/api/audit-logs` response serialization instead of coercing them back to UTC `Z`
-- restored optional `event_type_id` support on `EventUpdate`
-- updated event patch handling to use a compatibility-safe `getattr(...)` plus payload field-set detection before touching `event_type_id`
-
-### Route or schema impact
-
-- `GET /api/audit-logs`
-  - `created_at` now stays serialized with the Manila-local `+08:00` offset produced by the service layer
-- `PATCH /api/events/{event_id}`
-  - accepts partial payloads without `event_type_id`
-  - still accepts explicit `event_type_id` updates when provided
+- added optional PostgreSQL `pgvector` matching through a dedicated `student_face_embeddings` index table
+- public kiosk scans try event-scoped vector search first, then school-wide vector search only when needed to classify an out-of-scope known student
+- `POST /api/face/verify` uses the same vector index when the school's index is complete
+- if PostgreSQL, `pgvector`, the table, or school index coverage is unavailable, the backend falls back to the existing ORM candidate loading and numpy cosine matching
+- new or updated student face registrations sync their embedding into the vector table when the table is available
 
 ### Migration impact
 
-- no database migration required
-- CI/runtime behavior change:
-  - deployment on `push` to `aura_ci_cd` still depends on compose validation, backend tests, and Docker image build success
-  - compose validation no longer fails on non-conflict separator lines such as comment banners made of `=`
+- migration creates the `vector` extension and `student_face_embeddings` table on PostgreSQL
+- migration creates school/scope indexes plus a cosine vector index, preferring HNSW and falling back to IVFFlat on older pgvector installs
+- existing registered faces are not decoded inside Alembic; run `python scripts/backfill_student_face_embeddings.py` from `Backend/` after migration to populate the vector table for existing rows
 
 ### How to test
 
-1. Run `docker compose -f docker-compose.prod.yml config --quiet`.
-2. Run `pytest -q backend/app/tests/test_audit_log_timezones.py`.
-3. Run `pytest -q backend/app/tests/test_governance_hierarchy_api.py -k update_event_can_add_and_clear_near_start_attendance_override_windows`.
-4. Run `cd backend && pytest -q app/tests`.
+1. Run `alembic upgrade head` against PostgreSQL with `pgvector` installed.
+2. From `Backend/`, run `python scripts/backfill_student_face_embeddings.py`.
+3. Run `python -m pytest -q app/tests/test_public_attendance.py app/tests/test_routes_face.py`.
+4. Register or re-register a student face, then confirm `student_face_embeddings` contains one active row for that `student_profile_id`.
+5. Submit `POST /public-attendance/events/{event_id}/multi-face-scan` and confirm attendance still records while avoiding full school-wide embedding loads when the index is complete.
 
 ## 2026-04-25 - Add backend anti-abuse validation and rate limiting
 

@@ -1,7 +1,7 @@
 # Backend User Preferences And Auth Session Guide
 
 <!--nav-->
-[← Sanctions Guide](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md) | [🏠 Home](/README.md) | [Seeder Guide →](SEEDER_GUIDE.md)
+[← Sanctions Guide](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md) | [🏠 Home](/README.md) | [Frontend Docs →](../frontend/README.md)
 
 ---
 <!--/nav-->
@@ -234,13 +234,13 @@ Current constants:
 
 ### Automated
 
-Run:
+Backend compile check:
 
 ```powershell
-python -m pytest -q Backend/app/tests/test_api.py
+python -m compileall Backend
 ```
 
-Covered scenarios:
+Verify these scenarios manually:
 
 - privileged login returns face-pending MFA response
 - remember-me extends stored session lifetime

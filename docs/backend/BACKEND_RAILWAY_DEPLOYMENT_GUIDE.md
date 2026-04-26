@@ -55,5 +55,4 @@ Non-secret runtime defaults such as face warm-up and import limits now come from
 2. Confirm startup logs show the API booted without trying to auto-seed.
 3. Run the bootstrap command once.
 4. Verify the admin can log in and that no demo schools or sample users were created.
-5. If Mailjet is enabled, run:
-   - `python Backend/scripts/send_test_email.py --recipient <test inbox> --check-only`
+5. If Mailjet is enabled, confirm the backend startup logs show successful Mailjet connectivity verification.

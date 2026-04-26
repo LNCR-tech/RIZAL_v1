@@ -66,13 +66,13 @@ This is the correct mode for "scan many people, record many people."
 The same logged-in account must not be able to record another student's attendance in self-scan mode.  
 Gather mode is intentionally the opposite: it is allowed to process many students in one scan.
 
-## Regression Tests Added
+## Security Verification
 
-File: `backend/app/tests/test_routes_face.py`
+The following security behaviors should be verified manually:
 
-- `test_face_scan_with_recognition_rejects_student_outside_event_scope`
-- `test_face_scan_with_recognition_rejects_non_student_operator_accounts`
-- `test_face_scan_with_recognition_never_records_other_student_for_self_scan`
+- student outside event scope is rejected from self-scan
+- non-student operator accounts are rejected from self-scan endpoint
+- self-scan never records attendance for a different student
 
 ## Notes
 

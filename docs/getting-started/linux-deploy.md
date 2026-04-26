@@ -56,13 +56,13 @@ Compared to the dev `docker-compose.yml`:
 ### Option A — Run directly from GitHub (fresh server)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/integrate/pilot-merge/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/Pre-Production-v1/deploy.sh | bash
 ```
 
 ### Option B — Clone first, then run
 
 ```bash
-git clone https://github.com/LNCR-tech/RIZAL_v1.git -b integrate/pilot-merge
+git clone https://github.com/LNCR-tech/RIZAL_v1.git -b Pre-Production-v1
 cd RIZAL_v1
 chmod +x deploy.sh
 ./deploy.sh
@@ -107,7 +107,7 @@ Override these before running the script:
 | Variable | Default | Description |
 |---|---|---|
 | `REPO_URL` | `https://github.com/LNCR-tech/RIZAL_v1.git` | Repo to clone |
-| `REPO_BRANCH` | `integrate/pilot-merge` | Branch to deploy |
+| `REPO_BRANCH` | `Pre-Production-v1` | Branch to deploy |
 | `DEPLOY_DIR` | `/opt/aura` | Directory to clone into |
 
 Example:

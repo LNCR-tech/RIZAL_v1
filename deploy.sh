@@ -24,7 +24,7 @@ set -euo pipefail
 # Config — override via environment variables before running
 # -----------------------------------------------------------------------------
 REPO_URL="${REPO_URL:-https://github.com/LNCR-tech/RIZAL_v1.git}"
-REPO_BRANCH="${REPO_BRANCH:-integrate/pilot-merge}"
+REPO_BRANCH="${REPO_BRANCH:-Pre-Production-v1}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
 COMPOSE_FILE="docker-compose.prod.yml"
 

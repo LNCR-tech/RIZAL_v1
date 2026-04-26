@@ -46,19 +46,9 @@ That keeps:
 - onboarding flows from attempting a real send
 - API startup stable when Mailjet is not configured
 
-## Mailjet Smoke Test
+## Verifying Mailjet
 
-From repo root:
-
-```powershell
-python Backend/scripts/send_test_email.py --recipient test@example.com --check-only
-python Backend/scripts/send_test_email.py --recipient test@example.com
-```
-
-What each command does:
-
-- `--check-only` verifies Mailjet connectivity and sender acceptance without sending the test message.
-- without `--check-only`, the backend performs a real transactional send through Mailjet.
+Mailjet connectivity is verified automatically at backend startup when `EMAIL_TRANSPORT=mailjet_api` is set. Check the backend startup logs for confirmation.
 
 ## Startup Validation Behavior
 
@@ -77,6 +67,5 @@ If any of those fail, API startup aborts.
 2. Confirm startup succeeds and logs that outbound mail is disabled.
 3. Set `EMAIL_TRANSPORT=mailjet_api` without credentials and start the backend.
 4. Confirm startup fails fast with a Mailjet configuration error.
-5. Set valid Mailjet credentials and run:
-   - `pytest Backend/app/tests/test_email_service.py`
-   - `python Backend/scripts/send_test_email.py --recipient <your test inbox> --check-only`
+5. Set valid Mailjet credentials and start the backend.
+6. Confirm startup succeeds and logs that Mailjet connectivity is verified.

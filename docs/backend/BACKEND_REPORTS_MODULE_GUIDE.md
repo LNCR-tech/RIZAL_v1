@@ -149,11 +149,7 @@ Legacy router files were reduced to thin composition/wrapper behavior:
 
 1. Run compile checks:
    - `python -m compileall Backend/app/reports Backend/app/routers/attendance/reports.py Backend/app/routers/attendance/records.py Backend/app/routers/admin_import.py Backend/app/routers/audit_logs.py Backend/app/routers/notifications.py Backend/app/routers/governance_hierarchy.py`
-2. Run backend API regression tests for touched domains:
-   - `python -m pytest -q Backend/app/tests/test_admin_import_preview_flow.py Backend/app/tests/test_governance_hierarchy_api.py Backend/app/tests/test_public_attendance.py`
-3. Run full backend regression after integration:
-   - `python -m pytest -q Backend/app/tests`
-4. Optional manual API smoke:
+2. Manual API smoke:
    - call each report endpoint listed above with an authenticated account and verify response shape/HTTP status parity with pre-refactor behavior.
    - for `GET /api/attendance/students/overview`, verify each row contains the added `*_events` counters and that they align with the selected date/department/program filters.
    - for `GET /api/attendance/summary`, verify `student_login_summary` and `student_login_rows` are present and that successful-login counts reflect the selected date and department/program filters.

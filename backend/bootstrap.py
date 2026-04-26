@@ -19,13 +19,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--admin-email",
-        default=APP_SETTINGS.default_admin_email,
-        help=f"Email address for the first platform admin (default: {APP_SETTINGS.default_admin_email}).",
+        required=True,
+        help="Email address for the first platform admin (REQUIRED).",
     )
     parser.add_argument(
         "--admin-password",
-        default=APP_SETTINGS.default_admin_password,
-        help=f"Password for the first platform admin (default: {APP_SETTINGS.default_admin_password}).",
+        required=True,
+        help="Password for the first platform admin (REQUIRED). Use a strong password.",
     )
     return parser
 

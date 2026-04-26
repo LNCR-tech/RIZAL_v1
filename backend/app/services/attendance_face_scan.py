@@ -7,7 +7,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 
+import numpy as np
+from sqlalchemy import bindparam, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.attendance import Attendance as AttendanceModel
@@ -19,6 +23,8 @@ from app.services.event_attendance_service import get_event_participant_student_
 from app.services.event_time_status import get_attendance_decision, get_event_status, get_sign_out_decision
 from app.services.face_recognition import FaceCandidate, FaceMatchResult, LivenessResult
 from app.services.notification_center_service import send_attendance_notification
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -36,6 +42,14 @@ class PublicAttendancePersistenceResult:
     time_in: datetime | None = None
     time_out: datetime | None = None
     duration_minutes: int | None = None
+
+
+@dataclass(frozen=True)
+class PgvectorFaceSearchRow:
+    student_profile_id: int
+    distance: float
+    confidence: float
+    threshold: float
 
 
 def student_display_name(student: StudentProfile) -> str:
@@ -74,6 +88,202 @@ def _build_scoped_candidates(students: list[StudentProfile]) -> list[ScopedStude
     return candidates
 
 
+def _session_uses_postgresql(db: Session) -> bool:
+    bind = db.get_bind()
+    return bool(bind is not None and bind.dialect.name == "postgresql")
+
+
+def _pgvector_face_index_ready(db: Session) -> bool:
+    """Return True when the optional pgvector attendance index is available."""
+    if not _session_uses_postgresql(db):
+        return False
+    cached = db.info.get("pgvector_face_index_ready")
+    if cached is not None:
+        return bool(cached)
+
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT
+                    to_regtype('vector') IS NOT NULL AS has_vector,
+                    to_regclass('public.student_face_embeddings') IS NOT NULL AS has_table
+                """
+            )
+        ).mappings().first()
+    except SQLAlchemyError:
+        logger.exception("Unable to inspect pgvector face index availability.")
+        db.info["pgvector_face_index_ready"] = False
+        return False
+
+    ready = bool(row and row["has_vector"] and row["has_table"])
+    db.info["pgvector_face_index_ready"] = ready
+    return ready
+
+
+def _pgvector_school_index_complete(db: Session, school_id: int) -> bool:
+    """Return True when active vector rows cover all registered faces in a school."""
+    cache_key = f"pgvector_school_index_complete:{school_id}"
+    cached = db.info.get(cache_key)
+    if cached is not None:
+        return bool(cached)
+    if not _pgvector_face_index_ready(db):
+        db.info[cache_key] = False
+        return False
+
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT
+                    (
+                        SELECT count(*)
+                        FROM student_profiles AS sp
+                        WHERE sp.school_id = :school_id
+                          AND sp.face_encoding IS NOT NULL
+                          AND sp.is_face_registered IS TRUE
+                          AND COALESCE(sp.embedding_provider, 'arcface') IN ('arcface', 'buffalo_l')
+                          AND COALESCE(sp.embedding_dtype, 'float32') = 'float32'
+                          AND COALESCE(sp.embedding_dimension, 512) = 512
+                          AND COALESCE(sp.embedding_normalized, TRUE) IS TRUE
+                    ) AS registered_count,
+                    (
+                        SELECT count(*)
+                        FROM student_face_embeddings AS sfe
+                        WHERE sfe.school_id = :school_id
+                          AND sfe.is_active IS TRUE
+                          AND sfe.embedding IS NOT NULL
+                          AND sfe.provider IN ('arcface', 'buffalo_l')
+                          AND sfe.embedding_dtype = 'float32'
+                          AND sfe.embedding_dimension = 512
+                          AND sfe.embedding_normalized IS TRUE
+                    ) AS indexed_count
+                """
+            ),
+            {"school_id": school_id},
+        ).mappings().first()
+    except SQLAlchemyError:
+        logger.exception("Unable to inspect pgvector face index completeness.")
+        db.info[cache_key] = False
+        return False
+
+    complete = bool(
+        row
+        and int(row["registered_count"] or 0) > 0
+        and int(row["registered_count"] or 0) == int(row["indexed_count"] or 0)
+    )
+    db.info[cache_key] = complete
+    return complete
+
+
+def _embedding_to_vector_literal(embedding) -> str:
+    """Serialize one normalized embedding as a pgvector text literal."""
+    vector = np.asarray(embedding, dtype=np.float32).reshape(-1)
+    norm = float(np.linalg.norm(vector))
+    if norm <= 0:
+        raise ValueError("Embedding norm must be greater than zero.")
+    normalized = vector / norm
+    return "[" + ",".join(f"{float(value):.8g}" for value in normalized) + "]"
+
+
+def sync_student_face_embedding_index(db: Session, student: StudentProfile) -> bool:
+    """Upsert one registered student face into the optional pgvector index table."""
+    if not _pgvector_face_index_ready(db):
+        return False
+    db.info.pop(f"pgvector_school_index_complete:{student.school_id}", None)
+
+    if not student.face_encoding or not student.is_face_registered:
+        try:
+            db.execute(
+                text(
+                    """
+                    UPDATE student_face_embeddings
+                    SET is_active = FALSE, updated_at = NOW()
+                    WHERE student_profile_id = :student_profile_id
+                    """
+                ),
+                {"student_profile_id": student.id},
+            )
+            return True
+        except SQLAlchemyError:
+            logger.exception("Failed to deactivate student face embedding index row.")
+            db.rollback()
+            return False
+
+    dtype_name = (student.embedding_dtype or "float32").strip().lower()
+    dimension = int(student.embedding_dimension or 0)
+    if dtype_name != "float32" or dimension <= 0:
+        return False
+
+    try:
+        vector = np.frombuffer(bytes(student.face_encoding), dtype=np.dtype(dtype_name))
+        if vector.size != dimension:
+            return False
+        vector_literal = _embedding_to_vector_literal(vector)
+        db.execute(
+            text(
+                """
+                INSERT INTO student_face_embeddings (
+                    school_id,
+                    student_profile_id,
+                    department_id,
+                    program_id,
+                    embedding,
+                    provider,
+                    embedding_dtype,
+                    embedding_dimension,
+                    embedding_normalized,
+                    is_active,
+                    updated_at
+                )
+                VALUES (
+                    :school_id,
+                    :student_profile_id,
+                    :department_id,
+                    :program_id,
+                    CAST(:embedding AS vector),
+                    :provider,
+                    :embedding_dtype,
+                    :embedding_dimension,
+                    :embedding_normalized,
+                    TRUE,
+                    NOW()
+                )
+                ON CONFLICT (student_profile_id) DO UPDATE SET
+                    school_id = EXCLUDED.school_id,
+                    department_id = EXCLUDED.department_id,
+                    program_id = EXCLUDED.program_id,
+                    embedding = EXCLUDED.embedding,
+                    provider = EXCLUDED.provider,
+                    embedding_dtype = EXCLUDED.embedding_dtype,
+                    embedding_dimension = EXCLUDED.embedding_dimension,
+                    embedding_normalized = EXCLUDED.embedding_normalized,
+                    is_active = TRUE,
+                    updated_at = NOW()
+                """
+            ),
+            {
+                "school_id": student.school_id,
+                "student_profile_id": student.id,
+                "department_id": student.department_id,
+                "program_id": student.program_id,
+                "embedding": vector_literal,
+                "provider": student.embedding_provider or "arcface",
+                "embedding_dtype": dtype_name,
+                "embedding_dimension": dimension,
+                "embedding_normalized": bool(student.embedding_normalized),
+            },
+        )
+        return True
+    except (SQLAlchemyError, ValueError):
+        logger.exception(
+            "Failed to sync student face embedding index row for student_profile_id=%s.",
+            student.id,
+        )
+        db.rollback()
+        return False
+
+
 def get_registered_face_candidates_for_school(
     db: Session,
     school_id: int,
@@ -91,6 +301,225 @@ def get_registered_face_candidates_for_school(
         .all()
     )
     return _build_scoped_candidates(students)
+
+
+def _event_scope_ids(event: EventModel) -> tuple[list[int], list[int]]:
+    program_ids = [program.id for program in event.programs]
+    department_ids = [department.id for department in event.departments]
+    return program_ids, department_ids
+
+
+def _search_pgvector_face_index(
+    db: Session,
+    *,
+    face_service,
+    encoding,
+    school_id: int,
+    program_ids: list[int] | None = None,
+    department_ids: list[int] | None = None,
+    threshold: float | None = None,
+    mode: str = "group",
+) -> PgvectorFaceSearchRow | None:
+    if not _pgvector_face_index_ready(db):
+        return None
+
+    effective_threshold = float(
+        threshold if threshold is not None else face_service.default_threshold_for_mode(mode)
+    )
+    try:
+        vector_literal = _embedding_to_vector_literal(encoding)
+    except ValueError:
+        return None
+
+    where_clauses = [
+        "sfe.school_id = :school_id",
+        "sfe.is_active IS TRUE",
+        "sfe.embedding IS NOT NULL",
+        "sfe.embedding_dtype = :embedding_dtype",
+        "sfe.embedding_dimension = :embedding_dimension",
+        "sfe.embedding_normalized IS TRUE",
+        "sfe.provider IN ('arcface', 'buffalo_l')",
+    ]
+    params: dict[str, object] = {
+        "school_id": school_id,
+        "embedding": vector_literal,
+        "embedding_dtype": face_service.settings.face_embedding_dtype,
+        "embedding_dimension": face_service.settings.face_embedding_dim,
+    }
+    bind_params = []
+
+    if program_ids:
+        where_clauses.append("sfe.program_id IN :program_ids")
+        params["program_ids"] = program_ids
+        bind_params.append(bindparam("program_ids", expanding=True))
+    if department_ids:
+        where_clauses.append("sfe.department_id IN :department_ids")
+        params["department_ids"] = department_ids
+        bind_params.append(bindparam("department_ids", expanding=True))
+
+    distance_expression = "sfe.embedding <=> CAST(:embedding AS vector)"
+    statement = text(
+        f"""
+        SELECT
+            sfe.student_profile_id,
+            ({distance_expression}) AS distance
+        FROM student_face_embeddings AS sfe
+        WHERE {" AND ".join(where_clauses)}
+        ORDER BY {distance_expression}, sfe.student_profile_id ASC
+        LIMIT 1
+        """
+    )
+    if bind_params:
+        statement = statement.bindparams(*bind_params)
+
+    try:
+        row = db.execute(statement, params).mappings().first()
+    except SQLAlchemyError:
+        logger.exception("pgvector face search failed; falling back to ORM candidate matching.")
+        return None
+
+    if row is None:
+        return None
+
+    distance = float(row["distance"])
+    return PgvectorFaceSearchRow(
+        student_profile_id=int(row["student_profile_id"]),
+        distance=distance,
+        confidence=float(max(-1.0, min(1.0, 1.0 - distance))),
+        threshold=effective_threshold,
+    )
+
+
+def _load_student_for_face_search_row(db: Session, row: PgvectorFaceSearchRow) -> StudentProfile | None:
+    return (
+        db.query(StudentProfile)
+        .options(joinedload(StudentProfile.user))
+        .filter(StudentProfile.id == row.student_profile_id)
+        .first()
+    )
+
+
+def _face_match_from_pgvector_row(
+    row: PgvectorFaceSearchRow | None,
+    *,
+    student: StudentProfile | None = None,
+    default_threshold: float = 0.0,
+) -> FaceMatchResult:
+    if row is None:
+        return FaceMatchResult(
+            matched=False,
+            threshold=float(default_threshold),
+            distance=float("inf"),
+            confidence=0.0,
+            candidate=None,
+        )
+
+    candidate = None
+    if student is not None:
+        candidate = FaceCandidate(
+            identifier=student.id,
+            label=student_display_name(student),
+            encoding_bytes=bytes(student.face_encoding or b""),
+            embedding_provider=student.embedding_provider,
+            embedding_dtype=student.embedding_dtype,
+            embedding_dimension=student.embedding_dimension,
+            embedding_normalized=student.embedding_normalized,
+        )
+    return FaceMatchResult(
+        matched=row.distance <= row.threshold,
+        threshold=row.threshold,
+        distance=row.distance,
+        confidence=row.confidence,
+        candidate=candidate,
+    )
+
+
+def resolve_face_match_scope_with_pgvector(
+    db: Session,
+    *,
+    face_service,
+    encoding,
+    event: EventModel,
+    threshold: float | None = None,
+    mode: str = "group",
+) -> tuple[str, StudentProfile | None, FaceMatchResult] | None:
+    """Resolve a face match through pgvector without loading every embedding."""
+    if not _pgvector_school_index_complete(db, event.school_id):
+        return None
+
+    program_ids, department_ids = _event_scope_ids(event)
+    event_row = _search_pgvector_face_index(
+        db,
+        face_service=face_service,
+        encoding=encoding,
+        school_id=event.school_id,
+        program_ids=program_ids,
+        department_ids=department_ids,
+        threshold=threshold,
+        mode=mode,
+    )
+    if event_row is not None and event_row.distance <= event_row.threshold:
+        student = _load_student_for_face_search_row(db, event_row)
+        if student is not None:
+            return "in_scope", student, _face_match_from_pgvector_row(event_row, student=student)
+
+    default_threshold = float(
+        threshold if threshold is not None else face_service.default_threshold_for_mode(mode)
+    )
+    event_match = _face_match_from_pgvector_row(event_row, default_threshold=default_threshold)
+    if not program_ids and not department_ids:
+        return "no_match", None, event_match
+
+    school_row = _search_pgvector_face_index(
+        db,
+        face_service=face_service,
+        encoding=encoding,
+        school_id=event.school_id,
+        threshold=threshold,
+        mode=mode,
+    )
+    if school_row is not None and school_row.distance <= school_row.threshold:
+        student = _load_student_for_face_search_row(db, school_row)
+        if student is not None:
+            return "out_of_scope", student, _face_match_from_pgvector_row(school_row, student=student)
+
+    return "no_match", None, _face_match_from_pgvector_row(
+        school_row or event_row,
+        default_threshold=default_threshold,
+    )
+
+
+def resolve_school_face_match_with_pgvector(
+    db: Session,
+    *,
+    face_service,
+    encoding,
+    school_id: int,
+    threshold: float | None = None,
+    mode: str = "single",
+) -> tuple[StudentProfile | None, FaceMatchResult] | None:
+    """Resolve the best school-wide face match through pgvector when available."""
+    if not _pgvector_school_index_complete(db, school_id):
+        return None
+
+    default_threshold = float(
+        threshold if threshold is not None else face_service.default_threshold_for_mode(mode)
+    )
+    row = _search_pgvector_face_index(
+        db,
+        face_service=face_service,
+        encoding=encoding,
+        school_id=school_id,
+        threshold=threshold,
+        mode=mode,
+    )
+    if row is None or row.distance > row.threshold:
+        return None, _face_match_from_pgvector_row(row, default_threshold=default_threshold)
+
+    student = _load_student_for_face_search_row(db, row)
+    if student is None:
+        return None, _face_match_from_pgvector_row(row, default_threshold=default_threshold)
+    return student, _face_match_from_pgvector_row(row, student=student)
 
 
 def get_registered_face_candidates_for_event(

@@ -217,15 +217,3 @@ wsl hostname -I
 
 This IP changes on every reboot — update `.env` if Celery fails to connect.
 
----
-
-## Optional: Run the Seeder
-
-Set `SEED_DATABASE = True` in `seeder/variables.py`, then:
-
-```bash
-cd seeder
-python seed.py demo
-```
-
-This generates demo schools, students, events, and attendance records. See [Seeder docs](../../seeder/docs/README.md) for configuration options.
