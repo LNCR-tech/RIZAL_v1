@@ -75,8 +75,7 @@ def upgrade() -> None:
     # Remove the extension line from the SQL — we handle it separately below.
     raw_sql = raw_sql.replace("CREATE EXTENSION IF NOT EXISTS citext;", "")
 
-    cursor.execute("DROP SCHEMA public CASCADE")
-    cursor.execute("CREATE SCHEMA public")
+    cursor.execute("CREATE SCHEMA IF NOT EXISTS public")
     cursor.execute("GRANT ALL ON SCHEMA public TO public")
     cursor.execute("CREATE EXTENSION IF NOT EXISTS citext SCHEMA public")
     # Set search_path for the remainder of this transaction.
@@ -95,7 +94,7 @@ def upgrade() -> None:
         "(version_num VARCHAR(32) NOT NULL, "
         "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
     )
-    cursor.execute(f"INSERT INTO alembic_version (version_num) VALUES ('{revision}')")
+    cursor.execute(f"INSERT INTO alembic_version (version_num) VALUES ('{revision}') ON CONFLICT (version_num) DO NOTHING")
     cursor.close()
 
 
