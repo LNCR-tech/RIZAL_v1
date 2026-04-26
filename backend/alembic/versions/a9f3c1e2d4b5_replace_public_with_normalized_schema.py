@@ -88,6 +88,16 @@ def _split_sql_statements(sql: str) -> list[str]:
 def upgrade() -> None:
     print(f"DEBUG: Starting normalization migration...", flush=True)
     try:
+        bind = op.get_bind()
+        inspector = sa.inspect(bind)
+        
+        # Check if the schema is already populated
+        if "aura_norm" in inspector.get_schema_names():
+            existing_tables = inspector.get_table_names(schema="aura_norm")
+            if "schools" in existing_tables and "users" in existing_tables:
+                print("DEBUG: aura_norm schema already exists and is populated. Skipping SQL execution.", flush=True)
+                return
+
         sql = _load_normalized_schema_sql()
         statements = _split_sql_statements(sql)
         print(f"DEBUG: Loaded {len(statements)} SQL statements from schema.sql", flush=True)
