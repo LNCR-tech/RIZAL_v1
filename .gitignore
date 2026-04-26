@@ -51,3 +51,6 @@ Backend/face_encodings.pkl
 Backend/.alembic.ini.swp
 Backend/.venv/
 GITHUB/
+
+# SSH keys
+*.pem
