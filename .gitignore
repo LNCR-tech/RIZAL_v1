@@ -51,3 +51,9 @@ Backend/face_encodings.pkl
 Backend/.alembic.ini.swp
 Backend/.venv/
 GITHUB/
+
+aura-key.pem
+
+
+# SSH keys
+*.pem
