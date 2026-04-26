@@ -8,6 +8,7 @@ Create Date: 2026-04-27
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -22,8 +23,15 @@ depends_on = None
 def _load_normalized_schema_sql() -> str:
     # Migration script is in backend/alembic/versions/
     # parents[2] is the 'backend' directory
-    backend_root = Path(__file__).resolve().parents[2]
+    backend_root = Path(__file__).absolute().parents[2]
     sql_path = backend_root / "app" / "db" / "schema.sql"
+    
+    print(f"DEBUG: Calculated sql_path: {sql_path}", flush=True)
+    
+    if not sql_path.exists():
+        print(f"ERROR: schema.sql NOT FOUND at {sql_path}", flush=True)
+        raise FileNotFoundError(f"Could not find schema.sql at {sql_path}")
+        
     return sql_path.read_text(encoding="utf-8")
 
 
@@ -67,27 +75,28 @@ def _split_sql_statements(sql: str) -> list[str]:
 
 
 def upgrade() -> None:
-    print(f"DEBUG: Starting normalization migration...")
-    sql = _load_normalized_schema_sql()
-    statements = _split_sql_statements(sql)
-    print(f"DEBUG: Loaded {len(statements)} SQL statements from schema.sql")
+    print(f"DEBUG: Starting normalization migration...", flush=True)
+    try:
+        sql = _load_normalized_schema_sql()
+        statements = _split_sql_statements(sql)
+        print(f"DEBUG: Loaded {len(statements)} SQL statements from schema.sql", flush=True)
 
-    with op.get_context().autocommit_block():
-        bind = op.get_bind()
-        conn = bind.connection.dbapi_connection.cursor()
-        
-        try:
+        with op.get_context().autocommit_block():
+            bind = op.get_bind()
+            conn = bind.connection.dbapi_connection.cursor()
+            
             for i, statement in enumerate(statements):
                 stmt_stripped = statement.strip()
                 if stmt_stripped:
                     # Print first 50 chars of statement for debugging
-                    print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...")
+                    print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...", flush=True)
                     conn.execute(stmt_stripped)
-            print("DEBUG: All statements executed successfully!")
-        except Exception as e:
-            print(f"ERROR: Migration failed!")
-            print(f"ERROR DETAILS: {str(e)}")
-            raise
+            print("DEBUG: All statements executed successfully!", flush=True)
+    except Exception as e:
+        print(f"ERROR: Migration failed!", flush=True)
+        print(f"ERROR DETAILS: {str(e)}", flush=True)
+        sys.stdout.flush()
+        raise
 
 
 def downgrade() -> None:
