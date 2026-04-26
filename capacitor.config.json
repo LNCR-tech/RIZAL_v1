@@ -1,0 +1,46 @@
+{
+  "appId": "com.aura.app",
+  "appName": "Aura",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "18.142.190.113",
+      "*.railway.app",
+      "*.ngrok-free.dev",
+      "*.ngrok.dev",
+      "*.ngrok-free.app",
+      "*.ngrok.app"
+    ]
+  },
+  "android": {
+    "path": "aura-apk/android",
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "launchShowDuration": 2400,
+      "launchFadeOutDuration": 150,
+      "androidScaleType": "CENTER_CROP",
+      "backgroundColor": "#050505",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#050505"
+    },
+    "Keyboard": {
+      "resize": "none",
+      "resizeOnFullScreen": false
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_aura",
+      "iconColor": "#76FF03"
+    }
+  }
+}

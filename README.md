@@ -1,132 +1,102 @@
-# VALID8
+# Vue 3 + Vite
 
-## Table of Contents
-- [1. Project Overview](#1-project-overview)
-- [2. Functional Requirements](#2-functional-requirements)
-- [3. Non-Functional Requirements](#3-non-functional-requirements)
-- [4. Stakeholders](#stakeholders)
-- [5. Signature and Approval](#signature-and-approval)
+This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
 
-## 1. Project Overview
+Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
 
-### Project Description:
-- A high-end attendance checker that will automatically displays students who attended the events in JRMSU College of Engineering.
+## Docker
 
-### Target Audience:
-- Students
+This repo ships with a production-style Docker setup so the frontend can be demoed consistently without relying on a local Node install.
 
-### Project Objectives
-- Design an intuitive user interface that allows students to easily access their attendance records, receive real-time notifications, and view upcoming events, ensuring a seamless experience.
+### Files
 
-## 2. Functional Requirements
+- `Dockerfile`
+  Builds the Vue app with Vite, then serves the built files from Nginx.
+- `docker-compose.yml`
+  Starts the demo container and maps the app to a local port.
+- `nginx.conf.template`
+  Handles SPA routing and proxies backend requests from `/__backend__` to the configured backend origin.
+- `runtime-config.js.template`
+  Generates the runtime backend configuration file so the same build can point to a different cloud backend later.
+- `public/runtime-config.js`
+  Safe browser fallback for local development when no runtime override is injected.
+- `.env.docker.example`
+  Example runtime configuration for Docker.
 
-User Management: Admins can create, edit, and delete user accounts. Role-based access control for students, SSG officers, event organizers, and admins.
-Event Management: Event organizers can create, edit, and delete events. 
-Attendance Tracking: SSG Officer verifies student attendance via Face recognition
-Attendance Reports: Admins can generate event attendance reports. Students can view their attendance history.
-Security & Authentication: User login using credentials or Google/Facebook login. Secure API for communication between the website and backend.
+### Container
 
-### User Stories/ Use Cases
+- `aura-web`
+  Serves the built Aura frontend on port `80`, keeps Vue Router working with `try_files`, forwards API requests to the external backend through `/__backend__`, and injects runtime backend config on container start.
 
-**As a Student:**
-- I want to log in to the app using my email and password
-- I want to track my attendance by viewing the events I have participated in.
-- I want to check whether there is an upcoming event.
-- I want to logout successfully.
-  
-**As an Student Officer:**
-- I want to track my attendance and view the events I have participated in as well as my upcoming events.
-- I want to scan students’ face using face recognition so that I can ensure accurate and efficient tracking of attendees.
-- I want to track the attendees by manual student ID entry if face recognition fails.
-- I want to logout successfully.
+### Start
 
-**As an Event Organizer:**
-- I want to create a new event by entering essential details such as the event name, date, time, location, and assign officer.
-- I want to easily edit or update event details whenever necessary.
-- I want to delete an event.
-- I want to logout successfully.
+1. Copy `.env.docker.example` to `.env.docker`.
+2. Set `BACKEND_ORIGIN` to the backend root URL.
+   Use the host root, not the `/api` suffix.
+   Example: `https://your-ngrok-host.ngrok-free.dev`
+3. Optional:
+   - keep `AURA_API_BASE_URL=/__backend__` to use the built-in nginx proxy
+   - or set `AURA_API_BASE_URL=https://your-cloud-api.example.com` to call the cloud API directly from the browser
+   - if you use a direct cloud URL, make sure the backend allows your frontend origin with CORS
+4. Run:
 
-**As an Administrator:**
-- I want to manage user roles (Create, Read, Update, delete students, ssg-officers, event-organizer).
-- I want to oversee all events created within the system and review flagged attendance issues so that attendance accuracy is maintained.
-- I want to generate and downloads attendance reports (CSV).
+```bash
+docker compose --env-file .env.docker up --build -d
+```
 
-### Integration Requirements
-- The system should integrate with an email service provider to facilitate automated email notifications for event reminders, confirmations, and updates.
-- The system should allow integration with calendar applications.
-- It should integrate with the Valid8 system to allow students to check in and view their attendance records on their smartphones.
+5. Open:
 
-### Data Requirements 
-### 1. User Data:
-### Student Information:
-- Student ID, name, email address, contact number, enrollment status, and program/major, department.
-### Event Organizer Information:
-- Organizer ID, name, email address, contact number.
+```text
+http://localhost:8080
+```
 
-### 2. Event Data:
-### Event Details:
-- Event ID, name, date, time, location, description, registration deadline, and maximum capacity.
-### Event Status:
-- Status (upcoming, ongoing, completed, canceled).
+### Stop
 
-### 3. Attendance Data:
-### Check-In Records:
-- Check-in ID, event ID, student ID, check-in time, mid-event checkpoint, and check-out time.
-### Attendance Status:
-- Status (present, absent, late).
+```bash
+docker compose --env-file .env.docker down
+```
 
-### 4. Notification Data:
-### Email Notifications:
-- Notification ID, recipient email, subject, message content, and timestamp.
+### Health Check
 
-### 5. Feedback Data:
-### Survey Responses:
-- Feedback ID, event ID, student ID, rating (e.g., 1-5 stars), comments, and submission timestamp.
+The container exposes a simple health endpoint at `/healthz` for Docker health checks.
 
-### 6. System Logs:
-### User Activity Logs:
-- Log ID, user ID, user role (e.g., student, admin, SSG officer, event organizer), action performed (e.g., login, check-in, event creation)
+## Cloud Backend Flexibility
 
-## 3. Non-Functional Requirements: 
- ### Performance: 
- - The system should respond quickly to user actions, with minimal latency during event creation, registration, and check-in processes.
- - It should be able to handle thousands of students concurrently without degradation in performance, ensuring a smooth user experience even during peak usage times.
- - Must handle at least 200+ concurrent users without crashing. Attendance verification should take less than 5 seconds per student. 
+The frontend now resolves the backend in this order:
 
+1. `window.__AURA_RUNTIME_CONFIG__.apiBaseUrl`
+2. `VITE_API_BASE_URL`
+3. default proxy path `/__backend__`
 
-### Security: 
-- The system must implement robust security measures to protect user data and prevent unauthorized access. This includes data encryption, secure authentication methods, and regular security audits.
+This means you can keep one frontend build and change only runtime config when the backend moves.
 
-### Usability: 
-- The user interface should be intuitive and user-friendly, allowing users of varying technical expertise to navigate the system easily. 
+### Local Vite development
 
-### Compliance & Standards:
-- The system must comply with relevant data protection regulations (e.g., GDPR, FERPA) and industry standards to ensure the privacy and security of user information.
+Use a proxy target in `.env.development.local`:
 
-### Reliability: 
-- The system should be reliable, with minimal downtime. It should include backup and recovery mechanisms to ensure data integrity and availability in case of failures.
+```env
+VITE_API_BASE_URL=/__backend__
+VITE_BACKEND_PROXY_TARGET=https://your-cloud-backend.example.com
+```
 
-### Deployment and Maintenance: 
-- The system should be easy to deploy and maintain, with clear procedures for updates, bug fixes, and user support. Regular maintenance schedules should be established to ensure optimal performance and security.
+### Docker demo
 
-## Stakeholders
-### Project Sponsor
-- Engr Richie Lacaya
-- Eng. Troy Lasco
+Use the nginx proxy:
 
-### Primary Point of Contact
-- Valid8 group
+```env
+BACKEND_ORIGIN=https://your-cloud-backend.example.com
+AURA_API_BASE_URL=/__backend__
+```
 
-## Signature and Approval
-#### By signing below, the sponsor confirms that all information provided is accurate and complete, and authorizes the development team to proceed with the requirements based on this document.
+### Static / cloud frontend hosting
 
-#### Sponsor Name: 
- - Engr Richie Lacaya
+Publish a `runtime-config.js` alongside the built app with:
 
-###    
+```js
+window.__AURA_RUNTIME_CONFIG__ = {
+  apiBaseUrl: 'https://your-cloud-backend.example.com',
+  apiTimeoutMs: 15000,
+}
+```
 
-#### Signature:
-
-#### Date: 
-  
-  
+If your backend root is accidentally configured as `https://host/api`, Aura now normalizes that to the host root automatically to avoid duplicated `/api/api/...` requests.

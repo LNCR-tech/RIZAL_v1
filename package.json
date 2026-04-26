@@ -1,0 +1,48 @@
+{
+  "name": "aura-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:config": "node ./scripts/write-capacitor-config.mjs",
+    "runtime:config:dist": "node ./scripts/write-runtime-config.mjs dist/runtime-config.js",
+    "cap:sync": "npm run cap:config && capacitor sync",
+    "android:sync": "npm run build && npm run runtime:config:dist && npm run cap:config && capacitor sync android",
+    "android:open": "npm run cap:config && capacitor open android",
+    "android:build:debug": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleDebug",
+    "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/camera": "^8.0.2",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/haptics": "^8.0.1",
+    "@capacitor/keyboard": "^8.0.2",
+    "@capacitor/local-notifications": "^8.0.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "@lottiefiles/dotlottie-vue": "^0.11.10",
+    "@mediapipe/tasks-vision": "^0.10.32",
+    "jspdf": "^4.2.1",
+    "leaflet": "^1.9.4",
+    "lucide-vue-next": "^0.577.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.25",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.3.1"
+  }
+}
