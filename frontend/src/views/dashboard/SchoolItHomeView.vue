@@ -704,7 +704,7 @@ async function handleLogout() {
 </script>
 
 <style scoped>
-.school-it-home{min-height:100dvh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
+.school-it-home{min-height:100dvh;padding:30px 28px 120px;font-family:'Manrope',sans-serif;background:var(--color-bg)}
 .school-it-home__shell{width:100%;max-width:1120px;margin:0 auto}
 .school-it-home__body{display:flex;flex-direction:column;gap:18px;margin-top:24px}
 .school-it-home__title{margin:0;font-size:22px;font-weight:800;line-height:1;letter-spacing:-.05em;color:var(--color-text-primary)}

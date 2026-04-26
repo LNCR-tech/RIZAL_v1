@@ -35,6 +35,7 @@ const hideMobileNav = computed(() => (
 .mobile-app-layout__main {
   min-height: 100dvh;
   padding-bottom: 112px;
+  background: var(--color-bg);
 }
 
 .mobile-app-layout__main--immersive {
