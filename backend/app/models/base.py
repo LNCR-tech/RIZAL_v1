@@ -1,8 +1,5 @@
-"""Use: Defines database models for the shared SQLAlchemy base class.
-Where to use: Use this when the backend needs to store or load the shared SQLAlchemy base class data.
-Role: Model layer. It maps Python objects to database tables and relationships.
-"""
+"""Compatibility shim — re-exports Base from the normalized schema base."""
 
-from sqlalchemy.orm import declarative_base
+from app.models.aura_norm.base import AuraNormBase as Base  # noqa: F401
 
-Base = declarative_base()
+__all__ = ["Base"]

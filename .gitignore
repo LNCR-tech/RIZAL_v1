@@ -4,6 +4,7 @@ Thumbs.db
 .idea/
 .vscode/
 .amazonq/
+.kilo/
 
 # Python
 __pycache__/
