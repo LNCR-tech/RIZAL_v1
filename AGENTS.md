@@ -4,4 +4,4 @@
 - Update any affected backend guide with the changed logic, routes, schemas, models, migrations, or configuration.
 - If a backend change affects runtime behavior, document how to test it.
 - Do not implement hardcoded answers or preset question-to-answer mappings for chat. Responses must be generated from model reasoning based on the user's prompt and available context.
-
+- When git merging, ensure that ONLY the `pilot` branch has the `seeder/` folder. It MUST NOT be present in `preproduction` or `production` branches.
