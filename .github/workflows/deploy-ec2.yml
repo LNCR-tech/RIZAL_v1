@@ -112,7 +112,11 @@ jobs:
 
             cp .env.production .env
 
-            # Clean up old containers and free up ports
+            # Aggressively free up port 8000 (standard Linux)
+            echo "Ensuring port 8000 is free..."
+            sudo fuser -k 8000/tcp || true
+
+            # Clean up old containers
             docker compose -f docker-compose.prod.yml down --remove-orphans
 
             # Build images first
