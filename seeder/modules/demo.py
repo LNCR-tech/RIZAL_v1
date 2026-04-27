@@ -448,9 +448,6 @@ def run_demo(
             # - UPCOMING: 0% (Hallucination Protection)
             
             attendance_gate_prob = 0.0
-            if ev.status == DBEventStatus.COMPLETED.value if hasattr(ev, 'status') and isinstance(DBEventStatus.COMPLETED, type(DBEventStatus.COMPLETED)) else DBEventStatus.COMPLETED:
-                pass # wait, let's just use string literal or .value directly
-            # SQLAlchemy text column means ev.status is a string.
             if ev.status == DBEventStatus.COMPLETED.value or ev.status == DBEventStatus.COMPLETED:
                 attendance_gate_prob = 1.0
             elif ev.status == DBEventStatus.ONGOING.value or ev.status == DBEventStatus.ONGOING:
