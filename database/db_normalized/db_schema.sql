@@ -248,19 +248,6 @@ CREATE TABLE IF NOT EXISTS user_security_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS user_face_profiles (
-  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  face_encoding BYTEA NOT NULL,
-  provider TEXT NOT NULL,
-  embedding_dtype TEXT,
-  embedding_dimension INTEGER,
-  embedding_normalized BOOLEAN NOT NULL DEFAULT TRUE,
-  reference_image_sha256 CHAR(64),
-  last_verified_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -366,6 +353,24 @@ CREATE TABLE IF NOT EXISTS faculty_profiles (
   user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   department_id BIGINT REFERENCES departments(id) ON DELETE SET NULL,
   program_id BIGINT REFERENCES programs(id) ON DELETE SET NULL
+);
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS student_face_embeddings (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  school_id BIGINT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  student_profile_id BIGINT NOT NULL UNIQUE REFERENCES student_profiles(id) ON DELETE CASCADE,
+  department_id BIGINT REFERENCES departments(id) ON DELETE SET NULL,
+  program_id BIGINT REFERENCES programs(id) ON DELETE SET NULL,
+  embedding vector(512) NOT NULL,
+  provider VARCHAR(32) NOT NULL DEFAULT 'arcface',
+  embedding_dtype VARCHAR(16) NOT NULL DEFAULT 'float32',
+  embedding_dimension INTEGER NOT NULL DEFAULT 512,
+  embedding_normalized BOOLEAN NOT NULL DEFAULT TRUE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
