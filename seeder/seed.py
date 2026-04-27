@@ -82,8 +82,11 @@ def main():
         logger.error("")
         logger.error("==========================================================")
         logger.error("  WARNING: SEED_DATABASE=true but SEED_CONFIRM is not set.")
-        logger.error("  This will WIPE ALL EXISTING DATA and replace it with")
-        logger.error("  generated demo data. This action cannot be undone.")
+        if seed_wipe:
+            logger.error("  This will WIPE ALL EXISTING DATA and replace it with")
+            logger.error("  generated demo data. This action cannot be undone.")
+        else:
+            logger.error("  This will INSERT demo data on top of existing records.")
         logger.error("  Set SEED_CONFIRM=yes in your .env to proceed.")
         logger.error("==========================================================")
         logger.error("")
