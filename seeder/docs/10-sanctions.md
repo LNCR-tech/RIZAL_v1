@@ -57,8 +57,15 @@ For each resolved sanction record, a `SanctionComplianceHistory` entry is create
 
 - `complied_by_user_id`: a random leader from the school's leader pool
 - `notes`: drawn uniformly from `COMPLIANCE_NOTES` in `data.py`
-- `school_year`: `"2024-2025"` (default)
-- `semester`: `"1st Semester"` (default)
+- `academic_period_id`: resolved from the event's `time_in` date using the following mapping:
+
+| Event month | School year | Semester |
+|---|---|---|
+| August – December | `year`–`year+1` | 1st |
+| January – May | `year-1`–`year` | 2nd |
+| June – July | `year-1`–`year` | Summer |
+
+This ensures every compliance history entry is linked to a realistic academic period that was seeded for that school.
 
 ---
 

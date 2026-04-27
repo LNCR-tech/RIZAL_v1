@@ -180,7 +180,7 @@ Each event is assigned a type by drawing uniformly from `EVENT_TYPES` in `data.p
 ["Regular Event", "Assembly", "Seminar", "Workshop", "Conference", "Meeting"]
 ```
 
-These match the global `EventType` records seeded by `bootstrap.py`. The seeder resolves the name to an `event_type_id` FK via `resolve_event_type_id()`, which checks global types first (where `school_id IS NULL`) before falling back to school-scoped types.
+These match the global `EventType` records seeded by `seed_event_types()` in `core.py`, which runs before `run_demo()`. The seeder resolves the name to an `event_type_id` FK via `resolve_event_type_id()`, which checks global types first (where `school_id IS NULL`) before falling back to school-scoped types. All events are guaranteed to have a non-NULL `event_type_id`.
 
 ---
 

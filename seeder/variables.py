@@ -21,7 +21,7 @@ SEED_RANDOMIZER_KEY: int = 42
 SEED_UNIQUE_PASSWORDS: bool = False
 
 # Probability (0.0–1.0) that a generated name gets a suffix (Jr., Sr., etc.)
-SEED_USER_SUFFIX_PROBABILITY: float = 0.3
+SEED_USER_SUFFIX_PROBABILITY: float = 0.2
 
 # Output format for credential files
 SEED_CREDENTIALS_FORMAT: str = "csv"  # "csv" | "tsv" | "psv"
@@ -30,8 +30,8 @@ SEED_CREDENTIALS_FORMAT: str = "csv"  # "csv" | "tsv" | "psv"
 SEED_N_SCHOOLS: int = 5
 
 # Student count range per school
-SEED_MIN_STUDENTS: int = 150
-SEED_MAX_STUDENTS: int = 300
+SEED_MIN_STUDENTS: int = 100
+SEED_MAX_STUDENTS: int = 200
 
 # Event count range per school
 SEED_MIN_EVENTS: int = 30

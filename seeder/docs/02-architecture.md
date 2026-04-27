@@ -84,6 +84,9 @@ seed.py
   ├── ensure_tables()               CREATE TABLE IF NOT EXISTS
   ├── wipe_records()                TRUNCATE ... CASCADE (if enabled)
   ├── seed_roles()                  INSERT roles
+  ├── seed_attendance_methods()     INSERT attendance method lookup rows
+  ├── seed_attendance_statuses()    INSERT attendance status lookup rows
+  ├── seed_event_types()            INSERT global event types
   ├── seed_permission_catalog()     INSERT governance permissions
   ├── seed_platform_admin()         INSERT/repair platform admin user
   │
@@ -91,6 +94,7 @@ seed.py
         │
         └── for each school:
               ├── get_or_create_school()
+              ├── academic_periods (1st/2nd/Summer for each year in date range)
               ├── departments + programs
               ├── campus admin user
               ├── SSG → SG → ORG governance units + permissions + announcements
@@ -106,9 +110,6 @@ seed.py
 
 ## 2.4 Dependency on Bootstrap
 
-The seeder depends on `bootstrap.py` having been run first. Specifically:
+The seeder is self-contained for all lookup data. It seeds roles, attendance methods, attendance statuses, event types, and governance permissions directly — it does not require `bootstrap.py` to have run first.
 
-- `seed_roles()` in the seeder is additive — it adds governance roles (`ssg`, `sg`, `org`, `faculty`, `school_it`) that bootstrap does not seed. But it does not re-seed `admin`, `campus_admin`, `student` — those are already there from bootstrap.
-- `resolve_event_type_id()` in `core.py` looks up global `EventType` records by name. These are seeded by `bootstrap.py`. If bootstrap has not run, every event will have `event_type_id = NULL`.
-
-Running the seeder on a completely empty database (no bootstrap) will not crash, but the data will be incomplete.
+Running the seeder on a completely empty database will produce a fully populated, consistent dataset.

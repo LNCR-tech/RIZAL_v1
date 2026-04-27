@@ -59,7 +59,21 @@ All operations use get-or-create semantics — if a department or program with t
 
 ---
 
-## 5.4 School Settings
+## 5.4 Academic Periods
+
+For each school, the seeder seeds `academic_periods` rows covering every school year in the configured date range (`SEED_START_MMDDYY` to `SEED_END_MMDDYY`). Each year gets three periods:
+
+| Semester | Months (approximate) |
+|---|---|
+| 1st Semester | August – December |
+| 2nd Semester | January – May |
+| Summer | June – July |
+
+For example, with a 2024–2026 range, each school gets 9 academic period rows (3 years × 3 semesters). These are used to link `sanction_compliance_history` records to a realistic academic term based on the event date (see [Chapter 10](./10-sanctions.md)).
+
+---
+
+## 5.5 School Settings
 
 Each school gets a `SchoolSetting` record created alongside it, with the same branding colors. This is required by the backend — the settings record is expected to exist for any school that has users.
 
