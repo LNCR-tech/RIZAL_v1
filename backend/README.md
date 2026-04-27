@@ -23,7 +23,7 @@ uvicorn app.main:app --reload
 
 ## Docs
 
-- [Backend Guide](docs/)
+- [Backend Docs](docs/README.md)
 - API docs: `http://localhost:8000/docs` (dev only, disabled in production)
 
 ## Key Directories

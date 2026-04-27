@@ -10,9 +10,9 @@
 
 - [Backend API Overview](./api-overview.md)
 - [Backend Runtime Behavior](./runtime-behavior.md)
-- [Normalized Schema (aura_norm) Guide](./BACKEND_DB_NORMALIZED_SCHEMA_GUIDE.md)
+- [Normalized Schema Guide](./BACKEND_DB_NORMALIZED_SCHEMA_GUIDE.md)
 
-## Existing Guides
+## Guides
 
 - [Backend Changelog](./BACKEND_CHANGELOG.md)
 - [Reports Module Guide](./BACKEND_REPORTS_MODULE_GUIDE.md)
@@ -21,5 +21,5 @@
 - [User Preferences and Auth Session Guide](./BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md)
 - [Face Engine Migration Guide](./BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
 - [Face Attendance Mode Policy](./BACKEND_FACE_ATTENDANCE_MODE_POLICY.md)
-- [Email Delivery Guide (Mailjet / Disabled)](./BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
-- [Railway / Constrained Deployment Guide](./BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
+- [Email Delivery Guide](./BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
+- [Railway Deployment Guide](./BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md)
