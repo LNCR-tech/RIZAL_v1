@@ -51,7 +51,6 @@ Backend/storage/seed_credentials.json
 
 # Seeder outputs
 seeder/storage/seeder_outputs/
-seeder/variables.py
 
 # Project-specific generated files
 Backend/face_encodings.pkl
