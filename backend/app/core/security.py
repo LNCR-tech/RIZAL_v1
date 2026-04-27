@@ -184,9 +184,10 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     if verify_password(password, user.password_hash):
         return user
     
-    # Try lowercase password for case-insensitive login (for imported students)
-    if verify_password(password.lower(), user.password_hash):
-        return user
+    # Only try lowercase password for users still using default import password
+    if getattr(user, 'using_default_import_password', False):
+        if verify_password(password.lower(), user.password_hash):
+            return user
     
     return None
 

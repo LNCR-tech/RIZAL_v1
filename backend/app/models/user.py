@@ -34,6 +34,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, index=True)
     must_change_password = Column(Boolean, default=True, nullable=False, index=True)
     should_prompt_password_change = Column(Boolean, default=False, nullable=False)
+    using_default_import_password = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
@@ -47,6 +48,7 @@ class User(Base):
         if len(password) < 8:
             raise ValueError("Password must be at least 8 characters")
         self.password_hash = hash_password_bcrypt(password)
+        self.using_default_import_password = False
 
     def check_password(self, password: str) -> bool:
         return verify_password_bcrypt(password, self.password_hash)

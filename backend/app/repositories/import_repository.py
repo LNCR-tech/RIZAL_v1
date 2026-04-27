@@ -397,6 +397,7 @@ class ImportRepository:
                 "is_active": True,
                 "must_change_password": must_change_password_for_new_account(),
                 "should_prompt_password_change": should_prompt_password_change_for_new_account(),
+                "using_default_import_password": True,
             }
             for row in candidate_rows
         ]
