@@ -12,6 +12,8 @@ def create_student_account(
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
+    from app.utils.passwords import hash_password_bcrypt
+
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
         raise HTTPException(
@@ -48,11 +50,11 @@ def create_student_account(
             first_name=student.first_name,
             middle_name=student.middle_name,
             last_name=student.last_name,
+            password_hash=hash_password_bcrypt(issued_password),
             must_change_password=must_change_password_for_new_account(),
             should_prompt_password_change=should_prompt_password_change_for_new_account(),
             using_default_import_password=True,
         )
-        db_user.set_password(issued_password)
         db.add(db_user)
         db.flush()
 
