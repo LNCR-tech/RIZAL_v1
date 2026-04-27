@@ -10,32 +10,42 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from app.seeder import BootstrapSeedOptions, run_production_bootstrap
-from app.core.app_settings import APP_SETTINGS
+from app.core.config import get_settings
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    settings = get_settings()
     parser = argparse.ArgumentParser(
         description="Bootstrap the Aura backend with the first platform admin account.",
     )
     parser.add_argument(
         "--admin-email",
-        required=True,
-        help="Email address for the first platform admin (REQUIRED).",
+        required=False,
+        help=f"Email for the first platform admin (default: {settings.default_admin_email})",
     )
     parser.add_argument(
         "--admin-password",
-        required=True,
-        help="Password for the first platform admin (REQUIRED). Use a strong password.",
+        required=False,
+        help="Password for the first platform admin (default: from .env)",
     )
     return parser
 
 
 def main() -> int:
     args = _build_parser().parse_args()
+    settings = get_settings()
+
+    # Fallback to get_settings() if flags are not provided
+    admin_email = args.admin_email or settings.default_admin_email
+    admin_password = args.admin_password or settings.default_admin_password
+
+    if not admin_email or not admin_password:
+        print("Error: Admin email and password must be provided via flags or .env (DEFAULT_ADMIN_EMAIL/PASSWORD)")
+        return 1
 
     options = BootstrapSeedOptions(
-        admin_email=args.admin_email,
-        admin_password=args.admin_password,
+        admin_email=admin_email,
+        admin_password=admin_password,
     )
 
     try:

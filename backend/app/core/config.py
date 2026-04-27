@@ -171,6 +171,9 @@ class Settings:
     aura_norm_enabled: bool
     aura_norm_schema: str
 
+    default_admin_email: str
+    default_admin_password: str
+
 
 def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -326,4 +329,6 @@ def get_settings() -> Settings:
         ),
         aura_norm_enabled=_as_bool(os.getenv("AURA_NORM_ENABLED"), False),
         aura_norm_schema=(os.getenv("AURA_NORM_SCHEMA") or "aura_norm").strip() or "aura_norm",
+        default_admin_email=os.getenv("DEFAULT_ADMIN_EMAIL", APP_SETTINGS.default_admin_email).strip(),
+        default_admin_password=os.getenv("DEFAULT_ADMIN_PASSWORD", APP_SETTINGS.default_admin_password),
     )
