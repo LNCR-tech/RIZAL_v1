@@ -430,11 +430,14 @@ def run_demo(
             # - UPCOMING: 0% (Hallucination Protection)
             
             attendance_gate_prob = 0.0
-            if ev.status == DBEventStatus.COMPLETED:
+            if ev.status == DBEventStatus.COMPLETED.value if hasattr(ev, 'status') and isinstance(DBEventStatus.COMPLETED, type(DBEventStatus.COMPLETED)) else DBEventStatus.COMPLETED:
+                pass # wait, let's just use string literal or .value directly
+            # SQLAlchemy text column means ev.status is a string.
+            if ev.status == DBEventStatus.COMPLETED.value or ev.status == DBEventStatus.COMPLETED:
                 attendance_gate_prob = 1.0
-            elif ev.status == DBEventStatus.ONGOING:
+            elif ev.status == DBEventStatus.ONGOING.value or ev.status == DBEventStatus.ONGOING:
                 attendance_gate_prob = rng.uniform(0.2, 0.7)
-            elif ev.status == DBEventStatus.CANCELLED and getattr(ev, '_seeder_chaos_is_emergency', False):
+            elif (ev.status == DBEventStatus.CANCELLED.value or ev.status == DBEventStatus.CANCELLED) and getattr(ev, '_seeder_chaos_is_emergency', False):
                 attendance_gate_prob = rng.uniform(0.01, 0.15)
             
             if attendance_gate_prob <= 0:
@@ -474,12 +477,11 @@ def run_demo(
                     item_status = SanctionItemStatus.COMPLIED if is_resolved else SanctionItemStatus.PENDING
                     
                     srec = SanctionRecord(
-                        school_id=school.id,
                         event_id=att.event_id,
                         sanction_config_id=conf_id,
                         student_profile_id=att.student_id,
                         attendance_id=att.id,
-                        status=res_status,
+                        status=res_status.value if hasattr(res_status, "value") else res_status,
                         complied_at=now if is_resolved else None,
                         notes="Auto-resolved by stochastic seeder" if is_resolved else None
                     )
@@ -491,14 +493,14 @@ def run_demo(
                             sanction_record_id=srec.id,
                             item_code="LETTER",
                             item_name="Apology Letter",
-                            status=item_status,
+                            status=item_status.value if hasattr(item_status, "value") else item_status,
                             complied_at=now if is_resolved else None
                         ),
                         SanctionItem(
                             sanction_record_id=srec.id,
                             item_code="FINE",
                             item_name="Community Fine",
-                            status=item_status,
+                            status=item_status.value if hasattr(item_status, "value") else item_status,
                             complied_at=now if is_resolved else None
                         )
                     ]
@@ -513,6 +515,10 @@ def run_demo(
                                 complied_by=rng.choice(leaders).id,
                                 notes=rng.choice(COMPLIANCE_NOTES)
                             )
+            
             db.commit()
                 
     logger.info(f"Demo seeding complete. Credentials saved to {storage_dir} in {credentials_format.upper()} format.")
+    
+    # Final global commit to ensure everything is flushed to disk
+    db.commit()
