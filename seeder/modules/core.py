@@ -265,8 +265,8 @@ def create_event(db: Session, **kwargs) -> Event:
         school_id=kwargs["school_id"],
         name=kwargs["name"],
         location=kwargs["location"],
-        start_datetime=kwargs["start_dt"],
-        end_datetime=kwargs["end_dt"],
+        start_at=kwargs["start_dt"],
+        end_at=kwargs["end_dt"],
         status=kwargs.get("status", EventStatus.UPCOMING),
         event_type_id=event_type_id
     )
@@ -275,11 +275,10 @@ def create_event(db: Session, **kwargs) -> Event:
     return event
 
 def create_sanction_config(db: Session, **kwargs) -> EventSanctionConfig:
+    # item_definitions_json no longer exists in normalized schema — config is template-based
     conf = EventSanctionConfig(
-        school_id=kwargs["school_id"],
         event_id=kwargs["event_id"],
         sanctions_enabled=True,
-        item_definitions_json=kwargs["items_def"]
     )
     db.add(conf)
     db.flush()
@@ -287,7 +286,6 @@ def create_sanction_config(db: Session, **kwargs) -> EventSanctionConfig:
 
 def create_sanction_delegation(db: Session, **kwargs) -> SanctionDelegation:
     dele = SanctionDelegation(
-        school_id=kwargs["school_id"],
         event_id=kwargs["event_id"],
         sanction_config_id=kwargs["config_id"],
         delegated_to_governance_unit_id=kwargs["unit_id"],
@@ -299,7 +297,6 @@ def create_sanction_delegation(db: Session, **kwargs) -> SanctionDelegation:
 
 def create_sanction_record(db: Session, **kwargs) -> SanctionRecord:
     rec = SanctionRecord(
-        school_id=kwargs["school_id"],
         event_id=kwargs["event_id"],
         sanction_config_id=kwargs.get("config_id"),
         student_profile_id=kwargs["student_profile_id"],
@@ -324,7 +321,6 @@ def create_sanction_item(db: Session, record_id: int, item_code: str, item_name:
 def create_announcement(db: Session, **kwargs) -> GovernanceAnnouncement:
     ann = GovernanceAnnouncement(
         governance_unit_id=kwargs["unit_id"],
-        school_id=kwargs["school_id"],
         title=kwargs["title"],
         body=kwargs["body"],
         status=kwargs.get("status", GovernanceAnnouncementStatus.PUBLISHED),
@@ -338,8 +334,6 @@ def create_student_note(db: Session, **kwargs) -> GovernanceStudentNote:
     note = GovernanceStudentNote(
         governance_unit_id=kwargs["unit_id"],
         student_profile_id=kwargs["student_id"],
-        school_id=kwargs["school_id"],
-        tags=kwargs.get("tags", []),
         notes=kwargs["notes"],
         created_by_user_id=kwargs.get("created_by")
     )
@@ -348,14 +342,11 @@ def create_student_note(db: Session, **kwargs) -> GovernanceStudentNote:
     return note
 
 def create_compliance_history(db: Session, **kwargs) -> SanctionComplianceHistory:
+    # Normalized schema: school_id/event_id/student_profile_id/school_year/semester removed.
+    # Only sanction_record_id, sanction_record_item_id, complied_by_user_id, and notes remain.
     history = SanctionComplianceHistory(
-        school_id=kwargs["school_id"],
-        event_id=kwargs.get("event_id"),
         sanction_record_id=kwargs.get("record_id"),
-        sanction_item_id=kwargs.get("item_id"),
-        student_profile_id=kwargs["student_id"],
-        school_year=kwargs.get("school_year", "2024-2025"),
-        semester=kwargs.get("semester", "1st Semester"),
+        sanction_record_item_id=kwargs.get("item_id"),
         complied_by_user_id=kwargs.get("complied_by"),
         notes=kwargs.get("notes")
     )
