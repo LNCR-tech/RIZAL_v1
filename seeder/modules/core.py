@@ -69,13 +69,13 @@ def wipe_records(db: Session, preserve_platform_admin: str = None) -> None:
     
     # Execute high-speed bulk truncate
     table_str = ", ".join(tables_to_truncate)
-    db.execute(text(f"TRUNCATE TABLE {table_str} CASCADE"))
+    db.execute(text(f"TRUNCATE TABLE {table_str} RESTART IDENTITY CASCADE"))
         
     if preserve_platform_admin:
         # Delete users except the platform admin (TRUNCATE doesn't support WHERE)
         db.execute(text("DELETE FROM users WHERE email != :email"), {"email": preserve_platform_admin})
     else:
-        db.execute(text("TRUNCATE TABLE users CASCADE"))
+        db.execute(text("TRUNCATE TABLE users RESTART IDENTITY CASCADE"))
     
     db.commit()
     logger.info("Database wiped.")
