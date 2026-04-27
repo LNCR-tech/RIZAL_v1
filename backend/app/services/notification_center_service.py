@@ -342,7 +342,7 @@ def dispatch_missed_event_notifications(
             User.school_id == school_id,
             Event.school_id == school_id,
             Attendance.status == "absent",
-            Event.end_datetime >= cutoff,
+            Event.end_at >= cutoff,
         )
         .group_by(User.id)
         .all()
@@ -472,8 +472,8 @@ def dispatch_event_reminder_notifications(
         db.query(Event)
         .filter(
             Event.school_id == school_id,
-            Event.start_datetime >= now,
-            Event.start_datetime <= reminder_cutoff,
+            Event.start_at >= now,
+            Event.start_at <= reminder_cutoff,
         )
         .all()
     )
@@ -518,7 +518,7 @@ def dispatch_event_reminder_notifications(
             subject = f"Event Reminder: {event.name}"
             message = (
                 f"Hi {user.first_name or 'Student'},\n\n"
-                f"This is a reminder that {event.name} starts at {event.start_datetime}.\n"
+                f"This is a reminder that {event.name} starts at {Event.start_at}.\n"
                 "Open the attendance page when the event window is active to complete both sign-in and sign-out.\n\n"
                 "Aura"
             )
@@ -534,7 +534,7 @@ def dispatch_event_reminder_notifications(
                     metadata_json={
                         "event_id": event.id,
                         "event_name": event.name,
-                        "event_start": event.start_datetime.isoformat(),
+                        "event_start": Event.start_at.isoformat(),
                         "lead_hours": int(lead_hours),
                     },
                 )
@@ -562,3 +562,4 @@ def get_notification_inbox_for_user(
         .limit(max(1, min(limit, 200)))
         .all()
     )
+

@@ -28,11 +28,11 @@ def read_events(
     if status:
         query = query.filter(EventModel.status == ModelEventStatus[status.value.upper()])
     if start_from:
-        query = query.filter(EventModel.start_datetime >= start_from)
+        query = query.filter(EventModel.start_at >= start_from)
     if end_at:
-        query = query.filter(EventModel.end_datetime <= end_at)
+        query = query.filter(EventModel.end_at <= end_at)
 
-    events = query.order_by(EventModel.start_datetime).all()
+    events = query.order_by(EventModel.start_at).all()
     events = _filter_events_for_actor(
         db,
         current_user=current_user,
@@ -61,7 +61,7 @@ def get_ongoing_events(
             joinedload(EventModel.event_type),
         )
         .filter(EventModel.status == ModelEventStatus.ONGOING)
-        .order_by(EventModel.start_datetime)
+        .order_by(EventModel.start_at)
         .all()
     )
     events = _filter_events_for_actor(

@@ -29,9 +29,9 @@ def build_attendance_summary_query(
     )
 
     if start_date:
-        query = query.filter(Event.start_datetime >= datetime.combine(start_date, datetime.min.time()))
+        query = query.filter(Event.start_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
-        query = query.filter(Event.start_datetime <= datetime.combine(end_date, datetime.max.time()))
+        query = query.filter(Event.start_at <= datetime.combine(end_date, datetime.max.time()))
 
     if department_id or program_id:
         query = (

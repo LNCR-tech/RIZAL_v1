@@ -274,11 +274,15 @@ def get_face_status(
         get_settings().privileged_face_verification_enabled
     )
     security_setting = get_or_create_user_security_setting(db, user=current_user)
-    profile = (
-        db.query(UserFaceRecognitionProfile)
-        .filter(UserFaceRecognitionProfile.user_id == current_user.id)
-        .first()
-    )
+    try:
+        profile = (
+            db.query(UserFaceRecognitionProfile)
+            .filter(UserFaceRecognitionProfile.user_id == current_user.id)
+            .first()
+        )
+    except Exception:
+        db.rollback()
+        profile = None
     runtime_status = _run_runtime_status_probe_with_timeout(
         lambda: face_service.face_runtime_status(mode="mfa"),
         executor=_face_runtime_status_executor,

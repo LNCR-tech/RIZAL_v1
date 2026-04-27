@@ -92,8 +92,8 @@ def _build_metrics(db: Session, *, school_id: int, setting: SchoolSubscription) 
         db.query(func.count(Event.id))
         .filter(
             Event.school_id == school_id,
-            Event.start_datetime >= month_start,
-            Event.start_datetime < next_month,
+            Event.start_at >= month_start,
+            Event.start_at < next_month,
         )
         .scalar()
         or 0
@@ -308,4 +308,5 @@ def run_subscription_reminders(
         reminders_sent=reminders_sent,
         reminders_failed=reminders_failed,
     )
+
 

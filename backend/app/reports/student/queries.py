@@ -97,10 +97,10 @@ def list_attendances_for_students_overview(
 
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
-        attendance_query = attendance_query.filter(Event.start_datetime >= start_datetime)
+        attendance_query = attendance_query.filter(Event.start_at >= start_datetime)
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        attendance_query = attendance_query.filter(Event.start_datetime <= end_datetime)
+        attendance_query = attendance_query.filter(Event.start_at <= end_datetime)
 
     return attendance_query.order_by(
         AttendanceModel.student_id.asc(),
@@ -158,11 +158,11 @@ def list_student_attendances_for_report(
 
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
-        attendance_query = attendance_query.filter(Event.start_datetime >= start_datetime)
+        attendance_query = attendance_query.filter(Event.start_at >= start_datetime)
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        attendance_query = attendance_query.filter(Event.start_datetime <= end_datetime)
-    return attendance_query.order_by(Event.start_datetime.desc()).all()
+        attendance_query = attendance_query.filter(Event.start_at <= end_datetime)
+    return attendance_query.order_by(Event.start_at.desc()).all()
 
 
 def student_exists_in_school(
@@ -201,10 +201,10 @@ def build_student_stats_base_query(
     )
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
-        query = query.filter(Event.start_datetime >= start_datetime)
+        query = query.filter(Event.start_at >= start_datetime)
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.filter(Event.start_datetime <= end_datetime)
+        query = query.filter(Event.start_at <= end_datetime)
     return query
 
 
@@ -223,13 +223,13 @@ def list_student_status_counts(base_query) -> list[tuple[str | None, int]]:
 def list_student_trend_results(base_query, *, trunc_period: str):
     return (
         base_query.with_entities(
-            func.date_trunc(trunc_period, Event.start_datetime).label("period"),
+            func.date_trunc(trunc_period, Event.start_at).label("period"),
             AttendanceModel.status,
             func.count(AttendanceModel.id).label("count"),
         )
-        .filter(Event.start_datetime.isnot(None))
+        .filter(Event.start_at.isnot(None))
         .group_by(
-            func.date_trunc(trunc_period, Event.start_datetime),
+            func.date_trunc(trunc_period, Event.start_at),
             AttendanceModel.status,
         )
         .order_by("period")
