@@ -69,8 +69,8 @@ Variables are tagged with one of four types:
 
 - `[BEHAVIOR]` — controls how this service behaves. Independent — nothing else depends on this value.
 - `[IDENTITY]` — credentials or secrets that define who this service is. Independent — you choose them, but other services may need to copy them into their own `[NEIGHBOR]` variables.
-- `[SELF]` — this service's own address or port. You choose the value, but other services must match it.
-- `[NEIGHBOR]` — URL or address of another service this service talks to. Dependent — must match the target service's `[SELF]` or `[IDENTITY]`.
+- `[ENDPOINT]` — this service's own address or port that other services connect to. You choose the value, but other services must match it.
+- `[NEIGHBOR]` — URL or address of another service this service talks to. Dependent — must match the target service's `[ENDPOINT]` or `[IDENTITY]`.
 
 ## Documentation
 
