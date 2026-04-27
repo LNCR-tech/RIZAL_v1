@@ -16,6 +16,18 @@ class AttendanceStatus(PyEnum):
     EXCUSED = "excused"
 
 
+class AttendanceMethodLookup(Base):
+    __tablename__ = "attendance_methods"
+    code = Column(Text, primary_key=True)
+    display_name = Column(Text, nullable=False)
+
+
+class AttendanceStatusLookup(Base):
+    __tablename__ = "attendance_statuses"
+    code = Column(Text, primary_key=True)
+    display_name = Column(Text, nullable=False)
+
+
 class AttendanceRecord(Base):
     __tablename__ = "attendance_records"
     __table_args__ = (
