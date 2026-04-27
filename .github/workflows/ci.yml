@@ -80,6 +80,10 @@ jobs:
         run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;" -c "CREATE DATABASE ai_assistant;"
         env:
           PGPASSWORD: postgres
+      - name: Load database schema
+        run: psql -h 127.0.0.1 -U postgres -d fastapi_db -f ../database/db_normalized/db_schema.sql
+        env:
+          PGPASSWORD: postgres
       - name: Run migrations
         run: alembic upgrade heads
         env:
