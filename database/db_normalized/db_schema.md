@@ -1,57 +1,131 @@
-# Normalized Schema Workspace (`db_normalized/`)
+# Aura Database Schema
 
-This folder is a **playground** for proposing and iterating on a more-normalized database design for the current website schema.
+The live schema has 66 application tables across 8 domains. The SQL definition is in `db_schema.sql`. The ERD is in `erd/`.
 
-- Current production-style schema dump: `db_schema.sql` (repo root)
-- Human-readable snapshot: `db_schema_readable.md` (repo root)
-- Proposed normalized target (playground): `db_normalized/new_db_schema.sql`
+---
 
-## What The Proposed Design Solves
+## Lookup / Reference Tables
 
-The current schema is already fairly relational (many FK relationships + association tables), but it has a few consistent normalization/integrity pain points. The proposed target schema in `db_normalized/new_db_schema.sql` focuses on:
+Small, mostly static tables that other tables reference via FK instead of storing raw strings.
 
-1. Reducing duplicated attributes (example: school branding + subscription state duplicated across multiple tables).
-2. Replacing repeating-group JSON blobs with relational tables where the app needs to query/index/validate at the DB layer.
-3. Reducing transitive redundancy (`school_id` stored on child tables where it is derivable through an FK chain) when safe.
-4. Tightening link-table integrity (preventing duplicate rows in join tables via composite keys / unique constraints).
-5. Pushing toward 4NF where a single table mixed independent multi-valued facts (example: notification channels vs notification topics).
+| Table | Purpose |
+|---|---|
+| `roles` | Platform roles: `admin`, `campus_admin`, `student` |
+| `attendance_statuses` | `present`, `late`, `absent`, `excused` |
+| `attendance_methods` | `manual`, `face`, `rfid`, `qr` |
+| `subscription_plans` | Plan tiers with user/event/import limits |
+| `privacy_consent_types` | Consent categories (e.g. `privacy_policy`, `biometric_processing`) |
+| `notification_channels` | `email`, `sms` |
+| `notification_topics` | `missed_events`, `low_attendance`, etc. |
+| `delivery_statuses` | `queued`, `sent`, `failed` |
 
-## Current -> Target Mapping (High Level)
+---
 
-- `schools` -> `schools` + `school_branding` + `school_event_policies` + `school_subscriptions`
-- `school_settings` -> `school_branding` + `school_event_policies`
-- `school_subscription_settings` -> `school_subscriptions`
-- `user_roles` -> same table name but normalized key design
-- `attendances` -> `attendance_records` + lookup FKs (`attendance_statuses`, `attendance_methods`)
-- `event_sanction_configs` -> split JSON definitions into `sanction_item_templates`
-- `sanction_items` -> `sanction_record_items` + `sanction_item_attributes`
-- `governance_student_notes` -> `governance_student_notes` + `governance_student_note_tags`
-- `bulk_import_errors` -> `bulk_import_errors` + `bulk_import_error_cells`
-- `notification_logs` -> `notification_logs` + `notification_log_attributes`
-- `user_notification_preferences` -> keep legacy table for compatibility; optionally add `user_notification_channel_settings` + `user_notification_topic_settings` for 4NF decomposition
-- `data_requests` -> `data_requests` + `data_request_items`
+## School Domain
 
-## Legacy Tables Intentionally Not Carried Forward
+A school is the top-level tenant. All data is scoped to a school.
 
-The `ssg_*` legacy tables are intentionally excluded from this normalized target because governance is already modeled in the modern `governance_*` tables.
+| Table | Purpose |
+|---|---|
+| `schools` | Core school identity (name, code, address) |
+| `school_branding` | Logo, colors — separated so branding can change without touching the school row |
+| `school_event_policies` | Default event timing settings per school |
+| `school_subscriptions` | Active plan, dates, renewal settings |
+| `school_subscription_reminders` | Scheduled reminder log for upcoming renewals |
+| `school_audit_logs` | Append-only log of admin actions |
 
-## Notes for Future Migration Work
+---
 
-If we migrate from current production schema to this design, do it in phases:
+## Users & Identity
 
-1. Create new normalized tables side-by-side.
-2. Backfill from legacy columns/JSON.
-3. Add application dual-write for transition period.
-4. Switch reads to normalized tables.
-5. Remove old columns/tables after validation.
+| Table | Purpose |
+|---|---|
+| `users` | Core user record — email, password hash, name, school |
+| `user_roles` | Many-to-many: users ↔ roles |
+| `user_sessions` | Active JWT sessions |
+| `mfa_challenges` | One-time MFA codes |
+| `login_history` | Audit log of login attempts (success and failure) |
+| `user_app_preferences` | UI preferences (dark mode, font size) |
+| `user_security_settings` | MFA enabled, trusted device days |
+| `user_notification_preferences` | Legacy flat notification prefs |
+| `user_notification_channel_settings` | Per-channel opt-in (4NF decomposition) |
+| `user_notification_topic_settings` | Per-topic opt-in (4NF decomposition) |
+| `user_privacy_consents` | Consent records per user per consent type |
 
-## Frontend Compatibility Constraint
+---
 
-This normalization work should **not** require frontend changes. The expected approach is:
+## Academic Structure
 
-- Keep REST endpoints, request bodies, and response shapes stable.
-- Apply DB changes behind the API (backend service + model layer), or introduce DB-level compatibility views for transitional periods.
+| Table | Purpose |
+|---|---|
+| `departments` | Colleges/departments within a school |
+| `programs` | Degree programs within a school |
+| `program_departments` | Many-to-many: programs ↔ departments |
+| `academic_periods` | School years and semesters (e.g. `2024-2025 1st Semester`) |
+| `student_profiles` | Student-specific data: student number, year level, section, RFID |
+| `faculty_profiles` | Faculty-specific data: department and program assignment |
+| `student_face_embeddings` | pgvector face embeddings for face recognition attendance |
 
-## ERD
+---
 
-Use `erd/index.html` to inspect the normalized table groups and relationships visually.
+## Events & Attendance
+
+| Table | Purpose |
+|---|---|
+| `event_types` | Global or school-specific event categories |
+| `events` | School events with timing, geo, and status |
+| `event_departments` | Scopes an event to specific departments |
+| `event_programs` | Scopes an event to specific programs |
+| `attendance_records` | One row per student per event — method, status, geo, liveness |
+
+---
+
+## Governance
+
+Student government hierarchy: SSG → SG → ORG.
+
+| Table | Purpose |
+|---|---|
+| `governance_units` | SSG, SG, and ORG units with parent-child hierarchy |
+| `governance_permissions` | Permission catalog (e.g. `MANAGE_EVENTS`, `VIEW_STUDENTS`) |
+| `governance_unit_permissions` | Permissions granted to a unit |
+| `governance_members` | Users assigned to a governance unit with a position title |
+| `governance_member_permissions` | Per-member permission overrides |
+| `governance_announcements` | Announcements published by a governance unit |
+| `governance_student_notes` | Internal notes on students written by governance officers |
+| `governance_student_note_tags` | Tags on student notes (extracted from JSON for queryability) |
+
+---
+
+## Sanctions
+
+| Table | Purpose |
+|---|---|
+| `event_sanction_configs` | Whether sanctions are enabled for an event |
+| `sanction_item_templates` | The sanction items defined for an event (e.g. Apology Letter, Fine) |
+| `sanction_records` | One sanction record per absent student per event |
+| `sanction_record_items` | Individual items within a sanction record |
+| `sanction_item_attributes` | Flexible key-value metadata on sanction items |
+| `sanction_delegations` | Delegates sanction management to a governance unit |
+| `sanction_delegation_departments` | Scopes a delegation to specific departments |
+| `sanction_delegation_programs` | Scopes a delegation to specific programs |
+| `sanction_compliance_history` | Audit trail of compliance actions per item |
+| `clearance_deadlines` | Deadlines declared for sanction clearance |
+
+---
+
+## Imports, Notifications & Data Governance
+
+| Table | Purpose |
+|---|---|
+| `bulk_import_jobs` | Excel student import jobs with status and progress |
+| `bulk_import_errors` | Row-level errors from a failed import |
+| `bulk_import_error_cells` | Cell-level detail for each import error |
+| `email_delivery_logs` | Email delivery attempts and outcomes |
+| `notification_logs` | In-app and email notification records |
+| `notification_log_attributes` | Flexible metadata on notification logs |
+| `password_reset_requests` | Admin-approved password reset requests |
+| `data_governance_settings` | Retention policies per school |
+| `data_requests` | Export or deletion requests |
+| `data_request_items` | Items within a data request |
+| `data_retention_run_logs` | Audit log of data retention runs |
