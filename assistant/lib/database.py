@@ -12,9 +12,9 @@ from pathlib import Path
 logger = logging.getLogger("assistant.db")
 
 # Load environment variables
-assistant_v2_root = Path(__file__).resolve().parent.parent
-project_root = assistant_v2_root.parent
-load_dotenv(assistant_v2_root / ".env")
+assistant_root = Path(__file__).resolve().parent.parent
+project_root = assistant_root.parent
+load_dotenv(assistant_root / ".env")
 load_dotenv(project_root / ".env")
 
 # Database URLs
@@ -85,6 +85,8 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 def init_db():
+    # Non-destructive — only creates tables that don't exist yet.
+    # Called unconditionally on every startup.
     Base.metadata.create_all(bind=engine)
 
 def get_app_db() -> Generator[Session, None, None]:
