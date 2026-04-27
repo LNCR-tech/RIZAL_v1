@@ -32,6 +32,7 @@ logs/
 # Environment / secrets
 .env
 .env.local
+.env.development.local
 .env.backup.*
 *.env
 
