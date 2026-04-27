@@ -12,8 +12,6 @@ def create_student_account(
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    from . import EmailDeliveryError, generate_secure_password, send_welcome_email
-
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
         raise HTTPException(
@@ -40,8 +38,8 @@ def create_student_account(
 
     student_role = _get_or_create_role_by_name(db, "student")
 
-    issued_password = generate_secure_password(min_length=10, max_length=14)
-    system_name = _get_school_system_name(db, school_id)
+    # Use lowercase last name as password (same as bulk import)
+    issued_password = student.last_name.strip().lower() if student.last_name and student.last_name.strip() else "password"
 
     try:
         db_user = UserModel(
@@ -52,6 +50,7 @@ def create_student_account(
             last_name=student.last_name,
             must_change_password=must_change_password_for_new_account(),
             should_prompt_password_change=should_prompt_password_change_for_new_account(),
+            using_default_import_password=True,
         )
         db_user.set_password(issued_password)
         db.add(db_user)
@@ -70,22 +69,8 @@ def create_student_account(
         )
         db.flush()
 
-        try:
-            send_welcome_email(
-                recipient_email=db_user.email,
-                temporary_password=issued_password,
-                first_name=db_user.first_name,
-                system_name=system_name,
-                password_is_temporary=True,
-            )
-        except EmailDeliveryError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Student account was not created because the welcome email could not be delivered. "
-                    f"Email delivery error: {exc}"
-                ),
-            ) from exc
+        # Email sending disabled - students use their last name as password
+        # No email queue, no worker delay, no 502 errors
 
         db.commit()
         created_user = (
