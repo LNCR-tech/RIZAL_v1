@@ -3,12 +3,10 @@ name: CI/CD
 on:
   push:
     branches:
-      - main
-      - master
       - integrate/pilot-merge
-      - Pre-Production-v1
-      - aura_ci_cd
   pull_request:
+    branches:
+      - integrate/pilot-merge
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
