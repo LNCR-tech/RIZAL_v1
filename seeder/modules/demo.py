@@ -432,8 +432,6 @@ def run_demo(
         
         # Core rows computation
         attendance_batch = []
-        sanction_record_batch = []
-        sanction_item_batch = []
         
         for e_idx, ev in enumerate(events):
             # Retrieve the sanction config ID that was created for this event
