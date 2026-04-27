@@ -3,13 +3,10 @@
 # Usage:
 #   Development:  docker compose --profile dev up --build
 #   Production:   docker compose --profile prod up --build
+#
+# Each service loads its own .env file from its subfolder.
+# Copy each service's .env.example to .env and fill in the values before running.
 # =============================================================================
-
-x-backend-env: &backend-env
-  DATABASE_URL: ${DATABASE_URL}
-  CELERY_BROKER_URL: ${CELERY_BROKER_URL}
-  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
-  SECRET_KEY: ${SECRET_KEY}
 
 x-backend-volumes: &backend-volumes
   - import_storage:/app/storage/imports
@@ -25,17 +22,16 @@ services:
   postgres:
     build:
       context: ./database
-    image: aura-postgres:${APP_ENV:-dev}
+    image: aura-postgres:latest
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    env_file:
+      - ./database/.env
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -58,8 +54,8 @@ services:
       dockerfile: ${DOCKERFILE:-Dockerfile}
     image: aura-backend:${APP_ENV:-dev}
     command: alembic upgrade heads
-    environment:
-      <<: *backend-env
+    env_file:
+      - ./backend/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,8 +65,8 @@ services:
   bootstrap:
     image: aura-backend:${APP_ENV:-dev}
     command: python bootstrap.py
-    environment:
-      <<: *backend-env
+    env_file:
+      - ./backend/.env
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -81,11 +77,8 @@ services:
     build:
       context: ./seeder
     image: aura-seeder:${APP_ENV:-dev}
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      SEED_DATABASE: ${SEED_DATABASE:-false}
-      SEED_CONFIRM: ${SEED_CONFIRM:-}
-      SEED_WIPE_EXISTING: ${SEED_WIPE_EXISTING:-true}
+    env_file:
+      - ./seeder/.env
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -101,10 +94,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./.env
-    environment:
-      <<: *backend-env
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+      - ./backend/.env
     volumes: *backend-volumes
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
@@ -126,9 +116,7 @@ services:
     image: aura-backend:${APP_ENV:-dev}
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=4
     env_file:
-      - ./.env
-    environment:
-      <<: *backend-env
+      - ./backend/.env
     volumes: *backend-volumes
     restart: unless-stopped
     depends_on:
@@ -142,9 +130,7 @@ services:
     image: aura-backend:${APP_ENV:-dev}
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info
     env_file:
-      - ./.env
-    environment:
-      <<: *backend-env
+      - ./backend/.env
     restart: unless-stopped
     depends_on:
       postgres:
@@ -159,15 +145,7 @@ services:
     ports:
       - "8500:8500"
     env_file:
-      - ./.env
-    environment:
-      APP_DATABASE_URL: ${DATABASE_URL}
-      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL}
-      SECRET_KEY: ${SECRET_KEY}
-      AI_API_KEY: ${AI_API_KEY}
-      AI_API_BASE: ${AI_API_BASE}
-      AI_MODEL: ${AI_MODEL}
-      BACKEND_API_BASE_URL: ${BACKEND_API_BASE_URL}
+      - ./assistant/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -179,9 +157,9 @@ services:
       context: ./frontend
     image: aura-frontend:${APP_ENV:-dev}
     ports:
-      - "${FRONTEND_PORT:-80}:80"
-    environment:
-      BACKEND_ORIGIN: ${BACKEND_ORIGIN}
+      - "80:80"
+    env_file:
+      - ./frontend/.env
     depends_on:
       backend:
         condition: service_healthy
@@ -195,9 +173,8 @@ services:
   pgadmin:
     image: dpage/pgadmin4
     restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@aura.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-changeme}
+    env_file:
+      - ./database/.env
     ports:
       - "5050:80"
     volumes:
