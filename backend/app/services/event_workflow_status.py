@@ -155,8 +155,8 @@ def sync_scope_event_workflow_statuses(
     query = db.query(EventModel).filter(
         EventModel.status.in_(
             [
-                ModelEventStatus.UPCOMING,
-                ModelEventStatus.ONGOING,
+                ModelEventStatus.UPCOMING.value,
+                ModelEventStatus.ONGOING.value,
             ]
         )
     )
