@@ -112,13 +112,16 @@ jobs:
 
             cp .env.production .env
 
+            # Clean up old containers and free up ports
+            docker compose -f docker-compose.prod.yml down --remove-orphans
+
             # Build images first
             docker compose -f docker-compose.prod.yml build
 
             # Run migrations explicitly (so we see the output!)
             docker compose -f docker-compose.prod.yml run --rm migrate
 
-            # Start the services and cleanup orphans
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans backend db
+            # Start the services
+            docker compose -f docker-compose.prod.yml up -d backend db
 
             docker image prune -f
