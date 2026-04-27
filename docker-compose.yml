@@ -61,6 +61,19 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  seeder:
+    build:
+      context: ./seeder
+    image: aura-seeder:production
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SEED_DATABASE: ${SEED_DATABASE:-false}
+      SEED_CONFIRM: ${SEED_CONFIRM:-}
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+
   # ---------------------------------------------------------------------------
   # Application services
   # ---------------------------------------------------------------------------
