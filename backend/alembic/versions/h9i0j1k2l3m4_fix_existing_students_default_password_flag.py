@@ -28,7 +28,7 @@ def upgrade():
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
             JOIN roles r ON ur.role_id = r.id
-            WHERE r.name = 'student'
+            WHERE r.code = 'student'
         )
     """))
 
@@ -44,6 +44,6 @@ def downgrade():
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
             JOIN roles r ON ur.role_id = r.id
-            WHERE r.name = 'student'
+            WHERE r.code = 'student'
         )
     """))
