@@ -36,6 +36,7 @@ When ready:
 - Assistant docs: `http://localhost:8500/docs`
 - Mailpit (email capture): `http://localhost:8025`
 - pgAdmin: `http://localhost:5050`
+- Log viewer: `http://localhost:8080`
 
 ### Production
 
