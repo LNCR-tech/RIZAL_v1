@@ -25,25 +25,18 @@ def test_get_event_attendance(client, campus_admin_headers, ongoing_event_id):
     assert r.status_code == 200
 
 
-def test_manual_checkin(client, campus_admin_headers, ongoing_event_id, db_session):
-    from app.models.user import StudentProfile
-    profile = db_session.query(StudentProfile).filter_by(student_number="STU-001").first()
-    assert profile is not None
-
+def test_manual_checkin(client, campus_admin_headers, ongoing_event_id):
     r = client.post("/api/attendance/manual", headers=campus_admin_headers, json={
         "event_id": ongoing_event_id,
-        "student_profile_id": profile.id,
+        "student_id": "STU-001",
     })
     assert r.status_code in (200, 201, 400, 409), r.text
 
 
-def test_duplicate_checkin(client, campus_admin_headers, ongoing_event_id, db_session):
-    from app.models.user import StudentProfile
-    profile = db_session.query(StudentProfile).filter_by(student_number="STU-001").first()
-
+def test_duplicate_checkin(client, campus_admin_headers, ongoing_event_id):
     r = client.post("/api/attendance/manual", headers=campus_admin_headers, json={
         "event_id": ongoing_event_id,
-        "student_profile_id": profile.id,
+        "student_id": "STU-001",
     })
     assert r.status_code in (200, 201, 400, 409), r.text
 

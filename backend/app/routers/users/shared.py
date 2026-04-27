@@ -163,7 +163,9 @@ def _query_user_in_school(db: Session, user_id: int, school_id: int) -> UserMode
 
 def _get_role_by_name_or_alias(db: Session, role_name: str) -> Role | None:
     for candidate in get_role_lookup_names(role_name):
-        role = db.query(Role).filter(Role.name == candidate).first()
+        role = db.query(Role).filter(
+            (Role.code == candidate) | (Role.name == candidate)
+        ).first()
         if role is not None:
             return role
     return None

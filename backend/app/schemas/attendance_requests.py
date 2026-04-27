@@ -8,15 +8,22 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.attendance import AttendanceStatus, _as_utc_datetime
 
 
 class ManualAttendanceRequest(BaseModel):
     event_id: int = Field(..., gt=0)
-    student_id: str = Field(..., min_length=1, max_length=100)
+    student_id: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    student_profile_id: Optional[int] = Field(default=None, gt=0)
     notes: Optional[str] = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def require_student_identifier(self):
+        if self.student_id is None and self.student_profile_id is None:
+            raise ValueError("Either student_id or student_profile_id is required.")
+        return self
 
 
 class BulkAttendanceRequest(BaseModel):

@@ -3,8 +3,7 @@ from __future__ import annotations
 from enum import Enum as PyEnum
 
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, Enum as SQLEnum
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.hybrid import hybrid_property, synonym
+from sqlalchemy.orm import relationship, synonym
 
 from app.core.event_defaults import (
     DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
@@ -50,7 +49,16 @@ class Event(Base):
     late_until_override_at = Column(DateTime(timezone=True), nullable=True)
     start_at = Column(DateTime(timezone=True), nullable=False)
     end_at = Column(DateTime(timezone=True), nullable=False)
-    status = Column(SQLEnum(EventStatus, native_enum=False, length=50), nullable=False, default=EventStatus.UPCOMING)
+    status = Column(
+        SQLEnum(
+            EventStatus,
+            native_enum=False,
+            length=50,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        default=EventStatus.UPCOMING,
+    )
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 

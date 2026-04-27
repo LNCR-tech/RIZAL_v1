@@ -54,15 +54,18 @@ def record_face_scan_attendance(
     school_id = get_school_id_or_403(current_user)
     event = _get_event_in_school_or_404(db, data.event_id, school_id)
 
-    student = db.query(StudentProfile).join(
+    student_query = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
-    ).filter(
-        StudentProfile.student_id == data.student_id,
-        User.school_id == school_id,
-    ).first()
+    ).filter(User.school_id == school_id)
+    if data.student_profile_id is not None:
+        student_query = student_query.filter(StudentProfile.id == data.student_profile_id)
+    else:
+        student_query = student_query.filter(StudentProfile.student_id == data.student_id)
+    student = student_query.first()
 
     if not student:
-        raise HTTPException(404, f"Student {data.student_id} not found")
+        identifier = data.student_id if data.student_id is not None else data.student_profile_id
+        raise HTTPException(404, f"Student {identifier} not found")
 
     active_attendance = _active_attendance_for_student_event(
         db,
@@ -149,15 +152,20 @@ def record_manual_attendance(
     event = _get_event_in_school_or_404(db, data.event_id, school_id)
     _ensure_event_in_attendance_scope(event, governance_units)
 
-    student = db.query(StudentProfile).join(
-        User, StudentProfile.user_id == User.id
-    ).filter(
-        StudentProfile.student_id == data.student_id,
-        User.school_id == school_id,
-    ).first()
+    student_query = (
+        db.query(StudentProfile)
+        .join(User, StudentProfile.user_id == User.id)
+        .filter(User.school_id == school_id)
+    )
+    if data.student_profile_id is not None:
+        student_query = student_query.filter(StudentProfile.id == data.student_profile_id)
+    else:
+        student_query = student_query.filter(StudentProfile.student_id == data.student_id)
+    student = student_query.first()
 
     if not student:
-        raise HTTPException(404, f"Student {data.student_id} not found")
+        identifier = data.student_id if data.student_id is not None else data.student_profile_id
+        raise HTTPException(404, f"Student {identifier} not found")
     _ensure_student_in_attendance_scope(student, governance_units)
     _ensure_student_is_event_participant(student, event)
 
@@ -178,7 +186,7 @@ def record_manual_attendance(
         db.commit()
         db.refresh(active_attendance)
         return {
-            "message": f"Recorded time out for {data.student_id}",
+            "message": f"Recorded time out for {student.student_id}",
             "attendance_id": active_attendance.id,
             "action": "time_out",
             "duration_minutes": duration_minutes,
@@ -198,7 +206,7 @@ def record_manual_attendance(
         .first()
     )
     if existing and existing.time_out is not None:
-        raise HTTPException(400, f"Attendance already exists for student {data.student_id}")
+        raise HTTPException(400, f"Attendance already exists for student {student.student_id}")
 
     recorded_at = utc_now()
     status_value = attendance_decision["attendance_status"] or "absent"
@@ -220,7 +228,7 @@ def record_manual_attendance(
     db.refresh(attendance)
 
     return {
-        "message": f"Recorded attendance for {data.student_id}",
+        "message": f"Recorded attendance for {student.student_id}",
         "attendance_id": attendance.id,
         "action": "time_in",
     }

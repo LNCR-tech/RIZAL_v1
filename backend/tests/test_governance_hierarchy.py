@@ -3,8 +3,15 @@ import pytest
 
 @pytest.fixture(scope="module")
 def unit_id(client, campus_admin_headers):
-    r = client.post("/api/governance/units/", headers=campus_admin_headers, json={
-        "unit_code": "SSG-TEST",
+    # Get existing SSG unit or create one
+    r = client.get("/api/governance/units", headers=campus_admin_headers)
+    assert r.status_code == 200
+    units = r.json()
+    if units:
+        return units[0]["id"]
+    import uuid
+    r = client.post("/api/governance/units", headers=campus_admin_headers, json={
+        "unit_code": f"SSG-{uuid.uuid4().hex[:6].upper()}",
         "unit_name": "Test SSG",
         "unit_type": "SSG",
     })

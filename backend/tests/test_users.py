@@ -24,15 +24,17 @@ def test_list_users_student_forbidden(client, student_headers):
 
 
 def test_create_user(client, campus_admin_headers):
+    import uuid
+    unique_email = f"newuser_{uuid.uuid4().hex[:8]}@test.com"
     r = client.post("/api/users/", headers=campus_admin_headers, json={
-        "email": "newuser@test.com",
+        "email": unique_email,
         "first_name": "New",
         "last_name": "User",
         "roles": ["student"],
         "password": "NewPass123!"
     })
-    assert r.status_code in (200, 201)
-    assert r.json()["email"] == "newuser@test.com"
+    assert r.status_code in (200, 201), r.text
+    assert r.json()["email"] == unique_email
 
 
 def test_update_own_profile(client, student_headers):
