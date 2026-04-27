@@ -5,7 +5,7 @@ def test_list_notifications(client, student_headers):
 
 
 def test_mark_all_read(client, student_headers):
-    r = client.post("/api/notifications/test", headers=student_headers, json={"message": "test"})
+    r = client.post("/api/notifications/test", headers=student_headers, json={"message": "test", "channel": "email"})
     assert r.status_code in (200, 204)
 
 

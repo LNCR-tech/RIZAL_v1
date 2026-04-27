@@ -3,8 +3,8 @@ import pytest
 
 EVENT_PAYLOAD = {
     "name": "Test Event",
-    "start_at": "2099-01-01T08:00:00+00:00",
-    "end_at": "2099-01-01T17:00:00+00:00",
+    "start_datetime": "2099-01-01T08:00:00+00:00",
+    "end_datetime": "2099-01-01T17:00:00+00:00",
     "location": "Test Hall",
 }
 

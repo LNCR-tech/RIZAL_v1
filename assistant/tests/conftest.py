@@ -49,7 +49,7 @@ def auth_token():
         "sub": "test@aura.local",
         "school_id": 1,
         "roles": ["admin"],
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1),
     }
     return jwt.encode(payload, os.environ["SECRET_KEY"], algorithm="HS256")
 
@@ -60,7 +60,7 @@ def expired_token():
         "sub": "test@aura.local",
         "school_id": 1,
         "roles": ["admin"],
-        "exp": datetime.datetime.utcnow() - datetime.timedelta(hours=1),
+        "exp": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1),
     }
     return jwt.encode(payload, os.environ["SECRET_KEY"], algorithm="HS256")
 

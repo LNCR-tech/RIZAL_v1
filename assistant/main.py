@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Generator, AsyncGenerator
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -58,9 +59,22 @@ class ConversationDetail(BaseModel):
 class ConversationUpdate(BaseModel):
     title: str = Field(..., min_length=1, max_length=80)
 
-app = FastAPI(title="Aura Assistant v2 (MCP-Native)")
+mcp_client = MultiMCPClient()
+HIDDEN_MESSAGE_ROLES = {"meta_summary"}
 
-# CORS setup
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    try:
+        await mcp_client.get_all_tools()
+    except Exception:
+        pass
+    yield
+
+
+app = FastAPI(title="Aura Assistant v2 (MCP-Native)", lifespan=lifespan)
+
 cors_allowed = get_cors_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
@@ -69,20 +83,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Global MCP Client
-mcp_client = MultiMCPClient()
-
-HIDDEN_MESSAGE_ROLES = {"meta_summary"}
-
-@app.on_event("startup")
-async def startup_event():
-    init_db()
-    # Pre-warm MCP sessions if needed
-    try:
-        await mcp_client.get_all_tools()
-    except Exception:
-        pass
 
 @app.get("/health")
 def health():

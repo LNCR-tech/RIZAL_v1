@@ -776,7 +776,7 @@ def approve_student_sanction(
             item.status = SanctionItemStatus.COMPLIED
             item.complied_at = complied_at
 
-        period = _resolve_academic_term(db, school_id, event.end_datetime)
+        period = _resolve_academic_term(db, school_id, event.end_at)
         compliance_term_label = period.label if period else "Unknown Term"
         academic_period_id = period.id if period else None
 
@@ -1022,7 +1022,7 @@ def get_governance_sanctions_dashboard(
             joinedload(EventModel.programs),
         )
         .filter(EventModel.school_id == school_id)
-        .order_by(EventModel.start_datetime.desc(), EventModel.id.desc())
+        .order_by(EventModel.start_at.desc(), EventModel.id.desc())
         .all()
     )
 

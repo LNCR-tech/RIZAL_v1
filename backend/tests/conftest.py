@@ -25,22 +25,36 @@ from app.utils.passwords import hash_password_bcrypt
 
 
 # ---------------------------------------------------------------------------
-# DB session — each test runs in a transaction that is rolled back after
+# DB session — seed once, commit, clean up at end of session
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def db_session():
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection)
+    db = SessionLocal()
+    _seed(db)
+    yield db
+    db.close()
 
-    _seed(session)
 
-    yield session
-
-    session.close()
-    transaction.rollback()
-    connection.close()
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_data():
+    yield
+    db = SessionLocal()
+    try:
+        from app.models.school import School
+        school = db.query(School).filter_by(school_code="TEST-001").first()
+        if school:
+            db.delete(school)
+        from app.models.user import User
+        for email in ["admin@test.com", "campus_admin@test.com", "student@test.com", "newuser@test.com"]:
+            u = db.query(User).filter_by(email=email).first()
+            if u:
+                db.delete(u)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 def _seed(db: Session):

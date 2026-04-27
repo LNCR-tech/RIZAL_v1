@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import Enum as PyEnum
 
 from sqlalchemy import BigInteger, Column, DateTime, Float, ForeignKey, Text, UniqueConstraint
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from app.core.timezones import utc_now
@@ -58,7 +59,7 @@ class AttendanceRecord(Base):
     student = relationship("StudentProfile", back_populates="attendance_records")
     event = relationship("Event", back_populates="attendance_records")
 
-    @property
+    @hybrid_property
     def status(self) -> str:
         return self.status_code
 
@@ -66,7 +67,7 @@ class AttendanceRecord(Base):
     def status(self, value) -> None:
         self.status_code = value.value if isinstance(value, AttendanceStatus) else value
 
-    @property
+    @hybrid_property
     def method(self) -> str:
         return self.method_code
 
@@ -74,11 +75,11 @@ class AttendanceRecord(Base):
     def method(self, value: str) -> None:
         self.method_code = value
 
-    @property
+    @hybrid_property
     def student_id(self) -> int:
         return self.student_profile_id
 
-    @property
+    @hybrid_property
     def verified_by(self) -> int:
         return self.verified_by_user_id
 

@@ -87,16 +87,16 @@ def _school_to_response(school: School) -> SchoolBrandingResponse:
     ) = resolve_school_event_default_values(school_settings)
     return SchoolBrandingResponse(
         school_id=school.id,
-        school_name=school.school_name or school.name,
+        school_name=getattr(school, 'school_name', None) or getattr(school, 'display_name', None) or getattr(school, 'legal_name', None),
         school_code=school.school_code,
-        logo_url=school.logo_url,
-        primary_color=school.primary_color,
-        secondary_color=school.secondary_color,
+        logo_url=getattr(school, 'logo_url', None),
+        primary_color=getattr(school, 'primary_color', None),
+        secondary_color=getattr(school, 'secondary_color', None),
         event_default_early_check_in_minutes=event_default_early_check_in_minutes,
         event_default_late_threshold_minutes=event_default_late_threshold_minutes,
         event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
-        subscription_status=school.subscription_status,
-        active_status=school.active_status,
+        subscription_status=getattr(school, 'subscription_status', None),
+        active_status=getattr(school, 'active_status', getattr(school, 'is_active', True)),
         created_at=school.created_at,
         updated_at=school.updated_at,
     )

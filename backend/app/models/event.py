@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import Enum as PyEnum
 
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from app.core.event_defaults import (
@@ -61,7 +62,7 @@ class Event(Base):
     attendance_records = relationship("AttendanceRecord", back_populates="event", cascade="all, delete-orphan")
 
     # Compatibility properties — old code used start_datetime / end_datetime
-    @property
+    @hybrid_property
     def start_datetime(self):
         return self.start_at
 
@@ -69,7 +70,7 @@ class Event(Base):
     def start_datetime(self, value):
         self.start_at = value
 
-    @property
+    @hybrid_property
     def end_datetime(self):
         return self.end_at
 
@@ -78,6 +79,6 @@ class Event(Base):
         self.end_at = value
 
     # Compatibility alias — old code used event.attendances
-    @property
+    @hybrid_property
     def attendances(self):
         return self.attendance_records

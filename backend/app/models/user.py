@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Text, UniqueConstraint
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from app.core.timezones import utc_now
@@ -79,7 +80,7 @@ class StudentProfile(Base):
     attendance_records = relationship("AttendanceRecord", back_populates="student", cascade="all, delete-orphan")
 
     # Compatibility property — old code used student_id, new schema uses student_number
-    @property
+    @hybrid_property
     def student_id(self) -> str | None:
         return self.student_number
 
