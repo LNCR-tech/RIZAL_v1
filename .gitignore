@@ -5,6 +5,7 @@ Thumbs.db
 .vscode/
 .amazonq/
 .kilo/
+.claude/
 .scratch/
 
 # Python
@@ -57,6 +58,3 @@ GITHUB/
 
 # SSH keys
 *.pem
-
-# Security quick-start docs (local only)
-QUICK_START_SECURITY.md
