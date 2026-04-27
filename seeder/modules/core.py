@@ -43,14 +43,13 @@ def wipe_records(db: Session, preserve_platform_admin: str = None) -> None:
     # Core Data Tables (Ordered for safety, though CASCADE handles the tree)
     tables_to_truncate = [
         "sanction_compliance_history",
-        "sanction_items",
+        "sanction_record_items",
         "sanction_records",
         "sanction_delegations",
-        "clearance_deadlines",
         "event_sanction_configs",
         "attendance_records",
-        "event_department_association",
-        "event_program_association",
+        "event_departments",
+        "event_programs",
         "events",
         "governance_member_permissions",
         "governance_members",
