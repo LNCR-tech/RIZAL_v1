@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, Text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -44,23 +44,6 @@ class UserSecuritySetting(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     user = relationship("User")
-
-
-class UserFaceProfile(Base):
-    __tablename__ = "user_face_profiles"
-
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    face_encoding = Column(LargeBinary, nullable=False)
-    provider = Column(Text, nullable=False, default="arcface")
-    embedding_dtype = Column(Text, nullable=True)
-    embedding_dimension = Column(Integer, nullable=True)
-    embedding_normalized = Column(Boolean, nullable=False, default=True)
-    reference_image_sha256 = Column(Text, nullable=True)
-    last_verified_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
-
-    user = relationship("User", back_populates="face_profile")
 
 
 class MfaChallenge(Base):

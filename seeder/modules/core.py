@@ -360,6 +360,31 @@ def create_compliance_history(db: Session, **kwargs) -> SanctionComplianceHistor
     db.flush()
     return history
 
+def seed_attendance_statuses(db: Session) -> None:
+    """Seed the required attendance_statuses lookup rows."""
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(db.bind)
+    if "attendance_statuses" not in inspector.get_table_names():
+        logger.warning("attendance_statuses table not found — skipping status seed.")
+        return
+
+    statuses = [
+        {"code": "present",  "display_name": "Present"},
+        {"code": "late",     "display_name": "Late"},
+        {"code": "absent",   "display_name": "Absent"},
+        {"code": "excused",  "display_name": "Excused"},
+    ]
+    existing = {row[0] for row in db.execute(text("SELECT code FROM attendance_statuses")).fetchall()}
+    for s in statuses:
+        if s["code"] not in existing:
+            db.execute(
+                text("INSERT INTO attendance_statuses (code, display_name) VALUES (:code, :display_name)"),
+                {"code": s["code"], "display_name": s["display_name"]}
+            )
+    db.commit()
+    logger.info("Attendance statuses seeded.")
+
+
 def seed_attendance_methods(db: Session) -> None:
     """Seed the required attendance_methods lookup rows.
     

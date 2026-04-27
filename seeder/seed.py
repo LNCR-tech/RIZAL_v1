@@ -17,7 +17,7 @@ if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
 from app.core.database import SessionLocal  # type: ignore
-from modules.core import wipe_records, seed_roles, seed_permission_catalog, seed_platform_admin, seed_attendance_methods
+from modules.core import wipe_records, seed_roles, seed_permission_catalog, seed_platform_admin, seed_attendance_methods, seed_attendance_statuses
 from modules.demo import run_demo
 from config import load_config
 
@@ -102,6 +102,7 @@ def main():
 
         seed_roles(db)
         seed_attendance_methods(db)
+        seed_attendance_statuses(db)
         seed_permission_catalog(db)
 
         from modules.helpers import hash_passwords_parallel

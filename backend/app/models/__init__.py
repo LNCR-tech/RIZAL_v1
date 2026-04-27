@@ -7,7 +7,6 @@ Role: Package layer. It helps the backend treat this folder as one importable pa
 # The order of imports is important here - import base first
 from app.models.base import Base
 from app.models.department import Department
-from app.models.face_recognition import UserFaceRecognitionProfile
 from app.models.program import Program
 from app.models.event import Event
 from app.models.event_type import EventType
@@ -27,7 +26,6 @@ from app.models.platform_features import (
     UserAppPreference,
     UserNotificationPreference,
     UserSecuritySetting,
-    UserFaceProfile,
     MfaChallenge,
     UserSession,
     LoginHistory,
@@ -88,8 +86,6 @@ __all__ = [
     "UserAppPreference",
     "UserNotificationPreference",
     "UserSecuritySetting",
-    "UserFaceProfile",
-    "UserFaceRecognitionProfile",
     "MfaChallenge",
     "UserSession",
     "LoginHistory",
