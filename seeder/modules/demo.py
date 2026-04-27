@@ -31,7 +31,7 @@ from modules.core import (
 
 from app.models.user import User, StudentProfile
 from app.models.attendance import Attendance, AttendanceStatus
-from app.models.sanctions import SanctionRecord, SanctionItem, SanctionComplianceStatus, SanctionItemStatus
+from app.models.sanctions import SanctionRecord, SanctionItem, SanctionComplianceStatus, SanctionItemStatus, AcademicPeriod
 from app.models.governance_hierarchy import GovernanceUnitType, PermissionCode
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,25 @@ def run_demo(
             school_name=school_name, 
             school_code=school_name[:3].upper() + "U"
         )
-        
+
+        # Seed academic periods for this school
+        academic_period_map = {}  # (school_year, semester) -> AcademicPeriod.id
+        for year in range(start_date[2], end_date[2] + 1):
+            school_year = f"{year}-{year + 1}"
+            for sem, label_suffix in [("1st", "1st Semester"), ("2nd", "2nd Semester"), ("Summer", "Summer")]:
+                label = f"{school_year} {label_suffix}"
+                existing_period = db.query(AcademicPeriod).filter_by(
+                    school_id=school.id, school_year=school_year, semester=sem
+                ).first()
+                if not existing_period:
+                    existing_period = AcademicPeriod(
+                        school_id=school.id, school_year=school_year, semester=sem, label=label
+                    )
+                    db.add(existing_period)
+                    db.flush()
+                academic_period_map[(school_year, sem)] = existing_period.id
+        db.commit()
+
         # 1. Colleges & Programs
         n_colleges = rng.randint(min_colleges, max_colleges)
         chosen_acad = pick_colleges(rng, COLLEGES_DATASET, n_colleges, min_programs=min_programs)
@@ -508,12 +526,26 @@ def run_demo(
                     db.flush()
                     
                     if is_resolved:
+                        # Pick a realistic academic period based on the event date
+                        event_year = att.time_in.year
+                        event_month = att.time_in.month
+                        if event_month >= 8:
+                            school_year = f"{event_year}-{event_year + 1}"
+                            sem = "1st"
+                        elif event_month <= 5:
+                            school_year = f"{event_year - 1}-{event_year}"
+                            sem = "2nd"
+                        else:
+                            school_year = f"{event_year - 1}-{event_year}"
+                            sem = "Summer"
+                        period_id = academic_period_map.get((school_year, sem))
                         for itm in items:
                             create_compliance_history(
                                 db, school_id=school.id, event_id=att.event_id,
                                 record_id=srec.id, item_id=itm.id, student_id=att.student_id,
                                 complied_by=rng.choice(leaders).id,
-                                notes=rng.choice(COMPLIANCE_NOTES)
+                                notes=rng.choice(COMPLIANCE_NOTES),
+                                academic_period_id=period_id
                             )
             
             db.commit()

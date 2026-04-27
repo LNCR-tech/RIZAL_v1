@@ -348,17 +348,24 @@ def create_student_note(db: Session, **kwargs) -> GovernanceStudentNote:
     return note
 
 def create_compliance_history(db: Session, **kwargs) -> SanctionComplianceHistory:
-    # Normalized schema: school_id/event_id/student_profile_id/school_year/semester removed.
-    # Only sanction_record_id, sanction_record_item_id, complied_by_user_id, and notes remain.
     history = SanctionComplianceHistory(
         sanction_record_id=kwargs.get("record_id"),
         sanction_record_item_id=kwargs.get("item_id"),
         complied_by_user_id=kwargs.get("complied_by"),
+        academic_period_id=kwargs.get("academic_period_id"),
+        compliance_term_label=kwargs.get("compliance_term_label", ""),
         notes=kwargs.get("notes")
     )
     db.add(history)
     db.flush()
     return history
+
+def seed_event_types(db: Session) -> None:
+    """Seed global event types by delegating to the backend's own seeder."""
+    from app.seeder import seed_event_types as _backend_seed_event_types
+    _backend_seed_event_types(db)
+    logger.info("Event types seeded.")
+
 
 def seed_attendance_statuses(db: Session) -> None:
     """Seed the required attendance_statuses lookup rows."""

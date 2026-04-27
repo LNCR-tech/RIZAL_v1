@@ -30,8 +30,8 @@ SEED_CREDENTIALS_FORMAT: str = "csv"  # "csv" | "tsv" | "psv"
 SEED_N_SCHOOLS: int = 5
 
 # Student count range per school
-SEED_MIN_STUDENTS: int = 1000
-SEED_MAX_STUDENTS: int = 2000
+SEED_MIN_STUDENTS: int = 150
+SEED_MAX_STUDENTS: int = 300
 
 # Event count range per school
 SEED_MIN_EVENTS: int = 30
