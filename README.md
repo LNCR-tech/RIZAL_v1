@@ -61,6 +61,17 @@ python seed.py demo
 
 Or via Docker — the seeder service runs automatically if `SEED_DATABASE=true` and `SEED_CONFIRM=yes` are set in your `.env`.
 
+## Environment Variables
+
+Each service has its own `.env.example`. Copy it to `.env` and fill in the values.
+
+Variables are tagged with one of four types:
+
+- `[BEHAVIOR]` — controls how this service behaves. Independent — nothing else depends on this value.
+- `[IDENTITY]` — credentials or secrets that define who this service is. Independent — you choose them, but other services may need to copy them into their own `[NEIGHBOR]` variables.
+- `[SELF]` — this service's own address or port. You choose the value, but other services must match it.
+- `[NEIGHBOR]` — URL or address of another service this service talks to. Dependent — must match the target service's `[SELF]` or `[IDENTITY]`.
+
 ## Documentation
 
 - [Security Guide](SECURITY.md)
