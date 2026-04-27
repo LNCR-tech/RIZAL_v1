@@ -9,10 +9,10 @@ SEED_ADMIN_EMAIL: str = "admin@aura.com"
 SEED_ADMIN_PASSWORD: str = "AdminPass123!"
 
 # Set to True to actually run the seeder (safety gate)
-SEED_DATABASE: bool = False
+# SEED_DATABASE: bool = False  <- moved to .env
 
 # Wipe all existing seeded data before inserting
-SEED_WIPE_EXISTING: bool = True
+# SEED_WIPE_EXISTING: bool = True  <- moved to .env
 
 # Deterministic RNG key — change to generate a different universe
 SEED_RANDOMIZER_KEY: int = 42

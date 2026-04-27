@@ -1,4 +1,5 @@
 import sys
+import os
 import logging
 import random
 import argparse
@@ -65,9 +66,24 @@ def _ensure_backend_schema_up_to_date() -> None:
 
 
 def main():
-    if not cfg.SEED_DATABASE:
-        logger.info("Database seeding is disabled (SEED_DATABASE=False in variables.py). Skipping...")
+    seed_database = os.environ.get("SEED_DATABASE", "false").strip().lower() == "true"
+    seed_wipe = os.environ.get("SEED_WIPE_EXISTING", "true").strip().lower() != "false"
+    seed_confirm = os.environ.get("SEED_CONFIRM", "").strip().lower()
+
+    if not seed_database:
+        logger.info("Database seeding is disabled (SEED_DATABASE not set to true in .env). Skipping...")
         return
+
+    if seed_confirm != "yes":
+        logger.error("")
+        logger.error("==========================================================")
+        logger.error("  WARNING: SEED_DATABASE=true but SEED_CONFIRM is not set.")
+        logger.error("  This will WIPE ALL EXISTING DATA and replace it with")
+        logger.error("  generated demo data. This action cannot be undone.")
+        logger.error("  Set SEED_CONFIRM=yes in your .env to proceed.")
+        logger.error("==========================================================")
+        logger.error("")
+        sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Aura Database Seeder")
     subparsers = parser.add_subparsers(dest="command", help="Seeder commands")
@@ -97,7 +113,7 @@ def main():
     db = SessionLocal()
     try:
         _ensure_backend_schema_up_to_date()
-        if cfg.SEED_WIPE_EXISTING:
+        if seed_wipe:
             wipe_records(db, preserve_platform_admin=cfg.SEED_ADMIN_EMAIL)
 
         seed_roles(db)

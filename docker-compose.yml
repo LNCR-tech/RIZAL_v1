@@ -69,6 +69,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SEED_DATABASE: ${SEED_DATABASE:-false}
       SEED_CONFIRM: ${SEED_CONFIRM:-}
+      SEED_WIPE_EXISTING: ${SEED_WIPE_EXISTING:-true}
     depends_on:
       bootstrap:
         condition: service_completed_successfully

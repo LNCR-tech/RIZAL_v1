@@ -15,8 +15,6 @@ from pathlib import Path
 class SeederConfig:
     SEED_ADMIN_EMAIL: str
     SEED_ADMIN_PASSWORD: str
-    SEED_DATABASE: bool
-    SEED_WIPE_EXISTING: bool
     SEED_RANDOMIZER_KEY: int
     SEED_UNIQUE_PASSWORDS: bool
     SEED_USER_SUFFIX_PROBABILITY: float
@@ -105,8 +103,6 @@ def load_config() -> SeederConfig:
 
     admin_email    = require("SEED_ADMIN_EMAIL",            str,   non_empty_str)
     admin_password = require("SEED_ADMIN_PASSWORD",         str,   non_empty_str)
-    seed_db        = require("SEED_DATABASE",               bool)
-    wipe           = require("SEED_WIPE_EXISTING",          bool)
     rng_key        = require("SEED_RANDOMIZER_KEY",         int)
     unique_pw      = require("SEED_UNIQUE_PASSWORDS",       bool)
     suffix_prob    = require("SEED_USER_SUFFIX_PROBABILITY",float, unit_float)
@@ -136,8 +132,6 @@ def load_config() -> SeederConfig:
     return SeederConfig(
         SEED_ADMIN_EMAIL=admin_email,
         SEED_ADMIN_PASSWORD=admin_password,
-        SEED_DATABASE=seed_db,
-        SEED_WIPE_EXISTING=wipe,
         SEED_RANDOMIZER_KEY=rng_key,
         SEED_UNIQUE_PASSWORDS=unique_pw,
         SEED_USER_SUFFIX_PROBABILITY=suffix_prob,
