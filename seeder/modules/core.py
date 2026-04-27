@@ -216,11 +216,12 @@ def create_student_profile(db: Session, **kwargs) -> StudentProfile:
     return profile
 
 def create_governance_unit(db: Session, **kwargs) -> GovernanceUnit:
+    raw_type = kwargs["unit_type"]
     unit = GovernanceUnit(
         school_id=kwargs["school_id"],
         unit_code=kwargs["unit_code"],
         unit_name=kwargs["unit_name"],
-        unit_type=kwargs["unit_type"],
+        unit_type=raw_type.value if hasattr(raw_type, "value") else raw_type,
         parent_unit_id=kwargs.get("parent_id"),
         department_id=kwargs.get("department_id"),
         program_id=kwargs.get("program_id")
@@ -261,13 +262,14 @@ def create_event(db: Session, **kwargs) -> Event:
     event_type_id = None
     if kwargs.get("event_type"):
         event_type_id = resolve_event_type_id(db, kwargs["event_type"])
+    raw_status = kwargs.get("status", EventStatus.UPCOMING)
     event = Event(
         school_id=kwargs["school_id"],
         name=kwargs["name"],
         location=kwargs["location"],
         start_at=kwargs["start_dt"],
         end_at=kwargs["end_dt"],
-        status=kwargs.get("status", EventStatus.UPCOMING),
+        status=raw_status.value if hasattr(raw_status, "value") else raw_status,
         event_type_id=event_type_id
     )
     db.add(event)
@@ -285,45 +287,49 @@ def create_sanction_config(db: Session, **kwargs) -> EventSanctionConfig:
     return conf
 
 def create_sanction_delegation(db: Session, **kwargs) -> SanctionDelegation:
+    raw_scope = kwargs["scope_type"]
     dele = SanctionDelegation(
         event_id=kwargs["event_id"],
         sanction_config_id=kwargs["config_id"],
         delegated_to_governance_unit_id=kwargs["unit_id"],
-        scope_type=kwargs["scope_type"]
+        scope_type=raw_scope.value if hasattr(raw_scope, "value") else raw_scope
     )
     db.add(dele)
     db.flush()
     return dele
 
 def create_sanction_record(db: Session, **kwargs) -> SanctionRecord:
+    raw_status = SanctionComplianceStatus.PENDING
     rec = SanctionRecord(
         event_id=kwargs["event_id"],
         sanction_config_id=kwargs.get("config_id"),
         student_profile_id=kwargs["student_profile_id"],
         attendance_id=kwargs["attendance_id"],
         delegated_governance_unit_id=kwargs.get("delegated_unit_id"),
-        status=SanctionComplianceStatus.PENDING
+        status=raw_status.value if hasattr(raw_status, "value") else raw_status
     )
     db.add(rec)
     db.flush()
     return rec
 
 def create_sanction_item(db: Session, record_id: int, item_code: str, item_name: str) -> None:
+    raw_status = SanctionItemStatus.PENDING
     item = SanctionItem(
         sanction_record_id=record_id,
         item_code=item_code,
         item_name=item_name,
-        status=SanctionItemStatus.PENDING
+        status=raw_status.value if hasattr(raw_status, "value") else raw_status
     )
     db.add(item)
     db.flush()
 
 def create_announcement(db: Session, **kwargs) -> GovernanceAnnouncement:
+    raw_status = kwargs.get("status", GovernanceAnnouncementStatus.PUBLISHED)
     ann = GovernanceAnnouncement(
         governance_unit_id=kwargs["unit_id"],
         title=kwargs["title"],
         body=kwargs["body"],
-        status=kwargs.get("status", GovernanceAnnouncementStatus.PUBLISHED),
+        status=raw_status.value if hasattr(raw_status, "value") else raw_status,
         created_by_user_id=kwargs.get("created_by")
     )
     db.add(ann)

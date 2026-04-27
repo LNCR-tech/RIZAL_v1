@@ -453,9 +453,9 @@ def run_demo(
                 att = Attendance(
                     student_profile_id=prof.id,
                     event_id=ev.id,
-                    time_in=ev.start_datetime,
+                    time_in=ev.start_at,
                     method_code="manual",
-                    status=status
+                    status_code=status
                 )
                 attendance_batch.append((att, absent, conf))
 
