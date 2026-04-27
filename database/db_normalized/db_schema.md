@@ -40,7 +40,7 @@ A school is the top-level tenant. All data is scoped to a school.
 
 | Table | Purpose |
 |---|---|
-| `users` | Core user record — email, password hash, name, school |
+| `users` | Core user record — email, password hash, name, school, import password flag |
 | `user_roles` | Many-to-many: users ↔ roles |
 | `user_sessions` | Active JWT sessions |
 | `mfa_challenges` | One-time MFA codes |
