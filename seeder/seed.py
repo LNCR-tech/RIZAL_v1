@@ -4,6 +4,10 @@ import logging
 import random
 import argparse
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from seeder/ directory
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
