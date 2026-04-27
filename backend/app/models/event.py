@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from enum import Enum as PyEnum
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, Enum as SQLEnum
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property, synonym
 
 from app.core.event_defaults import (
     DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
@@ -49,7 +50,7 @@ class Event(Base):
     late_until_override_at = Column(DateTime(timezone=True), nullable=True)
     start_at = Column(DateTime(timezone=True), nullable=False)
     end_at = Column(DateTime(timezone=True), nullable=False)
-    status = Column(Text, nullable=False, default=EventStatus.UPCOMING.value)
+    status = Column(SQLEnum(EventStatus, native_enum=False, length=50), nullable=False, default=EventStatus.UPCOMING)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
@@ -60,24 +61,7 @@ class Event(Base):
     programs = relationship("Program", secondary=event_programs, back_populates="events")
     attendance_records = relationship("AttendanceRecord", back_populates="event", cascade="all, delete-orphan")
 
-    # Compatibility properties — old code used start_datetime / end_datetime
-    @property
-    def start_datetime(self):
-        return self.start_at
-
-    @start_datetime.setter
-    def start_datetime(self, value):
-        self.start_at = value
-
-    @property
-    def end_datetime(self):
-        return self.end_at
-
-    @end_datetime.setter
-    def end_datetime(self, value):
-        self.end_at = value
-
-    # Compatibility alias — old code used event.attendances
-    @property
-    def attendances(self):
-        return self.attendance_records
+    # Compatibility aliases for old field names.
+    start_datetime = synonym("start_at")
+    end_datetime = synonym("end_at")
+    attendances = synonym("attendance_records")

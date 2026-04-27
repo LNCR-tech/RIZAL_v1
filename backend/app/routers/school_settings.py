@@ -62,13 +62,28 @@ def _build_settings_response(school: School, settings: SchoolSetting) -> SchoolS
         event_default_late_threshold_minutes,
         event_default_sign_out_grace_minutes,
     ) = resolve_school_event_default_values(settings)
+    primary_color = (
+        getattr(school, 'primary_color', None)
+        or getattr(settings, 'primary_color', None)
+        or "#162F65"
+    )
+    secondary_color = (
+        getattr(school, 'secondary_color', None)
+        or getattr(settings, 'secondary_color', None)
+        or "#2C5F9E"
+    )
+    accent_color = (
+        getattr(settings, 'accent_color', None)
+        or secondary_color
+        or primary_color
+    )
     return SchoolSettingsResponse(
         school_id=school.id,
         school_name=getattr(school, 'school_name', None) or getattr(school, 'display_name', None) or getattr(school, 'legal_name', None),
         logo_url=getattr(school, 'logo_url', None),
-        primary_color=getattr(school, 'primary_color', None) or getattr(settings, 'primary_color', None),
-        secondary_color=getattr(school, 'secondary_color', None) or getattr(settings, 'secondary_color', None),
-        accent_color=getattr(settings, 'accent_color', None),
+        primary_color=primary_color,
+        secondary_color=secondary_color,
+        accent_color=accent_color,
         event_default_early_check_in_minutes=event_default_early_check_in_minutes,
         event_default_late_threshold_minutes=event_default_late_threshold_minutes,
         event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,

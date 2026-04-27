@@ -195,7 +195,7 @@ def get_active_sessions(
     sessions = list_active_sessions(db, actor_user_id=current_user.id)
     return [
         UserSessionItem(
-            id=item.id,
+            id=str(item.id),
             token_jti=item.token_jti,
             ip_address=item.ip_address,
             user_agent=item.user_agent,

@@ -80,6 +80,8 @@ def _write_audit(
 
 def _school_to_response(school: School) -> SchoolBrandingResponse:
     school_settings = getattr(school, "settings", None)
+    branding = getattr(school, "branding", None)
+    subscription = getattr(school, "subscription", None)
     (
         event_default_early_check_in_minutes,
         event_default_late_threshold_minutes,
@@ -89,13 +91,13 @@ def _school_to_response(school: School) -> SchoolBrandingResponse:
         school_id=school.id,
         school_name=getattr(school, 'school_name', None) or getattr(school, 'display_name', None) or getattr(school, 'legal_name', None),
         school_code=school.school_code,
-        logo_url=getattr(school, 'logo_url', None),
-        primary_color=getattr(school, 'primary_color', None),
-        secondary_color=getattr(school, 'secondary_color', None),
+        logo_url=getattr(school, 'logo_url', None) or getattr(branding, 'logo_url', None),
+        primary_color=(getattr(school, 'primary_color', None) or getattr(branding, 'primary_color', None) or "#162F65"),
+        secondary_color=(getattr(school, 'secondary_color', None) or getattr(branding, 'secondary_color', None)),
         event_default_early_check_in_minutes=event_default_early_check_in_minutes,
         event_default_late_threshold_minutes=event_default_late_threshold_minutes,
         event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
-        subscription_status=getattr(school, 'subscription_status', None),
+        subscription_status=(getattr(school, 'subscription_status', None) or getattr(subscription, 'status', None) or "trial"),
         active_status=getattr(school, 'active_status', getattr(school, 'is_active', True)),
         created_at=school.created_at,
         updated_at=school.updated_at,

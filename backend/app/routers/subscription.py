@@ -20,7 +20,7 @@ from app.core.security import (
 from app.core.dependencies import get_db
 from app.models.event import Event
 from app.models.import_job import BulkImportJob
-from app.models.subscription import SchoolSubscriptionReminder, SchoolSubscription
+from app.models.subscription import SchoolSubscriptionReminder, SchoolSubscription, SubscriptionPlan
 from app.models.role import Role
 from app.models.school import School
 from app.models.user import User, UserRole
@@ -60,10 +60,39 @@ def _get_or_create_subscription_setting(db: Session, school_id: int) -> SchoolSu
     if school is None:
         raise HTTPException(status_code=404, detail="School not found")
 
+    requested_plan_code = getattr(school, "subscription_plan", "free") or "free"
+    plan = (
+        db.query(SubscriptionPlan)
+        .filter(func.lower(SubscriptionPlan.code) == requested_plan_code.lower())
+        .first()
+    )
+    if plan is None:
+        plan = (
+            db.query(SubscriptionPlan)
+            .filter(SubscriptionPlan.is_active.is_(True))
+            .order_by(SubscriptionPlan.id.asc())
+            .first()
+        )
+    if plan is None:
+        plan = SubscriptionPlan(
+            code=requested_plan_code,
+            display_name=requested_plan_code.title(),
+            user_limit=1000,
+            event_limit_monthly=1000,
+            import_limit_monthly=1000,
+            is_active=True,
+        )
+        db.add(plan)
+        db.flush()
+
     setting = SchoolSubscription(
         school_id=school_id,
-        plan_name=getattr(school, "subscription_plan", "free") or "free",
+        plan_id=plan.id,
+        status=getattr(school, "subscription_status", None) or "trial",
+        starts_on=getattr(school, "subscription_start", None) or date.today(),
         renewal_date=getattr(school, "subscription_end", None),
+        auto_renew=False,
+        reminder_days_before=14,
     )
     db.add(setting)
     db.flush()
@@ -82,6 +111,11 @@ def _month_window(reference: datetime | None = None) -> tuple[datetime, datetime
 
 def _build_metrics(db: Session, *, school_id: int, setting: SchoolSubscription) -> SubscriptionUsageMetrics:
     month_start, next_month = _month_window()
+    plan = setting.plan
+    user_limit = int(plan.user_limit if plan is not None else 0)
+    event_limit_monthly = int(plan.event_limit_monthly if plan is not None else 0)
+    import_limit_monthly = int(plan.import_limit_monthly if plan is not None else 0)
+
     user_count = (
         db.query(func.count(User.id))
         .filter(User.school_id == school_id)
@@ -118,13 +152,19 @@ def _build_metrics(db: Session, *, school_id: int, setting: SchoolSubscription) 
         user_count=int(user_count),
         event_count_current_month=int(event_count_current_month),
         import_count_current_month=int(import_count_current_month),
-        user_limit=setting.user_limit,
-        event_limit_monthly=setting.event_limit_monthly,
-        import_limit_monthly=setting.import_limit_monthly,
-        user_usage_percent=pct(int(user_count), int(setting.user_limit)),
-        event_usage_percent=pct(int(event_count_current_month), int(setting.event_limit_monthly)),
-        import_usage_percent=pct(int(import_count_current_month), int(setting.import_limit_monthly)),
+        user_limit=user_limit,
+        event_limit_monthly=event_limit_monthly,
+        import_limit_monthly=import_limit_monthly,
+        user_usage_percent=pct(int(user_count), user_limit),
+        event_usage_percent=pct(int(event_count_current_month), event_limit_monthly),
+        import_usage_percent=pct(int(import_count_current_month), import_limit_monthly),
     )
+
+
+def _plan_name(setting: SchoolSubscription) -> str:
+    if setting.plan is None:
+        return "free"
+    return setting.plan.code or setting.plan.display_name or "free"
 
 
 @router.get("/me", response_model=SchoolSubscriptionResponse)
@@ -142,10 +182,10 @@ def get_school_subscription(
 
     return SchoolSubscriptionResponse(
         school_id=setting.school_id,
-        plan_name=setting.plan_name,
-        user_limit=setting.user_limit,
-        event_limit_monthly=setting.event_limit_monthly,
-        import_limit_monthly=setting.import_limit_monthly,
+        plan_name=_plan_name(setting),
+        user_limit=metrics.user_limit,
+        event_limit_monthly=metrics.event_limit_monthly,
+        import_limit_monthly=metrics.import_limit_monthly,
         renewal_date=setting.renewal_date,
         auto_renew=setting.auto_renew,
         reminder_days_before=setting.reminder_days_before,
@@ -165,18 +205,22 @@ def update_school_subscription(
 
     setting = _get_or_create_subscription_setting(db, scoped_school_id)
 
-    for field in [
-        "plan_name",
-        "user_limit",
-        "event_limit_monthly",
-        "import_limit_monthly",
-        "renewal_date",
-        "auto_renew",
-        "reminder_days_before",
-    ]:
-        value = getattr(payload, field)
-        if value is not None:
-            setattr(setting, field, value)
+    if payload.plan_name is not None:
+        plan = (
+            db.query(SubscriptionPlan)
+            .filter(func.lower(SubscriptionPlan.code) == payload.plan_name.lower())
+            .first()
+        )
+        if plan is None:
+            raise HTTPException(status_code=404, detail="Subscription plan not found")
+        setting.plan_id = plan.id
+
+    if payload.renewal_date is not None:
+        setting.renewal_date = payload.renewal_date
+    if payload.auto_renew is not None:
+        setting.auto_renew = payload.auto_renew
+    if payload.reminder_days_before is not None:
+        setting.reminder_days_before = payload.reminder_days_before
 
     setting.updated_by_user_id = current_user.id
     db.commit()
@@ -185,10 +229,10 @@ def update_school_subscription(
 
     return SchoolSubscriptionResponse(
         school_id=setting.school_id,
-        plan_name=setting.plan_name,
-        user_limit=setting.user_limit,
-        event_limit_monthly=setting.event_limit_monthly,
-        import_limit_monthly=setting.import_limit_monthly,
+        plan_name=_plan_name(setting),
+        user_limit=metrics.user_limit,
+        event_limit_monthly=metrics.event_limit_monthly,
+        import_limit_monthly=metrics.import_limit_monthly,
         renewal_date=setting.renewal_date,
         auto_renew=setting.auto_renew,
         reminder_days_before=setting.reminder_days_before,
@@ -310,3 +354,7 @@ def run_subscription_reminders(
     )
 
 
+    plan = setting.plan
+    user_limit = int(plan.user_limit if plan is not None else 0)
+    event_limit_monthly = int(plan.event_limit_monthly if plan is not None else 0)
+    import_limit_monthly = int(plan.import_limit_monthly if plan is not None else 0)

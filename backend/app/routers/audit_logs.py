@@ -15,12 +15,10 @@ from app.core.security import get_current_admin_or_campus_admin
 from app.core.dependencies import get_db
 from app.models.user import User
 from app.reports.system import router as system_reports_router
-from app.schemas.audit import SchoolAuditLogSearchResponse
-
 router = APIRouter(prefix="/api/audit-logs", tags=["audit-logs"])
 
 
-@router.get("", response_model=SchoolAuditLogSearchResponse)
+@router.get("")
 def search_audit_logs(
     q: Optional[str] = Query(default=None, max_length=200),
     action: Optional[str] = Query(default=None, max_length=100),
@@ -33,7 +31,7 @@ def search_audit_logs(
     current_user: User = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    return system_reports_router.search_audit_logs(
+    result = system_reports_router.search_audit_logs(
         db,
         current_user=current_user,
         q=q,
@@ -45,4 +43,9 @@ def search_audit_logs(
         limit=limit,
         offset=offset,
     )
+    if isinstance(result, dict) and "items" in result:
+        return result["items"]
+    if hasattr(result, "items"):
+        return result.items
+    return result
 

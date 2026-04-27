@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship, synonym
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from app.core.event_defaults import (
     DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
@@ -24,26 +26,9 @@ class School(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
-    # Compatibility properties for old code that used school_name / name
-    @property
-    def school_name(self) -> str:
-        return self.display_name
-
-    @school_name.setter
-    def school_name(self, value: str) -> None:
-        self.display_name = value
-
-    @property
-    def name(self) -> str:
-        return self.legal_name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        self.legal_name = value
-
-    @property
-    def active_status(self) -> bool:
-        return self.is_active
+    school_name = synonym("display_name")
+    name = synonym("legal_name")
+    active_status = synonym("is_active")
 
     users = relationship("User", back_populates="school")
     student_profiles = relationship("StudentProfile", back_populates="school")
@@ -54,10 +39,78 @@ class School(Base):
     event_policies = relationship("SchoolEventPolicy", back_populates="school", uselist=False, cascade="all, delete-orphan")
     subscription = relationship("SchoolSubscription", back_populates="school", uselist=False, cascade="all, delete-orphan")
 
-    # Compatibility alias — old code accessed school.settings
+    # Compatibility alias for old code that accessed school.settings
+    settings = synonym("event_policies")
+
     @property
-    def settings(self):
-        return self.event_policies
+    def logo_url(self) -> str | None:
+        return self.branding.logo_url if self.branding is not None else None
+
+    @logo_url.setter
+    def logo_url(self, value: str | None) -> None:
+        if self.branding is None:
+            self.branding = SchoolBranding()
+        self.branding.logo_url = value
+
+    @property
+    def primary_color(self) -> str | None:
+        return self.branding.primary_color if self.branding is not None else None
+
+    @primary_color.setter
+    def primary_color(self, value: str | None) -> None:
+        if self.branding is None:
+            self.branding = SchoolBranding()
+        self.branding.primary_color = value
+
+    @property
+    def secondary_color(self) -> str | None:
+        return self.branding.secondary_color if self.branding is not None else None
+
+    @secondary_color.setter
+    def secondary_color(self, value: str | None) -> None:
+        if self.branding is None:
+            self.branding = SchoolBranding()
+        self.branding.secondary_color = value
+
+    @property
+    def subscription_status(self) -> str | None:
+        if self.subscription is not None:
+            return self.subscription.status
+        return self.__dict__.get("_compat_subscription_status")
+
+    @subscription_status.setter
+    def subscription_status(self, value: str | None) -> None:
+        self.__dict__["_compat_subscription_status"] = value
+
+    @property
+    def subscription_plan(self) -> str | None:
+        if self.subscription is not None and self.subscription.plan is not None:
+            return self.subscription.plan.code
+        return self.__dict__.get("_compat_subscription_plan")
+
+    @subscription_plan.setter
+    def subscription_plan(self, value: str | None) -> None:
+        self.__dict__["_compat_subscription_plan"] = value
+
+    @property
+    def subscription_start(self):
+        if self.subscription is not None:
+            return self.subscription.starts_on
+        return self.__dict__.get("_compat_subscription_start")
+
+    @subscription_start.setter
+    def subscription_start(self, value) -> None:
+        self.__dict__["_compat_subscription_start"] = value
+
+    @property
+    def subscription_end(self):
+        if self.subscription is not None:
+            return self.subscription.ends_on
+        return self.__dict__.get("_compat_subscription_end")
+
+    @subscription_end.setter
+    def subscription_end(self, value) -> None:
+        self.__dict__["_compat_subscription_end"] = value
 
 
 class SchoolBranding(Base):
@@ -87,15 +140,15 @@ class SchoolEventPolicy(Base):
     school = relationship("School", back_populates="event_policies")
 
     # Compatibility properties for old code that used school_settings column names
-    @property
+    @hybrid_property
     def event_default_early_check_in_minutes(self) -> int:
         return self.default_early_check_in_minutes
 
-    @property
+    @hybrid_property
     def event_default_late_threshold_minutes(self) -> int:
         return self.default_late_threshold_minutes
 
-    @property
+    @hybrid_property
     def event_default_sign_out_grace_minutes(self) -> int:
         return self.default_sign_out_grace_minutes
 

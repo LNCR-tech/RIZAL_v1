@@ -117,7 +117,7 @@ def create_event(
                     "sign_out_grace_minutes."
                 ),
             )
-        now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
+        now_local = datetime.now(get_event_timezone()).replace(microsecond=0)
         (
             present_until_override_at,
             late_until_override_at,
@@ -148,7 +148,7 @@ def create_event(
             late_until_override_at=late_until_override_at,
             start_datetime=event.start_datetime,
             end_datetime=event.end_datetime,
-            status=ModelEventStatus[event.status.value.upper()],
+            status=ModelEventStatus[event.status.value.upper()].name,
             event_type=_resolve_event_type(
                 db,
                 school_id=school_id,
@@ -312,7 +312,7 @@ def update_event(
                     "sign_out_grace_minutes."
                 ),
             )
-        now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
+        now_local = datetime.now(get_event_timezone()).replace(microsecond=0)
         (
             present_until_override_at,
             late_until_override_at,
@@ -355,7 +355,7 @@ def update_event(
         db_event.present_until_override_at = present_until_override_at
         db_event.late_until_override_at = late_until_override_at
         if event_update.status is not None:
-            db_event.status = ModelEventStatus[event_update.status.value.upper()]
+            db_event.status = ModelEventStatus[event_update.status.value.upper()].name
         if event_update.event_type_id is not None or "event_type_id" in _get_payload_fields_set(event_update):
             db_event.event_type = _resolve_event_type(
                 db,

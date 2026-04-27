@@ -1,12 +1,14 @@
 import pytest
+from datetime import datetime, timedelta, timezone
 
 
 @pytest.fixture(scope="module")
 def ongoing_event_id(client, campus_admin_headers):
+    now_utc = datetime.now(timezone.utc)
     r = client.post("/api/events/", headers=campus_admin_headers, json={
         "name": "Attendance Test Event",
-        "start_datetime": "2000-01-01T08:00:00+00:00",
-        "end_datetime": "2099-01-01T17:00:00+00:00",
+        "start_datetime": (now_utc + timedelta(minutes=5)).isoformat(),
+        "end_datetime": (now_utc + timedelta(hours=8)).isoformat(),
         "location": "Test Hall",
     })
     assert r.status_code in (200, 201), r.text

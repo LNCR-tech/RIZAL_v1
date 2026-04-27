@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import Iterable
+import json
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -15,7 +16,7 @@ from app.core.timezones import utc_now
 from app.models.attendance import Attendance
 from app.models.event import Event
 from app.models.platform_features import UserNotificationPreference
-from app.models.notifications import NotificationLog
+from app.models.notifications import NotificationLog, NotificationLogAttribute
 from app.models.user import StudentProfile, User
 from app.services.attendance_status import ATTENDED_STATUS_VALUES
 from app.services.email_service import EmailDeliveryError, send_plain_email
@@ -58,10 +59,18 @@ def create_notification_log(
         subject=subject,
         message=message,
         error_message=error_message,
-        metadata_json=metadata_json,
     )
     db.add(row)
     db.flush()
+    if metadata_json:
+        for key, value in metadata_json.items():
+            db.add(
+                NotificationLogAttribute(
+                    notification_log_id=row.id,
+                    attribute_key=str(key),
+                    attribute_value=None if value is None else json.dumps(value, default=str),
+                )
+            )
     return row
 
 
