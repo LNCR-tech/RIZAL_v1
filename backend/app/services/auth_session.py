@@ -125,12 +125,11 @@ def get_school_context(db: Session, user: User) -> dict[str, object | None]:
 
 
 def has_face_reference_enrolled(db: Session, user_id: int) -> bool:
-    return (
-        db.query(UserFaceRecognitionProfile.user_id)
-        .filter(UserFaceRecognitionProfile.user_id == user_id)
-        .first()
-        is not None
-    )
+    # user_face_profiles table has been dropped — face enrollment is now
+    # tracked via student_face_embeddings. Always return False here;
+    # the caller also checks getattr(user, 'face_profile', None) which
+    # covers the new path.
+    return False
 
 
 def should_recommend_password_change(user: User) -> bool:

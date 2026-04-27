@@ -96,9 +96,9 @@ def _seed(db: Session):
             db.flush()
         return user
 
-    _make_user("admin@test.local", "admin", school_id=None)
-    campus_admin = _make_user("campus_admin@test.local", "campus_admin", school_id=school.id)
-    student_user = _make_user("student@test.local", "student", school_id=school.id)
+    _make_user("admin@test.com", "admin", school_id=None)
+    campus_admin = _make_user("campus_admin@test.com", "campus_admin", school_id=school.id)
+    student_user = _make_user("student@test.com", "student", school_id=school.id)
 
     # Student profile
     if not db.query(StudentProfile).filter_by(user_id=student_user.id).first():
@@ -131,21 +131,21 @@ def client(db_session):
 
 @pytest.fixture(scope="session")
 def admin_token(client):
-    r = client.post("/login", json={"email": "admin@test.local", "password": "TestPass123!"})
+    r = client.post("/login", json={"email": "admin@test.com", "password": "TestPass123!"})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 
 
 @pytest.fixture(scope="session")
 def campus_admin_token(client):
-    r = client.post("/login", json={"email": "campus_admin@test.local", "password": "TestPass123!"})
+    r = client.post("/login", json={"email": "campus_admin@test.com", "password": "TestPass123!"})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 
 
 @pytest.fixture(scope="session")
 def student_token(client):
-    r = client.post("/login", json={"email": "student@test.local", "password": "TestPass123!"})
+    r = client.post("/login", json={"email": "student@test.com", "password": "TestPass123!"})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 

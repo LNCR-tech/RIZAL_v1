@@ -164,7 +164,6 @@ def _auth_user_query(db: Session, email: str):
         .options(
             joinedload(User.roles).joinedload(UserRole.role),
             joinedload(User.school),
-            joinedload(User.face_profile),
         )
         .filter(User.email == _normalize_login_identifier(email))
     )
