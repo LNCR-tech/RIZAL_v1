@@ -5,7 +5,7 @@ from sqlalchemy import text
 # Import database models
 from app.core.database import engine
 from app.models.base import Base
-from app.models.school import School, SchoolSetting
+from app.models.school import School, SchoolBranding, SchoolEventPolicy
 from app.models.department import Department
 from app.models.program import Program
 from app.models.user import User, UserRole, StudentProfile
@@ -25,7 +25,7 @@ from app.models.sanctions import (
     SanctionComplianceHistory
 )
 
-from modules.data import DEFAULT_ROLE_NAMES
+from modules.data import DEFAULT_ROLES, DEFAULT_ROLE_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def wipe_records(db: Session, preserve_platform_admin: str = None) -> None:
         "sanction_delegations",
         "clearance_deadlines",
         "event_sanction_configs",
-        "attendances",
+        "attendance_records",
         "event_department_association",
         "event_program_association",
         "events",
@@ -63,7 +63,8 @@ def wipe_records(db: Session, preserve_platform_admin: str = None) -> None:
         "programs",
         "departments",
         "school_audit_logs",
-        "school_settings",
+        "school_branding",
+        "school_event_policies",
         "schools"
     ]
     
@@ -81,10 +82,11 @@ def wipe_records(db: Session, preserve_platform_admin: str = None) -> None:
     logger.info("Database wiped.")
 
 def seed_roles(db: Session) -> None:
-    for name in DEFAULT_ROLE_NAMES:
-        role = db.query(Role).filter(Role.name == name).first()
+    """Seed the 3 real platform roles (admin, campus_admin, student)."""
+    for role_def in DEFAULT_ROLES:
+        role = db.query(Role).filter(Role.code == role_def["name"]).first()
         if not role:
-            db.add(Role(name=name))
+            db.add(Role(code=role_def["name"], display_name=role_def["display_name"]))
     db.commit()
 
 def seed_permission_catalog(db: Session) -> None:
@@ -113,37 +115,41 @@ def seed_platform_admin(db: Session, email: str, password_hash: str) -> User:
         db.add(admin)
         db.commit()
         db.refresh(admin)
-        
-    admin_role = db.query(Role).filter(Role.name == "admin").first()
+
+    admin_role = db.query(Role).filter(Role.code == "admin").first()
     if admin_role:
         role_link = db.query(UserRole).filter_by(user_id=admin.id, role_id=admin_role.id).first()
         if not role_link:
             db.add(UserRole(user_id=admin.id, role_id=admin_role.id))
             db.commit()
-            
+
     return admin
 
 def get_or_create_school(db: Session, **kwargs) -> School:
-    school = db.query(School).filter(School.school_name == kwargs["school_name"]).first()
+    school_display = kwargs.get("school_name", kwargs.get("name", ""))
+    school = db.query(School).filter(School.display_name == school_display).first()
     if not school:
         school = School(
-            name=kwargs.get("name", kwargs["school_name"]),
-            school_name=kwargs["school_name"],
+            legal_name=kwargs.get("name", school_display),
+            display_name=school_display,
             school_code=kwargs.get("school_code"),
             address=kwargs.get("address", "123 Default St"),
-            primary_color=kwargs.get("primary_color", "#162F65"),
-            secondary_color=kwargs.get("secondary_color", "#2C5F9E")
         )
         db.add(school)
         db.flush()
-        
-        setting = SchoolSetting(
+
+        # Colors live in school_branding, not on the School row itself
+        branding = SchoolBranding(
             school_id=school.id,
             primary_color=kwargs.get("primary_color", "#162F65"),
             secondary_color=kwargs.get("secondary_color", "#2C5F9E"),
-            accent_color=kwargs.get("accent_color", "#4A90E2")
+            accent_color=kwargs.get("accent_color", "#4A90E2"),
         )
-        db.add(setting)
+        db.add(branding)
+
+        # Event policy row (no color columns — just defaults)
+        db.add(SchoolEventPolicy(school_id=school.id))
+
         db.commit()
         db.refresh(school)
     return school
@@ -189,7 +195,7 @@ def create_user(db: Session, **kwargs) -> User:
     return user
 
 def assign_role(db: Session, user: User, role_name: str) -> None:
-    role = db.query(Role).filter(Role.name == role_name).first()
+    role = db.query(Role).filter(Role.code == role_name).first()
     if role:
         from app.models.user import UserRole
         existing = db.query(UserRole).filter_by(user_id=user.id, role_id=role.id).first()
@@ -201,7 +207,7 @@ def create_student_profile(db: Session, **kwargs) -> StudentProfile:
     profile = StudentProfile(
         user_id=kwargs["user_id"],
         school_id=kwargs["school_id"],
-        student_id=kwargs["student_id"],
+        student_number=kwargs["student_id"],  # normalized column name
         department_id=kwargs.get("department_id"),
         program_id=kwargs.get("program_id"),
         year_level=kwargs.get("year_level", 1)
@@ -357,3 +363,31 @@ def create_compliance_history(db: Session, **kwargs) -> SanctionComplianceHistor
     db.add(history)
     db.flush()
     return history
+
+def seed_attendance_methods(db: Session) -> None:
+    """Seed the required attendance_methods lookup rows.
+    
+    attendance_records.method_code is a NOT NULL FK to attendance_methods.code.
+    Without at least 'manual' existing, attendance inserts will fail.
+    """
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(db.bind)
+    if "attendance_methods" not in inspector.get_table_names():
+        logger.warning("attendance_methods table not found — skipping method seed.")
+        return
+
+    methods = [
+        {"code": "manual",  "display_name": "Manual Entry"},
+        {"code": "rfid",    "display_name": "RFID Tap"},
+        {"code": "face",    "display_name": "Face Recognition"},
+        {"code": "qr",      "display_name": "QR Code Scan"},
+    ]
+    existing = {row[0] for row in db.execute(text("SELECT code FROM attendance_methods")).fetchall()}
+    for m in methods:
+        if m["code"] not in existing:
+            db.execute(
+                text("INSERT INTO attendance_methods (code, display_name) VALUES (:code, :display_name)"),
+                {"code": m["code"], "display_name": m["display_name"]}
+            )
+    db.commit()
+    logger.info("Attendance methods seeded.")

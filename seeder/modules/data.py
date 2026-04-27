@@ -208,17 +208,19 @@ COLLEGES_DATASET: Dict[str, List[str]] = {
 # ROLES
 # ==============================================================================
 
-# Mirrors the core platform permissions/roles hierarchy
-DEFAULT_ROLE_NAMES: List[str] = [
-    "student",
-    "campus_admin",
-    "admin",
-    "ssg",
-    "sg",
-    "org",
-    "faculty",
-    "school_it",
+# Mirrors the core platform permissions/roles hierarchy.
+# display_name is required by the normalized schema (NOT NULL).
+# NOTE: ssg/sg/org are governance unit types, not roles. faculty/school_it are legacy.
+DEFAULT_ROLES: List[Dict[str, str]] = [
+    {"name": "student",      "display_name": "Student"},
+    {"name": "campus_admin", "display_name": "Campus Administrator"},
+    {"name": "admin",        "display_name": "Administrator"},
 ]
+
+# Convenience alias — keeps old imports working
+DEFAULT_ROLE_NAMES: List[str] = [r["name"] for r in DEFAULT_ROLES]
+
+
 
 # ==============================================================================
 # EVENTS

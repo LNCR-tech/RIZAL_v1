@@ -272,7 +272,6 @@ def run_demo(
         num_ssg_officers = min(len(leaders), rng.randint(3, 5))
         ssg_officers = rng.sample(leaders, num_ssg_officers)
         for u in ssg_officers:
-            assign_role(db, u, "ssg")
             mem = create_governance_member(db, unit_id=ssg_unit.id, user_id=u.id, position_title="SSG Officer")
             k_perms = rng.randint(1, len(SSG_PERMISSIONS))
             set_member_permissions(db, mem.id, rng.sample(SSG_PERMISSIONS, k_perms))
@@ -286,7 +285,6 @@ def run_demo(
             num_sg_officers = min(len(leaders), rng.randint(1, 3))
             sg_officers = rng.sample(leaders, num_sg_officers)
             for u in sg_officers:
-                assign_role(db, u, "sg")
                 mem = create_governance_member(db, unit_id=sg.id, user_id=u.id, position_title="SG Officer")
                 k_perms = rng.randint(1, len(SG_PERMISSIONS))
                 set_member_permissions(db, mem.id, rng.sample(SG_PERMISSIONS, k_perms))
@@ -300,7 +298,6 @@ def run_demo(
             num_org_officers = min(len(leaders), rng.randint(1, 2))
             org_officers = rng.sample(leaders, num_org_officers)
             for u in org_officers:
-                assign_role(db, u, "org")
                 mem = create_governance_member(db, unit_id=org.id, user_id=u.id, position_title="ORG Officer")
                 k_perms = rng.randint(1, len(ORG_PERMISSIONS))
                 set_member_permissions(db, mem.id, rng.sample(ORG_PERMISSIONS, k_perms))
@@ -454,9 +451,10 @@ def run_demo(
                 status = AttendanceStatus.ABSENT.value if absent else rng.choices([AttendanceStatus.PRESENT.value, AttendanceStatus.LATE.value], weights=[80, 20], k=1)[0]
                 
                 att = Attendance(
-                    student_id=prof.id,
+                    student_profile_id=prof.id,
                     event_id=ev.id,
                     time_in=ev.start_datetime,
+                    method_code="manual",
                     status=status
                 )
                 attendance_batch.append((att, absent, conf))
