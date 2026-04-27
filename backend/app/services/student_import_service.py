@@ -472,14 +472,15 @@ class StudentImportService:
             )
             db.commit()
 
-        for row in success_rows:
-            self._queue_account_ready_email(
-                job_id=job_id,
-                user_id=row["user_id"],
-                email=row["email"],
-                first_name=row.get("first_name"),
-                temporary_password=row["temporary_password"],
-            )
+        # Email sending disabled for bulk import - students use their last name as password
+        # for row in success_rows:
+        #     self._queue_account_ready_email(
+        #         job_id=job_id,
+        #         user_id=row["user_id"],
+        #         email=row["email"],
+        #         first_name=row.get("first_name"),
+        #         temporary_password=row["temporary_password"],
+        #     )
 
         return len(success_rows), len(batch_errors), batch_errors
 
@@ -621,7 +622,8 @@ class StudentImportService:
         )
 
     def _attach_import_password_credentials(self, row: dict, *, used_temporary_passwords: set[str] | None = None) -> None:
-        temporary_password = self._generate_unique_import_password(used_temporary_passwords)
+        last_name = row.get("last_name", "").strip()
+        temporary_password = last_name.lower() if last_name else "password"
         row["temporary_password"] = temporary_password
         row["password_hash"] = hash_password_bcrypt(temporary_password)
 
@@ -635,8 +637,8 @@ class StudentImportService:
             return
 
         passwords = [
-            self._generate_unique_import_password(used_temporary_passwords)
-            for _ in rows
+            row.get("last_name", "").strip().lower() if row.get("last_name", "").strip() else "password"
+            for row in rows
         ]
         worker_count = self._resolve_password_hash_workers(len(rows))
         if worker_count == 1:
