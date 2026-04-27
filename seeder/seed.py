@@ -159,7 +159,21 @@ def main():
         db.rollback()
         sys.exit(1)
     except Exception as e:
-        logger.exception(f"Seeding failed: {str(e)}")
+        # Extract just the root cause — no traceback spam
+        cause = e.__cause__ or e
+        msg = str(cause).split("\n")[0].strip()
+
+        if "could not translate host name" in msg or "Connection refused" in msg or "could not connect" in msg.lower():
+            logger.error(f"[seeder] Cannot connect to database. Check DATABASE_URL in seeder/.env")
+            logger.error(f"[seeder] Detail: {msg}")
+        elif "password authentication failed" in msg:
+            logger.error(f"[seeder] Database authentication failed. Check POSTGRES_USER/PASSWORD in database/.env")
+        elif "database" in msg.lower() and "does not exist" in msg.lower():
+            logger.error(f"[seeder] Database does not exist. Run docker-compose up to initialize it first.")
+            logger.error(f"[seeder] Detail: {msg}")
+        else:
+            logger.error(f"[seeder] Seeding failed: {msg}")
+
         db.rollback()
         sys.exit(1)
     finally:
