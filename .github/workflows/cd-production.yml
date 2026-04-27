@@ -1,0 +1,66 @@
+name: Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - aura_ci_cd
+
+jobs:
+  # We reuse the build step to ensure we are deploying what was tested
+  docker-build:
+    name: Build Production Images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create CI env file
+        run: cp .env.example .env
+      - name: Build production images
+        run: docker compose -f docker-compose.prod.yml build
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: docker-build
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Verify deploy secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.AWS_HOST }}" ] && missing="$missing AWS_HOST"
+          [ -z "${{ secrets.AWS_USER }}" ] && missing="$missing AWS_USER"
+          [ -z "${{ secrets.AWS_SSH_PRIVATE_KEY }}" ] && missing="$missing AWS_SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.AWS_PROJECT_PATH }}" ] && missing="$missing AWS_PROJECT_PATH"
+          if [ -n "$missing" ]; then
+            echo "Missing secrets:$missing"
+            exit 1
+          fi
+          echo "All deploy secrets present."
+
+      - name: Deploy through SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            DEPLOY_DIR="${{ secrets.AWS_PROJECT_PATH }}"
+            COMPOSE_FILE="docker-compose.prod.yml"
+            BRANCH="${{ github.ref_name }}"
+
+            cd "$DEPLOY_DIR"
+            git fetch origin "$BRANCH"
+            git checkout "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            docker compose -f "$COMPOSE_FILE" down --remove-orphans
+            docker compose -f "$COMPOSE_FILE" up --build -d
+
+            echo "Deploy complete."
