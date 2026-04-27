@@ -177,6 +177,9 @@ def link_program_to_department(db: Session, program: Program, department: Depart
         db.commit()
 
 def create_user(db: Session, **kwargs) -> User:
+    existing = db.query(User).filter_by(email=kwargs["email"]).first()
+    if existing:
+        return existing
     user = User(
         email=kwargs["email"],
         school_id=kwargs.get("school_id"),
@@ -203,10 +206,16 @@ def assign_role(db: Session, user: User, role_name: str) -> None:
             db.flush()
 
 def create_student_profile(db: Session, **kwargs) -> StudentProfile:
+    existing = db.query(StudentProfile).filter_by(
+        school_id=kwargs["school_id"],
+        student_number=kwargs["student_id"]
+    ).first()
+    if existing:
+        return existing
     profile = StudentProfile(
         user_id=kwargs["user_id"],
         school_id=kwargs["school_id"],
-        student_number=kwargs["student_id"],  # normalized column name
+        student_number=kwargs["student_id"],
         department_id=kwargs.get("department_id"),
         program_id=kwargs.get("program_id"),
         year_level=kwargs.get("year_level", 1)
@@ -217,6 +226,12 @@ def create_student_profile(db: Session, **kwargs) -> StudentProfile:
 
 def create_governance_unit(db: Session, **kwargs) -> GovernanceUnit:
     raw_type = kwargs["unit_type"]
+    existing = db.query(GovernanceUnit).filter_by(
+        school_id=kwargs["school_id"],
+        unit_code=kwargs["unit_code"]
+    ).first()
+    if existing:
+        return existing
     unit = GovernanceUnit(
         school_id=kwargs["school_id"],
         unit_code=kwargs["unit_code"],
@@ -233,10 +248,19 @@ def create_governance_unit(db: Session, **kwargs) -> GovernanceUnit:
 def assign_unit_permissions(db: Session, unit_id: int, permission_codes: list) -> None:
     perms = db.query(GovernancePermission).filter(GovernancePermission.permission_code.in_(permission_codes)).all()
     for perm in perms:
-        db.add(GovernanceUnitPermission(governance_unit_id=unit_id, permission_id=perm.id))
+        existing = db.query(GovernanceUnitPermission).filter_by(
+            governance_unit_id=unit_id, permission_id=perm.id
+        ).first()
+        if not existing:
+            db.add(GovernanceUnitPermission(governance_unit_id=unit_id, permission_id=perm.id))
     db.flush()
 
 def create_governance_member(db: Session, unit_id: int, user_id: int, position_title: str) -> GovernanceMember:
+    existing = db.query(GovernanceMember).filter_by(
+        governance_unit_id=unit_id, user_id=user_id
+    ).first()
+    if existing:
+        return existing
     mem = GovernanceMember(governance_unit_id=unit_id, user_id=user_id, position_title=position_title)
     db.add(mem)
     db.flush()
@@ -245,7 +269,11 @@ def create_governance_member(db: Session, unit_id: int, user_id: int, position_t
 def set_member_permissions(db: Session, member_id: int, permission_codes: list) -> None:
     perms = db.query(GovernancePermission).filter(GovernancePermission.permission_code.in_(permission_codes)).all()
     for perm in perms:
-        db.add(GovernanceMemberPermission(governance_member_id=member_id, permission_id=perm.id))
+        existing = db.query(GovernanceMemberPermission).filter_by(
+            governance_member_id=member_id, permission_id=perm.id
+        ).first()
+        if not existing:
+            db.add(GovernanceMemberPermission(governance_member_id=member_id, permission_id=perm.id))
     db.flush()
 
 def resolve_event_type_id(db: Session, event_type_name: str) -> int | None:
@@ -337,6 +365,12 @@ def create_announcement(db: Session, **kwargs) -> GovernanceAnnouncement:
     return ann
 
 def create_student_note(db: Session, **kwargs) -> GovernanceStudentNote:
+    existing = db.query(GovernanceStudentNote).filter_by(
+        governance_unit_id=kwargs["unit_id"],
+        student_profile_id=kwargs["student_id"]
+    ).first()
+    if existing:
+        return existing
     note = GovernanceStudentNote(
         governance_unit_id=kwargs["unit_id"],
         student_profile_id=kwargs["student_id"],
