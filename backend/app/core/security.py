@@ -177,9 +177,18 @@ def get_user_for_login(db: Session, email: str) -> Optional[User]:
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     user = get_user_for_login(db, email)
 
-    if not user or not verify_password(password, user.password_hash):
+    if not user:
         return None
-    return user
+
+    if verify_password(password, user.password_hash):
+        return user
+
+    # Only try lowercase password for users still using default import password
+    if getattr(user, 'using_default_import_password', False):
+        if verify_password(password.lower(), user.password_hash):
+            return user
+
+    return None
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
