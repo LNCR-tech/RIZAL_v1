@@ -30,11 +30,22 @@ def test_face_verify_requires_auth(client):
 
 
 def test_revoke_session(client, student_headers, db_session):
+    from jose import jwt
+    from app.core.security import SECRET_KEY, ALGORITHM
     from app.models.platform_features import UserSession
     from app.models.user import User
     student = db_session.query(User).filter_by(email="student@test.com").first()
-    session = db_session.query(UserSession).filter_by(user_id=student.id).first()
+    # Identify the active session JTI so we don't revoke it
+    token = student_headers["Authorization"].split(" ", 1)[1]
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    active_jti = payload.get("jti")
+    # Find a session that is NOT the active one
+    session = (
+        db_session.query(UserSession)
+        .filter(UserSession.user_id == student.id, UserSession.token_jti != active_jti)
+        .first()
+    )
     if session is None:
-        import pytest; pytest.skip("No sessions for student in test DB")
+        import pytest; pytest.skip("No non-active sessions for student in test DB")
     r = client.post(f"/api/auth/security/sessions/{session.id}/revoke", headers=student_headers)
     assert r.status_code in (200, 403, 404)
