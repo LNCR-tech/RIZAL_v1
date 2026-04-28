@@ -24,7 +24,6 @@ ATTENDANCE_DISPLAY_STATUS_VALUES: tuple[str, ...] = (
     "late",
     "absent",
     "excused",
-    "incomplete",
 )
 
 
@@ -53,22 +52,33 @@ def resolve_attendance_display_status(
     time_out: datetime | None,
     time_in: datetime | None = None,
 ) -> str:
-    """Resolve the API-facing display status, including the special incomplete state.
+    """Resolve the API-facing display status.
 
-    If the row has no sign-in (time_in is None), it represents a never-attended
-    student (excused or auto-absent), so the stored terminal status is returned
-    directly instead of forcing it to "incomplete".
+    LOGIC:
+    - NULL, NULL, absent -> Absent (never signed in)
+    - NULL, sign-out, absent -> Absent (can't sign out without signing in)
+    - sign-in, NULL, absent -> Absent (signed in but didn't complete)
+    - sign-in, sign-out, present -> Present (full attendance)
+    - sign-in, sign-out, late -> Late (arrived late but completed)
+    - sign-in, NULL, late -> Absent (arrived late but didn't complete)
+    
+    KEY RULE: Both sign-in AND sign-out are required to be Present/Late.
+              If time_out is NULL, the student is ABSENT.
     """
     normalized_status = normalize_attendance_status(stored_status)
 
+    # If never signed in, return stored status (absent/excused)
     if time_in is None:
         if normalized_status in ALL_ATTENDANCE_STATUS_VALUES:
             return normalized_status
         return "absent"
 
-    if not is_attendance_completed(time_out=time_out):
-        return "incomplete"
+    # If signed in but NO sign-out, always ABSENT
+    # (Both sign-in and sign-out are required for Present/Late)
+    if time_out is None:
+        return "absent"
 
+    # If both sign-in and sign-out exist, return stored status
     if normalized_status in ALL_ATTENDANCE_STATUS_VALUES:
         return normalized_status
     return "absent"
