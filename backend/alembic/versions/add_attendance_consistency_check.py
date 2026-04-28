@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_attendance_consistency_check'
-down_revision = None  # Update this to your latest migration
+down_revision = '85616f5dcc97'  # Runs after time_in nullable migration
 branch_labels = None
 depends_on = None
 
@@ -27,23 +27,22 @@ def upgrade():
     # Add constraint to ensure time_in and method are consistent
     op.create_check_constraint(
         'attendance_time_in_method_consistency',
-        'attendance',
+        'attendances',  # Fixed: table name is plural
         '(time_in IS NULL AND method IS NULL) OR (time_in IS NOT NULL AND method IS NOT NULL)'
     )
     
-    # Optional: Clean up any existing bad data before applying constraint
-    # Uncomment if you want to auto-fix bad data during migration
-    # op.execute("""
-    #     UPDATE attendance 
-    #     SET method = NULL, check_in_status = NULL
-    #     WHERE time_in IS NULL AND method IS NOT NULL
-    # """)
+    # Clean up any existing bad data before applying constraint
+    op.execute("""
+        UPDATE attendances 
+        SET method = NULL, check_in_status = NULL
+        WHERE time_in IS NULL AND method IS NOT NULL
+    """)
 
 
 def downgrade():
     """Remove the check constraint."""
     op.drop_constraint(
         'attendance_time_in_method_consistency',
-        'attendance',
+        'attendances',  # Fixed: table name is plural
         type_='check'
     )
