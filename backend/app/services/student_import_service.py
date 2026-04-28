@@ -101,22 +101,25 @@ class StudentImportService:
 
         except Exception as exc:
             logger.exception("Import processing failed", extra={"job_id": job_id})
-            with SessionLocal() as db:
-                repo = ImportRepository(db)
-                safe_error = self._safe_error_message(exc)
-                repo.mark_failed(job_id, safe_error)
-                job = repo.get_job(job_id)
-                if job:
-                    self._append_import_audit_log(
-                        db,
-                        job=job,
-                        status_value="failed",
-                        details={
-                            "job_id": job.id,
-                            "error": safe_error,
-                        },
-                    )
-                db.commit()
+            try:
+                with SessionLocal() as db:
+                    repo = ImportRepository(db)
+                    safe_error = self._safe_error_message(exc)
+                    repo.mark_failed(job_id, safe_error)
+                    job = repo.get_job(job_id)
+                    if job:
+                        self._append_import_audit_log(
+                            db,
+                            job=job,
+                            status_value="failed",
+                            details={
+                                "job_id": job.id,
+                                "error": safe_error,
+                            },
+                        )
+                    db.commit()
+            except Exception:
+                logger.exception("Failed to mark import job as failed", extra={"job_id": job_id})
         finally:
             if lock_db is not None:
                 try:
@@ -311,7 +314,7 @@ class StudentImportService:
             raise RuntimeError("Approved preview data is invalid") from exc
 
         manifest_target_school_id = manifest.get("target_school_id")
-        if manifest_target_school_id != target_school_id:
+        if int(manifest_target_school_id) != int(target_school_id):
             raise RuntimeError("Approved preview data does not match the import school")
 
         manifest_rows = manifest.get("rows")
