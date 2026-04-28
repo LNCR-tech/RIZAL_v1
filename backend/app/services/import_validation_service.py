@@ -21,6 +21,15 @@ EXPECTED_HEADERS = [
     "Course",
 ]
 
+REQUIRED_HEADERS = [
+    "Student_ID",
+    "Email",
+    "Last Name",
+    "First Name",
+    "Department",
+    "Course",
+]
+
 _FORMULA_PREFIXES = ("=", "+", "-", "@")
 
 
@@ -93,9 +102,9 @@ def validate_and_transform_row(
         return None, ["empty row"], row_data
 
     for column_name, value in row_data.items():
-        if not value:
+        if not value and column_name in REQUIRED_HEADERS:
             errors.append(f"{column_name} is required")
-        elif _has_formula_injection(value):
+        elif value and _has_formula_injection(value):
             errors.append(f"{column_name} contains unsafe spreadsheet formula prefix")
 
     # File-level duplicate detection is scoped by the authenticated school context.

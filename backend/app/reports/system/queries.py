@@ -236,7 +236,7 @@ def build_import_status_response(
         failed_report_download_url = f"/api/admin/import-errors/{job_id}/download"
 
     return ImportJobStatusResponse(
-        job_id=job.id,
+        job_id=str(job.id),
         state=job.status,
         total_rows=job.total_rows,
         processed_rows=job.processed_rows,

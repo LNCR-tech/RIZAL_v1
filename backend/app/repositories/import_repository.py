@@ -77,7 +77,7 @@ class ImportRepository:
         self.db.execute(
             update(BulkImportJob)
             .where(BulkImportJob.id == job_id)
-            .values(status="processing", started_at=now, last_heartbeat=now)
+            .values(status="running", started_at=now, last_heartbeat=now)
         )
 
     def update_progress(
