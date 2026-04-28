@@ -81,8 +81,8 @@ def test_import_status(client, campus_admin_headers, import_job_id):
     r = client.get(f"/api/admin/import-status/{import_job_id}", headers=campus_admin_headers)
     assert r.status_code == 200
     data = r.json()
-    assert "status" in data
-    assert data["status"] in ("pending", "running", "completed", "failed")
+    assert "state" in data
+    assert data["state"] in ("pending", "running", "completed", "failed")
 
 
 def test_import_status_requires_auth(client, import_job_id):
