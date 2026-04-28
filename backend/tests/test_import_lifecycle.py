@@ -83,21 +83,29 @@ def test_import_status(client, campus_admin_headers, import_job_id, db_session):
     data = r.json()
     assert "state" in data
     # With eager mode the job runs synchronously — it must be completed by now
-    assert data["state"] == "completed", f"Expected completed, got: {data['state']}"
+    assert data["state"] == "completed", (
+        f"Expected completed, got: {data['state']}. "
+        f"Errors: {data.get('errors')} "
+        f"Job data: {data}"
+    )
     assert data.get("success_count", 0) >= 1
 
 
 def test_import_creates_student(client, campus_admin_headers, import_job_id, db_session):
     """Verify the import actually inserted a student user into the database."""
     from app.models.user import User
+    from app.models.import_job import BulkImportJob
     from app.core.database import SessionLocal
-    # The import service uses its own SessionLocal sessions, so we must query
-    # with a fresh session to see the committed rows.
     with SessionLocal() as fresh_db:
+        job = fresh_db.query(BulkImportJob).filter_by(id=import_job_id).first()
+        job_error = job.error_message if job else "job not found"
         student = fresh_db.query(User).filter(
             User.email.like("importtest%@test.com")
         ).first()
-    assert student is not None, "Imported student user was not found in the database"
+    assert student is not None, (
+        f"Imported student user was not found in the database. "
+        f"Job error: {job_error}"
+    )
 
 
 def test_import_status_requires_auth(client, import_job_id):
