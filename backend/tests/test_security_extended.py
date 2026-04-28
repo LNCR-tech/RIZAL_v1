@@ -34,18 +34,25 @@ def test_revoke_session(client, student_headers, db_session):
     from app.core.security import SECRET_KEY, ALGORITHM
     from app.models.platform_features import UserSession
     from app.models.user import User
+    import uuid
+    from app.core.timezones import utc_now
+    from datetime import timedelta
     student = db_session.query(User).filter_by(email="student@test.com").first()
-    # Identify the active session JTI so we don't revoke it
+    # Decode active JTI so we don't revoke the live session
     token = student_headers["Authorization"].split(" ", 1)[1]
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     active_jti = payload.get("jti")
-    # Find a session that is NOT the active one
-    session = (
-        db_session.query(UserSession)
-        .filter(UserSession.user_id == student.id, UserSession.token_jti != active_jti)
-        .first()
+    # Create a throwaway session to revoke
+    now = utc_now()
+    dummy = UserSession(
+        id=uuid.uuid4(),
+        user_id=student.id,
+        token_jti="test-revoke-dummy-jti",
+        created_at=now,
+        last_seen_at=now,
+        expires_at=now + timedelta(minutes=30),
     )
-    if session is None:
-        import pytest; pytest.skip("No non-active sessions for student in test DB")
-    r = client.post(f"/api/auth/security/sessions/{session.id}/revoke", headers=student_headers)
-    assert r.status_code in (200, 403, 404)
+    db_session.add(dummy)
+    db_session.flush()
+    r = client.post(f"/api/auth/security/sessions/{dummy.id}/revoke", headers=student_headers)
+    assert r.status_code == 200
