@@ -219,7 +219,6 @@ def revoke_user_session(
         db,
         session_id=session_id,
         actor_user_id=current_user.id,
-        allow_self=True,
     )
     if not revoked:
         raise HTTPException(status_code=404, detail="Session not found")

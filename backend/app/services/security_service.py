@@ -120,12 +120,11 @@ def revoke_session(
     *,
     session_id: str,
     actor_user_id: int,
-    allow_self: bool = True,
 ) -> bool:
     session = db.query(UserSession).filter(UserSession.id == session_id).first()
     if session is None:
         return False
-    if session.user_id != actor_user_id and not allow_self:
+    if session.user_id != actor_user_id:
         return False
     if session.revoked_at is None:
         session.revoked_at = utc_now()
