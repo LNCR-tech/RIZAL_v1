@@ -87,23 +87,6 @@
               <h3>Attendance</h3>
             </header>
 
-            <div class="event-editor__status-group" role="radiogroup" aria-label="Event status">
-              <label
-                v-for="option in statusOptions"
-                :key="option.value"
-                class="event-editor__status-option"
-                :class="{ 'event-editor__status-option--active': draft.status === option.value }"
-              >
-                <input
-                  v-model="draft.status"
-                  type="radio"
-                  name="event_status"
-                  :value="option.value"
-                >
-                <span>{{ option.label }}</span>
-              </label>
-            </div>
-
             <div class="event-editor__grid event-editor__grid--compact">
               <label class="event-editor__field">
                 <span class="event-editor__field-label">Check-in opens</span>
@@ -282,7 +265,6 @@ import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import {
   buildEventUpdatePayloadFromDraft,
   createEventEditorDraft,
-  EVENT_STATUS_OPTIONS,
 } from '@/services/eventEditor.js'
 
 const props = defineProps({
@@ -320,8 +302,6 @@ const emit = defineEmits(['close', 'save'])
 
 const draft = ref(createEventEditorDraft())
 const localError = ref('')
-
-const statusOptions = EVENT_STATUS_OPTIONS
 
 const feedbackMessage = computed(() => localError.value || props.errorMessage)
 const feedbackTone = computed(() => (localError.value || props.errorMessage ? 'error' : 'info'))
@@ -572,49 +552,6 @@ function handleSubmit() {
   font-weight: 900;
 }
 
-.event-editor__status-group {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.event-editor__status-option {
-  position: relative;
-  min-width: 0;
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  border: 1px solid rgba(17, 24, 39, 0.1);
-  border-radius: 8px;
-  background: rgba(17, 24, 39, 0.03);
-  color: var(--color-text-secondary, #6b7280);
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
-}
-
-.event-editor__status-option input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.event-editor__status-option:focus-within {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3b82f6) 16%, transparent);
-}
-
-.event-editor__status-option--active {
-  border-color: color-mix(in srgb, var(--color-primary, #3b82f6) 44%, transparent);
-  background: color-mix(in srgb, var(--color-primary, #3b82f6) 12%, white);
-  color: var(--color-text-always-dark, #111827);
-}
-
 .event-editor__switch {
   display: inline-flex;
   align-items: center;
@@ -771,10 +708,6 @@ function handleSubmit() {
 
   .event-editor__form {
     padding: 0 24px 24px;
-  }
-
-  .event-editor__status-group {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
