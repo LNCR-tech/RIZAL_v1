@@ -62,6 +62,19 @@ class EventSanctionConfig(Base):
             for t in sorted(self.item_templates, key=lambda x: x.sort_order)
         ]
 
+    @item_definitions_json.setter
+    def item_definitions_json(self, value: list[dict]) -> None:
+        self.item_templates = [
+            SanctionItemTemplate(
+                item_code=item.get("item_code", ""),
+                item_name=item.get("item_name", ""),
+                item_description=item.get("item_description"),
+                sort_order=item.get("sort_order", 0),
+                is_required=item.get("is_required", True),
+            )
+            for item in (value or [])
+        ]
+
 
 class SanctionItemTemplate(Base):
     __tablename__ = "sanction_item_templates"

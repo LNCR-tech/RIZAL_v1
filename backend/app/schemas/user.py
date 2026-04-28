@@ -22,9 +22,9 @@ class RoleEnum(str, Enum):
 
 class UserBase(BaseModel):
     email: str
-    first_name: str
+    first_name: str | None = None
     middle_name: str | None = None
-    last_name: str
+    last_name: str | None = None
 
 
 def _as_utc_datetime(value):

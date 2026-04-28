@@ -125,8 +125,8 @@ def get_users_by_role(
 
     query = (
         _with_user_relations(db.query(UserModel))
-        .join(UserRole)
-        .join(Role)
+        .join(UserRole, UserRole.user_id == UserModel.id)
+        .join(Role, Role.id == UserRole.role_id)
         .filter(Role.code.in_(get_role_lookup_names(role_name)))
     )
     query = _apply_user_scope(query, current_user)

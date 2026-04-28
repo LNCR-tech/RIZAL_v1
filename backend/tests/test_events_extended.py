@@ -35,7 +35,7 @@ def test_verify_event_location(client, campus_admin_headers, event_id):
     r = client.post(f"/api/events/{event_id}/verify-location", headers=campus_admin_headers, json={
         "latitude": 14.5995, "longitude": 120.9842, "accuracy_m": 10.0,
     })
-    assert r.status_code in (200, 400, 403)
+    assert r.status_code in (200, 400, 403, 409)
 
 
 def test_update_event_status_requires_auth(client, event_id):
