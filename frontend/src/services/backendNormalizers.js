@@ -189,7 +189,7 @@ export function normalizeAttendanceRecord(attendance = {}) {
         event_id: toOptionalNumber(attendance.event_id, 0),
         event_name: toOptionalString(attendance.event_name, null),
         student_id: toIntegerOrOriginal(attendance.student_id, null),
-        method: toOptionalString(attendance.method, 'manual'),
+        method: toOptionalString(attendance.method, null),  // NULL preserved - no default
         status: toOptionalString(attendance.status, 'present'),
         display_status: toOptionalString(attendance.display_status, null),
         notes: toOptionalString(attendance.notes, null),

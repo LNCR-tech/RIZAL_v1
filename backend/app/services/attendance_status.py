@@ -51,12 +51,24 @@ def resolve_attendance_display_status(
     *,
     stored_status: Any,
     time_out: datetime | None,
+    time_in: datetime | None = None,
 ) -> str:
-    """Resolve the API-facing display status, including the special incomplete state."""
+    """Resolve the API-facing display status, including the special incomplete state.
+
+    If the row has no sign-in (time_in is None), it represents a never-attended
+    student (excused or auto-absent), so the stored terminal status is returned
+    directly instead of forcing it to "incomplete".
+    """
+    normalized_status = normalize_attendance_status(stored_status)
+
+    if time_in is None:
+        if normalized_status in ALL_ATTENDANCE_STATUS_VALUES:
+            return normalized_status
+        return "absent"
+
     if not is_attendance_completed(time_out=time_out):
         return "incomplete"
 
-    normalized_status = normalize_attendance_status(stored_status)
     if normalized_status in ALL_ATTENDANCE_STATUS_VALUES:
         return normalized_status
     return "absent"

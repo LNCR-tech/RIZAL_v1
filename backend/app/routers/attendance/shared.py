@@ -74,15 +74,23 @@ def _as_utc_datetime(value: datetime | None) -> datetime | None:
     return value.astimezone(timezone.utc)
 
 
-def _normalize_attendance_method_for_response(method_value: Any) -> str:
-    """Map legacy/unknown stored method markers into API-safe enum values."""
-    normalized_method = str(method_value or "").strip().lower()
+def _normalize_attendance_method_for_response(method_value: Any) -> str | None:
+    """Map legacy/unknown stored method markers into API-safe enum values.
+
+    NULL is preserved (no sign-in occurred → no method). Only unknown non-empty
+    legacy values fall back to manual, with a one-time warning per value.
+    """
+    if method_value is None:
+        return None
+
+    normalized_method = str(method_value).strip().lower()
+    if not normalized_method:
+        return None
     if normalized_method in _ALLOWED_ATTENDANCE_METHOD_VALUES:
         return normalized_method
 
-    method_key = normalized_method or "<empty>"
-    if method_key not in _SEEN_UNSUPPORTED_ATTENDANCE_METHODS:
-        _SEEN_UNSUPPORTED_ATTENDANCE_METHODS.add(method_key)
+    if normalized_method not in _SEEN_UNSUPPORTED_ATTENDANCE_METHODS:
+        _SEEN_UNSUPPORTED_ATTENDANCE_METHODS.add(normalized_method)
         logger.warning(
             "Unsupported attendance method '%s' encountered; normalizing response method to '%s'.",
             method_value,
@@ -269,16 +277,26 @@ def _attendance_display_status_value(attendance: AttendanceModel) -> str:
     return resolve_attendance_display_status(
         stored_status=attendance.status,
         time_out=attendance.time_out,
+        time_in=attendance.time_in,
     )
 
 
 def _attendance_completion_state_value(attendance: AttendanceModel) -> str:
-    """Expose whether the attendance is still open or already signed out."""
+    """Expose whether the attendance is still open or already signed out.
+
+    Records with no sign-in (time_in is None) are terminal — they're never going
+    to be completed by a sign-out, so they are reported as completed so the UI
+    does not surface a misleading "incomplete" state.
+    """
+    if attendance.time_in is None:
+        return "completed"
     return "completed" if is_attendance_completed(time_out=attendance.time_out) else "incomplete"
 
 
 def _attendance_is_valid_value(attendance: AttendanceModel) -> bool:
     """Return whether the attendance counts as valid after completion rules are applied."""
+    if attendance.time_in is None:
+        return False
     return is_completed_attended_status(
         stored_status=attendance.status,
         time_out=attendance.time_out,
@@ -411,6 +429,21 @@ def _complete_attendance_sign_out(
     recorded_at: datetime,
 ) -> int:
     """Close an attendance row and apply the final status matrix after sign-out."""
+    if attendance.time_in is None:
+        # Defensive: reject sign-out for rows with no recorded sign-in. Without a
+        # time_in we have no anchor for duration and no proof the student was
+        # present, so this should never happen in a healthy flow.
+        logger.error(
+            "Refusing to sign out attendance %s for student=%s event=%s: time_in is NULL.",
+            attendance.id,
+            attendance.student_id,
+            attendance.event_id,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot sign out an attendance that has no recorded sign-in.",
+        )
+
     normalized_time_in = _as_utc_datetime(attendance.time_in)
     normalized_time_out = _as_utc_datetime(recorded_at)
     attendance.time_out = normalized_time_out

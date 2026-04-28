@@ -34,6 +34,8 @@ import {
   formatTimeInDisplay,
   formatTimeOutDisplay,
   formatDurationDisplay,
+  formatMethodDisplay,
+  resolveAttendanceDisplayStatus,
 } from '@/services/attendanceFlow.js'
 
 const MAX_UPCOMING_EVENTS = 5
@@ -952,19 +954,14 @@ function buildArrivalInsight({ event = null, attendanceRecords = [] } = {}) {
 }
 
 
-function resolveMethodLabel(method) {
-  const normalized = String(method || '').trim().toLowerCase()
-  if (normalized === 'face_scan') return 'Face Scan'
-  if (normalized === 'manual') return 'Manual'
-  return normalized ? normalized.replace(/_/g, ' ') : 'Unknown'
-}
-
 function resolveStatusLabel(attendance = {}) {
-  const status = String(attendance?.display_status || attendance?.status || '').trim().toLowerCase()
-  if (status === 'late') return 'Late'
+  const status = resolveAttendanceDisplayStatus(attendance)
+  if (status === 'excused') return 'Excused'
   if (status === 'absent') return 'Absent'
-  if (attendance?.completion_state === 'incomplete') return 'Waiting for Sign Out'
-  return 'Present'
+  if (status === 'late') return 'Late'
+  if (status === 'present') return 'Present'
+  if (status === 'incomplete') return 'Waiting for Sign Out'
+  return 'No sign-in record'
 }
 
 function buildMasterlistRows(records = [], students = []) {
@@ -987,7 +984,7 @@ function buildMasterlistRows(records = [], students = []) {
         timeInLabel: formatTimeInDisplay(attendance, (value) => formatDateTime(value) || 'Not recorded'),
         timeOutLabel: formatTimeOutDisplay(attendance, (value) => formatDateTime(value) || 'Not recorded'),
         durationLabel: formatDurationDisplay(attendance),
-        methodLabel: resolveMethodLabel(attendance?.method),
+        methodLabel: formatMethodDisplay(attendance),
       }
     })
     .sort((left, right) => left.studentName.localeCompare(right.studentName))

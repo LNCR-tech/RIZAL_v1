@@ -36,8 +36,10 @@ def _as_utc_datetime(value):
 
 class AttendanceBase(BaseModel):
     event_id: int = Field(..., gt=0)
-    time_in: datetime
-    method: AttendanceMethod
+    # Optional: a row that represents a never-signed-in student (excused or
+    # auto-absent) carries time_in=None. Method must also be None in that case.
+    time_in: Optional[datetime] = None
+    method: Optional[AttendanceMethod] = None
     status: AttendanceStatus = Field(default=AttendanceStatus.PRESENT)
 
     @field_validator('status', mode='before')
@@ -96,7 +98,8 @@ class StudentAttendanceRecord(BaseModel):
     id: int
     event_id: int
     event_name: str  # We'll add this from the event model
-    time_in: datetime
+    # Optional: students who never signed in carry time_in=None and method=None.
+    time_in: Optional[datetime] = None
     time_out: Optional[datetime] = None
     check_in_status: Optional[str] = None
     check_out_status: Optional[str] = None
@@ -104,7 +107,7 @@ class StudentAttendanceRecord(BaseModel):
     display_status: AttendanceStatus = AttendanceStatus.INCOMPLETE
     completion_state: AttendanceCompletionState = AttendanceCompletionState.COMPLETED
     is_valid_attendance: bool = True
-    method: AttendanceMethod
+    method: Optional[AttendanceMethod] = None
     notes: Optional[str] = None
     duration_minutes: Optional[int] = None  # Calculated field
 
