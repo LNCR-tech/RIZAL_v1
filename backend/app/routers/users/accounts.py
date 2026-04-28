@@ -127,7 +127,7 @@ def get_users_by_role(
         _with_user_relations(db.query(UserModel))
         .join(UserRole)
         .join(Role)
-        .filter(Role.name.in_(get_role_lookup_names(role_name)))
+        .filter(Role.code.in_(get_role_lookup_names(role_name)))
     )
     query = _apply_user_scope(query, current_user)
     users = query.order_by(UserModel.id.asc()).offset(safe_skip).limit(safe_limit).all()

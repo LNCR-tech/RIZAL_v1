@@ -304,7 +304,7 @@ def run_subscription_reminders(
             .filter(
                 User.school_id == setting.school_id,
                 User.is_active.is_(True),
-                Role.name.in_(("admin", *get_role_lookup_names("campus_admin"))),
+                Role.code.in_(("admin", *get_role_lookup_names("campus_admin"))),
             )
             .options(joinedload(User.roles).joinedload(UserRole.role))
             .all()
