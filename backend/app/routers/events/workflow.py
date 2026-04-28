@@ -48,12 +48,14 @@ def open_sign_out_early(
         raise HTTPException(status_code=409, detail="Sign-out is already closed for this event.")
 
     now_local = datetime.now(get_event_timezone()).replace(tzinfo=None, microsecond=0)
-    if now_local < event.start_datetime:
+    event_start = event.start_datetime.replace(tzinfo=None) if getattr(event.start_datetime, "tzinfo", None) else event.start_datetime
+    event_end = event.end_datetime.replace(tzinfo=None) if getattr(event.end_datetime, "tzinfo", None) else event.end_datetime
+    if now_local < event_start:
         raise HTTPException(
             status_code=409,
             detail="Early sign-out can only be opened after the event has started.",
         )
-    if now_local >= event.end_datetime:
+    if now_local >= event_end:
         raise HTTPException(
             status_code=409,
             detail="Early sign-out can only be opened before the scheduled event end.",

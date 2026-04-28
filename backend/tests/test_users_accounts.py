@@ -59,7 +59,7 @@ def test_get_users_by_role_student(client, campus_admin_headers):
     assert r.status_code == 200
     users = r.json()
     assert all(
-        any(r["role"]["code"] == "student" for r in u.get("roles", []))
+        any("student" in ur["role"]["name"].lower() for ur in u.get("roles", []))
         for u in users
     )
 

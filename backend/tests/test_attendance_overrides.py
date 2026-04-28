@@ -4,16 +4,29 @@ from datetime import datetime, timedelta, timezone
 
 
 @pytest.fixture(scope="module")
-def completed_event_id(client, campus_admin_headers):
-    now = datetime.now(timezone.utc)
-    r = client.post("/api/events/", headers=campus_admin_headers, json={
-        "name": "Override Test Event",
-        "start_datetime": (now - timedelta(hours=3)).isoformat(),
-        "end_datetime": (now - timedelta(hours=1)).isoformat(),
-        "location": "Test Hall",
-    })
-    assert r.status_code in (200, 201), r.text
-    return r.json()["id"]
+def completed_event_id(client, campus_admin_headers, db_session):
+    """Create a completed event directly in the DB to bypass past-start API validation."""
+    from app.models.event import Event as EventModel, EventStatus as ModelEventStatus
+    from app.models.school import School
+    from app.models.user import User
+    school = db_session.query(School).filter_by(school_code="TEST-001").first()
+    actor = db_session.query(User).filter_by(email="campus_admin@test.com").first()
+    now = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+    event = EventModel(
+        school_id=school.id,
+        created_by_user_id=actor.id,
+        name="Override Test Event",
+        location="Test Hall",
+        start_datetime=now - timedelta(hours=3),
+        end_datetime=now - timedelta(hours=1),
+        early_check_in_minutes=30,
+        late_threshold_minutes=10,
+        sign_out_grace_minutes=20,
+        status=ModelEventStatus.COMPLETED,
+    )
+    db_session.add(event)
+    db_session.flush()
+    return event.id
 
 
 def test_mark_excused(client, campus_admin_headers, completed_event_id):

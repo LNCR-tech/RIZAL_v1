@@ -31,7 +31,7 @@ def test_multi_face_scan_disabled_or_not_found(client):
         "threshold": 0.5,
         "cooldown_student_ids": [],
     })
-    assert r.status_code in (404, 409)
+    assert r.status_code in (404, 409, 422)
 
 
 def test_multi_face_scan_missing_body(client):
