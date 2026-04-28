@@ -656,9 +656,10 @@ def _get_announcement_in_school_or_404(
     """Load one announcement in the school or raise a not-found error."""
     announcement = (
         _announcement_query(db)
+        .join(GovernanceUnit, GovernanceAnnouncement.governance_unit_id == GovernanceUnit.id)
         .filter(
             GovernanceAnnouncement.id == announcement_id,
-            GovernanceAnnouncement.school_id == school_id,
+            GovernanceUnit.school_id == school_id,
         )
         .first()
     )
@@ -2261,7 +2262,6 @@ def get_governance_dashboard_overview(
             for announcement in (
                 db.query(GovernanceAnnouncement)
                 .filter(
-                    GovernanceAnnouncement.school_id == school_id,
                     GovernanceAnnouncement.governance_unit_id == governance_unit.id,
                 )
                 .order_by(GovernanceAnnouncement.updated_at.desc(), GovernanceAnnouncement.id.desc())
@@ -2272,7 +2272,6 @@ def get_governance_dashboard_overview(
         published_announcement_count = (
             db.query(func.count(GovernanceAnnouncement.id))
             .filter(
-                GovernanceAnnouncement.school_id == school_id,
                 GovernanceAnnouncement.governance_unit_id == governance_unit.id,
                 GovernanceAnnouncement.status == GovernanceAnnouncementStatus.PUBLISHED,
             )
@@ -2403,7 +2402,6 @@ def list_governance_announcements(
     return (
         _announcement_query(db)
         .filter(
-            GovernanceAnnouncement.school_id == school_id,
             GovernanceAnnouncement.governance_unit_id == governance_unit.id,
         )
         .order_by(GovernanceAnnouncement.updated_at.desc(), GovernanceAnnouncement.id.desc())
@@ -2759,3 +2757,4 @@ def delete_governance_unit(
         member.is_active = False
 
     db.commit()
+
