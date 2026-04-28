@@ -3,7 +3,9 @@
     <Suspense timeout="0">
       <template #default>
         <Transition name="page-fade" mode="out-in">
-          <component :is="Component" :key="resolveRouteViewKey(route, Component)" />
+          <RouteErrorBoundary :key="resolveRouteViewKey(route, Component)">
+            <component :is="Component" />
+          </RouteErrorBoundary>
         </Transition>
       </template>
 
@@ -25,6 +27,7 @@
 
 <script setup>
 import { RouterView } from 'vue-router'
+import RouteErrorBoundary from '@/components/shared/RouteErrorBoundary.vue'
 
 function resolveRouteViewKey(route, component) {
   const matchedRecords = Array.isArray(route?.matched) ? route.matched : []

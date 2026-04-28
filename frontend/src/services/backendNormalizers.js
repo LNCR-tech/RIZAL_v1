@@ -673,6 +673,8 @@ export function normalizeGovernanceUserSummary(user = null) {
 }
 
 export function normalizeGovernanceStudentCandidate(candidate = {}) {
+    if (!candidate || typeof candidate !== 'object') return null
+
     return {
         ...candidate,
         user: normalizeGovernanceUserSummary(candidate.user),
@@ -694,6 +696,8 @@ export function normalizeGovernancePermission(permission = null) {
 }
 
 export function normalizeGovernanceMemberPermission(permission = {}) {
+    if (!permission || typeof permission !== 'object') return null
+
     const permissionRecord = normalizeGovernancePermission(permission.permission)
 
     return {
@@ -710,6 +714,8 @@ export function normalizeGovernanceMemberPermission(permission = {}) {
 }
 
 export function normalizeGovernanceMember(member = {}) {
+    if (!member || typeof member !== 'object') return null
+
     return {
         ...member,
         id: toOptionalNumber(member.id, 0),
@@ -721,12 +727,14 @@ export function normalizeGovernanceMember(member = {}) {
         is_active: typeof member.is_active === 'boolean' ? member.is_active : true,
         user: normalizeGovernanceUserSummary(member.user),
         member_permissions: Array.isArray(member.member_permissions)
-            ? member.member_permissions.map(normalizeGovernanceMemberPermission)
+            ? member.member_permissions.map(normalizeGovernanceMemberPermission).filter(Boolean)
             : [],
     }
 }
 
 export function normalizeGovernanceUnitPermission(permission = {}) {
+    if (!permission || typeof permission !== 'object') return null
+
     const permissionRecord = normalizeGovernancePermission(permission.permission)
 
     return {
@@ -762,10 +770,10 @@ export function normalizeGovernanceUnitDetail(unit = null) {
         created_at: toOptionalUtcDateTimeString(unit.created_at, null),
         updated_at: toOptionalUtcDateTimeString(unit.updated_at, null),
         members: Array.isArray(unit.members)
-            ? unit.members.map(normalizeGovernanceMember)
+            ? unit.members.map(normalizeGovernanceMember).filter(Boolean)
             : [],
         unit_permissions: Array.isArray(unit.unit_permissions)
-            ? unit.unit_permissions.map(normalizeGovernanceUnitPermission)
+            ? unit.unit_permissions.map(normalizeGovernanceUnitPermission).filter(Boolean)
             : [],
     }
 }

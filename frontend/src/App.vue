@@ -37,7 +37,9 @@
       </div>
     </section>
 
-    <RouterView v-else />
+    <RouteErrorBoundary v-else>
+      <RouterView />
+    </RouteErrorBoundary>
 
     <Transition name="mobile-fullscreen-hint">
       <button
@@ -67,6 +69,7 @@
 import { computed, nextTick, onMounted, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import AppBootLoader from '@/components/ui/AppBootLoader.vue'
+import RouteErrorBoundary from '@/components/shared/RouteErrorBoundary.vue'
 import { bootSplashVisible, markBootSplashReady, notifyBootSplashMounted } from '@/services/bootSplash.js'
 import { mobileFullscreenHintVisible, requestMobileFullscreen } from '@/services/mobileFullscreen.js'
 import { isOnline } from '@/composables/useNetworkStatus.js'

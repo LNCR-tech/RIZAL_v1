@@ -712,7 +712,7 @@ export async function searchGovernanceStudentCandidates(baseUrl, token, params =
         token,
         params,
     })
-    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate) : []
+    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate).filter(Boolean) : []
 }
 
 export async function assignGovernanceMember(baseUrl, token, governanceUnitId, payload) {
@@ -751,7 +751,7 @@ export async function getGovernanceStudents(baseUrl, token, params = {}) {
         token,
         params,
     })
-    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate) : []
+    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate).filter(Boolean) : []
 }
 
 export async function getGovernanceAnnouncements(baseUrl, token, governanceUnitId) {

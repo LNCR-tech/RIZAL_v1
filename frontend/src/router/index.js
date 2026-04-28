@@ -14,6 +14,7 @@ import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView, preloadPlatformViews } from '@/router/platformView.js'
 
 const AppLayout = () => import('@/layouts/AppLayout.vue')
+const NotFoundView = () => import('@/views/NotFoundView.vue')
 const authView = (viewName) => createPlatformView(`auth/${viewName}`)
 const dashboardView = (viewName) => createPlatformView(`dashboard/${viewName}`)
 const toolsView = (viewName) => createPlatformView(`tools/${viewName}`)
@@ -772,6 +773,11 @@ const routes = [
                 },
             },
         ],
+    },
+    {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: NotFoundView,
     },
 ]
 
