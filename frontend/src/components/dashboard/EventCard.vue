@@ -196,13 +196,18 @@ const normalizedAttendanceStatus = computed(() => {
 })
 const hasSignedIn = computed(() => hasSignedInAttendance(props.attendanceRecord))
 const hasSignedOut = computed(() => hasSignedOutAttendance(props.attendanceRecord))
+const attendanceWindowClosed = computed(() => (
+  normalizedStatus.value === 'completed' ||
+  normalizedStatus.value === 'cancelled' ||
+  actionState.value === 'closed'
+))
 
 const attendanceAppearance = computed(() => {
   const sharedMeta = isOngoing.value
     ? 'Tap to see your attendance state for this event.'
     : 'Attendance state loaded from your backend record.'
 
-  if (hasSignedIn.value && !hasSignedOut.value) {
+  if (hasSignedIn.value && !hasSignedOut.value && !attendanceWindowClosed.value) {
     return {
       label:
         actionState.value === 'closed'

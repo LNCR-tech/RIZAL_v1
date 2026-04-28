@@ -268,27 +268,26 @@ export function resolveAttendanceCompletionState(attendanceRecord) {
 
 export function resolveAttendanceDisplayStatus(attendanceRecord) {
     const normalizedDisplayStatus = normalizeLower(attendanceRecord?.display_status)
-    if (normalizedDisplayStatus) return normalizedDisplayStatus
 
-    // NEW LOGIC: Both sign-in AND sign-out are required for Present/Late
-    // If time_out is NULL, the student is ABSENT
-    
-    // If no time_in, student never attended
     if (!hasSignedInAttendance(attendanceRecord)) {
         const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
-        // Only show status if it's excused or absent (finalized)
+        if (['excused', 'absent'].includes(normalizedDisplayStatus)) {
+            return normalizedDisplayStatus
+        }
         if (['excused', 'absent'].includes(normalizedStoredStatus)) {
             return normalizedStoredStatus
         }
         return ''
     }
 
-    // If signed in but NO sign-out, always ABSENT
     if (!hasSignedOutAttendance(attendanceRecord)) {
         return 'absent'
     }
 
-    // If both sign-in and sign-out exist, return stored status
+    if (['present', 'late', 'absent', 'excused'].includes(normalizedDisplayStatus)) {
+        return normalizedDisplayStatus
+    }
+
     const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
     if (['present', 'late', 'absent', 'excused'].includes(normalizedStoredStatus)) {
         return normalizedStoredStatus

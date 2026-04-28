@@ -104,7 +104,7 @@ class StudentAttendanceRecord(BaseModel):
     check_in_status: Optional[str] = None
     check_out_status: Optional[str] = None
     status: AttendanceStatus
-    display_status: AttendanceStatus = AttendanceStatus.INCOMPLETE
+    display_status: Optional[AttendanceStatus] = None
     completion_state: AttendanceCompletionState = AttendanceCompletionState.COMPLETED
     is_valid_attendance: bool = True
     method: Optional[AttendanceMethod] = None
@@ -180,7 +180,7 @@ class StudentAttendanceDetail(BaseModel):
     check_in_status: Optional[str] = None
     check_out_status: Optional[str] = None
     status: AttendanceStatus
-    display_status: AttendanceStatus = AttendanceStatus.INCOMPLETE
+    display_status: Optional[AttendanceStatus] = None
     completion_state: AttendanceCompletionState = AttendanceCompletionState.COMPLETED
     is_valid_attendance: bool = True
     method: str

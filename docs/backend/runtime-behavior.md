@@ -227,6 +227,24 @@ Relevant files:
 - `backend/app/services/notification_center_service.py`
 - `backend/app/services/sanctions_service.py`
 
+## Attendance Completion Status
+
+Present and late are final statuses only when an attendance row has both `time_in` and `time_out`.
+
+- `time_in=NULL` and `time_out=NULL` displays as stored `absent` or `excused`
+- `time_in` set and `time_out=NULL` displays and counts as `absent`
+- `time_in` set and `time_out` set may display as `present` or `late`
+- event stats, attendee status filters, student records, and reports share this resolver
+
+Legacy `incomplete_*` response fields may still exist in schemas for compatibility, but no-sign-out rows are not surfaced as final `incomplete` statuses.
+
+Relevant files:
+
+- `backend/app/services/attendance_status.py`
+- `backend/app/routers/events/attendance_queries.py`
+- `backend/app/routers/attendance/shared.py`
+- `backend/app/schemas/attendance.py`
+
 ## Face Runtime Warm-Up
 
 On API startup, the backend may trigger the InsightFace warm-up flow.

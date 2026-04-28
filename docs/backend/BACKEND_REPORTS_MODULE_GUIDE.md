@@ -144,6 +144,11 @@ Legacy router files were reduced to thin composition/wrapper behavior:
   - `GET /api/attendance/students/{student_id}/stats` groups by the related event type name when present
   - `GET /api/attendance/students/{student_id}/report` returns `event_type_stats` keyed by the related event type name when present
   - both endpoints fall back to `Regular Events` only when an event has no assigned event type
+- Attendance display status uses the shared completion rule across event stats, event attendees, and student reports:
+  - sign-in plus sign-out can display as `present` or `late`
+  - sign-in without sign-out displays and counts as `absent`
+  - no sign-in displays as stored `absent` or `excused`
+  - legacy `incomplete_*` response fields remain for compatibility but are not used as final display statuses
 
 ## How To Test
 
@@ -164,4 +169,11 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - call `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
    - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Seminar`
    - verify events without an assigned type still fall back to `Regular Events`.
+8. Final attendance status regression:
+   - run `python -m pytest -q Backend/tests/test_attendance_status_logic.py`
+   - create or keep a row with `time_in` set and `time_out=NULL`
+   - call `GET /api/events/{event_id}/stats`
+   - verify the row is counted as `absent`, not `incomplete`
+   - call `GET /api/events/{event_id}/attendees?status=absent`
+   - verify the same row is returned.
 

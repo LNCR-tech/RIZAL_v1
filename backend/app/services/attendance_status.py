@@ -99,7 +99,7 @@ def empty_attendance_status_counts() -> dict[str, int]:
 
 
 def empty_attendance_display_status_counts() -> dict[str, int]:
-    """Build an empty counter map for API display statuses, including incomplete."""
+    """Build an empty counter map for API display statuses."""
     return {status: 0 for status in ATTENDANCE_DISPLAY_STATUS_VALUES}
 
 

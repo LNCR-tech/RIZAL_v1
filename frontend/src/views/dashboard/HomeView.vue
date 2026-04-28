@@ -172,7 +172,7 @@
 
     <!-- Upcoming events list (additional quick-view) -->
     <div v-if="!searchActive && upcomingEvents.length > 1" class="mt-4 dashboard-enter dashboard-enter--5">
-      <h2 class="text-[16px] font-bold mb-3 px-1" style="color: var(--color-text-primary);">Upcoming Events</h2>
+      <h2 class="text-[16px] font-bold mb-3 px-1" style="color: var(--color-text-primary);">Events</h2>
       <div class="flex flex-col gap-3">
         <TransitionGroup name="list" appear>
           <div
@@ -294,10 +294,10 @@ function sortHomeEvents(items) {
 
 // --- Computed ---
 const displayEvents = computed(() =>
-  schoolEvents.value.filter((e) => {
+  sortHomeEvents(schoolEvents.value.filter((e) => {
     const status = normalizeStatus(e.status)
-    return status === 'upcoming' || status === 'ongoing'
-  })
+    return status === 'upcoming' || status === 'ongoing' || status === 'completed'
+  }))
 )
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
@@ -476,9 +476,10 @@ function handleSeeEvent(event) {
   if (props.preview || !event?.id) return
 
   const normalizedEventId = Number(event.id)
+  const status = normalizeStatus(event.status)
   const shouldRouteToAttendance = (
-    hasOpenAttendanceForEvent(normalizedEventId)
-    || (event.status === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
+    (status === 'ongoing' && hasOpenAttendanceForEvent(normalizedEventId))
+    || (status === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
   )
 
   if (shouldRouteToAttendance) {

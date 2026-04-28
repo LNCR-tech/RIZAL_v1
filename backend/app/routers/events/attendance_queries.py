@@ -1,7 +1,7 @@
 """Attendance-facing event query routes for the event router package."""
 
 from .shared import *  # noqa: F403
-from app.services.attendance_status import resolve_attendance_display_status, is_completed_attended_status
+from app.services.attendance_status import resolve_attendance_display_status
 
 router = APIRouter()
 
@@ -43,6 +43,7 @@ def get_event_attendees(
             if resolve_attendance_display_status(
                 stored_status=attendance.status,
                 time_out=attendance.time_out,
+                time_in=attendance.time_in,
             ) == normalized_filter
         ]
 
@@ -80,12 +81,8 @@ def get_event_stats(
         display_status = resolve_attendance_display_status(
             stored_status=attendance.status,
             time_out=attendance.time_out,
+            time_in=attendance.time_in,
         )
-        if display_status in {"present", "late"} and not is_completed_attended_status(
-            stored_status=attendance.status,
-            time_out=attendance.time_out,
-        ):
-            display_status = "incomplete"
         counts[display_status] = counts.get(display_status, 0) + 1
 
     return {

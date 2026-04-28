@@ -20,6 +20,42 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-29 - Final attendance status for no sign-out records
+
+### Purpose
+
+Keep event attendance APIs aligned with the rule that sign-in alone is not final attendance. A student with `time_in` but no `time_out` is displayed and counted as `absent`, not `incomplete` or present/late.
+
+### Main files
+
+- `Backend/app/routers/events/attendance_queries.py`
+- `Backend/app/schemas/attendance.py`
+- `Backend/app/services/attendance_status.py`
+- `Backend/tests/test_attendance_status_logic.py`
+
+### Runtime behavior
+
+- `GET /api/events/{event_id}/attendees?status=absent` now includes signed-in/no-sign-out rows because display status resolution receives both `time_in` and `time_out`.
+- `GET /api/events/{event_id}/stats` no longer rewrites incomplete present/late rows to `incomplete`; the shared resolver returns `absent` for signed-in/no-sign-out rows.
+- student attendance response schemas no longer default missing `display_status` fields to `incomplete`.
+
+### Route or schema impact
+
+- no endpoint paths or request schemas changed.
+- compatible response fields such as `incomplete_attendees` and `incomplete_events` remain, but the final display status set is `present`, `late`, `absent`, and `excused`.
+
+### Migration impact
+
+- no database migration required.
+
+### How to test
+
+1. Run `python -m compileall Backend/app`.
+2. Run `python -m pytest -q Backend/tests/test_attendance_status_logic.py`.
+3. Create or keep an attendance row with `time_in` set and `time_out=NULL`.
+4. Call `GET /api/events/{event_id}/stats` and verify that row counts under `absent`.
+5. Call `GET /api/events/{event_id}/attendees?status=absent` and verify the row is returned.
+
 ## 2026-04-28 - Student default password reset and disabled outbound email
 
 ### Purpose

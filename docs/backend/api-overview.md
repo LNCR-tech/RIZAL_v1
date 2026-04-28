@@ -79,3 +79,7 @@ The attendance write routes now support explicit JSON request models while keepi
 
 Face image payloads are bounded. Base64 image bodies are limited by schema validation, and multipart face uploads must be non-empty image content under `FACE_IMAGE_MAX_SIZE_MB`.
 
+## Attendance Display Status
+
+Attendance display status is finalized from both stored status and timestamps. Rows with `time_in` but no `time_out` count as `absent`; `present` and `late` require both sign-in and sign-out. Event stats, event attendee filters, and student attendance serializers use the same rule.
+

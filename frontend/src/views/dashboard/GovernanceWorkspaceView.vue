@@ -1987,12 +1987,19 @@ function resolveAttendanceDirectoryStatusCategory(attendance = null, event = nul
     return resolveEventFeedState(event) === 'done' ? 'absent' : 'neutral'
   }
 
+  const eventIsFinal = resolveEventFeedState(event) === 'done'
+  const signedInWithoutSignOut = Boolean(attendance?.time_in && !attendance?.time_out)
+
+  if (eventIsFinal && signedInWithoutSignOut) {
+    return 'absent'
+  }
+
   if (
     completionState === 'incomplete'
     || normalizedDisplayStatus === 'incomplete'
     || normalizedDisplayStatus === 'waiting'
     || normalizedDisplayStatus === 'waiting_for_sign_out'
-    || (attendance?.time_in && !attendance?.time_out)
+    || signedInWithoutSignOut
   ) {
     return 'waiting'
   }

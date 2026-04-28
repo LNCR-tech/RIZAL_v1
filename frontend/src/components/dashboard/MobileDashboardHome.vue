@@ -227,7 +227,7 @@ const initials = computed(() => {
   return parts.length >= 2 ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase() : displayName.value.slice(0, 2).toUpperCase()
 })
 const avatarUrl = computed(() => activeUser.value?.student_profile?.photo_url || activeUser.value?.student_profile?.avatar_url || activeUser.value?.avatar_url || '')
-const searchableEvents = computed(() => schoolEvents.value.filter((event) => ['upcoming', 'ongoing'].includes(normalizeStatus(event.status))))
+const searchableEvents = computed(() => schoolEvents.value.filter((event) => ['upcoming', 'ongoing', 'completed'].includes(normalizeStatus(event.status))))
 const filteredEvents = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return searchableEvents.value
@@ -319,9 +319,10 @@ function openEvent(event) {
   if (!event?.id) return
 
   const normalizedEventId = Number(event.id)
+  const status = normalizeStatus(event.status)
   const shouldRouteToAttendance = (
-    hasOpenAttendanceForEvent(normalizedEventId)
-    || (normalizeStatus(event.status) === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
+    (status === 'ongoing' && hasOpenAttendanceForEvent(normalizedEventId))
+    || (status === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
   )
 
   if (!props.preview && shouldRouteToAttendance) {

@@ -116,12 +116,15 @@ function resolveLifecycleLabel(status) {
   return LIFECYCLE_LABELS[status] || 'Upcoming'
 }
 
-function resolveAttendancePill(attendanceRecord) {
+function resolveAttendancePill(attendanceRecord, lifecycleStatus = '', actionState = '') {
   if (!attendanceRecord) {
     return { label: 'No record yet', tone: 'muted' }
   }
 
-  if (hasSignedInAttendance(attendanceRecord) && !hasSignedOutAttendance(attendanceRecord)) {
+  const isFinalState = ['completed', 'cancelled'].includes(normalizeStatus(lifecycleStatus))
+    || actionState === 'closed'
+
+  if (hasSignedInAttendance(attendanceRecord) && !hasSignedOutAttendance(attendanceRecord) && !isFinalState) {
     return { label: 'Checked in', tone: 'neutral' }
   }
 
@@ -397,7 +400,6 @@ export function useMobileStudentSchedule(previewSource = false) {
         const timeStatus = Number.isFinite(eventId) ? eventTimeStatuses.value[eventId] ?? null : null
         const lifecycleStatus = resolveEventLifecycleStatus(event, timeStatus) || 'upcoming'
         const lifecycleLabel = resolveLifecycleLabel(lifecycleStatus)
-        const attendancePill = resolveAttendancePill(attendanceRecord)
         const actionState = resolveAttendanceActionState({
           event,
           eventStatus: lifecycleStatus,
@@ -405,6 +407,7 @@ export function useMobileStudentSchedule(previewSource = false) {
           timeStatus,
           now: new Date(),
         })
+        const attendancePill = resolveAttendancePill(attendanceRecord, lifecycleStatus, actionState)
         const primaryAction = resolvePrimaryAction(actionState)
 
         return {
