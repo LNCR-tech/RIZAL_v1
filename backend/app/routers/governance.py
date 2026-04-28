@@ -167,7 +167,6 @@ def create_data_request(
         scope="user_data",
         status="pending",
         reason=payload.reason,
-        details_json=payload.details_json,
     )
     db.add(row)
     db.commit()
@@ -272,10 +271,8 @@ def update_data_request_status(
 
     row.status = payload.status
     row.handled_by_user_id = current_user.id
-    details = dict(row.details_json or {})
     if payload.note:
-        details["review_note"] = payload.note
-    row.details_json = details
+        row.reason = (row.reason or "") + f" | Review note: {payload.note}"
 
     resolved_at = utc_now()
     if payload.status in {"approved", "completed"}:

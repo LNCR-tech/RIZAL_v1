@@ -146,7 +146,7 @@ def _ensure_unique_school(
 
 def _get_school_it_role_or_500(db: Session) -> Role:
     for role_name in get_role_lookup_names("campus_admin"):
-        role = db.query(Role).filter(Role.name == role_name).first()
+        role = db.query(Role).filter(Role.code == role_name).first()
         if role is not None:
             return role
     raise HTTPException(
@@ -162,7 +162,7 @@ def _get_school_it_users_for_school(db: Session, school_id: int) -> list[User]:
         .join(Role, Role.id == UserRole.role_id)
         .filter(
             User.school_id == school_id,
-            Role.name.in_(get_role_lookup_names("campus_admin")),
+            Role.code.in_(get_role_lookup_names("campus_admin")),
         )
         .distinct()
         .order_by(User.id.asc())
@@ -421,9 +421,9 @@ def admin_list_schools(
     return [
         SchoolSummaryResponse(
             school_id=school.id,
-            school_name=school.school_name or school.name,
+            school_name=school.school_name or school.name or school.display_name or school.legal_name or "",
             school_code=school.school_code,
-            subscription_status=school.subscription_status,
+            subscription_status=school.subscription_status or "trial",
             active_status=school.active_status,
             created_at=school.created_at,
             updated_at=school.updated_at,
@@ -486,7 +486,7 @@ def admin_list_school_it_accounts(
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
         .join(School, School.id == User.school_id, isouter=True)
-        .filter(Role.name.in_(get_role_lookup_names("campus_admin")))
+        .filter(Role.code.in_(get_role_lookup_names("campus_admin")))
         .order_by(User.created_at.desc())
         .all()
     )
@@ -516,7 +516,7 @@ def admin_update_school_it_status(
         db.query(User)
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
-        .filter(User.id == user_id, Role.name.in_(get_role_lookup_names("campus_admin")))
+        .filter(User.id == user_id, Role.code.in_(get_role_lookup_names("campus_admin")))
         .first()
     )
     if school_it_user is None:
@@ -583,7 +583,7 @@ def admin_reset_school_it_password(
         db.query(User)
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
-        .filter(User.id == user_id, Role.name.in_(get_role_lookup_names("campus_admin")))
+        .filter(User.id == user_id, Role.code.in_(get_role_lookup_names("campus_admin")))
         .first()
     )
     if school_it_user is None:
