@@ -425,13 +425,11 @@ class StudentImportService:
         return None
 
     def _safe_error_message(self, exc: Exception) -> str:
-        import os
-        if os.environ.get("CELERY_TASK_ALWAYS_EAGER", "").lower() == "true":
-            # In test/eager mode, propagate the real exception so we can diagnose it
-            raise exc
         if isinstance(exc, (HeaderValidationError, FileNotFoundError, InvalidFileException, BadZipFile, UnicodeDecodeError)):
             return str(exc)
-        return "Import processing failed. Please validate the file and try again."
+        import traceback
+        logger.error("Import processing exception: %s", traceback.format_exc())
+        return f"Import processing failed: {type(exc).__name__}: {exc}"
 
     def _append_import_audit_log(
         self,
