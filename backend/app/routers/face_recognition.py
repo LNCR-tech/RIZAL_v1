@@ -121,6 +121,19 @@ def _serialize_attendance_decision(decision) -> dict[str, object]:
     return payload
 
 
+def _serialize_error_detail(detail: dict[str, object]) -> dict[str, object]:
+    """Recursively convert datetime objects to ISO strings in error detail dicts."""
+    result = {}
+    for key, value in detail.items():
+        if isinstance(value, datetime):
+            result[key] = value.isoformat()
+        elif isinstance(value, dict):
+            result[key] = _serialize_error_detail(value)
+        else:
+            result[key] = value
+    return result
+
+
 def _attendance_time_window_detail(event: EventModel, *, action: str = "check_in") -> dict[str, object]:
     """Expose the current check-in or sign-out timing window for API error details."""
     decision = (
@@ -163,7 +176,7 @@ def _attendance_scan_error_detail(
         "message": message,
     }
     detail.update(extra)
-    return detail
+    return _serialize_error_detail(detail)
 
 
 def _has_current_canonical_embedding(profile: StudentProfile) -> bool:
