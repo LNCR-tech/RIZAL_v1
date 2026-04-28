@@ -10,6 +10,7 @@ import string
 _PASSWORD_ALPHABET = string.ascii_letters + string.digits
 _BCRYPT_ROUNDS = 12
 _BCRYPT_MAX_PASSWORD_BYTES = 72
+DEFAULT_STUDENT_PASSWORD_FALLBACK = "password"
 
 
 def generate_secure_password(min_length: int = 10, max_length: int = 16) -> str:
@@ -60,3 +61,15 @@ def verify_password_bcrypt(plain_password: str, hashed_password: str) -> bool:
         if "longer than 72 bytes" in str(exc):
             return False
         raise
+
+
+def build_student_default_password(last_name: str | None) -> str:
+    resolved_last_name = (last_name or "").strip()
+    if not resolved_last_name:
+        return DEFAULT_STUDENT_PASSWORD_FALLBACK
+    return resolved_last_name.lower()
+
+
+def hash_student_default_password(last_name: str | None) -> tuple[str, str]:
+    password = build_student_default_password(last_name)
+    return password, hash_password_bcrypt(password)

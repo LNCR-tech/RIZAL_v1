@@ -13,6 +13,7 @@ from app.core.config import Settings
 MAILJET_API_HOST = "api.mailjet.com"
 ALLOWED_EMAIL_TRANSPORTS = {"disabled", "mailjet_api", "smtp"}
 TEMPORARY_MAILJET_STATUS_CODES = {429, 500, 502, 503, 504}
+OUTBOUND_EMAIL_DELIVERY_ENABLED = False
 
 
 class EmailDeliveryError(Exception):
@@ -21,6 +22,10 @@ class EmailDeliveryError(Exception):
 
 class EmailConfigurationError(EmailDeliveryError):
     pass
+
+
+def is_outbound_email_enabled() -> bool:
+    return OUTBOUND_EMAIL_DELIVERY_ENABLED
 
 
 @dataclass(frozen=True)
@@ -207,6 +212,12 @@ def validate_email_delivery_on_startup() -> None:
         get_settings,
         logger,
     )
+
+    if not is_outbound_email_enabled():
+        logger.warning(
+            "Outbound email delivery is disabled in code. Forgot-password, onboarding, and notification emails will not be sent."
+        )
+        return
 
     settings = get_settings()
     transport = _normalize_choice(

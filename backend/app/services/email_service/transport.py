@@ -317,9 +317,13 @@ def send_transactional_email(
 ) -> None:
     from . import (
         get_settings,
+        is_outbound_email_enabled,
         logger,
         validate_email_delivery_settings,
     )
+
+    if not is_outbound_email_enabled():
+        raise EmailDeliveryError("Outbound email delivery is disabled in code.")
 
     settings = get_settings()
     resolved_delivery = validate_email_delivery_settings(settings)

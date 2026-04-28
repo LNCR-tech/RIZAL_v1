@@ -16,6 +16,7 @@ from .config import (
     EmailConnectionStatus,
     EmailDeliveryError,
     ResolvedEmailDeliverySettings,
+    is_outbound_email_enabled,
     validate_email_delivery_on_startup,
     validate_email_delivery_settings,
 )

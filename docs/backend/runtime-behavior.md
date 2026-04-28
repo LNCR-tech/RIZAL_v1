@@ -68,7 +68,7 @@ How to test:
 
 ## Email Startup Validation
 
-On API startup, the backend validates outbound email configuration.
+Outbound email is currently disabled in code. API startup logs a warning and does not validate or connect to Mailjet while this code-level switch is disabled.
 
 Supported transports:
 
@@ -77,8 +77,35 @@ Supported transports:
 
 Behavior:
 
-- `disabled` logs a warning and lets the API start.
-- `mailjet_api` validates the canonical sender, Mailjet credentials, and optionally verifies connectivity against Mailjet before startup completes.
+- password reset, onboarding, and notification email sends are skipped even if `EMAIL_TRANSPORT=mailjet_api` is configured.
+- notification email-channel logs use `status=skipped`; in-app notification logs can still be created.
+- when code-level email delivery is re-enabled, `disabled` logs a warning and `mailjet_api` validates the canonical sender, Mailjet credentials, and optional connectivity before startup completes.
+
+## Student Default Passwords
+
+Student accounts created by bulk import and the manual Campus Admin student flow use the same default password rule:
+
+- password value is the student's last name, trimmed and lowercased
+- if the last name is blank, the fallback password is `password`
+- `using_default_import_password=true` allows login and change-password current-password checks to match this default case-insensitively
+- once the student changes password, `using_default_import_password=false` and normal password checks are case-sensitive
+
+Forgot-password behavior:
+
+- `POST /auth/forgot-password` keeps the same request body: `{ "email": "student@example.com" }`
+- if the email belongs to an active student account, the backend immediately resets the password to the default last-name password
+- the reset sets `must_change_password=false` and `should_prompt_password_change=true`, so login can continue while the UI may prompt the student to change the password
+- non-students, inactive users, admins, Campus Admins, and unknown emails return the generic response without changing a password
+- pending password-reset request rows for that student are marked `auto_reset` and resolved; no approval or email is required
+
+How to test:
+
+1. Create or import a student whose last name is `Santos`.
+2. Log in with `SANTOS` and confirm login succeeds while the default-password flag is still active.
+3. Change the password to `NewPass1`.
+4. Confirm login with `NewPass1` succeeds and login with `NEWPASS1` fails.
+5. Submit `POST /auth/forgot-password` for that student email.
+6. Confirm login with `santos`, `SANTOS`, or another casing succeeds and the UI receives the password-change recommendation.
 
 ## Storage Path Resolution
 

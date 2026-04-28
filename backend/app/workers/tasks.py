@@ -12,6 +12,7 @@ from app.models.user import User as UserModel
 from app.repositories.import_repository import ImportRepository
 from app.services.email_service import (
     EmailDeliveryError,
+    is_outbound_email_enabled,
     send_import_onboarding_email,
     send_plain_email,
     send_welcome_email,
@@ -73,6 +74,20 @@ def _send_student_welcome_email(
     temporary_password: str,
     first_name: str | None = None,
 ) -> None:
+    if not is_outbound_email_enabled():
+        with SessionLocal() as db:
+            repo = ImportRepository(db)
+            repo.log_email_delivery(
+                job_id=job_id,
+                user_id=user_id,
+                email=email,
+                status="skipped",
+                error_message="Outbound email delivery is disabled in code.",
+                retry_count=self.request.retries,
+            )
+            db.commit()
+        return
+
     try:
         send_welcome_email(
             recipient_email=email,
@@ -112,6 +127,20 @@ def _send_student_import_onboarding_email(
     first_name: str | None = None,
     temporary_password: str | None = None,
 ) -> None:
+    if not is_outbound_email_enabled():
+        with SessionLocal() as db:
+            repo = ImportRepository(db)
+            repo.log_email_delivery(
+                job_id=job_id,
+                user_id=user_id,
+                email=email,
+                status="skipped",
+                error_message="Outbound email delivery is disabled in code.",
+                retry_count=self.request.retries,
+            )
+            db.commit()
+        return
+
     try:
         send_import_onboarding_email(
             recipient_email=email,
@@ -169,6 +198,10 @@ def _send_sanction_notification_email(
     event_name: str,
     sanction_item_names: list[str] | None = None,
 ) -> None:
+    if not is_outbound_email_enabled():
+        logger.info("Skipped sanction notification email because outbound email delivery is disabled in code.")
+        return
+
     resolved_first_name = (first_name or "").strip() or "Student"
     normalized_item_names = [name.strip() for name in (sanction_item_names or []) if name and name.strip()]
     items_block = "\n".join(f"- {item_name}" for item_name in normalized_item_names)
@@ -219,6 +252,10 @@ def _send_clearance_deadline_warning_email(
     deadline_at_iso: str,
     message: str | None = None,
 ) -> None:
+    if not is_outbound_email_enabled():
+        logger.info("Skipped clearance deadline warning email because outbound email delivery is disabled in code.")
+        return
+
     resolved_first_name = (first_name or "").strip() or "Student"
     body_lines = [
         f"Hello {resolved_first_name},",
@@ -265,6 +302,10 @@ def _send_sanction_compliance_confirmation_email(
     first_name: str | None,
     event_name: str,
 ) -> None:
+    if not is_outbound_email_enabled():
+        logger.info("Skipped sanction compliance confirmation email because outbound email delivery is disabled in code.")
+        return
+
     resolved_first_name = (first_name or "").strip() or "Student"
     body_lines = [
         f"Hello {resolved_first_name},",

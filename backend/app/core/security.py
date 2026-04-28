@@ -154,6 +154,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return verify_password_bcrypt(plain_password, hashed_password)
 
 
+def verify_user_password(user: User, plain_password: str) -> bool:
+    if verify_password(plain_password, user.password_hash):
+        return True
+
+    if getattr(user, "using_default_import_password", False):
+        return verify_password(plain_password.lower(), user.password_hash)
+
+    return False
+
+
 def _normalize_login_identifier(identifier: str) -> str:
     return identifier.strip().lower()
 
@@ -179,16 +189,10 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
 
     if not user:
         return None
-    
-    # Try exact password match first
-    if verify_password(password, user.password_hash):
+
+    if verify_user_password(user, password):
         return user
-    
-    # Only try lowercase password for users still using default import password
-    if getattr(user, 'using_default_import_password', False):
-        if verify_password(password.lower(), user.password_hash):
-            return user
-    
+
     return None
 
 

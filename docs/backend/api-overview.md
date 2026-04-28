@@ -44,6 +44,12 @@ Non-`/api` routes:
 
 If you are unsure about the exact request/response schema, use the live OpenAPI docs at `/docs`.
 
+## Auth Password Defaults
+
+- Student accounts created by bulk import or the Campus Admin student form use the lowercased last name as their default password.
+- `POST /auth/forgot-password` accepts `{ "email": "student@example.com" }` and auto-resets eligible student accounts to that default password without sending email.
+- The default password is accepted case-insensitively only while the account is marked as using the default import password; after the student changes password, normal case-sensitive password checks apply.
+
 ## Anti-Abuse Responses
 
 Routes protected by the shared limiter return `429 Too Many Requests` with this detail shape:

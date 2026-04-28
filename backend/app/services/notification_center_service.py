@@ -17,7 +17,7 @@ from app.models.event import Event
 from app.models.platform_features import NotificationLog, UserNotificationPreference
 from app.models.user import StudentProfile, User
 from app.services.attendance_status import ATTENDED_STATUS_VALUES
-from app.services.email_service import EmailDeliveryError, send_plain_email
+from app.services.email_service import EmailDeliveryError, is_outbound_email_enabled, send_plain_email
 from app.services.event_attendance_service import get_event_participant_student_ids
 
 
@@ -98,6 +98,21 @@ def _send_email_with_log(
     message: str,
     metadata_json: dict | None = None,
 ) -> str:
+    if not is_outbound_email_enabled():
+        create_notification_log(
+            db,
+            school_id=school_id,
+            user_id=recipient.id,
+            category=category,
+            channel="email",
+            status="skipped",
+            subject=subject,
+            message=message,
+            error_message="Outbound email delivery is disabled in code.",
+            metadata_json=metadata_json,
+        )
+        return "skipped"
+
     try:
         send_plain_email(
             recipient_email=recipient.email,

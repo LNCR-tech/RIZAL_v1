@@ -36,7 +36,11 @@ from app.services.import_validation_service import (
     validate_and_transform_row,
     validate_headers,
 )
-from app.utils.passwords import generate_secure_password, hash_password_bcrypt
+from app.utils.passwords import (
+    build_student_default_password,
+    generate_secure_password,
+    hash_password_bcrypt,
+)
 from app.workers.celery_app import celery_app
 from app.models.department import Department
 from app.models.program import Program
@@ -622,8 +626,7 @@ class StudentImportService:
         )
 
     def _attach_import_password_credentials(self, row: dict, *, used_temporary_passwords: set[str] | None = None) -> None:
-        last_name = row.get("last_name", "").strip()
-        temporary_password = last_name.lower() if last_name else "password"
+        temporary_password = build_student_default_password(row.get("last_name"))
         row["temporary_password"] = temporary_password
         row["password_hash"] = hash_password_bcrypt(temporary_password)
 
@@ -636,10 +639,7 @@ class StudentImportService:
         if not rows:
             return
 
-        passwords = [
-            row.get("last_name", "").strip().lower() if row.get("last_name", "").strip() else "password"
-            for row in rows
-        ]
+        passwords = [build_student_default_password(row.get("last_name")) for row in rows]
         worker_count = self._resolve_password_hash_workers(len(rows))
         if worker_count == 1:
             hashes = [hash_password_bcrypt(password) for password in passwords]

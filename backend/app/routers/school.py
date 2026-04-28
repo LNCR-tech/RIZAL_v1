@@ -38,7 +38,7 @@ from app.schemas.school import (
     SchoolSummaryResponse,
     SchoolUpdateForm,
 )
-from app.services.email_service import EmailDeliveryError, send_welcome_email
+from app.services.email_service import EmailDeliveryError, is_outbound_email_enabled, send_welcome_email
 from app.services.password_change_policy import (
     must_change_password_for_new_account,
     must_change_password_for_temporary_reset,
@@ -379,27 +379,28 @@ async def admin_create_school_with_school_it(
             detail="Failed to create school and Campus Admin due to uniqueness conflict.",
         ) from exc
 
-    try:
-        send_welcome_email(
-            recipient_email=school_it_user.email,
-            temporary_password=issued_password,
-            first_name=school_it_user.first_name,
-            system_name=school.school_name or school.name,
-            password_is_temporary=generated_temporary_password is not None,
-        )
-    except EmailDeliveryError:
-        _write_audit(
-            db,
-            school_id=school.id,
-            actor_user_id=current_user.id,
-            action="school_it_welcome_email",
-            status_value="failed",
-            details={
-                "school_it_user_id": school_it_user.id,
-                "school_it_email": school_it_user.email,
-            },
-        )
-        db.commit()
+    if is_outbound_email_enabled():
+        try:
+            send_welcome_email(
+                recipient_email=school_it_user.email,
+                temporary_password=issued_password,
+                first_name=school_it_user.first_name,
+                system_name=school.school_name or school.name,
+                password_is_temporary=generated_temporary_password is not None,
+            )
+        except EmailDeliveryError:
+            _write_audit(
+                db,
+                school_id=school.id,
+                actor_user_id=current_user.id,
+                action="school_it_welcome_email",
+                status_value="failed",
+                details={
+                    "school_it_user_id": school_it_user.id,
+                    "school_it_email": school_it_user.email,
+                },
+            )
+            db.commit()
 
     db.refresh(school)
     return AdminSchoolItCreateResponse(

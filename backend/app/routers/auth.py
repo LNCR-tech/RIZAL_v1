@@ -21,7 +21,7 @@ from app.core.security import (
     get_current_admin_or_campus_admin,
     get_current_application_user,
     has_any_role,
-    verify_password,
+    verify_user_password,
 )
 from app.core.dependencies import get_db
 from app.schemas.auth import ChangePasswordRequest, Token, LoginRequest
@@ -33,23 +33,25 @@ from app.schemas.password_reset import (
     PasswordResetRequestItem,
 )
 from app.models.password_reset_request import PasswordResetRequest
-from app.models.school import School
 from app.models.user import User, UserRole
-from app.services.email_service import EmailDeliveryError, send_password_reset_email
 from app.services.auth_session import (
     issue_login_token_response,
     validate_login_account_state,
 )
 from app.services.notification_center_service import send_account_security_notification
-from app.services.password_change_policy import must_change_password_for_temporary_reset
+from app.services.password_change_policy import (
+    must_change_password_for_new_account,
+    must_change_password_for_temporary_reset,
+    should_prompt_password_change_for_new_account,
+)
 from app.services.security_service import (
     record_login_history,
 )
-from app.utils.passwords import generate_secure_password
+from app.utils.passwords import generate_secure_password, hash_student_default_password
 
 router = APIRouter(tags=["authentication"])
 FORGOT_PASSWORD_GENERIC_MESSAGE = (
-    "If the account exists, a password reset request has been submitted for administrator approval."
+    "If an eligible student account exists, its password has been reset to the default password."
 )
 
 
@@ -67,6 +69,14 @@ def _can_submit_public_password_reset_request(user: User | None) -> bool:
     if getattr(user, "school_id", None) is None:
         return False
     return not _is_platform_admin_account(user)
+
+
+def _can_auto_reset_student_default_password(user: User | None) -> bool:
+    if not _can_submit_public_password_reset_request(user):
+        return False
+    if _requires_platform_admin_password_reset_approval(user):
+        return False
+    return has_any_role(user, ["student"])
 
 
 def _login_rate_limit_identity(request: Request, email: str) -> str:
@@ -178,7 +188,7 @@ def change_password(
 ):
     # Use the same verifier as login so temporary passwords work consistently
     # regardless of which hashing helper originally created the stored hash.
-    if not verify_password(payload.current_password, current_user.password_hash):
+    if not verify_user_password(current_user, payload.current_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect",
@@ -231,29 +241,28 @@ def request_forgot_password(
         .first()
     )
 
-    if not target_user:
+    if not _can_auto_reset_student_default_password(target_user):
         return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
-    if not _can_submit_public_password_reset_request(target_user):
-        return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
+    _, password_hash = hash_student_default_password(target_user.last_name)
+    target_user.password_hash = password_hash
+    target_user.using_default_import_password = True
+    target_user.must_change_password = must_change_password_for_new_account()
+    target_user.should_prompt_password_change = should_prompt_password_change_for_new_account()
 
-    existing_pending = (
+    (
         db.query(PasswordResetRequest)
         .filter(
             PasswordResetRequest.user_id == target_user.id,
             PasswordResetRequest.status == "pending",
         )
-        .first()
-    )
-    if existing_pending:
-        return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
-
-    db.add(
-        PasswordResetRequest(
-            user_id=target_user.id,
-            school_id=target_user.school_id,
-            requested_email=target_user.email.lower(),
-            status="pending",
+        .update(
+            {
+                "status": "auto_reset",
+                "resolved_at": utc_now(),
+                "reviewed_by_user_id": None,
+            },
+            synchronize_session=False,
         )
     )
     db.commit()
@@ -353,29 +362,16 @@ def approve_password_reset_request(
     request_item.resolved_at = utc_now()
     request_item.reviewed_by_user_id = current_user.id
 
-    school = db.query(School).filter(School.id == request_item.school_id).first()
-    system_name = (school.school_name or school.name) if school else None
-
     try:
-        send_password_reset_email(
-            recipient_email=target_user.email,
-            temporary_password=temporary_password,
-            first_name=target_user.first_name,
-            system_name=system_name,
+        send_account_security_notification(
+            db,
+            user=target_user,
+            subject="Password Reset Approved",
+            message="Your password reset request was approved. Email delivery is disabled for now.",
+            metadata_json={"event": "password_reset_approved", "request_id": request_item.id},
         )
-        try:
-            send_account_security_notification(
-                db,
-                user=target_user,
-                subject="Password Reset Approved",
-                message="Your password reset request was approved. Use your temporary password to log in.",
-                metadata_json={"event": "password_reset_approved", "request_id": request_item.id},
-            )
-        except Exception:
-            pass
-    except EmailDeliveryError as exc:
-        db.rollback()
-        raise HTTPException(status_code=502, detail=f"Failed to send password reset email: {exc}") from exc
+    except Exception:
+        pass
 
     db.commit()
 
@@ -384,6 +380,6 @@ def approve_password_reset_request(
         user_id=target_user.id,
         status=request_item.status,
         resolved_at=request_item.resolved_at or utc_now(),
-        message="Password reset approved and temporary password emailed.",
+        message="Password reset approved. Email delivery is disabled for now.",
     )
 

@@ -1,5 +1,8 @@
 Aura Email Formats (Editable)
-Version date: 2026-04-12
+Version date: 2026-04-28
+
+Current delivery status:
+Outbound email delivery is disabled in backend code for now. The templates below are retained for future Mailjet delivery, but password reset, onboarding, welcome, sanction, and notification emails are not sent while code-level delivery is disabled.
 
 How to use this file:
 1. Edit only the SUBJECT and BODY blocks below.
@@ -34,7 +37,7 @@ Placeholder legend:
 {{TIMESTAMP_UTC}}
 
 ================================================================
-[TEMPLATE] WELCOME EMAIL (ACTIVE, ALSO USED BY IMPORT ONBOARDING FLOW)
+[TEMPLATE] WELCOME EMAIL (TEMPLATE RETAINED, DELIVERY DISABLED)
 Source:
 - Backend/app/services/email_service/use_cases.py
 - Backend/app/services/email_service/rendering.py

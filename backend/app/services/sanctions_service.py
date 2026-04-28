@@ -663,6 +663,11 @@ def _dispatch_sanction_notification_email(
     event_name: str,
     sanction_item_names: list[str],
 ) -> bool:
+    from app.services.email_service import is_outbound_email_enabled
+
+    if not is_outbound_email_enabled():
+        return False
+
     from app.workers.tasks import send_sanction_notification_email
 
     return _enqueue_celery_task(
@@ -682,6 +687,11 @@ def _dispatch_clearance_deadline_warning_email(
     deadline_at_iso: str,
     message: str | None,
 ) -> bool:
+    from app.services.email_service import is_outbound_email_enabled
+
+    if not is_outbound_email_enabled():
+        return False
+
     from app.workers.tasks import send_clearance_deadline_warning_email
 
     return _enqueue_celery_task(
@@ -700,6 +710,11 @@ def _dispatch_sanction_compliance_confirmation_email(
     first_name: str | None,
     event_name: str,
 ) -> bool:
+    from app.services.email_service import is_outbound_email_enabled
+
+    if not is_outbound_email_enabled():
+        return False
+
     from app.workers.tasks import send_sanction_compliance_confirmation_email
 
     return _enqueue_celery_task(

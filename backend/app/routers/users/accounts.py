@@ -11,7 +11,7 @@ def create_user(
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    from . import EmailDeliveryError, generate_secure_password, send_welcome_email
+    from . import EmailDeliveryError, generate_secure_password, is_outbound_email_enabled, send_welcome_email
 
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
@@ -64,23 +64,23 @@ def create_user(
         db.refresh(db_user)
         db_user = _with_user_relations(db.query(UserModel)).filter(UserModel.id == db_user.id).first()
 
-        system_name = _get_school_system_name(db, school_id)
-
-        try:
-            send_welcome_email(
-                recipient_email=db_user.email,
-                temporary_password=issued_password,
-                first_name=db_user.first_name,
-                system_name=system_name,
-                password_is_temporary=generated_temporary_password is not None,
-            )
-        except EmailDeliveryError as exc:
-            logger.warning(
-                "Welcome email delivery failed for user_id=%s email=%s error=%s",
-                db_user.id,
-                db_user.email,
-                str(exc),
-            )
+        if is_outbound_email_enabled():
+            system_name = _get_school_system_name(db, school_id)
+            try:
+                send_welcome_email(
+                    recipient_email=db_user.email,
+                    temporary_password=issued_password,
+                    first_name=db_user.first_name,
+                    system_name=system_name,
+                    password_is_temporary=generated_temporary_password is not None,
+                )
+            except EmailDeliveryError as exc:
+                logger.warning(
+                    "Welcome email delivery failed for user_id=%s email=%s error=%s",
+                    db_user.id,
+                    db_user.email,
+                    str(exc),
+                )
 
         return UserCreateResponse.model_validate(
             db_user,

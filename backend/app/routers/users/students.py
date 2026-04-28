@@ -12,7 +12,7 @@ def create_student_account(
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db),
 ):
-    from app.utils.passwords import hash_password_bcrypt
+    from app.utils.passwords import hash_student_default_password
 
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
@@ -40,8 +40,7 @@ def create_student_account(
 
     student_role = _get_or_create_role_by_name(db, "student")
 
-    # Use lowercase last name as password (same as bulk import)
-    issued_password = student.last_name.strip().lower() if student.last_name and student.last_name.strip() else "password"
+    _, password_hash = hash_student_default_password(student.last_name)
 
     try:
         db_user = UserModel(
@@ -50,7 +49,7 @@ def create_student_account(
             first_name=student.first_name,
             middle_name=student.middle_name,
             last_name=student.last_name,
-            password_hash=hash_password_bcrypt(issued_password),
+            password_hash=password_hash,
             must_change_password=must_change_password_for_new_account(),
             should_prompt_password_change=should_prompt_password_change_for_new_account(),
             using_default_import_password=True,

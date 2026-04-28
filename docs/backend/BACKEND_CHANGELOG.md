@@ -20,6 +20,55 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-28 - Student default password reset and disabled outbound email
+
+### Purpose
+
+Align bulk-imported students, manually created students, and student forgot-password recovery around the same default password rule while preventing password and notification emails from being sent for now.
+
+### Main files
+
+- `Backend/app/utils/passwords.py`
+- `Backend/app/routers/auth.py`
+- `Backend/app/services/notification_center_service.py`
+- `Backend/app/services/student_import_service.py`
+- `Backend/app/routers/users/students.py`
+- `Backend/app/services/email_service/config.py`
+
+### Runtime behavior
+
+- student default passwords are now generated through one shared helper:
+  - trimmed lowercase last name
+  - `password` when last name is blank
+- bulk import and manual Campus Admin student creation both store that default password hash and set `using_default_import_password=true`
+- login and change-password current-password checks accept any casing only while `using_default_import_password=true`
+- after a password change, `User.set_password()` clears the default-password flag and checks become case-sensitive
+- `POST /auth/forgot-password` now auto-resets active student accounts to the default last-name password without creating an approval workflow or sending email
+- public forgot-password still returns a generic response for unknown emails, inactive users, non-students, admins, and Campus Admins
+- any pending reset requests for an auto-reset student are marked `auto_reset`
+- outbound email delivery is disabled in code:
+  - password reset, onboarding, and welcome email sends are skipped
+  - notification email-channel logs are `skipped`
+  - in-app notification logs can still be created
+  - sanction email Celery jobs are not queued while email is disabled
+
+### Route or schema impact
+
+- `POST /auth/forgot-password` keeps the same request and response schemas but changes eligible student behavior from pending admin approval to immediate default-password reset.
+- no response schema changes.
+
+### Migration impact
+
+- no database migration required.
+
+### How to test
+
+1. Run `python -m compileall Backend/app`.
+2. Run `python -m pytest -q Backend/tests/test_default_student_passwords.py`.
+3. Create or import a student with last name `Santos`, then confirm login with `SANTOS` succeeds before password change.
+4. Change that student's password to `NewPass1`, then confirm `NewPass1` succeeds and `NEWPASS1` fails.
+5. Submit `POST /auth/forgot-password` for the student email and confirm login with `santos` or `SANTOS` succeeds with the password-change recommendation active.
+
 ## 2026-04-25 - Add pgvector-backed student face search
 
 ### Purpose
