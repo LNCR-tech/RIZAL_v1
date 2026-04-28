@@ -932,10 +932,12 @@ function resolveAttendanceStudentKey(record) {
 function resolveAttendanceCategory(attendance = {}) {
   const completionState = String(attendance?.completion_state || '').toLowerCase()
   const displayStatus = String(attendance?.display_status || attendance?.status || '').toLowerCase()
+  const signedInWithoutSignOut = Boolean(attendance?.time_in && !attendance?.time_out)
 
+  if (displayStatus === 'absent') return 'absent'
+  if (signedInWithoutSignOut) return 'absent'
   if (completionState !== 'completed') return 'waiting'
   if (displayStatus === 'late') return 'late'
-  if (displayStatus === 'absent') return 'absent'
   return 'present'
 }
 

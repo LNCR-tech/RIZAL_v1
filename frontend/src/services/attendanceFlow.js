@@ -122,10 +122,30 @@ export function mapEventTimeStatusToEventStatus(timeStatus) {
     return null
 }
 
-export function resolveEventLifecycleStatus(event = null, timeStatus = null) {
+export function resolveEventLifecycleStatus(event = null, timeStatus = null, now = new Date()) {
     const mappedStatus = mapEventTimeStatusToEventStatus(timeStatus)
     if (mappedStatus) return mappedStatus
-    return normalizeEventStatus(event?.status)
+
+    const normalizedStatus = normalizeEventStatus(event?.status)
+    if (normalizedStatus === 'cancelled' || normalizedStatus === 'completed') {
+        return normalizedStatus
+    }
+
+    const nowMs = now.getTime()
+    const start = parseEventDateTime(event?.start_datetime)
+    const signOutClose = event?.end_datetime ? getSignOutCloseTime(event) : new Date(Number.NaN)
+
+    if (
+        Number.isFinite(nowMs)
+        && Number.isFinite(start.getTime())
+        && Number.isFinite(signOutClose.getTime())
+    ) {
+        if (nowMs > signOutClose.getTime()) return 'completed'
+        if (nowMs >= start.getTime()) return 'ongoing'
+        return 'upcoming'
+    }
+
+    return normalizedStatus
 }
 
 export function resolveEventTimeStatusMoment(value) {
