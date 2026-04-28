@@ -264,8 +264,10 @@ def _queue_import_job_from_stored_path(
     )
     db.commit()
     # Queue the background job after the database row is safely saved.
+    # Use .delay() so task_always_eager works in tests (send_task ignores it).
     try:
-        celery_app.send_task("app.workers.tasks.process_student_import_job", args=[job_id])
+        from app.workers.tasks import process_student_import_job
+        process_student_import_job.delay(job_id)
     except Exception:
         logger.warning(
             "Falling back to in-process import execution for job %s because Celery dispatch failed.",
@@ -273,7 +275,6 @@ def _queue_import_job_from_stored_path(
             exc_info=True,
         )
         background_tasks.add_task(StudentImportService().process_job, job_id)
-
     return ImportJobCreateResponse(
         job_id=job_id,
         status="pending",

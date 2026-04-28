@@ -90,9 +90,13 @@ def test_import_status(client, campus_admin_headers, import_job_id, db_session):
 def test_import_creates_student(client, campus_admin_headers, import_job_id, db_session):
     """Verify the import actually inserted a student user into the database."""
     from app.models.user import User
-    student = db_session.query(User).filter(
-        User.email.like("importtest%@test.com")
-    ).first()
+    from app.core.database import SessionLocal
+    # The import service uses its own SessionLocal sessions, so we must query
+    # with a fresh session to see the committed rows.
+    with SessionLocal() as fresh_db:
+        student = fresh_db.query(User).filter(
+            User.email.like("importtest%@test.com")
+        ).first()
     assert student is not None, "Imported student user was not found in the database"
 
 
