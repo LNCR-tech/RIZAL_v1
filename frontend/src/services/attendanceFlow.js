@@ -270,7 +270,10 @@ export function resolveAttendanceDisplayStatus(attendanceRecord) {
     const normalizedDisplayStatus = normalizeLower(attendanceRecord?.display_status)
     if (normalizedDisplayStatus) return normalizedDisplayStatus
 
-    // If no time_in, student never attended - return empty string for "No record yet"
+    // NEW LOGIC: Both sign-in AND sign-out are required for Present/Late
+    // If time_out is NULL, the student is ABSENT
+    
+    // If no time_in, student never attended
     if (!hasSignedInAttendance(attendanceRecord)) {
         const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
         // Only show status if it's excused or absent (finalized)
@@ -280,16 +283,18 @@ export function resolveAttendanceDisplayStatus(attendanceRecord) {
         return ''
     }
 
-    if (resolveAttendanceCompletionState(attendanceRecord) !== 'completed') {
-        return hasSignedInAttendance(attendanceRecord) ? 'incomplete' : ''
+    // If signed in but NO sign-out, always ABSENT
+    if (!hasSignedOutAttendance(attendanceRecord)) {
+        return 'absent'
     }
 
+    // If both sign-in and sign-out exist, return stored status
     const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
     if (['present', 'late', 'absent', 'excused'].includes(normalizedStoredStatus)) {
         return normalizedStoredStatus
     }
 
-    return hasSignedOutAttendance(attendanceRecord) ? 'absent' : ''
+    return 'absent'
 }
 
 export function isValidCompletedAttendanceRecord(attendanceRecord) {
@@ -500,8 +505,7 @@ export function resolveAbsenceType(attendanceRecord) {
  */
 export function formatTimeInDisplay(attendanceRecord, formatDateTime) {
     if (!attendanceRecord || !attendanceRecord.time_in) {
-        const absenceType = resolveAbsenceType(attendanceRecord)
-        return absenceType === 'never_attended' ? 'No sign-in record' : 'Not recorded'
+        return 'No sign-in record'
     }
     return formatDateTime(attendanceRecord.time_in)
 }
@@ -514,13 +518,7 @@ export function formatTimeInDisplay(attendanceRecord, formatDateTime) {
  */
 export function formatTimeOutDisplay(attendanceRecord, formatDateTime) {
     if (!attendanceRecord || !attendanceRecord.time_out) {
-        const absenceType = resolveAbsenceType(attendanceRecord)
-        const completionState = resolveAttendanceCompletionState(attendanceRecord)
-        
-        if (absenceType === 'never_attended') return 'No sign-out record'
-        if (absenceType === 'no_sign_out') return 'No sign-out record'
-        if (completionState === 'incomplete') return 'Waiting for sign out'
-        return 'Not recorded'
+        return 'No sign-out record'
     }
     return formatDateTime(attendanceRecord.time_out)
 }
