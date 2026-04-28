@@ -77,7 +77,7 @@ def test_create_student_account(client, campus_admin_headers, db_session):
         "email": "newstudent_test@test.com",
         "first_name": "New",
         "last_name": "Student",
-        "student_number": "STU-NEW-001",
+        "student_id": "STU-NEW-001",
         "department_id": dept.id,
         "program_id": prog.id,
         "year_level": 1,
@@ -101,7 +101,7 @@ def test_delete_student_profile(client, campus_admin_headers, db_session):
     db_session.flush()
     db_session.add(UserRole(user_id=user.id, role_id=role.id))
     profile = StudentProfile(user_id=user.id, school_id=school.id,
-                             student_number=f"STU-DEL-{int(time.time())}", year_level=1)
+                             student_id=f"STU-DEL-{int(time.time())}", year_level=1)
     db_session.add(profile)
     db_session.flush()
 

@@ -134,7 +134,7 @@ def _seed(db: Session):
 
     # Student profile
     if not db.query(StudentProfile).filter_by(user_id=student_user.id).first():
-        db.add(StudentProfile(user_id=student_user.id, school_id=school.id, student_number="STU-001",
+        db.add(StudentProfile(user_id=student_user.id, school_id=school.id, student_id="STU-001",
                               department_id=dept.id, program_id=prog.id, year_level=1))
 
     db.flush()

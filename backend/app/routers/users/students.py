@@ -13,6 +13,10 @@ def create_student_account(
     db: Session = Depends(get_db),
 ):
     from . import EmailDeliveryError, generate_secure_password, send_welcome_email
+    from app.services.email_service import EmailConfigurationError
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     school_id = _actor_school_scope_id(current_user)
     if school_id is None:
@@ -77,6 +81,11 @@ def create_student_account(
                 first_name=db_user.first_name,
                 system_name=system_name,
                 password_is_temporary=True,
+            )
+        except EmailConfigurationError as exc:
+            logger.warning(
+                "Email transport is disabled. Student account created without sending welcome email: %s",
+                exc,
             )
         except EmailDeliveryError as exc:
             raise HTTPException(
