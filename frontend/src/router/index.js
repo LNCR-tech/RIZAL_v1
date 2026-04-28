@@ -119,9 +119,10 @@ const routes = [
         meta: { requiresGuest: true },
     },
     {
-        path: '/quick-attendance',
-        name: 'QuickAttendance',
-        component: authView('QuickAttendanceView'),
+        path: '/forgot-password',
+        name: 'ForgotPassword',
+        component: authView('ForgotPasswordView'),
+        meta: { requiresGuest: true },
     },
     {
         path: '/api-lab',

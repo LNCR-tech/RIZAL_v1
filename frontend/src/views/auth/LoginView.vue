@@ -60,16 +60,17 @@
             Log In
           </BaseButton>
 
-          <BaseButton
-            type="button"
-            variant="secondary"
-            size="md"
-            class="group"
-            :disabled="isLoading"
-            @click="openQuickAttendance"
-          >
-            Quick Attendance
-          </BaseButton>
+          <!-- Forgot Password Link -->
+          <div class="text-center mt-2">
+            <a
+              href="#"
+              class="text-[13px] font-medium transition-colors"
+              style="color: var(--color-text-secondary);"
+              @click.prevent="goToForgotPassword"
+            >
+              Forgot password?
+            </a>
+          </div>
 
         </form>
 
@@ -183,8 +184,8 @@ function handleDecline() {
   logout()
 }
 
-function openQuickAttendance() {
-  router.push({ name: 'QuickAttendance' })
+function goToForgotPassword() {
+  router.push({ name: 'ForgotPassword' })
 }
 </script>
 
