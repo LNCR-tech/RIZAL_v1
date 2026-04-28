@@ -98,6 +98,19 @@ def _seed(db: Session):
         db.add(prog)
         db.flush()
 
+    # Link dept and prog so import validation passes
+    from app.models.associations import program_departments
+    from sqlalchemy import select
+    existing_link = db.execute(
+        select(program_departments).where(
+            program_departments.c.program_id == prog.id,
+            program_departments.c.department_id == dept.id,
+        )
+    ).first()
+    if not existing_link:
+        db.execute(program_departments.insert().values(program_id=prog.id, department_id=dept.id))
+        db.flush()
+
     # Users
     def _make_user(email, role_code, school_id=None):
         user = db.query(User).filter_by(email=email).first()
