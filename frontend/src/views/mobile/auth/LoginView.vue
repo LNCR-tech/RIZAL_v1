@@ -96,14 +96,33 @@
                 Forgot password?
               </a>
             </div>
+
+            <button
+              type="button"
+              class="mobile-login__button mobile-login__button--secondary"
+              :disabled="isLoading"
+              @click="goToGather"
+            >
+              Gather
+            </button>
           </form>
         </div>
 
         <footer class="mobile-login__footer">
+          <div class="mobile-login__footer-branding">
+            <img
+              src="/logos/aura_logo_dark.png"
+              alt="Aura"
+              class="mobile-login__footer-logo"
+            >
+            <span class="mobile-login__footer-powered">Powered by Aura Ai</span>
+          </div>
+          
           <a
-            href="#"
+            href="https://aura-landing-page-iota.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
             class="mobile-login__footer-link"
-            @click.prevent
           >
             Learn more about Aura Project
           </a>
@@ -132,6 +151,7 @@ const {
   visibleMessage,
   handleLogin,
   goToForgotPassword,
+  goToGather,
 } = useLoginViewModel()
 
 function togglePasswordVisibility() {
@@ -410,12 +430,32 @@ function togglePasswordVisibility() {
 
 .mobile-login__footer {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   margin-top: auto;
   padding-top: 52px;
-  flex-wrap: wrap;
+}
+
+.mobile-login__footer-branding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mobile-login__footer-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.mobile-login__footer-powered {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: rgba(16, 16, 16, 0.82);
 }
 
 .mobile-login__footer-link {
@@ -425,12 +465,6 @@ function togglePasswordVisibility() {
   color: rgba(16, 16, 16, 0.72);
   text-decoration: none;
   transition: color 0.18s ease;
-}
-
-.mobile-login__footer-link--button {
-  border: 0;
-  background: transparent;
-  padding: 0;
 }
 
 .mobile-login__footer-link:active {

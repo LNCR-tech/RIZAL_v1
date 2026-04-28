@@ -72,11 +72,23 @@
             </a>
           </div>
 
+          <!-- Gather Button -->
+          <BaseButton
+            type="button"
+            variant="secondary"
+            size="md"
+            class="mt-2"
+            :disabled="isLoading"
+            @click="goToGather"
+          >
+            Gather
+          </BaseButton>
+
         </form>
 
         <!-- Powered by Aura -->
         <div 
-          class="flex flex-col items-center justify-center gap-2 mt-1 transition-all duration-700 delay-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          class="flex flex-col items-center justify-center gap-3 mt-1 transition-all duration-700 delay-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
           :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
         >
           <div class="flex items-center justify-center gap-2">
@@ -89,25 +101,20 @@
               Powered by Aura Ai
             </span>
           </div>
+          
+          <a
+            href="https://aura-landing-page-iota.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[12px] font-medium transition-colors"
+            style="color: var(--color-text-secondary);"
+          >
+            Learn more about Aura Project
+          </a>
         </div>
 
       </div>
     </div>
-
-    <!-- Footer -->
-    <footer 
-      class="pb-8 flex justify-center transition-all duration-1000 delay-300 ease-out relative z-10"
-      :class="isMounted ? 'opacity-100' : 'opacity-0'"
-    >
-      <a
-        href="#"
-        class="text-[12px] font-medium transition-colors"
-        style="color: var(--color-text-secondary);"
-        @click.prevent="showTermsModal = true"
-      >
-        Learn more about Aura Project
-      </a>
-    </footer>
 
     <!-- Terms Modal -->
     <TermsModal 
@@ -186,6 +193,10 @@ function handleDecline() {
 
 function goToForgotPassword() {
   router.push({ name: 'ForgotPassword' })
+}
+
+function goToGather() {
+  router.push({ name: 'PreviewGatherWelcome' })
 }
 </script>
 
