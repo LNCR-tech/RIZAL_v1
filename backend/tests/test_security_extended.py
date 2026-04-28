@@ -31,28 +31,32 @@ def test_face_verify_requires_auth(client):
 
 def test_revoke_session(client, student_headers, db_session):
     from jose import jwt
+    import uuid
     from app.core.security import SECRET_KEY, ALGORITHM
     from app.models.platform_features import UserSession
     from app.models.user import User
-    import uuid
     from app.core.timezones import utc_now
     from datetime import timedelta
     student = db_session.query(User).filter_by(email="student@test.com").first()
-    # Decode active JTI so we don't revoke the live session
     token = student_headers["Authorization"].split(" ", 1)[1]
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     active_jti = payload.get("jti")
-    # Create a throwaway session to revoke
+    # Use a unique JTI so re-runs on a persistent DB don't collide
+    dummy_jti = f"test-revoke-dummy-{uuid.uuid4().hex}"
     now = utc_now()
     dummy = UserSession(
         id=uuid.uuid4(),
         user_id=student.id,
-        token_jti="test-revoke-dummy-jti",
+        token_jti=dummy_jti,
         created_at=now,
         last_seen_at=now,
         expires_at=now + timedelta(minutes=30),
     )
-    db_session.add(dummy)
-    db_session.flush()
+    try:
+        db_session.add(dummy)
+        db_session.flush()
+    except Exception:
+        db_session.rollback()
+        raise
     r = client.post(f"/api/auth/security/sessions/{dummy.id}/revoke", headers=student_headers)
     assert r.status_code == 200
