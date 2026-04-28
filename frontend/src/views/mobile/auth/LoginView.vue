@@ -111,7 +111,7 @@
         <footer class="mobile-login__footer">
           <div class="mobile-login__footer-branding">
             <img
-              src="/logos/aura_logo_dark.png"
+              src="/logos/aura_logo_black.png"
               alt="Aura"
               class="mobile-login__footer-logo"
             >
