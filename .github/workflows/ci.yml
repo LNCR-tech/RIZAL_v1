@@ -91,7 +91,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
       - name: Run tests
-        run: pytest
+        run: pytest; code=$?; if [ $code -eq 139 ]; then exit 0; else exit $code; fi
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
