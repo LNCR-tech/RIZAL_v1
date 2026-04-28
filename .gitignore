@@ -43,13 +43,8 @@ logs/
 *.sqlite3
 postgres_data/
 docker-data/
-Backend/smoke.db
-Backend/storage/imports/
-Backend/storage/school_logos/
-Backend/storage/seed_credentials.csv
-Backend/storage/seed_credentials.json
-
-# Seeder outputs
+backend/storage/
+Backend/storage/
 seeder/storage/seeder_outputs/
 
 # Project-specific generated files
