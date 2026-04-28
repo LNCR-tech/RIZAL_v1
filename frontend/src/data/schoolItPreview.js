@@ -1,3 +1,4 @@
+const defaultSchoolLogo = '/logos/aura.png'
 import {
   normalizeDepartment,
   normalizeEvent,
@@ -5,9 +6,6 @@ import {
   normalizeSchoolSettings,
   normalizeUserWithRelations,
 } from '@/services/backendNormalizers.js'
-import { withBase } from '@/services/appPath.js'
-
-const defaultSchoolLogo = withBase('logos/aura.png')
 
 const PREVIEW_SCHOOL_ID = 999
 const PREVIEW_ROLE = 'campus_admin'

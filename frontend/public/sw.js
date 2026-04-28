@@ -1,32 +1,17 @@
-const CACHE_NAME = 'aura-shell-v5'
-const APP_BASE_PATH = normalizeAppBasePath(self.location.pathname)
-const APP_SHELL_URL = APP_BASE_PATH
-const RUNTIME_CONFIG_PATH = appPath('runtime-config.js')
+const CACHE_NAME = 'aura-shell-v4'
+const APP_SHELL_URL = '/'
 const SHELL_ASSETS = [
-  APP_SHELL_URL,
-  appPath('manifest.webmanifest'),
-  RUNTIME_CONFIG_PATH,
-  appPath('logos/aura.png'),
-  appPath('pwa-192.png'),
-  appPath('pwa-512.png'),
-  appPath('pwa-maskable-512.png'),
+  '/',
+  '/manifest.webmanifest',
+  '/runtime-config.js',
+  '/logos/aura.png',
+  '/pwa-192.png',
+  '/pwa-512.png',
+  '/pwa-maskable-512.png',
 ]
 const LOCALHOST_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 const STATIC_ASSET_PATTERN = /\.(?:png|jpg|jpeg|svg|webp|woff|woff2|ttf)$/i
 const CODE_ASSET_PATTERN = /\.(?:js|css)$/i
-
-function normalizeAppBasePath(pathname = '/') {
-  const normalized = String(pathname || '/').replace(/\\/g, '/')
-  const basePath = normalized.replace(/sw\.js$/, '')
-
-  if (!basePath || basePath === '/') return '/'
-  return basePath.endsWith('/') ? basePath : `${basePath}/`
-}
-
-function appPath(path = '') {
-  const normalized = String(path || '').replace(/^\/+/, '')
-  return normalized ? `${APP_BASE_PATH}${normalized}` : APP_BASE_PATH
-}
 
 function isLocalhostHost(hostname) {
   return LOCALHOST_HOSTNAMES.has(hostname) || hostname.endsWith('.local')
@@ -148,7 +133,7 @@ if (isLocalhost) {
     const requestUrl = new URL(event.request.url)
 
     if (requestUrl.origin !== self.location.origin) return
-    if (requestUrl.pathname.startsWith(appPath('__backend__')) || requestUrl.pathname.startsWith('/api/')) return
+    if (requestUrl.pathname.startsWith('/__backend__') || requestUrl.pathname.startsWith('/api/')) return
 
     if (event.request.mode === 'navigate') {
       event.respondWith(resolveNavigationResponse(event))
@@ -160,7 +145,7 @@ if (isLocalhost) {
       return
     }
 
-    if (isCacheableStaticAsset(requestUrl.pathname) || requestUrl.pathname === RUNTIME_CONFIG_PATH) {
+    if (isCacheableStaticAsset(requestUrl.pathname) || requestUrl.pathname === '/runtime-config.js') {
       event.respondWith(resolveStaticAssetResponse(event.request))
     }
   })

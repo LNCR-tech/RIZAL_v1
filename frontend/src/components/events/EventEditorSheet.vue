@@ -49,18 +49,6 @@
                   autocomplete="off"
                 >
               </label>
-
-              <label class="event-editor__field">
-                <span class="event-editor__field-label">Venue</span>
-                <input
-                  v-model="draft.location"
-                  class="event-editor__field-input"
-                  type="text"
-                  name="event_location"
-                  placeholder="University Gymnasium"
-                  autocomplete="off"
-                >
-              </label>
             </div>
           </section>
 
@@ -188,7 +176,7 @@
               <div>
                 <div class="event-editor__section-title">
                   <ShieldCheck :size="17" aria-hidden="true" />
-                  <h3>Geofence</h3>
+                  <h3>Location</h3>
                 </div>
                 <p class="event-editor__section-copy">{{ geofenceSummary }}</p>
               </div>
@@ -241,6 +229,7 @@
             </div>
 
             <EventLocationPicker
+              v-model:location-label="draft.location"
               v-model:latitude="draft.latitude"
               v-model:longitude="draft.longitude"
               :radius-m="draft.radiusM"

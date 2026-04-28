@@ -109,6 +109,7 @@ defineProps({
 .mobile-attendance-stage__video {
   /* Using absolute layout. Parent will contain. */
   object-fit: cover;
+  transform: scaleX(-1);
   background: #0a0a0a;
 }
 
@@ -130,7 +131,7 @@ defineProps({
   height: 100%;
   z-index: 0;
   filter: blur(12px) saturate(1.05) brightness(0.94);
-  transform: scale(1.08);
+  transform: scale(1.08) scaleX(-1);
 }
 
 /* ── Layer 2: Clear sharp focus video ── */
@@ -164,7 +165,7 @@ defineProps({
   width: 100vw;
   height: 100vh;
   /* Negative translate aligns it perfectly back to the viewport bounds */
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scaleX(-1);
   margin: 0;
 }
 

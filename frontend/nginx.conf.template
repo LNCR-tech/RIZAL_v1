@@ -14,12 +14,9 @@ server {
     }
 
     location /__backend__/ {
-        resolver 127.0.0.11 valid=10s;
-        set $backend_upstream ${BACKEND_ORIGIN};
-
         rewrite ^/__backend__(/.*)$ $1 break;
-        proxy_pass $backend_upstream;
 
+        proxy_pass ${BACKEND_ORIGIN};
         proxy_http_version 1.1;
         proxy_ssl_server_name on;
 

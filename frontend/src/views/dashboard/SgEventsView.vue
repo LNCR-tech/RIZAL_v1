@@ -60,7 +60,7 @@
               <div>
                 <p class="sg-create-eyebrow">New governance event</p>
                 <h2 class="sg-create-heading">Create Event</h2>
-                <p class="sg-create-copy">Set the event schedule, venue, and optional attendance geofence.</p>
+                <p class="sg-create-copy">Set the event schedule, location, and optional attendance geofence.</p>
               </div>
 
               <button
@@ -81,11 +81,6 @@
                   <input v-model="form.name" type="text" placeholder="e.g. Campus Orientation" required />
                 </label>
 
-                <label class="sg-field-label sg-field-label--wide">
-                  <span>Venue Name</span>
-                  <input v-model="form.location_name" type="text" placeholder="e.g. University Gymnasium" required />
-                </label>
-
                 <label class="sg-field-label">
                   <span>Start date & time</span>
                   <input v-model="form.start_time" type="datetime-local" required />
@@ -104,7 +99,7 @@
                       <MapPin :size="18" />
                     </span>
                     <div>
-                      <h3>Attendance Location</h3>
+                      <h3>Location</h3>
                       <p>{{ geofenceSummary }}</p>
                     </div>
                   </div>
@@ -117,6 +112,7 @@
                 </header>
 
                 <EventLocationPicker
+                  v-model:location-label="form.location_name"
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
                   :radius-m="form.radius_meters"
@@ -255,6 +251,7 @@ import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import { createIdempotencyKey } from '@/services/idempotency.js'
 import {
   BackendApiError,
   createGovernanceEvent,
@@ -298,6 +295,7 @@ const eventEditorError = ref('')
 const isCreating = ref(false)
 const isSubmitting = ref(false)
 const createError = ref('')
+const pendingCreateRequestKey = ref('')
 const form = ref({
   name: '',
   location_name: '',
@@ -522,6 +520,7 @@ function openCreateForm() {
 function closeCreateForm(force = false) {
   if (isSubmitting.value && !force) return
   createError.value = ''
+  pendingCreateRequestKey.value = ''
   isCreating.value = false
 }
 
@@ -1010,7 +1009,7 @@ function canRetryCreateEvent(error) {
   )
 }
 
-async function createEventWithResolvedScope(url, payload) {
+async function createEventWithResolvedScope(url, payload, requestOptions = {}) {
   const access = await resolveGovernanceEventAccess(url)
   const attempts = await buildCreateEventAttempts(url, access, payload)
 
@@ -1024,7 +1023,8 @@ async function createEventWithResolvedScope(url, payload) {
         url,
         token.value,
         attempt.payload,
-        attempt.params
+        attempt.params,
+        requestOptions
       )
 
       if (attempt.context) {
@@ -1047,6 +1047,8 @@ async function createEventWithResolvedScope(url, payload) {
 }
 
 async function submitEvent() {
+  if (isSubmitting.value) return
+
   isSubmitting.value = true
   createError.value = ''
   try {
@@ -1067,14 +1069,28 @@ async function submitEvent() {
       return
     }
 
-    await createEventWithResolvedScope(apiBaseUrl.value, buildCreateEventPayload())
+    if (!pendingCreateRequestKey.value) {
+      pendingCreateRequestKey.value = createIdempotencyKey('governance-event')
+    }
+
+    await createEventWithResolvedScope(
+      apiBaseUrl.value,
+      buildCreateEventPayload(),
+      {
+        headers: {
+          'X-Idempotency-Key': pendingCreateRequestKey.value,
+        },
+      }
+    )
     closeCreateForm(true)
     resetEventForm()
+    pendingCreateRequestKey.value = ''
 
     // Refresh events
     await loadEvents(apiBaseUrl.value)
     
   } catch (err) {
+    pendingCreateRequestKey.value = ''
     createError.value = err?.message || 'Error creating event.'
   } finally {
     isSubmitting.value = false
@@ -1154,6 +1170,7 @@ async function loadEvents(url) {
 async function reload() { if (apiBaseUrl.value) await loadEvents(apiBaseUrl.value) }
 
 function resetEventForm() {
+  pendingCreateRequestKey.value = ''
   form.value = {
     name: '',
     location_name: '',

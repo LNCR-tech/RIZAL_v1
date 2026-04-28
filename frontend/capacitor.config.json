@@ -5,7 +5,7 @@
   "server": {
     "androidScheme": "https",
     "allowNavigation": [
-      "18.142.190.113",
+      "ragweed-exemplary-sultry.ngrok-free.dev",
       "*.railway.app",
       "*.ngrok-free.dev",
       "*.ngrok.dev",
@@ -15,7 +15,7 @@
   },
   "android": {
     "path": "aura-apk/android",
-    "allowMixedContent": true
+    "allowMixedContent": false
   },
   "plugins": {
     "CapacitorHttp": {

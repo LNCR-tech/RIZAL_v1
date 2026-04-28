@@ -13,9 +13,9 @@ import {
   isOpenAttendanceRecord,
   parseEventDateTime,
   resolveAttendanceActionState,
-  resolveAttendanceCompletionState,
   resolveAttendanceDisplayStatus,
   resolveEventLifecycleStatus,
+  resolveEventWindowStage,
 } from '@/services/attendanceFlow.js'
 import {
   formatCoordinateLocationLabel,
@@ -31,11 +31,14 @@ import {
 } from '@/services/devicePermissions.js'
 import {
   getEventTimeStatus,
-  recordFaceScanAttendance as postFaceScanAttendance,
   resolveApiBaseUrl,
   verifyEventLocation,
 } from '@/services/backendApi.js'
 import { normalizeAttendanceRecord } from '@/services/backendNormalizers.js'
+import {
+  describePublicAttendanceError,
+  submitPublicAttendanceScan,
+} from '@/services/publicAttendance.js'
 import {
   hasNavigableHistory,
   isGovernanceWorkspaceContext,
@@ -69,6 +72,7 @@ const ACTION_RANK = {
   closed: 5,
   done: 6,
 }
+const GATHER_SUCCESS_ACTIONS = new Set(['time_in', 'time_out', 'already_signed_in', 'already_signed_out'])
 
 function resolvePreviewFlag(source) {
   return Boolean(unref(typeof source === 'function' ? source() : source))
@@ -168,19 +172,29 @@ function resolveLiveStatusMessage({ cameraReady, faceDetected, actionLabel, sele
   return `${actionLabel} is ready for ${selectedEvent.event.name}.`
 }
 
-function resolveBlockedStateModel(actionState, actionLabel, event, timeStatus) {
-  if (actionState === 'not-open') {
+function resolveGatherActionKind(event = null, timeStatus = null) {
+  const stage = resolveEventWindowStage(event, timeStatus)
+  if (['early_check_in', 'late_check_in', 'absent_check_in'].includes(stage)) {
+    return 'sign-in'
+  }
+  if (stage === 'sign_out_open') {
+    return 'sign-out'
+  }
+  return ''
+}
+
+function resolveGatherBlockedStateModel(actionLabel, event, timeStatus) {
+  const stage = resolveEventWindowStage(event, timeStatus)
+
+  if (stage === 'before_check_in') {
     return {
       tone: 'neutral',
       message: `${actionLabel} is not available yet.`,
     }
   }
 
-  if (actionState === 'waiting-sign-out') {
-    const remainingMs = getMillisecondsUntilSignOutOpen({
-      event,
-      timeStatus,
-    })
+  if (stage === 'sign_out_pending') {
+    const remainingMs = getMillisecondsUntilSignOutOpen({ event, timeStatus })
     const countdown = Number.isFinite(remainingMs) && remainingMs > 0
       ? ` Sign-out opens in ${formatCompactDuration(remainingMs)}.`
       : ''
@@ -191,27 +205,41 @@ function resolveBlockedStateModel(actionState, actionLabel, event, timeStatus) {
     }
   }
 
-  if (actionState === 'missed-check-in') {
+  if (stage === 'closed') {
     return {
       tone: 'error',
-      message: 'Check-in is already closed for this event.',
-    }
-  }
-
-  if (actionState === 'done') {
-    return {
-      tone: 'neutral',
-      message: 'Attendance is already completed for this event.',
+      message: 'Attendance is already closed for this event.',
     }
   }
 
   return {
-    tone: 'error',
-    message: 'Attendance is already closed for this event.',
+    tone: 'neutral',
+    message: `${actionLabel} is not available for this event right now.`,
+  }
+}
+
+function summarizeGatherScanOutcomes(response = {}) {
+  const outcomes = Array.isArray(response?.outcomes) ? response.outcomes : []
+  const successfulOutcomes = outcomes.filter((outcome) =>
+    GATHER_SUCCESS_ACTIONS.has(normalizeAction(outcome?.action))
+  )
+  const primaryOutcome = successfulOutcomes[0] || outcomes[0] || null
+
+  return {
+    outcomes,
+    successfulOutcomes,
+    primaryOutcome,
+    detectedCount: outcomes.length,
+    successfulCount: successfulOutcomes.length,
   }
 }
 
 function resolveLocationErrorMessage(source, fallback = 'Unable to verify your location.') {
+  const publicAttendanceMessage = describePublicAttendanceError(source)
+  if (publicAttendanceMessage && publicAttendanceMessage !== 'The public attendance kiosk request failed.') {
+    return publicAttendanceMessage
+  }
+
   const detail = source?.details ?? source?.detail ?? source
   const hasLocationDetail = detail && typeof detail === 'object' && (
     detail.reason != null
@@ -309,63 +337,6 @@ function shouldIncludeEvent(model) {
   return model.lifecycleStatus === 'ongoing' || model.lifecycleStatus === 'upcoming'
 }
 
-function buildOptimisticAttendanceRecord({
-  result,
-  existingAttendanceRecord = null,
-  eventId,
-  studentId,
-}) {
-  const normalizedEventId = Number(eventId)
-  if (!Number.isFinite(normalizedEventId)) {
-    return null
-  }
-
-  const attendanceId = Number(result?.attendance_id)
-  const action = normalizeAction(result?.action)
-  const timeIn = result?.time_in ?? existingAttendanceRecord?.time_in ?? null
-  const timeOut = result?.time_out ?? existingAttendanceRecord?.time_out ?? null
-  const checkInStatus =
-    result?.geo?.attendance_decision?.attendance_status
-    ?? existingAttendanceRecord?.check_in_status
-    ?? existingAttendanceRecord?.status
-    ?? null
-  const hasCompletedAttendance = Boolean(timeOut) || isSignOutAction(action)
-  const finalizedStatus =
-    existingAttendanceRecord?.check_in_status
-    ?? checkInStatus
-    ?? existingAttendanceRecord?.status
-    ?? 'present'
-  const isValidCompletedAttendance = hasCompletedAttendance
-    ? ['present', 'late'].includes(String(finalizedStatus || '').trim().toLowerCase())
-    : false
-
-  if (!Number.isFinite(attendanceId) && !timeIn && !timeOut) {
-    return null
-  }
-
-  return normalizeAttendanceRecord({
-    ...(existingAttendanceRecord || {}),
-    id: Number.isFinite(attendanceId) ? attendanceId : Number(existingAttendanceRecord?.id ?? 0),
-    event_id: normalizedEventId,
-    student_id: studentId,
-    method: existingAttendanceRecord?.method || 'face_scan',
-    status: finalizedStatus,
-    display_status: hasCompletedAttendance ? finalizedStatus : 'incomplete',
-    completion_state: hasCompletedAttendance ? 'completed' : 'incomplete',
-    check_in_status: checkInStatus,
-    check_out_status: hasCompletedAttendance ? 'present' : null,
-    time_in: timeIn,
-    time_out: timeOut,
-    duration_minutes: result?.duration_minutes ?? existingAttendanceRecord?.duration_minutes ?? null,
-    is_valid_attendance: hasCompletedAttendance ? isValidCompletedAttendance : false,
-    notes: hasCompletedAttendance
-      ? (isValidCompletedAttendance
-        ? null
-        : existingAttendanceRecord?.notes ?? 'Attendance was completed, but the final result is not valid.')
-      : 'Pending sign-out.',
-  })
-}
-
 export function useGatherAttendance(previewSource = false) {
   const preview = computed(() => resolvePreviewFlag(previewSource))
   const route = useRoute()
@@ -377,7 +348,6 @@ export function useGatherAttendance(previewSource = false) {
     attendanceRecords,
     events,
     refreshAttendanceRecords,
-    upsertAttendanceRecordSnapshot,
   } = useDashboardSession()
 
   const now = ref(new Date())
@@ -515,8 +485,18 @@ export function useGatherAttendance(previewSource = false) {
         timeStatus,
         now: now.value,
       })
-      const actionKind = resolveActionKind(actionState, attendanceRecord)
+      const gatherActionKind = resolveGatherActionKind(event, timeStatus)
+      const actionKind = gatherActionKind || resolveActionKind(actionState, attendanceRecord)
       const actionLabel = resolveActionLabel(actionKind)
+      const canSubmit = Boolean(gatherActionKind)
+      const statusLabel = canSubmit
+        ? (gatherActionKind === 'sign-out' ? 'Check-out Open' : 'Check-in Open')
+        : resolveEventStatusLabel({
+          actionState,
+          attendanceRecord,
+          event,
+          timeStatus,
+        })
 
       return {
         id,
@@ -527,15 +507,10 @@ export function useGatherAttendance(previewSource = false) {
         actionKind,
         actionLabel,
         actionState,
-        actionTone: resolveActionTone(actionState),
-        canSubmit: actionState === 'sign-in' || actionState === 'sign-out',
-        tone: resolveEventTone(actionState),
-        statusLabel: resolveEventStatusLabel({
-          actionState,
-          attendanceRecord,
-          event,
-          timeStatus,
-        }),
+        actionTone: canSubmit ? 'primary' : resolveActionTone(actionState),
+        canSubmit,
+        tone: canSubmit ? 'ready' : resolveEventTone(actionState),
+        statusLabel,
         timeLabel: formatEventTimeLabel(event, lifecycleStatus),
         metaLabel: event?.location || 'Location unavailable',
         scopeLabel: event?.scope_label || '',
@@ -1109,7 +1084,7 @@ export function useGatherAttendance(previewSource = false) {
     return verification
   }
 
-  function captureVideoFrame() {
+  async function captureVideoFrameBlob() {
     const element = getCameraProcessingVideoEl()
     if (!element || element.videoWidth <= 0 || element.videoHeight <= 0) {
       throw new Error('Cannot verify face right now. Camera preview is not ready.')
@@ -1127,7 +1102,19 @@ export function useGatherAttendance(previewSource = false) {
     }
 
     ctx.drawImage(element, startX, startY, size, size, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL('image/jpeg', 0.92)
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Failed to capture a camera frame.'))
+            return
+          }
+          resolve(blob)
+        },
+        'image/jpeg',
+        0.92,
+      )
+    })
   }
 
   function upsertPreviewAttendanceRecord(record) {
@@ -1145,7 +1132,7 @@ export function useGatherAttendance(previewSource = false) {
     return normalizedRecord
   }
 
-  async function recordAttendance(imageDataUrl, coords) {
+  async function recordAttendance(imageBlob, coords) {
     const activeModel = selectedEvent.value
     const normalizedEventId = Number(activeModel?.id)
     if (!Number.isFinite(normalizedEventId)) {
@@ -1204,64 +1191,55 @@ export function useGatherAttendance(previewSource = false) {
       }
     }
 
-    const token = localStorage.getItem('aura_token')
-    if (!token) {
-      throw new Error('Your session has expired. Please sign in again.')
-    }
-
-    const rawBase64 = imageDataUrl.includes(',') ? imageDataUrl.split(',')[1] : imageDataUrl
-    const payload = {
+    const response = await submitPublicAttendanceScan({
       eventId: normalizedEventId,
-      studentId: studentId != null ? String(studentId) : '',
-      imageBase64: imageDataUrl,
-      latitude: coords?.latitude ?? null,
-      longitude: coords?.longitude ?? null,
-      accuracyM: coords?.accuracy ?? null,
+      imageBlob,
+      location: {
+        latitude: coords?.latitude ?? null,
+        longitude: coords?.longitude ?? null,
+        accuracyM: coords?.accuracy ?? null,
+      },
+      cooldownStudentIds: [],
+    })
+    const outcomeSummary = summarizeGatherScanOutcomes(response)
+    if (!outcomeSummary.successfulCount) {
+      throw new Error(
+        outcomeSummary.primaryOutcome?.message
+        || response?.message
+        || 'No eligible student faces were matched in this scan.',
+      )
     }
 
-    let result = null
-    try {
-      result = await postFaceScanAttendance(apiBaseUrl, token, payload)
-    } catch {
-      result = await postFaceScanAttendance(apiBaseUrl, token, {
-        ...payload,
-        imageBase64: rawBase64,
-      })
-    }
-
-    if (result && !result.ok) {
-      throw new Error(result.message || 'Cannot verify face right now.')
-    }
-
-    if (result?.geo?.time_status) {
+    if (response?.geo?.time_status) {
       eventTimeStatuses.value = {
         ...eventTimeStatuses.value,
-        [normalizedEventId]: result.geo.time_status,
+        [normalizedEventId]: response.geo.time_status,
       }
     }
-    if (result?.geo) {
-      locationCheck.value = result.geo
+    if (response?.geo) {
+      locationCheck.value = response.geo
     }
 
-    await refreshAttendanceRecords({ event_id: normalizedEventId }).catch(() => null)
-    const refreshedRecord = pickLatestAttendanceRecord(attendanceRecords.value, normalizedEventId)
-    const optimisticRecord = buildOptimisticAttendanceRecord({
-      result,
-      existingAttendanceRecord: refreshedRecord ?? activeModel.attendanceRecord,
-      eventId: normalizedEventId,
-      studentId,
-    })
-
-    if (optimisticRecord) {
-      upsertAttendanceRecordSnapshot(optimisticRecord)
-    }
+    const primaryOutcome = outcomeSummary.primaryOutcome
 
     return {
-      result,
-      attendanceRecord:
-        resolveAttendanceCompletionState(refreshedRecord) === 'completed'
-          ? refreshedRecord
-          : optimisticRecord,
+      result: {
+        ok: true,
+        action: primaryOutcome?.action || 'recorded',
+        time_in: primaryOutcome?.time_in ?? null,
+        time_out: primaryOutcome?.time_out ?? null,
+        student_name: primaryOutcome?.student_name ?? null,
+        student_id: primaryOutcome?.student_id ?? null,
+        message:
+          primaryOutcome?.message
+          || response?.message
+          || 'Gather scan processed successfully.',
+        detected_count: outcomeSummary.detectedCount,
+        recorded_count: outcomeSummary.successfulCount,
+        geo: response?.geo ?? null,
+      },
+      attendanceRecord: null,
+      outcomes: outcomeSummary.outcomes,
     }
   }
 
@@ -1359,8 +1337,7 @@ export function useGatherAttendance(previewSource = false) {
     clearTransientState()
 
     if (!selectedEvent.value.canSubmit) {
-      latestNotice.value = resolveBlockedStateModel(
-        selectedEvent.value.actionState,
+      latestNotice.value = resolveGatherBlockedStateModel(
         selectedEvent.value.actionLabel,
         selectedEvent.value.event,
         selectedEvent.value.timeStatus,
@@ -1385,37 +1362,47 @@ export function useGatherAttendance(previewSource = false) {
       await verifyCurrentLocation(coords)
 
       loadingMessage.value = `${selectedEvent.value.actionLabel}...`
-      const imageDataUrl = captureVideoFrame()
-      const { result, attendanceRecord } = await recordAttendance(imageDataUrl, coords)
+      const imageBlob = await captureVideoFrameBlob()
+      const { result } = await recordAttendance(imageBlob, coords)
       await refreshEventStatuses([selectedEvent.value.id]).catch(() => null)
 
-      const resolvedRecord = attendanceRecord ?? pickLatestAttendanceRecord(
-        activeAttendanceRecords.value,
-        selectedEvent.value.id,
-      )
-      const resolvedStatus =
-        result?.geo?.attendance_decision?.attendance_status
-        ?? resolveAttendanceDisplayStatus(resolvedRecord)
-      const completedAt = isSignOutAction(result?.action)
-        ? resolvedRecord?.time_out || result?.time_out
-        : resolvedRecord?.time_in || result?.time_in
+      const recordedCount = Number(result?.recorded_count) || 0
+      const detectedCount = Number(result?.detected_count) || recordedCount
+      const completedAt = result?.time_out || result?.time_in || new Date().toISOString()
+      const detectedLabel = String(detectedCount)
+      const recordedLabel = String(recordedCount)
+      const subtitle = recordedCount > 1
+        ? `${recordedLabel} students were recorded for ${selectedEvent.value.event.name}.`
+        : `Attendance recorded for ${selectedEvent.value.event.name}.`
 
       latestSuccess.value = {
-        message: 'Identity and location verified',
+        message: result?.message || 'Gather scan processed successfully.',
       }
       currentLocationError.value = ''
       successSheet.value = {
-        title: isSignOutAction(result?.action) ? 'Check out complete' : 'Check in complete',
-        subtitle: `Attendance recorded for ${selectedEvent.value.event.name}.`,
+        title: recordedCount > 1
+          ? 'Gather scan complete'
+          : (isSignOutAction(result?.action) ? 'Check out complete' : 'Check in complete'),
+        subtitle,
         rows: [
           {
-            label: 'Status',
-            value: formatAttendanceOutcome(resolvedStatus),
+            label: 'Recorded',
+            value: recordedLabel,
+          },
+          {
+            label: 'Detected',
+            value: detectedLabel,
           },
           {
             label: 'Time',
             value: formatTimestamp(completedAt || new Date().toISOString()),
           },
+          result?.student_name
+            ? {
+              label: 'Latest',
+              value: result.student_name,
+            }
+            : null,
           distanceLabel.value
             ? {
               label: 'Distance',

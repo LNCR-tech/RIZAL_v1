@@ -6,12 +6,10 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const base = resolveBasePath(env)
   const rawProxyTarget = String(env.VITE_BACKEND_PROXY_TARGET || '').trim().replace(/\/+$/, '')
   const proxyTarget = normalizeProxyTarget(rawProxyTarget)
 
   return {
-    base,
     plugins: [
       vue(),
       tailwindcss(),
@@ -43,37 +41,6 @@ export default defineConfig(({ mode }) => {
         },
   }
 })
-
-function resolveBasePath(env = {}) {
-  const configuredBasePath = String(
-    env.VITE_APP_BASE_PATH
-    || process.env.VITE_APP_BASE_PATH
-    || ''
-  ).trim()
-
-  if (configuredBasePath) {
-    return normalizeBasePath(configuredBasePath)
-  }
-
-  if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REPOSITORY) {
-    const [, repositoryName = ''] = String(process.env.GITHUB_REPOSITORY).split('/')
-    if (repositoryName) {
-      return `/${repositoryName}/`
-    }
-  }
-
-  return '/'
-}
-
-function normalizeBasePath(value = '/') {
-  const normalized = String(value || '/').trim()
-
-  if (!normalized || normalized === '/') {
-    return '/'
-  }
-
-  return `/${normalized.replace(/^\/+|\/+$/g, '')}/`
-}
 
 function normalizeProxyTarget(target) {
   if (!target) return ''

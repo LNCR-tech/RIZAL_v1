@@ -4,8 +4,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowManager;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
 
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -17,7 +15,6 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        hardenWebView();
         applyImmersiveMode();
     }
 
@@ -58,24 +55,5 @@ public class MainActivity extends BridgeActivity {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         );
         controller.hide(WindowInsetsCompat.Type.systemBars());
-    }
-
-    private void hardenWebView() {
-        WebView.setWebContentsDebuggingEnabled(false);
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        );
-
-        if (bridge == null || bridge.getWebView() == null) {
-            return;
-        }
-
-        WebSettings settings = bridge.getWebView().getSettings();
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            settings.setSafeBrowsingEnabled(true);
-        }
     }
 }

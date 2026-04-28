@@ -11,6 +11,7 @@ import {
   getLatestAttendanceRecordsByEvent,
   hasSignedInAttendance,
   hasSignedOutAttendance,
+  parseAttendanceDateTime,
   parseEventDateTime,
   resolveAttendanceActionState,
   resolveAttendanceDisplayStatus,
@@ -103,8 +104,8 @@ function formatTimeRange(event) {
 }
 
 function formatAttendanceDateTime(value) {
-  const parsed = parseValidEventDate(value)
-  return parsed ? attendanceDateTimeFormatter.format(parsed) : '--, --'
+  const parsed = parseAttendanceDateTime(value)
+  return Number.isFinite(parsed.getTime()) ? attendanceDateTimeFormatter.format(parsed) : '--, --'
 }
 
 function normalizeStatus(value) {

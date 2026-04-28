@@ -91,16 +91,6 @@ const nativeApiBaseUrl = normalizeAbsoluteUrl(
   env.VITE_NATIVE_API_BASE_URL || env.VITE_BACKEND_PROXY_TARGET
 )
 
-if (!nativeApiBaseUrl) {
-  console.warn(
-    'Aura Android build warning: no native API base URL is configured. Set VITE_NATIVE_API_BASE_URL or VITE_BACKEND_PROXY_TARGET before building the pilot APK.'
-  )
-} else if (nativeApiBaseUrl.startsWith('http://')) {
-  console.warn(
-    'Aura Android build warning: native API base URL is using cleartext HTTP. Use an HTTPS ngrok tunnel for pilot testing.'
-  )
-}
-
 const allowNavigation = Array.from(
   new Set(
     [

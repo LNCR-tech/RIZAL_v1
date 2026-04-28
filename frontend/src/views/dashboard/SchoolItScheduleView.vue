@@ -1,6 +1,7 @@
 <template>
-  <section class="school-it-schedule">
-    <div class="school-it-schedule__shell">
+  <div class="school-it-schedule-view">
+    <section class="school-it-schedule">
+      <div class="school-it-schedule__shell">
       <SchoolItTopHeader
         class="dashboard-enter dashboard-enter--1"
         :avatar-url="avatarUrl"
@@ -11,12 +12,12 @@
       />
 
       <div class="school-it-schedule__body">
-        <h1 class="school-it-schedule__title dashboard-enter dashboard-enter--2">Schedule</h1>
+        <h1 class="school-it-schedule__title dashboard-enter dashboard-enter--2">Students</h1>
 
         <div class="school-it-schedule__header-row dashboard-enter dashboard-enter--3">
           <div class="school-it-schedule__search-wrapper" :class="{ 'school-it-schedule__search-wrapper--hidden': isEventSettingsOpen }">
             <div class="school-it-schedule__search">
-              <input v-model="searchQuery" type="text" placeholder="Search events" class="school-it-schedule__search-input" />
+              <input v-model="searchQuery" type="text" placeholder="" class="school-it-schedule__search-input" />
               <button class="school-it-schedule__search-btn" type="button"><Search :size="18" :stroke-width="2.5" color="#bcf00e" /></button>
             </div>
           </div>
@@ -159,25 +160,26 @@
           </template>
         </section>
       </div>
-    </div>
-  </section>
+      </div>
+    </section>
 
-  <EventEditorSheet
-    :is-open="isEventEditorOpen"
-    :event="editingEvent"
-    title="Edit Event"
-    description="Update this event using the live backend event fields."
-    submit-label="Save Event"
-    :saving="isSavingEvent"
-    :error-message="eventEditorError"
-    @close="closeEventEditor"
-    @save="saveEventEdits"
-  />
+    <EventEditorSheet
+      :is-open="isEventEditorOpen"
+      :event="editingEvent"
+      title="Edit Event"
+      description="Update this event using the live backend event fields."
+      submit-label="Save Event"
+      :saving="isSavingEvent"
+      :error-message="eventEditorError"
+      @close="closeEventEditor"
+      @save="saveEventEdits"
+    />
+  </div>
 </template>
 
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ArrowRight, Search, Pencil, Trash2, Settings } from 'lucide-vue-next'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import EventEditorSheet from '@/components/events/EventEditorSheet.vue'
@@ -201,7 +203,6 @@ const props = defineProps({
 })
 
 const router = useRouter()
-const route = useRoute()
 const {
   currentUser,
   schoolSettings,
@@ -213,7 +214,6 @@ const authMeta = useStoredAuthMeta()
 
 const searchQuery = ref('')
 const isEventSettingsOpen = ref(false)
-const isPreviewWorkspace = computed(() => props.preview || route.path.startsWith('/exposed/workspace'))
 
 const eventSettingsForm = ref({
   earlyCheckIn: 30,
@@ -221,8 +221,8 @@ const eventSettingsForm = ref({
   signOutGrace: 30,
 })
 
-const activeUser = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.user : currentUser.value)
-const activeSchoolSettings = computed(() => isPreviewWorkspace.value ? schoolItPreviewData.schoolSettings : schoolSettings.value)
+const activeUser = computed(() => props.preview ? schoolItPreviewData.user : currentUser.value)
+const activeSchoolSettings = computed(() => props.preview ? schoolItPreviewData.schoolSettings : schoolSettings.value)
 
 watch(() => activeSchoolSettings.value, (settings) => {
   if (settings) {
@@ -281,16 +281,14 @@ const EVENT_SWIPE_GESTURE_THRESHOLD = 8
 const hasOpenEventSwipe = computed(() => Object.values(eventSwipeOffsets.value).some((offset) => offset > 0))
 
 onMounted(() => {
-  if (!isPreviewWorkspace.value) {
-    initializeDashboardSession()
-      .then(() => {
-        if (!schoolSettings.value) {
-          return refreshSchoolSettings().catch(() => null)
-        }
-        return null
-      })
-      .catch(() => null)
-  }
+  initializeDashboardSession()
+    .then(() => {
+      if (!schoolSettings.value) {
+        return refreshSchoolSettings().catch(() => null)
+      }
+      return null
+    })
+    .catch(() => null)
   fetchEvents()
   document.addEventListener('pointerdown', handleDocumentPointerDown)
 })
@@ -301,7 +299,7 @@ onBeforeUnmount(() => {
 
 async function fetchEvents() {
   isLoadingEvents.value = true
-  if (isPreviewWorkspace.value) {
+  if (props.preview) {
     eventsList.value = [
       { id: 1, name: 'Welcome Freshmen' },
       { id: 2, name: 'Intramurals 2026' },
@@ -330,7 +328,7 @@ function toggleEventSettings() {
 }
 
 async function saveSettings() {
-  if (isPreviewWorkspace.value) return
+  if (props.preview) return
   try {
     const token = localStorage.getItem('aura_token') || ''
     const payload = {
@@ -392,7 +390,7 @@ function onSettingsAfterLeave(element) {
 }
 
 function goToMonitor() {
-  if (isPreviewWorkspace.value) {
+  if (props.preview) {
     router.push({ name: 'PreviewSchoolItAttendanceMonitor' })
   } else {
     router.push({ name: 'SchoolItAttendanceMonitor' })
@@ -400,7 +398,7 @@ function goToMonitor() {
 }
 
 function goToReports() {
-  if (isPreviewWorkspace.value) {
+  if (props.preview) {
     router.push({ name: 'PreviewSchoolItEventReports' })
   } else {
     router.push({ name: 'SchoolItEventReports' })
@@ -414,7 +412,7 @@ function canManageEvent(event) {
 
 function openEvent(event) {
   if (!event?.id) return
-  if (isPreviewWorkspace.value) {
+  if (props.preview) {
     router.push({
       name: 'PreviewSchoolItEventReports',
       query: { eventId: String(event.id) },
@@ -445,7 +443,7 @@ async function deleteEvent(event) {
   closeAllEventSwipes()
 
   try {
-    if (!isPreviewWorkspace.value) {
+    if (!props.preview) {
       const token = localStorage.getItem('aura_token') || ''
       await deleteBackendEvent(resolveApiBaseUrl(), token, event.id)
     }
@@ -488,7 +486,7 @@ async function saveEventEdits(payload) {
   eventEditorError.value = ''
 
   try {
-    if (isPreviewWorkspace.value) {
+    if (props.preview) {
       replaceEventInList({
         ...editingEvent.value,
         ...payload,
@@ -535,7 +533,8 @@ function closeAllEventSwipes() {
 
 function handleDocumentPointerDown(event) {
   if (!hasOpenEventSwipe.value) return
-  if (event.target.closest('.school-it-schedule__swipe')) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.school-it-schedule__swipe')) return
   closeAllEventSwipes()
 }
 
@@ -613,7 +612,7 @@ function onEventPointerCancel(eventId, event) {
   min-height: 100vh;
   padding: 30px 28px 120px;
   font-family: 'Manrope', sans-serif;
-  background: var(--color-bg);
+  background: var(--color-bg, #f3f4f6);
 }
 
 .school-it-schedule__shell {

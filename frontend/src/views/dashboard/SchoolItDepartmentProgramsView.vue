@@ -999,7 +999,6 @@ function isProgramInteractiveTarget(target) {
   min-height: 100vh;
   padding: 30px 28px 120px;
   font-family: 'Manrope', sans-serif;
-  background: var(--color-bg);
 }
 
 .school-it-department-programs__shell {

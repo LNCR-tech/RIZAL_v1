@@ -85,7 +85,7 @@
             @click="toggleAi"
           >
             <img :src="secondaryAuraLogo" alt="Aura" class="mobile-dashboard__ai-logo">
-            <span class="mobile-dashboard__ai-copy">Aura AI<br>Soon</span>
+            <span class="mobile-dashboard__ai-copy">Talk to<br>Aura Ai</span>
           </button>
         </div>
 
@@ -106,16 +106,16 @@
                 ref="mobileInputEl"
                 v-model="inputText"
                 type="text"
-                :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
+                placeholder="Ask Aura..."
                 class="mobile-dashboard__ai-field"
-                :disabled="isTyping || isAuraChatUnderDevelopment"
+                :disabled="isTyping"
                 @keyup.enter="sendMessage"
               >
               <button
                 class="mobile-dashboard__ai-send"
                 type="button"
                 aria-label="Send message"
-                :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
+                :disabled="!inputText.trim() || isTyping"
                 @click="sendMessage"
               >
                 <Send :size="15" />
@@ -209,7 +209,7 @@ const tabs = [
 ]
 
 const { currentUser, events, attendanceRecords, hasAttendanceForEvent, hasOpenAttendanceForEvent } = useDashboardSession()
-const { isAuraChatUnderDevelopment, messages, inputText, isTyping, scrollEl, sendMessage, closeAll } = useChat()
+const { messages, inputText, isTyping, scrollEl, sendMessage, closeAll } = useChat()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
 const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
@@ -303,9 +303,7 @@ const chartBars = computed(() => buildChartBars(latestAttendanceRecords.value, a
 watch(isAiOpen, (open) => {
   if (open) {
     closeAll()
-    if (!isAuraChatUnderDevelopment.value) {
-      nextTick(() => setTimeout(() => mobileInputEl.value?.focus(), 120))
-    }
+    nextTick(() => setTimeout(() => mobileInputEl.value?.focus(), 120))
   }
 })
 

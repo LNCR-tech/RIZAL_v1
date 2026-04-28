@@ -315,7 +315,7 @@
 
             <p class="school-it-program-students__sheet-note">
               The backend creates the student account, links the student to this college and program,
-              and sets the default password to the student's last name. No password email is sent.
+              generates a temporary password, and sends that password through the welcome email.
             </p>
 
             <p
@@ -1293,7 +1293,7 @@ async function handleAddStudent() {
     let createdStudent = null
     let studentIdSaveError = null
 
-    sheetMessage.value = 'Creating student account...'
+    sheetMessage.value = 'Creating student account and sending welcome email...'
     createdUser = await createStudentAccount(apiBaseUrl.value, token, {
       email: draft.email,
       first_name: draft.firstName,
@@ -1348,21 +1348,21 @@ async function finalizeCreatedStudentCreation(creationOutcome, draft) {
     ? `${resolveStudentUpdateError(studentIdSaveError)} You can finish the student ID from Edit Student without recreating the account.`
     : ''
   const emailStatus = studentIdFollowUpMessage
-    ? `The backend created the account with the student's last name as the default password, but the requested student ID still needs follow-up. ${studentIdFollowUpMessage}`
-    : "The backend created the account with the student's last name as the default password. No password email was sent."
+    ? `The backend created the account and sent the temporary password by welcome email, but the requested student ID still needs follow-up. ${studentIdFollowUpMessage}`
+    : 'The backend created the account and sent the generated temporary password to the student email address.'
 
   applyCreatedStudent(resolvedCreatedStudent)
   refreshSchoolItWorkspaceData().catch(() => {})
   feedbackTone.value = 'info'
   feedbackMessage.value = `${draft.firstName} ${draft.lastName} was added to ${selectedProgram.value.name}.`
-  feedbackDetail.value = studentIdFollowUpMessage || "The student can sign in with their last name as the default password."
+  feedbackDetail.value = studentIdFollowUpMessage || 'The temporary password was delivered through the welcome email.'
   createdStudentSummary.value = {
     fullName: `${draft.firstName} ${draft.lastName}`.trim(),
     studentIdValue,
     email: draft.email,
     departmentName: selectedDepartment.value.name,
     programName: selectedProgram.value.name,
-    deliveryValue: 'Default password: last name',
+    deliveryValue: 'Temporary password sent by email',
     emailStatus,
   }
 }
@@ -1529,7 +1529,7 @@ function resolveStudentCreationError(error) {
   }
 
   if (error.status === 502) {
-    return error.message || 'The backend could not create the student account.'
+    return error.message || 'The backend could not deliver the welcome email, so the student account was not created.'
   }
 
   return error.message || 'Unable to add this student right now.'

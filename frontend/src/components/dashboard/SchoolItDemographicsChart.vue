@@ -12,7 +12,7 @@
 
     <!-- The Chart Area -->
     <div class="demographics-chart__body">
-      <div v-if="hasData" class="demographics-chart__ring-container">
+      <div class="demographics-chart__ring-container">
         <!-- Pointers (Pseudo-elements or absolute positioned spans based on data order for top/left/right approx if wanted, but standard donut is fine) -->
         <div v-for="(segment, index) in renderedSegments" :key="`ptr-${segment.id}`"
              class="demographics-chart__pointer"
@@ -43,21 +43,10 @@
           <span class="demographics-chart__total">{{ formattedTotal }}</span>
         </div>
       </div>
-      
-      <div v-else class="demographics-chart__empty">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="demographics-chart__empty-icon">
-          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-        <p class="demographics-chart__empty-text">No student data available</p>
-        <p class="demographics-chart__empty-hint">Import students to see demographics</p>
-      </div>
     </div>
 
     <!-- Legend -->
-    <div v-if="hasData" class="demographics-chart__legend">
+    <div class="demographics-chart__legend">
       <div v-for="item in normalizedItems" :key="item.id" class="demographics-chart__legend-item">
         <span class="demographics-chart__legend-dot" :style="{ background: item.color }"></span>
         <span class="demographics-chart__legend-label">{{ item.shortLabel }}</span>
@@ -86,8 +75,6 @@ const circumference = 2 * Math.PI * radius
 const startAngle = -90
 
 const formattedTotal = computed(() => new Intl.NumberFormat('en-US').format(props.total))
-
-const hasData = computed(() => props.total > 0 && Array.isArray(props.items) && props.items.length > 0)
 
 const normalizedItems = computed(() => {
   return Array.isArray(props.items)
@@ -279,33 +266,5 @@ const renderedSegments = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.demographics-chart__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  text-align: center;
-  min-height: 220px;
-}
-
-.demographics-chart__empty-icon {
-  color: var(--color-text-muted, #a3a3a3);
-  margin-bottom: 16px;
-}
-
-.demographics-chart__empty-text {
-  margin: 0 0 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #525252);
-}
-
-.demographics-chart__empty-hint {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-text-muted, #a3a3a3);
 }
 </style>

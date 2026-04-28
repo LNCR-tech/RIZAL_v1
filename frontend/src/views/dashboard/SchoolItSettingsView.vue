@@ -505,7 +505,7 @@ function abbreviateName(value, maxLetters = 4) {
 </script>
 
 <style scoped>
-.school-it-settings{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif;background:var(--color-bg)}
+.school-it-settings{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
 .school-it-settings__shell{width:100%;max-width:1120px;margin:0 auto}
 .school-it-settings__body{display:flex;flex-direction:column;gap:18px;max-width:560px;margin:24px auto 0}
 .school-it-settings__preview-card,.school-it-settings__logo-card,.school-it-settings__color-card{background:var(--color-surface);border-radius:32px;box-shadow:0 18px 40px rgba(15,23,42,.04)}

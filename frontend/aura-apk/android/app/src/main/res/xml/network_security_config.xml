@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
@@ -11,12 +11,6 @@
         <domain includeSubdomains="true">ngrok.dev</domain>
         <domain includeSubdomains="true">ngrok-free.app</domain>
         <domain includeSubdomains="true">ngrok.app</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-    </domain-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">18.142.190.113</domain>
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

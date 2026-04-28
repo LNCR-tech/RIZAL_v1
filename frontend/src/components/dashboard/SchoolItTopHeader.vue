@@ -138,16 +138,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .school-it-top-header{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:clamp(10px,3.6vw,16px)}
-.school-it-top-header__profile{display:flex;align-items:center;min-width:0;max-width:min(100%,clamp(188px,68vw,360px));min-height:52px;padding:7px clamp(10px,2.8vw,12px) 7px 7px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);transition:max-width .3s ease,padding .3s ease,box-shadow .24s ease,transform .18s ease;cursor:pointer;overflow:hidden;justify-self:start;box-shadow:0 10px 22px rgba(15,23,42,.04)}
-.school-it-top-header__profile--expanded{max-width:min(100%,clamp(238px,82vw,440px))}
+.school-it-top-header__profile{display:flex;align-items:center;min-width:0;max-width:min(100%,clamp(162px,56vw,228px));min-height:52px;padding:7px clamp(10px,2.8vw,12px) 7px 7px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);transition:max-width .3s ease,padding .3s ease,box-shadow .24s ease,transform .18s ease;cursor:pointer;overflow:hidden;justify-self:start;box-shadow:0 10px 22px rgba(15,23,42,.04)}
+.school-it-top-header__profile--expanded{max-width:min(100%,clamp(220px,76vw,292px))}
 .school-it-top-header__profile-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
 .school-it-top-header__avatar-wrap{position:relative;display:inline-flex;flex-shrink:0}
 .school-it-top-header__avatar{width:38px;height:38px;border-radius:999px;object-fit:cover;flex-shrink:0}
 .school-it-top-header__avatar--fallback{display:inline-flex;align-items:center;justify-content:center;background:var(--color-nav);color:var(--color-nav-text);font-size:13px;font-weight:700}
 .school-it-top-header__status-dot{position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:999px;background:var(--color-primary);border:2px solid var(--color-surface)}
-.school-it-top-header__profile-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1;text-align:left;overflow:hidden}
+.school-it-top-header__profile-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1;text-align:left}
 .school-it-top-header__eyebrow{font-size:10px;font-weight:500;color:var(--color-text-muted);white-space:nowrap}
-.school-it-top-header__name{margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(11px,3.1vw,13px);font-weight:700;line-height:1.08;color:var(--color-text-always-dark);letter-spacing:-.02em}
+.school-it-top-header__name{margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700;line-height:1.08;color:var(--color-text-always-dark);letter-spacing:-.02em}
 .school-it-top-header__signout{display:inline-flex;align-items:center;overflow:hidden;max-width:0;min-width:0;opacity:0;margin-left:0;white-space:nowrap;transition:max-width .3s ease,opacity .25s ease,margin .3s ease;color:#D92D20;cursor:pointer;flex-shrink:1}
 .school-it-top-header__signout-label{margin-left:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;letter-spacing:-.02em}
 .school-it-top-header__profile--expanded .school-it-top-header__signout{max-width:min(36vw,118px);opacity:1;margin-left:clamp(8px,2.4vw,16px)}
@@ -158,13 +158,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 420px){
   .school-it-top-header{gap:10px}
-  .school-it-top-header__profile{max-width:min(100%,clamp(174px,68vw,252px))}
-  .school-it-top-header__profile--expanded{max-width:min(100%,clamp(218px,82vw,310px))}
+  .school-it-top-header__profile{max-width:min(100%,clamp(150px,58vw,204px))}
+  .school-it-top-header__profile--expanded{max-width:min(100%,clamp(204px,74vw,252px))}
 }
 
 @media (max-width: 360px){
-  .school-it-top-header__profile{padding-right:8px;min-height:50px;max-width:min(100%,clamp(158px,66vw,218px))}
-  .school-it-top-header__profile--expanded{max-width:min(100%,clamp(198px,82vw,278px))}
+  .school-it-top-header__profile{padding-right:8px;min-height:50px;max-width:min(100%,clamp(142px,60vw,188px))}
+  .school-it-top-header__profile--expanded{max-width:min(100%,clamp(188px,76vw,234px))}
   .school-it-top-header__profile-main{gap:8px}
   .school-it-top-header__avatar{width:36px;height:36px}
   .school-it-top-header__avatar--fallback{font-size:12px}

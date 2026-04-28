@@ -5,8 +5,8 @@ $fallbackSource = Join-Path $PSScriptRoot "public\logos\aura.png"
 $source = if (Test-Path $preferredSource) { $preferredSource } else { $fallbackSource }
 $resBase = Join-Path $PSScriptRoot "aura-apk\android\app\src\main\res"
 $img = [System.Drawing.Image]::FromFile($source)
-$legacyIconInsetRatio = 0.15
-$adaptiveForegroundInsetRatio = 0.28
+$legacyIconInsetRatio = 0.10
+$adaptiveForegroundInsetRatio = 0.18
 Write-Host "Source: $($img.Width)x$($img.Height)"
 
 function Resize-Image($srcImg, $width, $height, $outFile) {
@@ -76,7 +76,7 @@ foreach ($d in $densities) {
     
     Draw-ContainedImage $img $s $s (Join-Path $dir "ic_launcher.png") $legacyIconInsetRatio ([System.Drawing.Color]::Black)
     Draw-ContainedImage $img $s $s (Join-Path $dir "ic_launcher_round.png") $legacyIconInsetRatio ([System.Drawing.Color]::Black)
-    Draw-ContainedImage $img $fg $fg (Join-Path $dir "ic_launcher_foreground.png") $adaptiveForegroundInsetRatio ([System.Drawing.Color]::Black)
+    Draw-ContainedImage $img $fg $fg (Join-Path $dir "ic_launcher_foreground.png") $adaptiveForegroundInsetRatio $null
     
     Write-Host "OK: $($d.name) - icon:${s}x${s}, fg:${fg}x${fg}"
 }
