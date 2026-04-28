@@ -12,38 +12,6 @@ export function useLoginViewModel() {
   const router = useRouter()
   const { login, isLoading, error } = useAuth()
   const visibleMessage = computed(() => error.value || sessionNotice.value)
-  const previewRoles = [
-    {
-      id: 'student-ssg',
-      label: 'Student + SSG',
-      description: 'Student dashboard with SSG switch flow',
-      location: { name: 'PreviewHome', query: { variant: 'ssg' } },
-    },
-    {
-      id: 'sg',
-      label: 'SG',
-      description: 'College-level council workspace',
-      location: { name: 'PreviewSgDashboard', query: { variant: 'sg' } },
-    },
-    {
-      id: 'ssg',
-      label: 'SSG',
-      description: 'Campus-wide council workspace',
-      location: { name: 'PreviewSgDashboard', query: { variant: 'ssg' } },
-    },
-    {
-      id: 'campus-admin',
-      label: 'Campus Admin',
-      description: 'School IT workspace preview',
-      location: { name: 'PreviewSchoolItHome' },
-    },
-    {
-      id: 'admin',
-      label: 'Admin',
-      description: 'Platform admin workspace',
-      location: { name: 'PreviewAdminHome' },
-    },
-  ]
 
   onBeforeMount(() => {
     applyTheme(loadUnbrandedTheme())
@@ -61,12 +29,8 @@ export function useLoginViewModel() {
     await login(email.value, password.value)
   }
 
-  function openQuickAttendance() {
-    router.push({ name: 'QuickAttendance' })
-  }
-
-  function openRolePreview(location) {
-    router.push(location)
+  function goToForgotPassword() {
+    router.push({ name: 'ForgotPassword' })
   }
 
   return {
@@ -75,9 +39,7 @@ export function useLoginViewModel() {
     isMounted,
     isLoading,
     visibleMessage,
-    previewRoles,
     handleLogin,
-    openQuickAttendance,
-    openRolePreview,
+    goToForgotPassword,
   }
 }

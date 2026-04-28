@@ -14,18 +14,22 @@
       <main class="mobile-login__sheet">
         <div class="mobile-login__content">
           <h1 class="mobile-login__title">
-            Log In.
+            Find your account
           </h1>
 
-          <form class="mobile-login__form" @submit.prevent="handleLogin">
+          <p class="mobile-login__subtitle">
+            Enter your email to reset your password.
+          </p>
+
+          <form class="mobile-login__form" @submit.prevent="handleSubmit">
             <label class="mobile-login__field">
-              <span class="sr-only">Gmail</span>
+              <span class="sr-only">Email</span>
               <input
                 id="email"
                 v-model="email"
                 class="mobile-login__input"
                 type="email"
-                placeholder="Gmail"
+                placeholder="Email"
                 autocomplete="email"
                 autocapitalize="none"
                 spellcheck="false"
@@ -33,49 +37,9 @@
               >
             </label>
 
-            <label class="mobile-login__field mobile-login__field--password">
-              <span class="sr-only">Password</span>
-              <input
-                id="password"
-                v-model="password"
-                class="mobile-login__input"
-                :type="passwordVisible ? 'text' : 'password'"
-                placeholder="Password"
-                autocomplete="current-password"
-                :disabled="isLoading"
-              >
-
-              <button
-                type="button"
-                class="mobile-login__field-action"
-                :aria-label="passwordVisible ? 'Hide password' : 'Show password'"
-                :disabled="isLoading"
-                @click="togglePasswordVisibility"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M1.5 12s3.75-6.75 10.5-6.75S22.5 12 22.5 12 18.75 18.75 12 18.75 1.5 12 1.5 12Z"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.6"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="3.2"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                  />
-                </svg>
-              </button>
-            </label>
-
             <Transition name="login-message">
-              <p v-if="visibleMessage" class="mobile-login__message">
-                {{ visibleMessage }}
+              <p v-if="message" :class="messageClass">
+                {{ message }}
               </p>
             </Transition>
 
@@ -84,18 +48,17 @@
               class="mobile-login__button mobile-login__button--primary"
               :disabled="isLoading"
             >
-              {{ isLoading ? 'Logging In...' : 'Log In' }}
+              {{ isLoading ? 'Processing...' : 'Reset Password' }}
             </button>
 
-            <div class="mobile-login__forgot-password">
-              <a
-                href="#"
-                class="mobile-login__forgot-link"
-                @click.prevent="goToForgotPassword"
-              >
-                Forgot password?
-              </a>
-            </div>
+            <button
+              type="button"
+              class="mobile-login__button mobile-login__button--secondary"
+              :disabled="isLoading"
+              @click="goBack"
+            >
+              Back to Login
+            </button>
           </form>
         </div>
 
@@ -114,11 +77,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import logBackground from '@/assets/images/login_bg.jpg'
-import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
+import { useForgotPasswordViewModel } from '@/composables/useForgotPasswordViewModel.js'
 
-const passwordVisible = ref(false)
 const auraLogoWhite = '/logos/aura_logo_white.png'
 const heroBackgroundStyle = {
   backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.32) 100%), url(${logBackground})`,
@@ -126,17 +87,13 @@ const heroBackgroundStyle = {
 
 const {
   email,
-  password,
-  isMounted,
   isLoading,
-  visibleMessage,
-  handleLogin,
-  goToForgotPassword,
-} = useLoginViewModel()
-
-function togglePasswordVisibility() {
-  passwordVisible.value = !passwordVisible.value
-}
+  message,
+  messageClass,
+  isMounted,
+  handleSubmit,
+  goBack,
+} = useForgotPasswordViewModel()
 </script>
 
 <style scoped>
@@ -265,12 +222,19 @@ function togglePasswordVisibility() {
 }
 
 .mobile-login__title {
-  margin: 0 0 42px;
+  margin: 0 0 16px;
   font-size: clamp(2rem, 6.4vw, 2.3rem);
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1.02;
   color: #111111;
+}
+
+.mobile-login__subtitle {
+  margin: 0 0 32px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgba(17, 17, 17, 0.68);
 }
 
 .mobile-login__form {
@@ -286,10 +250,6 @@ function togglePasswordVisibility() {
   min-height: 42px;
   padding: 0 4px 10px;
   border-bottom: 1.4px solid rgba(15, 15, 15, 0.34);
-}
-
-.mobile-login__field--password {
-  padding-right: 40px;
 }
 
 .mobile-login__input {
@@ -314,37 +274,15 @@ function togglePasswordVisibility() {
   opacity: 0.56;
 }
 
-.mobile-login__field-action {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  margin-top: -16px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(17, 17, 17, 0.84);
-  padding: 0;
-}
-
-.mobile-login__field-action:disabled {
-  opacity: 0.48;
-}
-
-.mobile-login__field-action svg {
-  width: 21px;
-  height: 21px;
-}
-
 .mobile-login__message {
   margin: -6px 0 0;
   font-size: 0.78rem;
   line-height: 1.45;
   color: #c33232;
+}
+
+.mobile-login__message--success {
+  color: #2d7a3e;
 }
 
 .mobile-login__button {
@@ -389,25 +327,6 @@ function togglePasswordVisibility() {
   color: #161616;
 }
 
-.mobile-login__forgot-password {
-  display: flex;
-  justify-content: center;
-  margin-top: 8px;
-}
-
-.mobile-login__forgot-link {
-  font-size: 0.88rem;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  color: rgba(16, 16, 16, 0.72);
-  text-decoration: none;
-  transition: color 0.18s ease;
-}
-
-.mobile-login__forgot-link:active {
-  color: #0c0c0c;
-}
-
 .mobile-login__footer {
   display: flex;
   justify-content: center;
@@ -425,12 +344,6 @@ function togglePasswordVisibility() {
   color: rgba(16, 16, 16, 0.72);
   text-decoration: none;
   transition: color 0.18s ease;
-}
-
-.mobile-login__footer-link--button {
-  border: 0;
-  background: transparent;
-  padding: 0;
 }
 
 .mobile-login__footer-link:active {
@@ -455,7 +368,11 @@ function togglePasswordVisibility() {
   }
 
   .mobile-login__title {
-    margin-bottom: 34px;
+    margin-bottom: 12px;
+  }
+
+  .mobile-login__subtitle {
+    margin-bottom: 28px;
   }
 
   .mobile-login__footer {

@@ -7,38 +7,35 @@
           style="color: var(--color-text-primary);"
           :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
         >
-          Welcome to the portal. Log in to access your dashboard.
+          Find your account
         </h1>
+
+        <p 
+          class="text-[14px] leading-[1.5] transition-all duration-700 delay-75 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style="color: var(--color-text-secondary);"
+          :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
+        >
+          Enter your email to reset your password.
+        </p>
 
         <form
           class="flex flex-col gap-3 transition-all duration-700 delay-100 ease-[cubic-bezier(0.22,1,0.36,1)] relative"
           :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
-          @submit.prevent="handleLogin"
+          @submit.prevent="handleSubmit"
         >
           <BaseInput
             id="email"
             v-model="email"
             type="email"
-            placeholder="Gmail"
+            placeholder="Email"
             autocomplete="email"
             tone="neutral"
             :disabled="isLoading"
           />
 
-          <BaseInput
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="Password"
-            autocomplete="current-password"
-            tone="neutral"
-            :disabled="isLoading"
-            @enter="handleLogin"
-          />
-
           <Transition name="fade">
-            <p v-if="visibleMessage" class="text-red-500 text-xs text-center mt-1">
-              {{ visibleMessage }}
+            <p v-if="message" :class="messageClass">
+              {{ message }}
             </p>
           </Transition>
 
@@ -49,19 +46,18 @@
             class="mt-1 group"
             :loading="isLoading"
           >
-            Log In
+            Reset Password
           </BaseButton>
 
-          <div class="text-center mt-2">
-            <a
-              href="#"
-              class="text-[13px] font-medium transition-colors"
-              style="color: var(--color-text-secondary);"
-              @click.prevent="goToForgotPassword"
-            >
-              Forgot password?
-            </a>
-          </div>
+          <BaseButton
+            type="button"
+            variant="secondary"
+            size="md"
+            :disabled="isLoading"
+            @click="goBack"
+          >
+            Back to Login
+          </BaseButton>
         </form>
 
         <div
@@ -101,17 +97,17 @@
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { surfaceAuraLogo } from '@/config/theme.js'
-import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
+import { useForgotPasswordViewModel } from '@/composables/useForgotPasswordViewModel.js'
 
 const {
   email,
-  password,
-  isMounted,
   isLoading,
-  visibleMessage,
-  handleLogin,
-  goToForgotPassword,
-} = useLoginViewModel()
+  message,
+  messageClass,
+  isMounted,
+  handleSubmit,
+  goBack,
+} = useForgotPasswordViewModel()
 </script>
 
 <style scoped>
