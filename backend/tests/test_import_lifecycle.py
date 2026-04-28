@@ -77,12 +77,23 @@ def test_import_start_returns_job_id(import_job_id):
     assert import_job_id is not None
 
 
-def test_import_status(client, campus_admin_headers, import_job_id):
+def test_import_status(client, campus_admin_headers, import_job_id, db_session):
     r = client.get(f"/api/admin/import-status/{import_job_id}", headers=campus_admin_headers)
     assert r.status_code == 200
     data = r.json()
     assert "state" in data
-    assert data["state"] in ("pending", "running", "completed", "failed")
+    # With eager mode the job runs synchronously — it must be completed by now
+    assert data["state"] == "completed", f"Expected completed, got: {data['state']}"
+    assert data.get("success_count", 0) >= 1
+
+
+def test_import_creates_student(client, campus_admin_headers, import_job_id, db_session):
+    """Verify the import actually inserted a student user into the database."""
+    from app.models.user import User
+    student = db_session.query(User).filter(
+        User.email.like("importtest%@test.com")
+    ).first()
+    assert student is not None, "Imported student user was not found in the database"
 
 
 def test_import_status_requires_auth(client, import_job_id):

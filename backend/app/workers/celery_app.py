@@ -3,6 +3,8 @@ Where to use: Use this when starting Celery workers or beat with the current wor
 Role: Worker setup layer. It configures background task execution.
 """
 
+import os
+
 from celery import Celery
 
 from app.core.config import get_settings
@@ -16,6 +18,8 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    task_always_eager=os.environ.get("CELERY_TASK_ALWAYS_EAGER", "false").lower() == "true",
+    task_eager_propagates=True,
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",

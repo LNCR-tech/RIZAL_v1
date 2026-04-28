@@ -9,6 +9,7 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 os.environ.setdefault("RATE_LIMIT_FAIL_OPEN", "true")
 os.environ.setdefault("FACE_SCAN_BYPASS_ALL", "true")
 os.environ.setdefault("PRIVILEGED_FACE_VERIFICATION_ENABLED", "false")
+os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
 os.environ.setdefault("EMAIL_TRANSPORT", "disabled")
 os.environ.setdefault("API_DOCS_ENABLED", "true")
 
