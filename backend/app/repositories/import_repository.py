@@ -168,7 +168,7 @@ class ImportRepository:
         )
 
     def get_student_role_id(self) -> int:
-        role = self.db.query(Role).filter(Role.name == "student").first()
+        role = self.db.query(Role).filter(Role.code == "student").first()
         if not role:
             raise RuntimeError("Role 'student' is missing")
         return role.id

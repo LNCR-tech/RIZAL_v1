@@ -98,7 +98,7 @@ def test_import_creates_student(client, campus_admin_headers, import_job_id, db_
     from app.core.database import SessionLocal
     with SessionLocal() as fresh_db:
         job = fresh_db.query(BulkImportJob).filter_by(id=import_job_id).first()
-        job_error = job.error_message if job else "job not found"
+        job_error = job.error_summary if job else "job not found"
         student = fresh_db.query(User).filter(
             User.email.like("importtest%@test.com")
         ).first()
