@@ -7,13 +7,12 @@
 
 BEGIN;
 
-CREATE SCHEMA IF NOT EXISTS aura_norm;
-SET search_path TO aura_norm, public;
+CREATE SCHEMA IF NOT EXISTS public;
+SET search_path TO public, public;
 
 -- ---------------------------------------------------------------------------
 -- Extensions
 -- ---------------------------------------------------------------------------
-CREATE EXTENSION IF NOT EXISTS citext;
 
 -- ---------------------------------------------------------------------------
 -- Lookup / reference tables
@@ -170,7 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_school_subscription_reminders_school_due
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   school_id BIGINT REFERENCES schools(id) ON DELETE CASCADE,
-  email CITEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   prefix TEXT,
   first_name TEXT,
@@ -180,6 +179,7 @@ CREATE TABLE IF NOT EXISTS users (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
   should_prompt_password_change BOOLEAN NOT NULL DEFAULT FALSE,
+  using_default_import_password BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -249,19 +249,6 @@ CREATE TABLE IF NOT EXISTS user_security_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS user_face_profiles (
-  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  face_encoding BYTEA NOT NULL,
-  provider TEXT NOT NULL,
-  embedding_dtype TEXT,
-  embedding_dimension INTEGER,
-  embedding_normalized BOOLEAN NOT NULL DEFAULT TRUE,
-  reference_image_sha256 CHAR(64),
-  last_verified_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -291,7 +278,7 @@ CREATE TABLE IF NOT EXISTS login_history (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   school_id BIGINT REFERENCES schools(id) ON DELETE SET NULL,
-  email_attempted CITEXT NOT NULL,
+  email_attempted TEXT NOT NULL,
   success BOOLEAN NOT NULL DEFAULT FALSE,
   auth_method TEXT NOT NULL DEFAULT 'password',
   failure_reason TEXT,
@@ -367,6 +354,24 @@ CREATE TABLE IF NOT EXISTS faculty_profiles (
   user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   department_id BIGINT REFERENCES departments(id) ON DELETE SET NULL,
   program_id BIGINT REFERENCES programs(id) ON DELETE SET NULL
+);
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS student_face_embeddings (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  school_id BIGINT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  student_profile_id BIGINT NOT NULL UNIQUE REFERENCES student_profiles(id) ON DELETE CASCADE,
+  department_id BIGINT REFERENCES departments(id) ON DELETE SET NULL,
+  program_id BIGINT REFERENCES programs(id) ON DELETE SET NULL,
+  embedding vector(512) NOT NULL,
+  provider VARCHAR(32) NOT NULL DEFAULT 'arcface',
+  embedding_dtype VARCHAR(16) NOT NULL DEFAULT 'float32',
+  embedding_dimension INTEGER NOT NULL DEFAULT 512,
+  embedding_normalized BOOLEAN NOT NULL DEFAULT TRUE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -699,7 +704,7 @@ CREATE TABLE IF NOT EXISTS email_delivery_logs (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   job_id UUID REFERENCES bulk_import_jobs(id) ON DELETE SET NULL,
   user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-  email CITEXT NOT NULL,
+  email TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('queued', 'sent', 'failed')),
   error_message TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0 CHECK (retry_count >= 0),
@@ -741,7 +746,7 @@ CREATE TABLE IF NOT EXISTS password_reset_requests (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   school_id BIGINT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-  requested_email CITEXT NOT NULL,
+  requested_email TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'denied', 'completed')),
   requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at TIMESTAMPTZ,

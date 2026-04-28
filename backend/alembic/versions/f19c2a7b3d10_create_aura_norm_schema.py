@@ -68,12 +68,9 @@ def _load_normalized_schema_sql() -> str:
     
     # Define possible locations for schema.sql
     possible_paths = [
-        # Relative to this script (inside backend/alembic/versions/)
         Path(__file__).absolute().parents[2] / "app" / "db" / "schema.sql",
-        # Relative to current working directory (usually /app or backend/)
         Path("app/db/schema.sql"),
         Path("backend/app/db/schema.sql"),
-        # Absolute paths common in Docker
         Path("/app/app/db/schema.sql"),
         Path("/app/db/schema.sql"),
     ]
@@ -97,10 +94,17 @@ def upgrade() -> None:
         if "schools" in existing and "users" in existing:
             return
 
+    op.execute("CREATE SCHEMA IF NOT EXISTS aura_norm")
+    op.execute("SET search_path TO aura_norm, public")
+
     raw_sql = _load_normalized_schema_sql()
     for stmt in _split_sql_statements(raw_sql):
         upper = stmt.strip().upper()
         if upper in {"BEGIN", "COMMIT"}:
+            continue
+        # skip the public schema / search_path lines — we set aura_norm above
+        stripped = stmt.strip()
+        if stripped.upper().startswith("CREATE SCHEMA") or stripped.upper().startswith("SET SEARCH_PATH"):
             continue
         op.execute(stmt)
 

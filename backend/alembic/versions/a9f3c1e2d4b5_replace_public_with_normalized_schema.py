@@ -108,11 +108,15 @@ def upgrade() -> None:
             
             for i, statement in enumerate(statements):
                 stmt_stripped = statement.strip()
-                if stmt_stripped:
-                    # Print first 50 chars of statement for debugging
-                    if (i + 1) % 10 == 0 or (i + 1) == len(statements):
-                        print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...", flush=True)
-                    conn.execute(stmt_stripped)
+                if not stmt_stripped:
+                    continue
+                if stmt_stripped.upper() in {"BEGIN", "COMMIT"}:
+                    continue
+                if stmt_stripped.upper().startswith("CREATE SCHEMA") or stmt_stripped.upper().startswith("SET SEARCH_PATH"):
+                    continue
+                if (i + 1) % 10 == 0 or (i + 1) == len(statements):
+                    print(f"DEBUG: Executing statement {i+1}/{len(statements)}: {stmt_stripped[:50]}...", flush=True)
+                conn.execute(stmt_stripped)
             print("DEBUG: All statements executed successfully!", flush=True)
     except Exception as e:
         print(f"ERROR: Migration failed!", flush=True)
