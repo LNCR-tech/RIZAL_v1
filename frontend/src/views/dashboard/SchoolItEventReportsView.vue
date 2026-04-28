@@ -336,6 +336,7 @@ import {
   formatTimeInDisplay,
   formatTimeOutDisplay,
   formatDurationDisplay,
+  formatMethodDisplay,
 } from '@/services/attendanceFlow.js'
 
 const props = defineProps({
@@ -914,7 +915,7 @@ function buildAttendanceRow(record) {
     timeInLabel: formatTimeInDisplay(attendance, (value) => formatDateTime(value, 'Not recorded')),
     timeOutLabel: formatTimeOutDisplay(attendance, (value) => formatDateTime(value, 'Not recorded')),
     durationLabel: formatDurationDisplay(attendance),
-    methodLabel: resolveMethodLabel(attendance.method),
+    methodLabel: formatMethodDisplay(attendance),
   }
 }
 
@@ -946,12 +947,7 @@ function resolveAttendanceStatusLabel(attendance = {}) {
   return 'Present'
 }
 
-function resolveMethodLabel(method) {
-  const normalized = String(method || '').trim().toLowerCase()
-  if (normalized === 'face_scan') return 'Face Scan'
-  if (normalized === 'manual') return 'Manual'
-  return normalized ? normalized.replace(/_/g, ' ') : 'Unknown'
-}
+
 
 function getAttendanceSortTimestamp(record) {
   const attendance = record?.attendance || {}
@@ -1655,3 +1651,4 @@ async function handleLogout() {
   }
 }
 </style>
+
