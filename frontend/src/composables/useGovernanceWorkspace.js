@@ -30,6 +30,11 @@ import {
   resolveEventDetailLocation,
   withPreservedGovernancePreviewQuery,
 } from '@/services/routeWorkspace.js'
+import {
+  formatTimeInDisplay,
+  formatTimeOutDisplay,
+  formatDurationDisplay,
+} from '@/services/attendanceFlow.js'
 
 const MAX_UPCOMING_EVENTS = 5
 const MAX_ANNOUNCEMENTS = 4
@@ -946,15 +951,6 @@ function buildArrivalInsight({ event = null, attendanceRecords = [] } = {}) {
   }
 }
 
-function formatDurationLabel(value) {
-  const minutes = Number(value)
-  if (!Number.isFinite(minutes) || minutes <= 0) return 'Not available'
-  if (minutes < 60) return `${Math.round(minutes)}m`
-
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = Math.round(minutes % 60)
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
-}
 
 function resolveMethodLabel(method) {
   const normalized = String(method || '').trim().toLowerCase()
@@ -988,9 +984,9 @@ function buildMasterlistRows(records = [], students = []) {
         programName: String(profile?.program_name || 'N/A'),
         yearLabel: Number.isFinite(Number(profile?.year_level)) ? `Year ${profile.year_level}` : 'N/A',
         statusLabel: resolveStatusLabel(attendance),
-        timeInLabel: formatDateTime(attendance?.time_in) || 'Not recorded',
-        timeOutLabel: formatDateTime(attendance?.time_out) || (attendance?.completion_state === 'incomplete' ? 'Waiting for sign out' : 'Not recorded'),
-        durationLabel: formatDurationLabel(attendance?.duration_minutes),
+        timeInLabel: formatTimeInDisplay(attendance, (value) => formatDateTime(value) || 'Not recorded'),
+        timeOutLabel: formatTimeOutDisplay(attendance, (value) => formatDateTime(value) || 'Not recorded'),
+        durationLabel: formatDurationDisplay(attendance),
         methodLabel: resolveMethodLabel(attendance?.method),
       }
     })

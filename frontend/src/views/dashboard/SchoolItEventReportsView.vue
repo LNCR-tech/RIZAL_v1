@@ -331,6 +331,12 @@ import {
 } from '@/services/backendApi.js'
 import { downloadBlobFile } from '@/services/fileDownload.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
+import {
+  resolveAbsenceType,
+  formatTimeInDisplay,
+  formatTimeOutDisplay,
+  formatDurationDisplay,
+} from '@/services/attendanceFlow.js'
 
 const props = defineProps({
   preview: {
@@ -896,6 +902,7 @@ function dedupeAttendanceRows(records) {
 function buildAttendanceRow(record) {
   const attendance = record?.attendance || {}
   const category = resolveAttendanceCategory(attendance)
+  const absenceType = resolveAbsenceType(attendance)
 
   return {
     key: `${resolveAttendanceStudentKey(record)}:${attendance.id ?? attendance.time_in ?? record?.student_name ?? 'row'}`,
@@ -903,15 +910,10 @@ function buildAttendanceRow(record) {
     studentName: String(record?.student_name || 'Unknown Student').trim() || 'Unknown Student',
     statusLabel: resolveAttendanceStatusLabel(attendance),
     category,
-    timeInLabel: formatDateTime(attendance.time_in, category === 'absent' ? 'No sign-in record' : 'Not recorded'),
-    timeOutLabel: attendance.time_out
-      ? formatDateTime(attendance.time_out, 'Not recorded')
-      : category === 'waiting'
-      ? 'Waiting for sign out'
-      : category === 'absent'
-      ? 'No sign-out record'
-      : 'Not recorded',
-    durationLabel: formatDuration(attendance.duration_minutes),
+    absenceType,
+    timeInLabel: formatTimeInDisplay(attendance, (value) => formatDateTime(value, 'Not recorded')),
+    timeOutLabel: formatTimeOutDisplay(attendance, (value) => formatDateTime(value, 'Not recorded')),
+    durationLabel: formatDurationDisplay(attendance),
     methodLabel: resolveMethodLabel(attendance.method),
   }
 }
@@ -991,15 +993,6 @@ function formatDateTime(value, fallback = 'Not recorded') {
   }).format(parsed)
 }
 
-function formatDuration(value) {
-  const minutes = Number(value)
-  if (!Number.isFinite(minutes) || minutes <= 0) return 'Not available'
-  if (minutes < 60) return `${Math.round(minutes)}m`
-
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = Math.round(minutes % 60)
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
-}
 
 function roundPercent(value) {
   const normalized = Number(value)

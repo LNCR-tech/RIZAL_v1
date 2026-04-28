@@ -5,19 +5,12 @@ Role: Service layer. It keeps business logic out of the route files.
 
 from __future__ import annotations
 
-from datetime import timezone
-
 from sqlalchemy.orm import Session
 
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.event import Event as EventModel
 from app.models.user import StudentProfile, User as UserModel
-from app.services.attendance_status import (
-    finalize_completed_attendance_status,
-    normalize_attendance_status,
-)
-from app.services.event_time_status import get_effective_sign_out_close_time
-from app.services.event_time_status import normalize_event_datetime
+from app.services.attendance_status import normalize_attendance_status
 
 
 def get_event_participant_student_ids(db: Session, event: EventModel) -> list[int]:
@@ -40,18 +33,15 @@ def get_event_participant_student_ids(db: Session, event: EventModel) -> list[in
 
 
 def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[str, int]:
-    """Auto-close unfinished attendance and create absent rows once sign-out is fully closed."""
+    """Auto-close unfinished attendance and create absent rows once sign-out is fully closed.
+    
+    This function keeps NULL values for time_in and time_out when students didn't actually
+    sign in or sign out. This preserves data integrity and provides accurate audit trails.
+    """
     participant_ids = get_event_participant_student_ids(db, event)
     if not participant_ids:
         return {"created_absent": 0, "marked_absent_no_timeout": 0}
 
-    effective_sign_out_close = get_effective_sign_out_close_time(
-        event.end_datetime,
-        getattr(event, "sign_out_grace_minutes", 0),
-        getattr(event, "sign_out_override_until", None),
-    )
-    effective_sign_out_close_utc = effective_sign_out_close.astimezone(timezone.utc).replace(tzinfo=None)
-    event_start_utc = normalize_event_datetime(event.start_datetime).astimezone(timezone.utc).replace(tzinfo=None)
     existing_attendances = (
         db.query(AttendanceModel)
         .filter(
@@ -65,33 +55,32 @@ def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[
 
     marked_absent_no_timeout = 0
     for attendance in existing_attendances:
+        # Skip if already has sign-out or never signed in
         if attendance.time_in is None or attendance.time_out is not None:
             continue
         if normalize_attendance_status(attendance.status) not in {"present", "late", "absent"}:
             continue
-        attendance.time_out = effective_sign_out_close_utc
-        attendance.check_out_status = "absent"
-        attendance.status, final_note = finalize_completed_attendance_status(
-            check_in_status=attendance.check_in_status or attendance.status,
-            check_out_status=attendance.check_out_status,
-        )
-        attendance.notes = (
-            f"Auto-marked absent - no sign-out recorded. {final_note or attendance.notes or ''}"
-        ).strip()
+        
+        # Keep time_out as NULL - student never signed out
+        # Only update status and check_out_status to reflect absence
+        attendance.check_out_status = None  # NULL because they didn't sign out
+        attendance.status = "absent"
+        attendance.notes = "Auto-marked absent - no sign-out recorded."
         marked_absent_no_timeout += 1
 
+    # Create absent records for students who never signed in
     missing_student_ids = [student_id for student_id in participant_ids if student_id not in existing_student_ids]
     for student_id in missing_student_ids:
         db.add(
             AttendanceModel(
                 student_id=student_id,
                 event_id=event.id,
-                time_in=event_start_utc,
-                time_out=effective_sign_out_close_utc,
+                time_in=None,  # NULL - never signed in
+                time_out=None,  # NULL - never signed out
                 method="manual",
                 status="absent",
-                check_in_status=None,
-                check_out_status="absent",
+                check_in_status=None,  # NULL - never signed in
+                check_out_status=None,  # NULL - never signed out
                 notes="Auto-marked absent - no sign-in recorded.",
             )
         )

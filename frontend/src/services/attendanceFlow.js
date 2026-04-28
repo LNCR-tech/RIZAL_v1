@@ -436,3 +436,81 @@ export function buildAttendanceLocationErrorMessage(detail) {
 
     return 'Location verification failed.'
 }
+
+/**
+ * Determine the type of absence based on attendance record
+ * @param {Object} attendanceRecord - The attendance record
+ * @returns {string} - 'never_attended', 'no_sign_out', or 'completed'
+ */
+export function resolveAbsenceType(attendanceRecord) {
+    if (!attendanceRecord) return 'never_attended'
+    
+    const hasTimeIn = Boolean(attendanceRecord.time_in)
+    const hasTimeOut = Boolean(attendanceRecord.time_out)
+    const status = normalizeLower(attendanceRecord.status)
+    
+    // Never signed in
+    if (!hasTimeIn) return 'never_attended'
+    
+    // Signed in but no sign out
+    if (hasTimeIn && !hasTimeOut && status === 'absent') return 'no_sign_out'
+    
+    // Completed attendance
+    return 'completed'
+}
+
+/**
+ * Format time_in display with context-aware fallback
+ * @param {Object} attendanceRecord - The attendance record
+ * @param {Function} formatDateTime - Function to format datetime
+ * @returns {string} - Formatted time or contextual message
+ */
+export function formatTimeInDisplay(attendanceRecord, formatDateTime) {
+    if (!attendanceRecord || !attendanceRecord.time_in) {
+        const absenceType = resolveAbsenceType(attendanceRecord)
+        return absenceType === 'never_attended' ? 'No sign-in record' : 'Not recorded'
+    }
+    return formatDateTime(attendanceRecord.time_in)
+}
+
+/**
+ * Format time_out display with context-aware fallback
+ * @param {Object} attendanceRecord - The attendance record
+ * @param {Function} formatDateTime - Function to format datetime
+ * @returns {string} - Formatted time or contextual message
+ */
+export function formatTimeOutDisplay(attendanceRecord, formatDateTime) {
+    if (!attendanceRecord || !attendanceRecord.time_out) {
+        const absenceType = resolveAbsenceType(attendanceRecord)
+        const completionState = resolveAttendanceCompletionState(attendanceRecord)
+        
+        if (absenceType === 'never_attended') return 'No sign-out record'
+        if (absenceType === 'no_sign_out') return 'No sign-out record'
+        if (completionState === 'incomplete') return 'Waiting for sign out'
+        return 'Not recorded'
+    }
+    return formatDateTime(attendanceRecord.time_out)
+}
+
+/**
+ * Format duration display with NULL handling
+ * @param {Object} attendanceRecord - The attendance record
+ * @returns {string} - Formatted duration or 'N/A'
+ */
+export function formatDurationDisplay(attendanceRecord) {
+    if (!attendanceRecord || !attendanceRecord.time_in || !attendanceRecord.time_out) {
+        return 'N/A'
+    }
+    
+    const durationMinutes = attendanceRecord.duration_minutes
+    if (typeof durationMinutes === 'number' && Number.isFinite(durationMinutes)) {
+        const hours = Math.floor(durationMinutes / 60)
+        const minutes = Math.round(durationMinutes % 60)
+        
+        if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`
+        if (hours > 0) return `${hours}h`
+        return `${minutes}m`
+    }
+    
+    return 'N/A'
+}
