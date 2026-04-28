@@ -62,17 +62,6 @@
               Forgot password?
             </a>
           </div>
-
-          <BaseButton
-            type="button"
-            variant="secondary"
-            size="md"
-            class="mt-2"
-            :disabled="isLoading"
-            @click="goToGather"
-          >
-            Gather
-          </BaseButton>
         </form>
 
         <div
@@ -119,7 +108,6 @@ const {
   visibleMessage,
   handleLogin,
   goToForgotPassword,
-  goToGather,
 } = useLoginViewModel()
 </script>
 

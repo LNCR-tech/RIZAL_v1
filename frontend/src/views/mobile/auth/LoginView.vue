@@ -96,15 +96,6 @@
                 Forgot password?
               </a>
             </div>
-
-            <button
-              type="button"
-              class="mobile-login__button mobile-login__button--secondary"
-              :disabled="isLoading"
-              @click="goToGather"
-            >
-              Gather
-            </button>
           </form>
         </div>
 
@@ -151,7 +142,6 @@ const {
   visibleMessage,
   handleLogin,
   goToForgotPassword,
-  goToGather,
 } = useLoginViewModel()
 
 function togglePasswordVisibility() {

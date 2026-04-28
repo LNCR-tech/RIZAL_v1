@@ -33,10 +33,6 @@ export function useLoginViewModel() {
     router.push({ name: 'ForgotPassword' })
   }
 
-  function goToGather() {
-    router.push({ name: 'PreviewGatherWelcome' })
-  }
-
   return {
     email,
     password,
@@ -45,6 +41,5 @@ export function useLoginViewModel() {
     visibleMessage,
     handleLogin,
     goToForgotPassword,
-    goToGather,
   }
 }

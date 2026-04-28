@@ -72,18 +72,6 @@
             </a>
           </div>
 
-          <!-- Gather Button -->
-          <BaseButton
-            type="button"
-            variant="secondary"
-            size="md"
-            class="mt-2"
-            :disabled="isLoading"
-            @click="goToGather"
-          >
-            Gather
-          </BaseButton>
-
         </form>
 
         <!-- Powered by Aura -->
@@ -193,10 +181,6 @@ function handleDecline() {
 
 function goToForgotPassword() {
   router.push({ name: 'ForgotPassword' })
-}
-
-function goToGather() {
-  router.push({ name: 'PreviewGatherWelcome' })
 }
 </script>
 
