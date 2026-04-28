@@ -2,7 +2,7 @@
 
 ## Overview
 
-The backend has a pytest suite covering 18 of 20 routers — 67 tests total. Tests run against a real PostgreSQL database using the same schema as production.
+The backend has a pytest suite of **195 tests** covering all router modules. Tests run against a real PostgreSQL database using the same schema as production. Celery tasks run synchronously in eager mode during tests — no Redis or worker process required.
 
 ## Running Tests Locally
 
@@ -20,13 +20,14 @@ pytest -v
 Run a specific file:
 
 ```powershell
-pytest tests/test_auth.py -v
+pytest tests/test_import_lifecycle.py -v
 ```
 
 ### Prerequisites
 
 - PostgreSQL running locally with `fastapi_db` database created
 - All migrations applied: `alembic upgrade heads`
+- Redis running locally (used by Celery in production; not required for tests since eager mode is enabled)
 - `backend/.env` with at minimum:
 
 ```env
@@ -36,69 +37,94 @@ RATE_LIMIT_ENABLED=false
 FACE_SCAN_BYPASS_ALL=true
 PRIVILEGED_FACE_VERIFICATION_ENABLED=false
 EMAIL_TRANSPORT=disabled
+CELERY_TASK_ALWAYS_EAGER=true
 ```
 
-The test suite seeds its own test data (school, users, roles) on startup and cleans it up after the session. Your existing data is not affected.
+The test suite seeds its own test data (school, users, roles) on startup and cleans it up after the session. Your existing data is not affected as long as you use a dedicated `fastapi_db` database for testing.
+
+If tests fail due to leftover data from a previous run, reset the database:
+
+```powershell
+psql -U postgres -c "DROP DATABASE fastapi_db;"
+psql -U postgres -c "CREATE DATABASE fastapi_db;"
+alembic upgrade heads
+```
 
 ## What Is Tested
 
-| File | Router | Tests |
-|---|---|---|
-| `test_health.py` | `/health` | 1 |
-| `test_auth.py` | `/token`, `/login` | 5 |
-| `test_users.py` | `/api/users` | 6 |
-| `test_school.py` | `/api/school` | 4 |
-| `test_school_settings.py` | `/api/school-settings` | 3 |
-| `test_departments.py` | `/api/departments` | 4 |
-| `test_programs.py` | `/api/programs` | 4 |
-| `test_events.py` | `/api/events` | 6 |
-| `test_attendance.py` | `/api/attendance` | 5 |
-| `test_admin_import.py` | `/api/admin/import-students` | 4 |
-| `test_governance.py` | `/api/governance` | 4 |
-| `test_governance_hierarchy.py` | `/api/governance/units` | 4 |
-| `test_sanctions.py` | `/api/sanctions` | 4 |
-| `test_security_center.py` | `/api/auth/security` | 3 |
-| `test_notifications.py` | `/api/notifications` | 3 |
-| `test_audit_logs.py` | `/api/audit-logs` | 2 |
-| `test_subscription.py` | `/api/subscription` | 2 |
-| `test_reports.py` | `/api/attendance` (reports) | 4 |
+| File | Coverage |
+|---|---|
+| `test_health.py` | Health and readiness endpoints |
+| `test_auth.py` | Login, token, wrong password, unknown email |
+| `test_auth_extended.py` | Password change, forgot password, reset requests, prompt dismiss |
+| `test_users.py` | Get me, list users, create user, update profile |
+| `test_users_extended.py` | Get by role, reset password, update roles, preferences, student account, delete profile |
+| `test_users_accounts.py` | Get user by ID, delete user, get by role (all edge cases) |
+| `test_school.py` | Get school, update branding, audit logs |
+| `test_school_settings.py` | Get/update school settings |
+| `test_school_admin.py` | Admin list schools, create school with IT account |
+| `test_departments.py` | CRUD for departments |
+| `test_programs.py` | CRUD for programs |
+| `test_events.py` | CRUD for events |
+| `test_events_extended.py` | Ongoing events, attendees, stats, time status, geolocation |
+| `test_events_workflow.py` | Status patch, sign-out-early, attendees/stats edge cases |
+| `test_attendance.py` | Manual check-in, duplicate, summary, records |
+| `test_attendance_extended.py` | Bulk attendance, mark excused, face scan timeout, reports |
+| `test_attendance_overrides.py` | Mark excused, mark absent no timeout (all edge cases) |
+| `test_admin_import.py` | Preview valid/invalid, auth guards |
+| `test_import_lifecycle.py` | Full import pipeline: preview → commit → job completes → student created in DB |
+| `test_face_recognition.py` | Auth guards and role checks (face bypass enabled) |
+| `test_governance.py` | Governance access, settings |
+| `test_governance_hierarchy.py` | Governance unit CRUD |
+| `test_governance_data.py` | Data requests, retention, settings |
+| `test_governance_members.py` | SSG setup, students, members, announcements |
+| `test_sanctions.py` | List, view own, manage guards |
+| `test_sanctions_extended.py` | Config, students, delegation, dashboard, export |
+| `test_security_center.py` | Face status, sessions, auth guards |
+| `test_security_extended.py` | Revoke session, revoke others, login history, face reference guards |
+| `test_notifications.py` | List, mark read, auth guards |
+| `test_notification_dispatch.py` | Missed events, low attendance, inbox, dispatch guards |
+| `test_misc_extended.py` | Notification preferences, public attendance nearby events, health readiness |
+| `test_public_attendance.py` | Nearby events, multi-face-scan (disabled/404/422 cases) |
+| `test_audit_logs.py` | List audit logs, access control |
+| `test_reports.py` | School attendance summary, student overview, stats |
+| `test_subscription.py` | Get subscription, auth guard |
+| `test_subscription_extended.py` | Update subscription, reminders |
 
-**Total: 67 tests across 18 routers**
+**Total: 195 tests across all routers**
 
-## What Is Skipped
+## What Is Not Fully Tested
 
-Two routers are intentionally excluded from automated testing:
+- **Face recognition inference** — `FACE_SCAN_BYPASS_ALL=true` bypasses InsightFace model loading. The auth guards and role checks are tested, but actual embedding extraction and matching are not. These require real photos and a loaded ONNX model (~500MB).
+- **Public attendance multi-face-scan happy path** — only error cases (disabled feature, missing body, invalid event) are tested. The full scan flow requires face embeddings.
+- **WebSocket/SSE real-time delivery** — notification push over persistent connections is not testable with the synchronous `TestClient`.
 
-- **`face_recognition`** (`/api/face`) — requires InsightFace ONNX models (~500MB) and GPU/CPU inference. Not suitable for CI.
-- **`public_attendance`** (`/public-attendance`) — depends on the face recognition runtime for the multi-face scan flow.
+## Celery Eager Mode
 
-Both are covered by manual testing during deployment.
+Celery tasks run synchronously during tests via `CELERY_TASK_ALWAYS_EAGER=true`. This means:
+
+- `process_student_import_job.delay(job_id)` executes immediately in the same thread
+- The import job completes before the test assertion runs
+- No Redis broker or Celery worker process is needed
+
+This is set automatically in `conftest.py` for local runs and in `ci.yml` for CI. Do not remove it — without it, import lifecycle tests will see jobs stuck in `pending` state.
 
 ## How CI Works
 
-GitHub Actions runs the suite on every push to `integrate/pilot-merge` using a `pgvector/pgvector:pg15` service container (matches production Docker image).
+GitHub Actions runs the suite on every push and PR to `integrate/pilot-merge` using a `pgvector/pgvector:pg15` service container and a `redis:7-alpine` service container.
 
 The CI job:
-1. Spins up Postgres with `pgvector` extension
+1. Spins up Postgres (`pgvector`) and Redis
 2. Creates `fastapi_db` and `ai_assistant` databases
-3. Runs `alembic upgrade heads` to apply all migrations
-4. Runs `pytest`
+3. Runs `alembic upgrade heads`
+4. Runs `pytest` with `CELERY_TASK_ALWAYS_EAGER=true`
 
-No real credentials are used — all env vars in CI are test-only values. The AI API key is never called during backend tests.
+No real credentials are used. The AI API key is never called during backend tests.
 
 ## Test Architecture
 
-- **Seeded data** — `conftest.py` creates a test school, admin, campus_admin, and student user before tests run. Data is committed to the DB and cleaned up after the session.
-- **No mocking** — tests hit the real FastAPI app with a real DB session. This catches schema mismatches, missing columns, and broken queries that unit tests would miss.
+- **Seeded data** — `conftest.py` creates a test school, admin, campus_admin, and student user before tests run. Data is committed and cleaned up after the session.
+- **No mocking** — tests hit the real FastAPI app through Starlette's `TestClient` (in-process ASGI, no network). This catches schema mismatches, missing columns, and broken queries that unit tests would miss.
 - **Auth** — tokens are obtained via the real `/login` endpoint using seeded credentials. No JWT is manually crafted.
-- **Isolation** — each test file uses the shared session-scoped client and token fixtures. Tests that create data (departments, events, governance units) use unique identifiers to avoid conflicts across runs.
-
-## Known Compatibility Fixes
-
-The normalized schema (`aura_norm`) renamed several columns from the legacy schema. The following fixes were applied to make the backend work with the normalized schema:
-
-- `Event.start_datetime` / `Event.end_datetime` → `Event.start_at` / `Event.end_at` in all query files (compatibility properties still exist on the model for non-query use)
-- `Role.name` → `Role.code` in role lookup functions
-- `user_face_profiles` table dropped — `has_face_reference_enrolled()` returns `False` gracefully; `security_center.py` wraps the query in try/except
-- `School.logo_url`, `School.primary_color`, etc. — accessed via `getattr` with safe defaults in `school.py` and `school_settings.py`
-- `StudentProfile.is_face_registered` / `registration_complete` — replaced with safe defaults (`False` / `True`) in user serialization
+- **Shared session** — the `db_session` fixture is `scope="session"` and shared across all tests. Tests that need to see rows committed by internal service sessions (e.g. import) must use a fresh `SessionLocal()` context, not `db_session`.
+- **Persistent local DB** — unlike CI (which starts fresh every run), your local `fastapi_db` persists between runs. Tests that insert rows with fixed identifiers (e.g. session JTIs) use `uuid4()` to avoid unique constraint violations on re-runs.
