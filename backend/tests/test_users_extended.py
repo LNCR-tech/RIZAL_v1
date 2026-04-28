@@ -12,11 +12,24 @@ def test_get_users_by_role_requires_auth(client):
     assert r.status_code == 401
 
 
-def test_reset_user_password(client, campus_admin_headers, db_session):
-    from app.models.user import User
-    student = db_session.query(User).filter_by(email="student@test.com").first()
-    r = client.post(f"/api/users/{student.id}/reset-password", headers=campus_admin_headers, json={
-        "password": "TestPass123!",  # reset to same password so student_token still works
+def test_reset_user_password(client, admin_headers, db_session):
+    # Create a throwaway user to reset so we don't break shared session tokens
+    import time
+    from app.models.user import User, UserRole
+    from app.models.school import School
+    from app.models.role import Role
+    from app.utils.passwords import hash_password_bcrypt
+    school = db_session.query(School).filter_by(school_code="TEST-001").first()
+    role = db_session.query(Role).filter_by(code="student").first()
+    user = User(email=f"resetme_{int(time.time())}@test.com", school_id=school.id,
+                password_hash=hash_password_bcrypt("TestPass123!"),
+                must_change_password=False, first_name="Reset", last_name="Me")
+    db_session.add(user)
+    db_session.flush()
+    db_session.add(UserRole(user_id=user.id, role_id=role.id))
+    db_session.flush()
+    r = client.post(f"/api/users/{user.id}/reset-password", headers=admin_headers, json={
+        "password": "TestPass123!",
     })
     assert r.status_code in (200, 204)
 

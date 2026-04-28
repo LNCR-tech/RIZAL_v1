@@ -108,6 +108,11 @@ def _seed(db: Session):
             db.flush()
             db.add(UserRole(user_id=user.id, role_id=roles[role_code].id))
             db.flush()
+        else:
+            # Always reset password and must_change_password to known state
+            user.password_hash = hash_password_bcrypt("TestPass123!")
+            user.must_change_password = False
+            db.flush()
         return user
 
     _make_user("admin@test.com", "admin", school_id=None)
