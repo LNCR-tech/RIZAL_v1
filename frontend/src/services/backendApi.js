@@ -1224,6 +1224,16 @@ export async function changePassword(baseUrl, token, payload, endpoint = '/auth/
     }))
 }
 
+export async function forgotPassword(baseUrl, email) {
+    return request(baseUrl, '/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+    })
+}
+
 function normalizeStudentAttendanceResponsePayload(payload = []) {
     if (!Array.isArray(payload)) return []
 

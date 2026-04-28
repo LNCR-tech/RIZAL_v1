@@ -102,7 +102,7 @@ import { useRouter } from 'vue-router'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
-import { request, resolveApiBaseUrl } from '@/services/backendApi.js'
+import { forgotPassword, resolveApiBaseUrl } from '@/services/backendApi.js'
 
 const email = ref('')
 const isLoading = ref(false)
@@ -139,15 +139,7 @@ async function handleSubmit() {
   isSuccess.value = false
 
   try {
-    const response = await request(resolveApiBaseUrl(), '/auth/forgot-password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: email.value.trim()
-      }),
-    })
+    const response = await forgotPassword(resolveApiBaseUrl(), email.value.trim())
     
     message.value = response?.message || 'If an eligible student account exists, its password has been reset to the default password.'
     isSuccess.value = true
