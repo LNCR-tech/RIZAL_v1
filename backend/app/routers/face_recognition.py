@@ -6,6 +6,7 @@ Role: Router layer. It receives HTTP requests, checks access rules, and returns 
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import math
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -59,6 +60,7 @@ from app.services.event_workflow_status import sync_event_workflow_status
 
 router = APIRouter(prefix="/face", tags=["face-recognition"])
 face_service = FaceRecognitionService()
+logger = logging.getLogger(__name__)
 
 
 def _enforce_face_endpoint_rate_limit(request: Request, current_user: UserModel, action: str) -> None:
@@ -191,7 +193,42 @@ def _has_current_canonical_embedding(profile: StudentProfile) -> bool:
 
 
 def _ensure_face_runtime_ready(mode: str, *, context: str) -> None:
+    """Ensure face runtime is ready and log detailed status for debugging."""
+    runtime_status = face_service.face_runtime_status(mode)
+    logger.info(
+        f"Face runtime check [{context}]: mode={mode}, ready={runtime_status['ready']}, "
+        f"state={runtime_status['state']}, reason={runtime_status.get('reason')}"
+    )
+    if not runtime_status["ready"]:
+        logger.error(
+            f"Face runtime NOT ready [{context}]: {runtime_status}"
+        )
     face_service.ensure_face_runtime_ready(mode=mode, context=context)
+
+
+@router.get("/runtime-status")
+def get_face_runtime_status(
+    current_user: UserModel = Depends(get_current_application_user),
+):
+    """Get detailed face recognition runtime status for debugging."""
+    single_status = face_service.face_runtime_status("single")
+    liveness_ready, liveness_reason = face_service.anti_spoof_status()
+    
+    logger.info(f"Runtime status check by user {current_user.email}: single={single_status['ready']}, liveness={liveness_ready}")
+    
+    return {
+        "single_mode": single_status,
+        "liveness": {
+            "ready": liveness_ready,
+            "reason": liveness_reason,
+        },
+        "settings": {
+            "face_threshold_single": face_service.settings.face_threshold_single,
+            "liveness_threshold": face_service.settings.liveness_threshold,
+            "face_embedding_dim": face_service.settings.face_embedding_dim,
+            "face_embedding_dtype": face_service.settings.face_embedding_dtype,
+        },
+    }
 
 
 @router.post("/register", response_model=FaceRegistrationResponse)
@@ -421,8 +458,26 @@ def record_attendance_from_face_scan(
                 detail="A live camera frame is required for face attendance scans.",
             )
 
-        _ensure_face_runtime_ready(mode="single", context="face_attendance_scan")
+        logger.info(
+            f"Face scan attempt: event_id={payload.event_id}, student={current_student_profile.student_id}, "
+            f"has_image={bool(payload.image_base64)}, bypass={bypass_face_scan}"
+        )
+        
+        try:
+            _ensure_face_runtime_ready(mode="single", context="face_attendance_scan")
+        except HTTPException as runtime_exc:
+            logger.error(
+                f"Face runtime not ready for student {current_student_profile.student_id}: {runtime_exc.detail}"
+            )
+            # Return user-friendly message
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Face detection is not ready. Please keep the camera open and try scanning again.",
+            ) from runtime_exc
+        
         image_bytes = face_service.decode_base64_image(payload.image_base64)
+        logger.info(f"Image decoded: size={len(image_bytes)} bytes")
+        
         try:
             encoding, liveness = face_service.extract_encoding_from_bytes(
                 image_bytes,
@@ -430,12 +485,23 @@ def record_attendance_from_face_scan(
                 enforce_liveness=True,
                 mode="single",
             )
+            logger.info(
+                f"Face extracted: liveness={liveness.label}, score={liveness.score:.3f}, "
+                f"encoding_shape={encoding.shape if encoding is not None else None}"
+            )
         except HTTPException as exc:
+            logger.warning(f"Face extraction failed: {exc.status_code} - {exc.detail}")
             normalized_error = resolve_face_verification_error_message(exc.detail)
             if normalized_error is None:
                 raise
             status_code, message = normalized_error
             raise HTTPException(status_code=status_code, detail=message) from exc
+        except Exception as exc:
+            logger.exception(f"Unexpected error during face extraction: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected error occurred during face processing.",
+            ) from exc
         try:
             reference_encoding = face_service.encoding_from_bytes(
                 bytes(current_student_profile.face_encoding),
@@ -443,7 +509,9 @@ def record_attendance_from_face_scan(
                 dimension=current_student_profile.embedding_dimension,
                 normalized=bool(current_student_profile.embedding_normalized),
             )
+            logger.info(f"Reference encoding loaded for student {current_student_profile.student_id}")
         except ValueError as exc:
+            logger.error(f"Failed to load reference encoding: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
@@ -458,7 +526,15 @@ def record_attendance_from_face_scan(
             threshold=payload.threshold,
             mode="single",
         )
+        logger.info(
+            f"Face match result: matched={match.matched}, distance={match.distance:.4f}, "
+            f"confidence={match.confidence:.4f}, threshold={match.threshold:.4f}"
+        )
         if not match.matched:
+            logger.warning(
+                f"Face verification failed for student {current_student_profile.student_id}: "
+                f"distance {match.distance:.4f} > threshold {match.threshold:.4f}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Face not match.",

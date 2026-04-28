@@ -270,6 +270,16 @@ export function resolveAttendanceDisplayStatus(attendanceRecord) {
     const normalizedDisplayStatus = normalizeLower(attendanceRecord?.display_status)
     if (normalizedDisplayStatus) return normalizedDisplayStatus
 
+    // If no time_in, student never attended - return empty string for "No record yet"
+    if (!hasSignedInAttendance(attendanceRecord)) {
+        const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
+        // Only show status if it's excused or absent (finalized)
+        if (['excused', 'absent'].includes(normalizedStoredStatus)) {
+            return normalizedStoredStatus
+        }
+        return ''
+    }
+
     if (resolveAttendanceCompletionState(attendanceRecord) !== 'completed') {
         return hasSignedInAttendance(attendanceRecord) ? 'incomplete' : ''
     }
@@ -348,6 +358,29 @@ export function resolveAttendanceActionState({
         if (stage === 'sign_out_open') return 'sign-out'
         if (stage === 'closed') return 'closed'
         return 'waiting-sign-out'
+    }
+
+    // If no time_in during ongoing event, show as available for sign-in
+    if (!hasSignedInAttendance(attendanceRecord)) {
+        if (['early_check_in', 'late_check_in', 'absent_check_in'].includes(stage)) {
+            return 'sign-in'
+        }
+
+        if (stage === 'before_check_in') {
+            return 'not-open'
+        }
+
+        if (stage === 'sign_out_open' || stage === 'sign_out_pending') {
+            return 'missed-check-in'
+        }
+
+        if (stage === 'closed') {
+            return 'closed'
+        }
+
+        return normalizeEventStatus(eventStatus) === 'ongoing'
+            ? 'sign-in'
+            : 'closed'
     }
 
     if (['early_check_in', 'late_check_in', 'absent_check_in'].includes(stage)) {
@@ -513,4 +546,16 @@ export function formatDurationDisplay(attendanceRecord) {
     }
     
     return 'N/A'
+}
+
+/**
+ * Format attendance method display with NULL handling
+ * @param {Object} attendanceRecord - The attendance record
+ * @returns {string} - Formatted method or 'N/A'
+ */
+export function formatMethodDisplay(attendanceRecord) {
+    if (!attendanceRecord || !attendanceRecord.method) {
+        return 'N/A'
+    }
+    return attendanceRecord.method
 }

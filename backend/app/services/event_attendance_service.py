@@ -77,7 +77,7 @@ def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[
                 event_id=event.id,
                 time_in=None,  # NULL - never signed in
                 time_out=None,  # NULL - never signed out
-                method="manual",
+                method=None,  # NULL - no method because they never signed in
                 status="absent",
                 check_in_status=None,  # NULL - never signed in
                 check_out_status=None,  # NULL - never signed out

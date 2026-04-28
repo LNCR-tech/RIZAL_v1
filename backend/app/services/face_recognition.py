@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import logging
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -17,6 +18,8 @@ from PIL import Image, UnidentifiedImageError
 
 from app.core.config import get_settings
 from app.services.face_engine import FaceCrop, LivenessChecker, get_engine
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -227,11 +230,23 @@ class FaceRecognitionService:
         context: str | None = None,
     ) -> dict[str, object]:
         runtime_status = self.face_runtime_status(mode)
+        logger.info(
+            f"ensure_face_runtime_ready [{context}]: mode={mode}, ready={runtime_status['ready']}, "
+            f"state={runtime_status['state']}, reason={runtime_status.get('reason')}, "
+            f"last_error={runtime_status.get('last_error')}"
+        )
+        
         if runtime_status["ready"]:
             return runtime_status
 
         reason = str(runtime_status.get("reason") or "insightface_warming_up")
         state = str(runtime_status.get("state") or "initializing")
+        
+        logger.warning(
+            f"Face runtime NOT ready [{context}]: state={state}, reason={reason}, "
+            f"last_error={runtime_status.get('last_error')}"
+        )
+        
         if reason == "unsupported_mode":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -245,9 +260,11 @@ class FaceRecognitionService:
         if state == "failed":
             code = "face_runtime_failed"
             message = "Face runtime initialization failed."
+            logger.error(f"Face runtime FAILED [{context}]: {runtime_status}")
         else:
             code = "face_runtime_initializing"
             message = "Face runtime is still initializing."
+            logger.info(f"Face runtime INITIALIZING [{context}]: {runtime_status}")
 
         detail: dict[str, object] = {
             "code": code,
@@ -438,12 +455,20 @@ class FaceRecognitionService:
         mode: str = "single",
     ) -> tuple[np.ndarray, LivenessResult]:
         """Load an image, optionally run liveness, then return one face embedding."""
+        logger.info(
+            f"extract_encoding_from_bytes: size={len(image_bytes)}, "
+            f"require_single={require_single_face}, enforce_liveness={enforce_liveness}, mode={mode}"
+        )
+        
         probes = self.analyze_faces_from_bytes(
             image_bytes,
             enforce_liveness=enforce_liveness,
             mode=mode,
         )
+        logger.info(f"Detected {len(probes)} face(s) in image")
+        
         if require_single_face and len(probes) != 1:
+            logger.warning(f"Expected 1 face, found {len(probes)}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Image must contain exactly one face.",
@@ -451,11 +476,13 @@ class FaceRecognitionService:
 
         probe = probes[0]
         if probe.error_code == "spoof_detected":
+            logger.warning(f"Spoof detected: label={probe.liveness.label}, score={probe.liveness.score:.3f}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Spoof detected. label={probe.liveness.label} score={probe.liveness.score:.3f}",
             )
         if probe.encoding is None:
+            logger.error("Failed to compute face encoding")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Unable to compute a face encoding from the image.",

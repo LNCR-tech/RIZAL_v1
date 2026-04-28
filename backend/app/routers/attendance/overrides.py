@@ -45,9 +45,13 @@ def mark_excused_attendance(
             attendance = AttendanceModel(
                 student_id=student.id,
                 event_id=event_id,
+                time_in=None,  # NULL - excused students never signed in
+                time_out=None,  # NULL - excused students never signed out
                 status=AttendanceStatus.EXCUSED,
                 notes=payload.reason,
-                method="manual",
+                method=None,  # NULL - no method because they never signed in
+                check_in_status=None,  # NULL - never signed in
+                check_out_status=None,  # NULL - never signed out
                 verified_by=current_user.id
             )
             db.add(attendance)
