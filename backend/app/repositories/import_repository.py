@@ -208,12 +208,12 @@ class ImportRepository:
             deduped_student_ids = list(dict.fromkeys(student_ids))
             for chunk in self._chunked(deduped_student_ids):
                 rows = self.db.execute(
-                    select(StudentProfile.school_id, StudentProfile.student_id).where(
+                    select(StudentProfile.school_id, StudentProfile.student_number).where(
                         StudentProfile.school_id == school_id,
-                        StudentProfile.student_id.in_(chunk),
+                        StudentProfile.student_number.in_(chunk),
                     )
                 ).all()
-                existing.update((int(found_school_id), found_student_id) for found_school_id, found_student_id in rows)
+                existing.update((int(found_school_id), found_student_number) for found_school_id, found_student_number in rows)
 
         return existing
 
@@ -444,7 +444,7 @@ class ImportRepository:
             {
                 "user_id": row["user_id"],
                 "school_id": row["school_id"],
-                "student_id": row["student_id"],
+                "student_number": row["student_id"],
                 "department_id": row["department_id"],
                 "program_id": row["program_id"],
                 "year_level": 1,
@@ -455,7 +455,7 @@ class ImportRepository:
         profile_insert_statement = self._insert_statement(StudentProfile).values(profile_values)
         if self._supports_on_conflict():
             profile_insert_statement = profile_insert_statement.on_conflict_do_nothing(
-                index_elements=["school_id", "student_id"]
+                index_elements=["school_id", "student_number"]
             )
         inserted_profiles = self.db.execute(
             profile_insert_statement.returning(StudentProfile.user_id)
