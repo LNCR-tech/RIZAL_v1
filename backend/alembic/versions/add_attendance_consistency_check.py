@@ -24,19 +24,19 @@ depends_on = None
 
 def upgrade():
     """Add check constraint for attendance data consistency."""
-    # Add constraint to ensure time_in and method are consistent
-    op.create_check_constraint(
-        'attendance_time_in_method_consistency',
-        'attendances',  # Fixed: table name is plural
-        '(time_in IS NULL AND method IS NULL) OR (time_in IS NOT NULL AND method IS NOT NULL)'
-    )
-    
-    # Clean up any existing bad data before applying constraint
+    # FIRST: Clean up any existing bad data BEFORE applying constraint
     op.execute("""
         UPDATE attendances 
         SET method = NULL, check_in_status = NULL
         WHERE time_in IS NULL AND method IS NOT NULL
     """)
+    
+    # SECOND: Add constraint to ensure time_in and method are consistent
+    op.create_check_constraint(
+        'attendance_time_in_method_consistency',
+        'attendances',
+        '(time_in IS NULL AND method IS NULL) OR (time_in IS NOT NULL AND method IS NOT NULL)'
+    )
 
 
 def downgrade():
