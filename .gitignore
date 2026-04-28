@@ -44,13 +44,12 @@ logs/
 postgres_data/
 docker-data/
 backend/storage/
-Backend/storage/
 seeder/storage/seeder_outputs/
 
 # Project-specific generated files
-Backend/face_encodings.pkl
-Backend/.alembic.ini.swp
-Backend/.venv/
+backend/face_encodings.pkl
+backend/.alembic.ini.swp
+backend/.venv/
 GITHUB/
 
 # SSH keys
