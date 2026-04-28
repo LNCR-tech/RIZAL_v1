@@ -187,16 +187,18 @@ function sortAnnouncements(values = []) {
 }
 
 function formatDateTime(value, options = {}) {
-  if (!value) return ''
+  if (value === null || value === undefined || value === '') return ''
 
   try {
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return ''
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       ...options,
-    }).format(new Date(value))
+    }).format(parsed)
   } catch {
     return ''
   }

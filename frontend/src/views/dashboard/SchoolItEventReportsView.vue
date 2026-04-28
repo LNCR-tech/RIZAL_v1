@@ -978,9 +978,9 @@ function formatDate(isoString) {
 }
 
 function formatDateTime(value, fallback = 'Not recorded') {
-  if (!value) return fallback
+  if (value === null || value === undefined || value === '') return fallback
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return String(value)
+  if (Number.isNaN(parsed.getTime())) return fallback
 
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
