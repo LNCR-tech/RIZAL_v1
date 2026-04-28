@@ -28,23 +28,24 @@ def upgrade() -> None:
         else set()
     )
 
-    op.create_table(
-        "event_types",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("school_id", sa.Integer(), nullable=True),
-        sa.Column("name", sa.String(length=100), nullable=False),
-        sa.Column("code", sa.String(length=50), nullable=True),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.ForeignKeyConstraint(["school_id"], ["schools.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("school_id", "name", name="uq_event_types_school_name"),
-    )
-    op.create_index(op.f("ix_event_types_id"), "event_types", ["id"], unique=False)
-    op.create_index(op.f("ix_event_types_school_id"), "event_types", ["school_id"], unique=False)
+    if "event_types" not in existing_tables:
+        op.create_table(
+            "event_types",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("school_id", sa.Integer(), nullable=True),
+            sa.Column("name", sa.String(length=100), nullable=False),
+            sa.Column("code", sa.String(length=50), nullable=True),
+            sa.Column("description", sa.Text(), nullable=True),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+            sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+            sa.ForeignKeyConstraint(["school_id"], ["schools.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("school_id", "name", name="uq_event_types_school_name"),
+        )
+        op.create_index(op.f("ix_event_types_id"), "event_types", ["id"], unique=False)
+        op.create_index(op.f("ix_event_types_school_id"), "event_types", ["school_id"], unique=False)
 
     if "events" not in existing_tables:
         op.alter_column("event_types", "is_active", server_default=None)
