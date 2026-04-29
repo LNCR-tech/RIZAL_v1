@@ -65,3 +65,66 @@ def test_stream_success(client, auth_headers):
     done_event = next(e for e in events if e["event"] == "done")
     assert done_event["data"]["finish_reason"] == "stop"
     assert "conversation_id" in done_event["data"]
+
+
+def test_stream_tool_call_events(client, auth_headers):
+    """Tool call flow emits tool_call and tool_done SSE events."""
+    async def mock_stream_with_tool(messages, tools=None):
+        # First turn: LLM requests a tool call
+        yield {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{
+                "id": "call_1",
+                "function": {"name": "query_attendance", "arguments": "{}"},
+            }],
+        }
+        # Second turn: LLM responds after tool result
+        yield {"type": "chunk", "content": "Done."}
+        yield {"role": "assistant", "content": "Done.", "tool_calls": None}
+
+    with patch("main.call_llm_stream", return_value=mock_stream_with_tool([])), \
+         patch("main.resolve_backend_user_id", new=AsyncMock(return_value=None)), \
+         patch("main.resolve_runtime_governance_access", new=AsyncMock(return_value={"permission_codes": [], "roles": [], "school_id": 1})):
+
+        response = client.post(
+            "/assistant/stream",
+            json={"message": "show attendance"},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    events = _collect_sse(response)
+    event_types = [e["event"] for e in events]
+    assert "tool_call" in event_types
+    assert "tool_done" in event_types
+    assert "done" in event_types
+
+
+def test_stream_daily_quota_exceeded(client, auth_headers):
+    """Exceeding the daily message quota returns 429."""
+    import datetime
+    from lib.database import DailyUsage, SessionLocal
+
+    db = SessionLocal()
+    today = datetime.datetime.now(datetime.timezone.utc).date()
+    # admin limit is 500 — insert a row already at the limit
+    existing = db.query(DailyUsage).filter_by(
+        user_id="test@aura.local", user_role="admin", usage_date=today
+    ).first()
+    if existing:
+        existing.message_count = 500
+    else:
+        db.add(DailyUsage(user_id="test@aura.local", user_role="admin", usage_date=today, message_count=500))
+    db.commit()
+    db.close()
+
+    with patch("main.resolve_backend_user_id", new=AsyncMock(return_value=None)), \
+         patch("main.resolve_runtime_governance_access", new=AsyncMock(return_value={"permission_codes": [], "roles": ["admin"], "school_id": 1})):
+        response = client.post(
+            "/assistant/stream",
+            json={"message": "hello"},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 429

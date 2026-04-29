@@ -42,10 +42,10 @@ pip install -r requirements.txt
 | File | Coverage |
 |---|---|
 | `test_health.py` | `GET /health` — returns `{"status": "ok", "version": "v2-mcp"}` |
-| `test_conversations.py` | List conversations (empty), get by ID, rename, delete |
-| `test_stream.py` | Auth guards (no token, expired token), invalid conversation ID, successful stream with mocked LLM |
+| `test_conversations.py` | List (empty + with data + auth guard), get by ID (success, 404, other user 404, auth guard), rename (success, 404, auth guard), delete (success, 404, auth guard) |
+| `test_stream.py` | Auth guards (no token, expired token), invalid conversation ID, successful stream, tool call SSE events, daily quota exceeded (429) |
 
-**Total: ~10 tests**
+**Total: ~20 tests**
 
 ## What Is Not Tested
 
