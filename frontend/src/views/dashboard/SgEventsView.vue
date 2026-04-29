@@ -1,5 +1,6 @@
 <template>
-  <section class="sg-sub-page">
+  <div class="sg-events-view">
+    <section class="sg-sub-page">
     <header class="sg-sub-header dashboard-enter dashboard-enter--1">
       <div style="display: flex; align-items: center; gap: 16px;">
         <button class="sg-sub-back" type="button" @click="goBack">
@@ -220,19 +221,20 @@
         <p v-else class="sg-sub-empty">No events found matching your search.</p>
       </div>
     </template>
-  </section>
+    </section>
 
-  <EventEditorSheet
-    :is-open="isEventEditorOpen"
-    :event="editingEvent"
-    title="Edit Governance Event"
-    description="Update the event details using the same backend fields the governance event API accepts."
-    submit-label="Save Event"
-    :saving="isMutatingEvent"
-    :error-message="eventEditorError"
-    @close="closeEventEditor"
-    @save="saveEventEdits"
-  />
+    <EventEditorSheet
+      :is-open="isEventEditorOpen"
+      :event="editingEvent"
+      title="Edit Governance Event"
+      description="Update the event details using the same backend fields the governance event API accepts."
+      submit-label="Save Event"
+      :saving="isMutatingEvent"
+      :error-message="eventEditorError"
+      @close="closeEventEditor"
+      @save="saveEventEdits"
+    />
+  </div>
 </template>
 
 <script setup>
@@ -553,7 +555,8 @@ function closeAllEventSwipes() {
 
 function handleDocumentPointerDown(event) {
   if (!hasOpenEventSwipe.value) return
-  if (event.target.closest('.sg-event-swipe-container')) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.sg-event-swipe-container')) return
   closeAllEventSwipes()
 }
 
