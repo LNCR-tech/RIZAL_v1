@@ -6,7 +6,8 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
 
 /** @param {import('@playwright/test').Page} page @param {string} email @param {string} password */
 async function login(page, email, password) {
-  await page.goto('/', { waitUntil: 'networkidle' })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('#email', { timeout: 15000 })
   await page.fill('#email', email)
   await page.fill('#password', password)
   await page.click('button[type="submit"]')
