@@ -379,6 +379,16 @@ export async function loginForAccessToken(baseUrl, { username, password }) {
     }, [404, 405]))
 }
 
+export async function loginWithGoogle(baseUrl, idToken) {
+    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/api/auth/google', '/auth/google'], {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id_token: String(idToken ?? '') }),
+    }, [404, 405]))
+}
+
 export async function verifyPasswordForUser(baseUrl, {
     email,
     password,
