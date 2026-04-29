@@ -1,11 +1,20 @@
 // @ts-check
-import { test, expect } from '@playwright/test'
+import { test as base, expect } from '@playwright/test'
+
+// Each test gets a fresh browser context — no session bleed between tests
+const test = base.extend({
+  page: async ({ browser }, use) => {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await use(page)
+    await context.close()
+  },
+})
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'campus_admin@test.com'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
 
 async function login(page, email, password) {
-  await page.addInitScript(() => localStorage.clear())
   await page.goto('/')
   await page.fill('#email', email)
   await page.fill('#password', password)
