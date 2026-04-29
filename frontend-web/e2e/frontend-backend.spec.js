@@ -10,6 +10,7 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
  * router proceeds immediately after the modal's "I Understand" click.
  */
 async function login(page, email, password) {
+  await page.addInitScript(() => localStorage.clear())
   await page.goto('/')
   await page.fill('#email', email)
   await page.fill('#password', password)
@@ -24,6 +25,7 @@ async function login(page, email, password) {
 // ---------------------------------------------------------------------------
 
 test('login page renders', async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear())
   await page.goto('/')
   await expect(page.locator('#email')).toBeVisible()
   await expect(page.locator('#password')).toBeVisible()
@@ -31,6 +33,7 @@ test('login page renders', async ({ page }) => {
 })
 
 test('wrong password shows error message', async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear())
   await page.goto('/')
   await page.fill('#email', ADMIN_EMAIL)
   await page.fill('#password', 'wrongpassword')

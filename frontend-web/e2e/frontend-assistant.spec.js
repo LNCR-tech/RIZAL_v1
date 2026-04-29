@@ -5,6 +5,7 @@ const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'campus_admin@test.com'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
 
 async function login(page, email, password) {
+  await page.addInitScript(() => localStorage.clear())
   await page.goto('/')
   await page.fill('#email', email)
   await page.fill('#password', password)
