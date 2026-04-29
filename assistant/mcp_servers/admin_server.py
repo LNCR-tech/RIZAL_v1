@@ -70,8 +70,7 @@ async def list_schools(roles: List[str], permissions: Optional[List[str]] = None
     policy = _resolve_policy(roles, permissions)
     
     query = """
-        select id, school_name, school_code, address, primary_color, secondary_color, 
-               subscription_status, active_status, created_at
+        select id, school_code, legal_name, display_name, address, is_active, created_at
         from schools
     """
     params = {}
