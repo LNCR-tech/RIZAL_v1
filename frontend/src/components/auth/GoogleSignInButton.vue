@@ -13,9 +13,12 @@ import { isGoogleLoginAvailable } from '@/config/googleAuth.js'
 const emit = defineEmits(['credential', 'unavailable'])
 const buttonHost = ref(null)
 const errorMessage = ref('')
+let hasMountedButton = false
 
 async function mountButton() {
     if (!buttonHost.value) return
+    if (hasMountedButton) return
+    hasMountedButton = true
     if (!isGoogleLoginAvailable()) {
         errorMessage.value = 'Google login is not configured.'
         emit('unavailable')

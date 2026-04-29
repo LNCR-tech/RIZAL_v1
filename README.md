@@ -72,6 +72,7 @@ Start here:
 - [Deploying to Linux / AWS](./docs/getting-started/linux-deploy.md)
 - [Common Commands](./docs/reference/common-commands.md)
 - [Environment Variables](./docs/reference/env.md)
+- [Google Sign-In setup](./docs/setup/google-auth.md)
 - [Ports and URLs](./docs/reference/ports.md)
 - [Repository Layout](./docs/reference/repository-layout.md)
 

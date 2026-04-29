@@ -10,7 +10,9 @@
       "*.ngrok-free.dev",
       "*.ngrok.dev",
       "*.ngrok-free.app",
-      "*.ngrok.app"
+      "*.ngrok.app",
+      "accounts.google.com",
+      "*.googleusercontent.com"
     ]
   },
   "android": {

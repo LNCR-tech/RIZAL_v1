@@ -104,6 +104,8 @@ const allowNavigation = Array.from(
       '*.ngrok.dev',
       '*.ngrok-free.app',
       '*.ngrok.app',
+      'accounts.google.com',
+      '*.googleusercontent.com',
     ].filter(Boolean)
   )
 )
