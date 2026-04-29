@@ -963,7 +963,6 @@ function resolveAttendanceCategory(attendance = {}) {
   const signedInWithoutSignOut = Boolean(attendance?.time_in && !attendance?.time_out)
 
   if (displayStatus === 'absent') return 'absent'
-  if (signedInWithoutSignOut) return 'absent'
   if (completionState !== 'completed') return 'waiting'
   if (displayStatus === 'late') return 'late'
   return 'present'
