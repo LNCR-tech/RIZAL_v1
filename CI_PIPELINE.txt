@@ -70,3 +70,13 @@
 - campus_admin role maps to school_it → lands on /workspace (requires PRIVILEGED_FACE_VERIFICATION_ENABLED=false)
 - assistant pytest.ini has: addopts = --ignore=tests/test_integration.py
 - integration tests seed DB via importlib loading backend/tests/conftest.py _seed()
+
+## TODO
+- frontend-assistant e2e tests: restore once useChat.js is wired to the real assistant API
+  (currently isAuraChatUnderDevelopment=ref(true) hardcoded in frontend-web/src/composables/useChat.js)
+- e2e coverage gaps: workspace loading, event list, profile page — all exercise real backend API calls
+  through the frontend but are not yet tested
+- CD pipeline: implement once integrate/pilot-merge becomes the production branch
+- Cache pip deps and Playwright browsers in CI to speed up e2e-tests job (currently ~8-15 min)
+- frontend-assistant.spec.js: when chat is connected, test SSE streaming, message send/receive,
+  conversation persistence, and user isolation via the real assistant endpoint
