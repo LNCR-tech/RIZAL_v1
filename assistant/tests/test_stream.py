@@ -83,7 +83,10 @@ def test_stream_tool_call_events(client, auth_headers):
         yield {"type": "chunk", "content": "Done."}
         yield {"role": "assistant", "content": "Done.", "tool_calls": None}
 
-    with patch("main.call_llm_stream", side_effect=[turn_one(), turn_two()]), \
+    gen_one = turn_one(None)
+    gen_two = turn_two(None)
+
+    with patch("main.call_llm_stream", side_effect=[gen_one, gen_two]), \
          patch("main.resolve_backend_user_id", new=AsyncMock(return_value=None)), \
          patch("main.resolve_runtime_governance_access", new=AsyncMock(return_value={"permission_codes": [], "roles": [], "school_id": 1})):
 
