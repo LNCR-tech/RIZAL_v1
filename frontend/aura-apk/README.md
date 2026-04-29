@@ -1,5 +1,11 @@
 # Aura APK Workspace
 
+<!--nav-->
+[Previous](../docs/README.md) | [Next](../../seeder/README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 This folder contains the native Android workspace for the Aura Capacitor app.
 
 ## What lives here
@@ -27,3 +33,7 @@ Or from the `frontend/` folder:
 npm run android:build:debug
 npm run android:build:release
 ```
+
+## Docs
+
+- [Android APK Build Guide](../docs/android-apk-build.md)

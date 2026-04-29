@@ -1,7 +1,7 @@
 # Aura Demo Seeder — Documentation
 
 <!--nav-->
-[← Project Audit](../../docs/audits/project_audit.md) | [🏠 Home](/README.md) | [Ch.1 Purpose →](01-purpose.md)
+[Previous](../README.md) | [Next](../../assistant/README.md) | [Home](/README.md)
 
 ---
 <!--/nav-->

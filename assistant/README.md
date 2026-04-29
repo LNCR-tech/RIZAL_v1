@@ -1,5 +1,11 @@
 # Assistant Service
 
+<!--nav-->
+[Previous](../seeder/docs/README.md) | [Next](../backend/README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 AI assistant service for Aura. Provides streaming LLM responses with MCP tool integration for querying live school data.
 
 ## Stack
@@ -22,7 +28,7 @@ uvicorn main:app --port 8500 --reload
 
 ## Docs
 
-- [Assistant Guide](docs/)
+- [Assistant Testing Guide](docs/TESTING.md)
 - API docs: `http://localhost:8500/docs`
 
 ## Key Directories

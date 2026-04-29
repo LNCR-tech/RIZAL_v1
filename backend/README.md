@@ -1,5 +1,11 @@
 # Backend Service
 
+<!--nav-->
+[Previous](../assistant/README.md) | [Next](docs/README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 FastAPI backend for Aura. Handles authentication, attendance, events, governance, sanctions, reports, bulk import, and face recognition.
 
 ## Stack
@@ -24,6 +30,9 @@ uvicorn app.main:app --reload
 ## Docs
 
 - [Backend Docs](docs/README.md)
+- [API Overview](docs/api-overview.md)
+- [Runtime Behavior](docs/runtime-behavior.md)
+- [Testing Guide](docs/TESTING.md)
 - API docs: `http://localhost:8000/docs` (dev only, disabled in production)
 
 ## Key Directories

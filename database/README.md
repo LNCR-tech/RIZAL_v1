@@ -1,5 +1,11 @@
 # Database Service
 
+<!--nav-->
+[Previous](../backend/docs/README.md) | [Next](../frontend/README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 Postgres service for Aura. Contains the init scripts, normalized schema design docs, and its own Dockerfile and docker-compose for standalone use.
 
 ## Contents
@@ -39,3 +45,7 @@ docker compose --profile dev up --build
 - Alembic migrations live in `backend/alembic/` since they depend on the SQLAlchemy models in `backend/app/models/`.
 - To run migrations: `cd ../backend && alembic upgrade head`
 - pgAdmin is available at `http://localhost:5050` when running standalone or in the dev profile.
+
+## Docs
+
+- [Normalized DB Schema](db_normalized/db_schema.md)
