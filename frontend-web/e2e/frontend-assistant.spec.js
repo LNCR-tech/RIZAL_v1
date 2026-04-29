@@ -14,6 +14,7 @@ const test = base.extend({
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'campus_admin@test.com'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
 
+/** @param {import('@playwright/test').Page} page @param {string} email @param {string} password */
 async function login(page, email, password) {
   await page.goto('/')
   await page.fill('#email', email)

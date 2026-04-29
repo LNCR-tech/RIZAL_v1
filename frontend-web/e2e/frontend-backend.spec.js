@@ -19,6 +19,7 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
  * Sets aura_terms_agreed in localStorage before navigating so the
  * router proceeds immediately after the modal's "I Understand" click.
  */
+/** @param {import('@playwright/test').Page} page @param {string} email @param {string} password */
 async function login(page, email, password) {
   await page.goto('/')
   await page.fill('#email', email)
