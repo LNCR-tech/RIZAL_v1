@@ -32,7 +32,7 @@ This repo ships with a production-style Docker setup so the frontend can be demo
   Generates the runtime backend configuration file so the same build can point to a different cloud backend later.
 - `public/runtime-config.js`
   Safe browser fallback for local development when no runtime override is injected.
-- `.env.docker.example`
+- `.env.example`
   Example runtime configuration for Docker.
 
 ### Container
@@ -42,7 +42,7 @@ This repo ships with a production-style Docker setup so the frontend can be demo
 
 ### Start
 
-1. Copy `.env.docker.example` to `.env.docker`.
+1. Copy `.env.example` to `.env.docker`.
 2. Set `BACKEND_ORIGIN` to the backend root URL.
    Use the host root, not the `/api` suffix.
    Example: `https://your-ngrok-host.ngrok-free.dev`

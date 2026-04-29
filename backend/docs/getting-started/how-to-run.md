@@ -1,4 +1,4 @@
-﻿# How to Run Aura
+# How to Run Aura
 
 <!--nav-->
 [Previous](docker.md) | [Next](linux-deploy.md) | [Home](/README.md)
@@ -10,7 +10,7 @@ One command is all you need in every scenario. The stack handles database creati
 
 ---
 
-## Linux â€” Local
+## Linux — Local
 
 ```bash
 docker compose up --build
@@ -20,12 +20,12 @@ Visit `http://localhost:5173`.
 
 ---
 
-## Linux â€” Production (AWS EC2 / Ubuntu Server)
+## Linux — Production (AWS EC2 / Ubuntu Server)
 
 **First time on a fresh server:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/Pre-Production-v1/start.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/integrate/pilot-merge/start.sh | bash
 ```
 
 Or if you already cloned the repo:
@@ -51,7 +51,7 @@ Visit `http://<your-server-ip>`.
 
 ---
 
-## Windows â€” Local
+## Windows — Local
 
 ```powershell
 docker compose up --build
@@ -61,13 +61,13 @@ Visit `http://localhost:5173`.
 
 ---
 
-## Windows â€” Production
+## Windows — Production
 
 Windows can't run `start.sh` directly. SSH into the server and run it there:
 
 ```powershell
 ssh ubuntu@<your-server-ip>
-curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/Pre-Production-v1/start.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/integrate/pilot-merge/start.sh | bash
 ```
 
 Or use Git Bash / WSL on your Windows machine:
@@ -84,9 +84,9 @@ Every `docker compose up --build` or `./start.sh` runs these in order with no ma
 
 ```
 db (healthy)
-  â””â”€â”€ migrate        â€” runs Alembic migrations, creates all tables
-        â””â”€â”€ bootstrap  â€” creates admin account, roles, event types
-              â””â”€â”€ backend / worker / beat / assistant / frontend
+  └── migrate        — runs Alembic migrations, creates all tables
+        └── bootstrap  — creates admin account, roles, event types
+              └── backend / worker / beat / assistant / frontend
 ```
 
 ---
@@ -126,16 +126,16 @@ For production, open these inbound TCP ports in your EC2 Security Group:
 
 ---
 
-## CI/CD â€” Automatic Deployment
+## CI/CD — Automatic Deployment
 
-Pushing to `main`, `master`, `integrate/pilot-merge`, or `Pre-Production-v1` triggers automatic deployment:
+Pushing to `main`, `master`, `integrate/pilot-merge`, or `integrate/pilot-merge` triggers automatic deployment:
 
-1. **CI** â€” validates compose configs, compiles backend, lints and builds frontend
-2. **CD** â€” if CI passes, SSHs into AWS and deploys the new code
+1. **CI** — validates compose configs, compiles backend, lints and builds frontend
+2. **CD** — if CI passes, SSHs into AWS and deploys the new code
 
 ### Setup (one time)
 
-Go to your GitHub repo â†’ **Settings** â†’ **Secrets and variables** â†’ **Actions** and add:
+Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions** and add:
 
 | Secret | Value |
 |---|---|
@@ -144,21 +144,21 @@ Go to your GitHub repo â†’ **Settings** â†’ **Secrets and variables** 
 | `AWS_USER` | SSH username (usually `ubuntu`) |
 | `AWS_PROJECT_PATH` | Project path on server (default: `/opt/aura`) |
 
-Then go to **Settings** â†’ **Environments** â†’ **New environment** â†’ name it `production` and save.
+Then go to **Settings** → **Environments** → **New environment** → name it `production` and save.
 
 ### What happens on deploy
 
 ```
 git push origin main
-      â†“
+      ↓
 CI: compile + lint + build (GitHub runners)
-      â†“ passes
-CD: SSH into AWS â†’ git pull â†’ docker compose up --build -d
-      â†“
+      ↓ passes
+CD: SSH into AWS → git pull → docker compose up --build -d
+      ↓
 Health check: waits for backend /health to respond
-      â†“
+      ↓
 Cleanup: removes old Docker images to save disk
 ```
 
-Data is **never deleted** â€” Docker volumes (`postgres_data`, `import_storage`, etc.) persist across rebuilds.
+Data is **never deleted** — Docker volumes (`postgres_data`, `import_storage`, etc.) persist across rebuilds.
 

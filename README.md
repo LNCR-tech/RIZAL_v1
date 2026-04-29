@@ -22,7 +22,7 @@ Aura is a school-grade student attendance management system with face recognitio
 Copy-Item backend\.env.example backend\.env
 Copy-Item assistant\.env.example assistant\.env
 Copy-Item database\.env.example database\.env
-Copy-Item frontend\.env.example frontend\.env
+Copy-Item frontend-web\.env.example frontend-web\.env
 
 # 2. Fill in the required values in each .env file
 
@@ -82,7 +82,7 @@ Variables are tagged with one of four types:
 - [Assistant docs](assistant/docs/)
 - [Database docs](database/)
 - [Seeder docs](seeder/docs/)
-- [Audit Report](frontend/docs/audits/AUDIT_REPORT.md)
+- [Audit Report](frontend-web/docs/audits/AUDIT_REPORT.md)
 
 ## README Index
 
