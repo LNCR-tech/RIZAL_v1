@@ -13,6 +13,8 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
     storageState: { cookies: [], origins: [] },
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
   },
 
   projects: [
