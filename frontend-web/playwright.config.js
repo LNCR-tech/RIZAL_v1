@@ -12,7 +12,15 @@ export default defineConfig({
     headless: true,
     screenshot: 'only-on-failure',
     video: 'off',
-    storageState: { cookies: [], origins: [] },
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:5173',
+          localStorage: [],
+        },
+      ],
+    },
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
   },
