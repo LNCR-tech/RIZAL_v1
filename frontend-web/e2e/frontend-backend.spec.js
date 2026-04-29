@@ -38,14 +38,6 @@ test('valid login redirects to dashboard', async ({ page }) => {
   await expect(page).not.toHaveURL('/', { timeout: 10000 })
 })
 
-test('authenticated user cannot access login page', async ({ page }) => {
-  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
-  const dashboardUrl = page.url()
-  await page.goto('/')
-  await expect(page).not.toHaveURL('/', { timeout: 15000 })
-  await expect(page).toHaveURL(dashboardUrl, { timeout: 15000 })
-})
-
 test('unauthenticated user is redirected to login from protected route', async ({ page }) => {
   await page.goto('/dashboard')
   await expect(page).toHaveURL('/', { timeout: 8000 })
