@@ -169,6 +169,10 @@ class Settings:
     school_logo_public_prefix: str
     cors_allowed_origins: list[str]
 
+    google_login_enabled: bool
+    google_web_client_id: str
+    google_android_client_id: str
+
 
 def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -322,4 +326,7 @@ def get_settings() -> Settings:
             os.getenv("CORS_ALLOWED_ORIGINS"),
             ["http://localhost:5173", "http://127.0.0.1:5173"],
         ),
+        google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),
+        google_web_client_id=os.getenv("GOOGLE_WEB_CLIENT_ID", "").strip(),
+        google_android_client_id=os.getenv("GOOGLE_ANDROID_CLIENT_ID", "").strip(),
     )
