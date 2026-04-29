@@ -6,18 +6,12 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'TestPass123!'
 
 /** @param {import('@playwright/test').Page} page @param {string} email @param {string} password */
 async function login(page, email, password) {
-  await page.addInitScript(() => localStorage.clear())
+  await page.context().addInitScript(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
   await page.goto('/')
-  
-  const emailInput = page.locator('#email')
-  try {
-    await emailInput.waitFor({ state: 'visible', timeout: 15000 })
-  } catch (e) {
-    console.log('Page HTML when #email not found:', await page.content())
-    console.log('Page URL:', page.url())
-    throw e
-  }
-  
+  await page.waitForSelector('#email', { timeout: 15000 })
   await page.fill('#email', email)
   await page.fill('#password', password)
   await page.click('button[type="submit"]')
