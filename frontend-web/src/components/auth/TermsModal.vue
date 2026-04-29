@@ -4,7 +4,7 @@
       <div 
         v-if="isOpen" 
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-        @click.self="close"
+        @click.self="decline"
       >
         <div 
           class="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden border border-white/10"
@@ -16,7 +16,7 @@
               Aura Terms and Conditions
             </h2>
             <button 
-              @click="close"
+              @click="decline"
               class="p-1 rounded-full hover:bg-gray-500/10 transition-colors"
               style="color: var(--color-text-secondary);"
             >
@@ -136,7 +136,7 @@
             <BaseButton
               variant="primary"
               size="md"
-              @click="close"
+              @click="agree"
             >
               I Understand
             </BaseButton>
@@ -158,10 +158,14 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['agree', 'decline'])
 
-function close() {
-  emit('close')
+function agree() {
+  emit('agree')
+}
+
+function decline() {
+  emit('decline')
 }
 </script>
 

@@ -113,7 +113,7 @@
     <TermsModal 
       :isOpen="showTermsModal" 
       @agree="handleAgree"
-      @decline="handleDecline" 
+      @decline="handleDecline"
     />
   </div>
 </template>
