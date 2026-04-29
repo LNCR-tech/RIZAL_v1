@@ -64,6 +64,16 @@
 
         <p v-else class="sg-sub-empty">No students found.</p>
       </div>
+
+      <BasePagination
+        v-if="!isLoading && !loadError && totalPages > 1"
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :total="totalStudents"
+        :limit="pageLimit"
+        :loading="isLoading"
+        @page-change="handlePageChange"
+      />
     </template>
 
     <transition name="sg-sheet">
@@ -178,11 +188,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, CalendarDays, ChevronRight, Clock3, MapPin, RefreshCw, Search, X } from 'lucide-vue-next'
+import BasePagination from '@/components/ui/BasePagination.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useGovernanceAccess } from '@/composables/useGovernanceAccess.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
-import { getGovernanceStudents, getStudentAttendanceReport } from '@/services/backendApi.js'
+import { getGovernanceStudentsPage, getStudentAttendanceReport } from '@/services/backendApi.js'
 import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const props = defineProps({
@@ -203,6 +214,10 @@ const isLoading = ref(true)
 const loadError = ref('')
 const students = ref([])
 const searchQuery = ref('')
+const currentPage = ref(1)
+const totalPages = ref(1)
+const totalStudents = ref(0)
+const pageLimit = ref(20)
 const selectedStudent = ref(null)
 const selectedStudentReport = ref(null)
 const detailLoading = ref(false)
@@ -327,7 +342,7 @@ onMounted(() => {
   }, 7000)
 })
 
-async function loadStudents(url) {
+async function loadStudents(url, page = 1) {
   isLoading.value = true
   loadError.value = ''
   try {
@@ -335,16 +350,33 @@ async function loadStudents(url) {
       students.value = Array.isArray(previewBundle.value?.students)
         ? previewBundle.value.students.map((student) => ({ ...student }))
         : []
+      totalStudents.value = students.value.length
+      totalPages.value = 1
+      currentPage.value = 1
       return
     }
 
     const token = localStorage.getItem('aura_token') || ''
-    students.value = await getGovernanceStudents(url, token, governanceQueryParams())
+    const response = await getGovernanceStudentsPage(url, token, {
+      ...governanceQueryParams(),
+      page,
+      limit: pageLimit.value
+    })
+    students.value = response.data
+    currentPage.value = response.page
+    totalPages.value = response.total_pages
+    totalStudents.value = response.total
   } catch (e) {
     loadError.value = e?.message || 'Unable to load students.'
   } finally {
     isLoading.value = false
   }
+}
+
+function handlePageChange(newPage) {
+  currentPage.value = newPage
+  loadStudents(apiBaseUrl.value, newPage)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function reload() {
