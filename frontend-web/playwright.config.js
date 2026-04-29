@@ -12,6 +12,7 @@ export default defineConfig({
     headless: true,
     screenshot: 'only-on-failure',
     video: 'off',
+    storageState: { cookies: [], origins: [] },
   },
 
   projects: [
