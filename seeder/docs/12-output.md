@@ -1,7 +1,7 @@
-# Chapter 12 — Output Files
+﻿# Chapter 12 â€” Output Files
 
 <!--nav-->
-[← Ch.11 Running](11-running.md) | [🏠 Home](/README.md)
+[Previous](11-running.md) | [Next](../README.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -20,7 +20,7 @@ Three files are written per run, one per user category:
 
 | File | Contents |
 |---|---|
-| `campus_admin_credentials.{ext}` | One row per school — the campus admin account |
+| `campus_admin_credentials.{ext}` | One row per school â€” the campus admin account |
 | `student_governance_credentials.{ext}` | All SSG, SG, and ORG officers |
 | `student_credentials.{ext}` | All regular students |
 
@@ -57,10 +57,11 @@ These files are the primary way to get login credentials after a seed run. Open 
 - Use `student_governance_credentials` to log in as an SSG/SG/ORG officer
 - Use `student_credentials` to log in as a regular student
 
-If `SEED_UNIQUE_PASSWORDS = False` (default), all students share the password `Student123!` and you don't need the credentials file for students — just pick any student email from the database.
+If `SEED_UNIQUE_PASSWORDS = False` (default), all students share the password `Student123!` and you don't need the credentials file for students â€” just pick any student email from the database.
 
 ---
 
 ## 12.5 File Overwrite Behavior
 
 Each run overwrites the output files from scratch. The files are opened with `'w'` mode at the start of `run_demo()`, which truncates any existing content. This means re-running the seeder always produces fresh credential files that match the current database state.
+

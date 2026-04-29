@@ -1,7 +1,7 @@
-# Chapter 6 — User and Identity Generation
+﻿# Chapter 6 â€” User and Identity Generation
 
 <!--nav-->
-[← Ch.5 Academic Structure](05-academic-structure.md) | [🏠 Home](/README.md) | [Ch.7 Governance →](07-governance.md)
+[Previous](05-academic-structure.md) | [Next](07-governance.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -12,9 +12,9 @@
 
 Student names are drawn independently from three pools in `data.py`:
 
-- `FIRST_NAMES` — 119 entries, multicultural (English, Spanish, Japanese, Arabic, Indian, Filipino)
-- `LAST_NAMES` — 96 entries, similarly multicultural with Filipino surnames weighted higher
-- `MIDDLE_NAMES` — 54 entries
+- `FIRST_NAMES` â€” 119 entries, multicultural (English, Spanish, Japanese, Arabic, Indian, Filipino)
+- `LAST_NAMES` â€” 96 entries, similarly multicultural with Filipino surnames weighted higher
+- `MIDDLE_NAMES` â€” 54 entries
 
 Each draw is independent and uniform:
 
@@ -55,7 +55,7 @@ Where:
 
 Example: `james.smith42@aurauniversity.edu.ph`
 
-This scheme can produce collisions. The seeder does not check for email uniqueness — the database `UNIQUE` constraint on `users.email` will raise an error if a collision occurs. In practice, with 119 first names × 96 last names × 99 number suffixes = 1,131,264 possible combinations, collisions are extremely rare at the scale the seeder operates at.
+This scheme can produce collisions. The seeder does not check for email uniqueness â€” the database `UNIQUE` constraint on `users.email` will raise an error if a collision occurs. In practice, with 119 first names Ã— 96 last names Ã— 99 number suffixes = 1,131,264 possible combinations, collisions are extremely rare at the scale the seeder operates at.
 
 ---
 
@@ -134,12 +134,12 @@ The bcrypt work factor doubles with each increment:
 
 | rounds | Relative cost |
 |--------|--------------|
-| 6 | 1× (baseline) |
-| 8 | 4× |
-| 10 | 16× |
-| 12 | 64× |
+| 6 | 1Ã— (baseline) |
+| 8 | 4Ã— |
+| 10 | 16Ã— |
+| 12 | 64Ã— |
 
-At `rounds=6` with 10 parallel workers, hashing 2,000 passwords takes approximately 2–5 seconds depending on hardware. At `rounds=12`, the same operation would take 128–320 seconds — which is why the seeder uses `rounds=6` for bulk student generation.
+At `rounds=6` with 10 parallel workers, hashing 2,000 passwords takes approximately 2â€“5 seconds depending on hardware. At `rounds=12`, the same operation would take 128â€“320 seconds â€” which is why the seeder uses `rounds=6` for bulk student generation.
 
 ---
 
@@ -157,7 +157,7 @@ Students are then assigned via weighted sampling with replacement:
 P(\text{student assigned to program } i) = \frac{w_i}{\sum_{j} w_j}
 ```
 
-This produces realistic enrollment skew. In a school with 5 programs, one program might have weight 95 and another weight 12, resulting in roughly 8× more students in the popular program.
+This produces realistic enrollment skew. In a school with 5 programs, one program might have weight 95 and another weight 12, resulting in roughly 8Ã— more students in the popular program.
 
 The weights are drawn once per school and reused for all students in that school. This means the enrollment distribution is consistent within a school but varies between schools.
 
@@ -171,4 +171,5 @@ Each school gets exactly one campus admin user:
 - Password: `CampusAdmin123!` (hashed at `rounds=6`)
 - Role: `campus_admin`
 
-The campus admin is created with get-or-create semantics — if a user with that email already exists, it is reused.
+The campus admin is created with get-or-create semantics â€” if a user with that email already exists, it is reused.
+

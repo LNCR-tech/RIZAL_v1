@@ -1,7 +1,7 @@
-# Getting Started (Local Dev, no Docker)
+﻿# Getting Started (Local Dev, no Docker)
 
 <!--nav-->
-[← Docker](docker.md) | [🏠 Home](/README.md) | [Linux / AWS Deploy →](linux-deploy.md)
+[Previous](linux-deploy.md) | [Next](../../README.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -47,7 +47,7 @@ psql -U postgres -c "CREATE DATABASE ai_assistant;"
 
 ## 2. Configure Environment Files
 
-**Root `.env`** — copy from example and fill in required values:
+**Root `.env`** â€” copy from example and fill in required values:
 
 ```bash
 # Linux
@@ -74,7 +74,7 @@ LOGIN_URL=http://localhost:5173
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-**Frontend** — copy from example:
+**Frontend** â€” copy from example:
 
 ```bash
 # Linux
@@ -147,7 +147,7 @@ celery -A app.workers.celery_app.celery_app worker --loglevel=info
 ```
 
 ```powershell
-# Windows — requires --pool=solo, otherwise Celery crashes
+# Windows â€” requires --pool=solo, otherwise Celery crashes
 cd backend
 celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo
 ```
@@ -215,5 +215,6 @@ Get your WSL IP:
 wsl hostname -I
 ```
 
-This IP changes on every reboot — update `.env` if Celery fails to connect.
+This IP changes on every reboot â€” update `.env` if Celery fails to connect.
+
 

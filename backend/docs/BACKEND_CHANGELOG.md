@@ -1,7 +1,7 @@
-# Backend Change Log
+﻿# Backend Change Log
 
 <!--nav-->
-[← Runtime Behavior](runtime-behavior.md) | [🏠 Home](/README.md) | [Email Guide →](BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md)
+[Previous](api-overview.md) | [Next](BACKEND_DB_NORMALIZED_SCHEMA_GUIDE.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -2379,4 +2379,5 @@ Added governance permission codes for sanctions management and enforced them at 
 2. Run `python -m pytest -q Backend/app/tests/test_sanctions_api.py`.
 3. Verify sanctions endpoints return `403` for governance members lacking new sanctions permissions.
 4. Verify sanctions endpoints succeed after granting the required permission codes.
+
 

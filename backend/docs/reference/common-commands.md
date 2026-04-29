@@ -1,7 +1,7 @@
-# Common Commands
+﻿# Common Commands
 
 <!--nav-->
-[← Linux / AWS Deploy](../getting-started/linux-deploy.md) | [🏠 Home](/README.md) | [Environment Variables →](env.md)
+[Previous](../../README.md) | [Next](env.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -87,7 +87,7 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 # Celery worker
 celery -A app.workers.celery_app.celery_app worker --loglevel=info
 
-# Celery worker (Windows — requires --pool=solo)
+# Celery worker (Windows â€” requires --pool=solo)
 celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo
 
 # Celery beat
@@ -137,3 +137,4 @@ git commit -m "your message"
 git pull --rebase origin Pre-Production-v1
 git push
 ```
+

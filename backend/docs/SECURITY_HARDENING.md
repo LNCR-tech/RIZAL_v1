@@ -1,4 +1,11 @@
-# 🔐 Aura Security Hardening Guide
+﻿# ðŸ” Aura Security Hardening Guide
+
+<!--nav-->
+[Previous](runtime-behavior.md) | [Next](TESTING.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 
 ## Executive Summary
 
@@ -321,3 +328,4 @@ For security issues or questions:
 **Document Version**: 1.0  
 **Last Updated**: 2024  
 **Next Review**: Quarterly or after significant changes
+

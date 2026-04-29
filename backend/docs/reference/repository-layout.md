@@ -1,7 +1,7 @@
-# Repository Layout
+﻿# Repository Layout
 
 <!--nav-->
-[← Ports and URLs](ports.md) | [🏠 Home](/README.md) | [Backend Docs →](../README.md)
+[Previous](ports.md) | [Next](../../README.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -20,3 +20,4 @@
 - `.env.example`: Minimal configuration template for secrets, connection strings, public URLs, and operational overrides
 - `docker-compose.yml`: Local Docker stack with Postgres, Redis, migrations, backend, assistant, frontend, and pgAdmin
 - `README.md`: Entry point with links into service docs folders
+

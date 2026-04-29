@@ -1,7 +1,7 @@
-# Aura Project Audit Report
+﻿# Aura Project Audit Report
 
 <!--nav-->
-[← Navigation Map](../user/navigation.md) | [🏠 Home](/README.md) | [Project Audit →](project_audit.md)
+[Previous](../../README.md) | [Next](project_audit.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -408,4 +408,5 @@ These are maintenance warnings, not immediate functional failures.
 ## Final Assessment
 
 Aura is a serious application with real engineering work behind it. The codebase is not in rescue territory. The current gap is that the repository's operational and security posture has not fully caught up to the product's breadth, especially around production defaults, API contract consistency, and assistant-service hardening. If those areas are addressed, the project can move from "feature-rich and functional" to "defensible and maintainable in production."
+
 

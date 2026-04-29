@@ -1,7 +1,7 @@
-# Ports and URLs
+﻿# Ports and URLs
 
 <!--nav-->
-[← Environment Variables](env.md) | [🏠 Home](/README.md) | [Repository Layout →](repository-layout.md)
+[Previous](env.md) | [Next](repository-layout.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -38,3 +38,4 @@ These are the defaults from `docker-compose.yml`.
 - The frontend reverse-proxies:
   - `/__backend__/...` to the backend origin
   - `/__assistant__/...` to the assistant origin
+

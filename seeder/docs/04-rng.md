@@ -1,7 +1,7 @@
-# Chapter 4 — Deterministic Randomness and the RNG Model
+﻿# Chapter 4 â€” Deterministic Randomness and the RNG Model
 
 <!--nav-->
-[← Ch.3 Configuration](03-configuration.md) | [🏠 Home](/README.md) | [Ch.5 Academic Structure →](05-academic-structure.md)
+[Previous](03-configuration.md) | [Next](05-academic-structure.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -10,7 +10,7 @@
 
 ## 4.1 The Core Principle
 
-The seeder is deterministic. Every random decision — school selection, student names, program weights, event dates, attendance outcomes, sanction resolution — flows through a single `random.Random` instance:
+The seeder is deterministic. Every random decision â€” school selection, student names, program weights, event dates, attendance outcomes, sanction resolution â€” flows through a single `random.Random` instance:
 
 ```python
 rng = random.Random(cfg.SEED_RANDOMIZER_KEY)
@@ -31,11 +31,11 @@ Given the same key and the same configuration, the seeder produces byte-for-byte
 
 ## 4.2 Why a Single RNG Instance
 
-Using a single RNG instance rather than multiple independent ones is a deliberate design choice. It means the entire dataset is a single deterministic trajectory through the random number space. Changing any parameter — even one that seems unrelated — shifts the trajectory and produces a completely different dataset.
+Using a single RNG instance rather than multiple independent ones is a deliberate design choice. It means the entire dataset is a single deterministic trajectory through the random number space. Changing any parameter â€” even one that seems unrelated â€” shifts the trajectory and produces a completely different dataset.
 
 This is the intended behavior. If you want a different dataset, change `SEED_RANDOMIZER_KEY`. If you want the same dataset, keep it the same.
 
-The alternative — multiple independent RNG instances per subsystem — would allow partial reproducibility (e.g., "same students, different events") but would make the overall dataset harder to reason about and harder to reproduce exactly.
+The alternative â€” multiple independent RNG instances per subsystem â€” would allow partial reproducibility (e.g., "same students, different events") but would make the overall dataset harder to reason about and harder to reproduce exactly.
 
 ---
 
@@ -222,18 +222,18 @@ P(X = x_i) = \frac{w_i}{\sum_{j=1}^{n} w_j}
 
 Used for:
 
-- **Program assignment for students** — each program gets a random weight, then students are assigned via weighted sampling. This produces realistic enrollment skew where some programs are more popular than others.
+- **Program assignment for students** â€” each program gets a random weight, then students are assigned via weighted sampling. This produces realistic enrollment skew where some programs are more popular than others.
   ```math
   w_i \sim \text{Uniform}(10, 100)
   ```
 
-- **Event scope assignment** — fixed weights `{"school": 15, "department": 25, "program": 60}` give:
+- **Event scope assignment** â€” fixed weights `{"school": 15, "department": 25, "program": 60}` give:
 
 ```math
 P(\text{program-scoped}) = \frac{60}{100} = 0.60, \quad P(\text{department-scoped}) = 0.25, \quad P(\text{school-wide}) = 0.15
 ```
 
-- **Attendance status** — for present students, `rng.choices(["present", "late"], weights=[80, 20])` gives:
+- **Attendance status** â€” for present students, `rng.choices(["present", "late"], weights=[80, 20])` gives:
 
 ```math
 P(\text{present}) = 0.80, \quad P(\text{late}) = 0.20
@@ -254,7 +254,7 @@ P(\text{present}) = 0.80, \quad P(\text{late}) = 0.20
 
 ---
 
-## 4.9 The Chaos Engine — Per-Run Variance
+## 4.9 The Chaos Engine â€” Per-Run Variance
 
 The chaos engine introduces a layer of variance that is consistent within a single run but varies between runs with different `SEED_RANDOMIZER_KEY` values.
 
@@ -268,6 +268,7 @@ p_c \sim \text{Uniform}(0.02, 0.07) \quad \text{(cancellation base probability)}
 p_e \sim \text{Uniform}(0.10, 0.25) \quad \text{(emergency cutoff probability)}
 ```
 
-These govern event status and attendance gate probabilities across the entire dataset. Every seeded universe has a different "climate" — some universes have more cancellations, some have more emergency cutoffs. This is what makes the dataset feel like a real school system rather than a synthetic one.
+These govern event status and attendance gate probabilities across the entire dataset. Every seeded universe has a different "climate" â€” some universes have more cancellations, some have more emergency cutoffs. This is what makes the dataset feel like a real school system rather than a synthetic one.
 
 See [Chapter 8](./08-events.md) for the full event status model.
+

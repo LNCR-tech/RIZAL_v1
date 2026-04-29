@@ -1,4 +1,11 @@
-# Backend compatibility fixes (April 2026)
+﻿# Backend compatibility fixes (April 2026)
+
+<!--nav-->
+[Previous](BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md) | [Next](REPORT_CATALOG.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 
 ## What changed
 
@@ -37,3 +44,4 @@ Then run full suite:
 ```bash
 pytest
 ```
+

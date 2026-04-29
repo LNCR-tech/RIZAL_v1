@@ -1,7 +1,7 @@
 # Assistant Service
 
 <!--nav-->
-[Previous](../seeder/docs/README.md) | [Next](../backend/README.md) | [Home](/README.md)
+[Previous](../README.md) | [Next](docs/TESTING.md) | [Home](/README.md)
 
 ---
 <!--/nav-->

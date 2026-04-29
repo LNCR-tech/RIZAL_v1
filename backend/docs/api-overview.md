@@ -1,7 +1,7 @@
-# Backend API Overview
+﻿# Backend API Overview
 
 <!--nav-->
-[← Backend Docs](README.md) | [🏠 Home](/README.md) | [Runtime Behavior →](runtime-behavior.md)
+[Previous](../README.md) | [Next](BACKEND_CHANGELOG.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -72,4 +72,5 @@ The attendance write routes now support explicit JSON request models while keepi
 - `PATCH /api/events/{event_id}/status`: `{ "status": "ongoing" }`
 
 Face image payloads are bounded. Base64 image bodies are limited by schema validation, and multipart face uploads must be non-empty image content under `FACE_IMAGE_MAX_SIZE_MB`.
+
 

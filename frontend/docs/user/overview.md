@@ -1,7 +1,7 @@
-# Aura Overview (Non-Developer)
+﻿# Aura Overview (Non-Developer)
 
 <!--nav-->
-[← Assistant v1 vs v2](../assistant/v1_vs_v2_comparison.md) | [🏠 Home](/README.md) | [Navigation Map →](navigation.md)
+[Previous](navigation.md) | [Next](../../README.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -23,7 +23,7 @@ This page is written for non-developers who want to understand what the product 
 
 Exact visibility depends on your role and what your school enabled.
 
-## “Where Do I Go?”
+## â€œWhere Do I Go?â€
 
 After logging in, Aura routes you to the right workspace based on your role:
 
@@ -39,4 +39,5 @@ There are also a few special screens:
 - Profile security: `/profile/security`
 
 For a navigation map and what each area contains, see: [Navigation Map](./navigation.md).
+
 

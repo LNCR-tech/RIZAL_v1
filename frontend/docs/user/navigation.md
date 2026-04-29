@@ -1,12 +1,12 @@
-# Aura Navigation Map (Non-Developer)
+﻿# Aura Navigation Map (Non-Developer)
 
 <!--nav-->
-[← Aura Overview](overview.md) | [🏠 Home](/README.md) | [Audit Report →](../audits/AUDIT_REPORT.md)
+[Previous](../../README.md) | [Next](overview.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
 
-Note: Menu labels may differ slightly, but the sections below reflect the app’s primary route groups.
+Note: Menu labels may differ slightly, but the sections below reflect the appâ€™s primary route groups.
 
 ## Login and Account
 
@@ -83,4 +83,5 @@ Governance routes support governance/unit management and event operations:
 - Gather mode:
   - Welcome: `/governance/gather`
   - Attendance capture: `/governance/gather/attendance`
+
 

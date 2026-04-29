@@ -1,7 +1,7 @@
-# Backend User Preferences And Auth Session Guide
+﻿# Backend User Preferences And Auth Session Guide
 
 <!--nav-->
-[← Sanctions Guide](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md) | [🏠 Home](/README.md) | [Frontend Docs →](../frontend/README.md)
+[Previous](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md) | [Next](compatibility-fixes-apr-2026.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -261,4 +261,5 @@ Verify these scenarios manually:
 5. Call `GET /api/users/preferences/me`
 6. Call `PUT /api/users/preferences/me` with updated `dark_mode_enabled` and `font_size_percent`
 7. Sign in on another device and confirm the same preference values are loaded from the backend
+
 

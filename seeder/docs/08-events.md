@@ -1,7 +1,7 @@
-# Chapter 8 — Event Generation and the Chaos Engine
+﻿# Chapter 8 â€” Event Generation and the Chaos Engine
 
 <!--nav-->
-[← Ch.7 Governance](07-governance.md) | [🏠 Home](/README.md) | [Ch.9 Attendance →](09-attendance.md)
+[Previous](07-governance.md) | [Next](09-attendance.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -40,7 +40,7 @@ random_second = rng.randint(0, delta_seconds)
 return start_dt + timedelta(seconds=random_second)
 ```
 
-This produces a uniform distribution of events across the entire date range. With a 3-year window (2024–2026) and 100 events, events are spaced approximately 11 days apart on average, but with high variance.
+This produces a uniform distribution of events across the entire date range. With a 3-year window (2024â€“2026) and 100 events, events are spaced approximately 11 days apart on average, but with high variance.
 
 Event duration is drawn uniformly:
 
@@ -56,7 +56,7 @@ t_\text{end} = t_\text{event} + d \times 3600 \text{ seconds}
 
 ---
 
-## 8.3 The Chaos Engine — Event Status Model
+## 8.3 The Chaos Engine â€” Event Status Model
 
 
 The chaos engine determines the status of each event based on its temporal relationship to the current wall-clock time `t_now`.
@@ -168,7 +168,7 @@ Each event also gets stochastic grace period settings:
 \text{late\_threshold\_minutes} \sim \text{Uniform}(5, 20)
 ```
 
-These diversify the analytics data — different events have different windows for what counts as "on time."
+These diversify the analytics data â€” different events have different windows for what counts as "on time."
 
 ---
 
@@ -200,3 +200,4 @@ X \sim \text{Bernoulli}(0.50)
 ```
 
 If it fires, a `SanctionDelegation` record is created linking the event's sanction config to a randomly selected SG unit with `scope_type = UNIT`.
+

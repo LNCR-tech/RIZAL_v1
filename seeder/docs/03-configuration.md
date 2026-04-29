@@ -1,7 +1,7 @@
-# Chapter 3 — Configuration System
+﻿# Chapter 3 â€” Configuration System
 
 <!--nav-->
-[← Ch.2 Architecture](02-architecture.md) | [🏠 Home](/README.md) | [Ch.4 RNG Model →](04-rng.md)
+[Previous](02-architecture.md) | [Next](04-rng.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -10,7 +10,7 @@
 
 ## 3.1 Overview
 
-All seeder configuration lives in `seeder/variables.py`. Edit it directly before running. There are no environment variables, no `.env` files, and no CLI flags required for basic use — though CLI flags can override `variables.py` values for a single run.
+All seeder configuration lives in `seeder/variables.py`. Edit it directly before running. There are no environment variables, no `.env` files, and no CLI flags required for basic use â€” though CLI flags can override `variables.py` values for a single run.
 
 `config.py` validates `variables.py` on startup and exits with a clear error message if anything is wrong, before touching the database.
 
@@ -23,7 +23,7 @@ All seeder configuration lives in `seeder/variables.py`. Edit it directly before
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `SEED_DATABASE` | `bool` | `False` | Must be `True` to run. The primary safety gate against accidental execution. |
-| `SEED_WIPE_EXISTING` | `bool` | `True` | If `True`, truncates all seeded tables before inserting. Safe to re-run. If `False`, the seeder is additive — it will skip records that already exist (get-or-create pattern). |
+| `SEED_WIPE_EXISTING` | `bool` | `True` | If `True`, truncates all seeded tables before inserting. Safe to re-run. If `False`, the seeder is additive â€” it will skip records that already exist (get-or-create pattern). |
 
 ### Platform Admin
 
@@ -38,7 +38,7 @@ All seeder configuration lives in `seeder/variables.py`. Edit it directly before
 |---|---|---|---|
 | `SEED_RANDOMIZER_KEY` | `int` | `42` | Seeds `random.Random`. Same key + same config = identical dataset every run. Change to generate a different universe. |
 | `SEED_UNIQUE_PASSWORDS` | `bool` | `False` | `False` gives all students the password `Student123!`. `True` generates a unique 12-character alphanumeric password per student (significantly slower due to bcrypt). |
-| `SEED_USER_SUFFIX_PROBABILITY` | `float` | `0.3` | Probability (0.0–1.0) that a generated name gets a generational suffix (Jr., Sr., II, III, IV). |
+| `SEED_USER_SUFFIX_PROBABILITY` | `float` | `0.3` | Probability (0.0â€“1.0) that a generated name gets a generational suffix (Jr., Sr., II, III, IV). |
 
 ### Scale
 
@@ -50,7 +50,7 @@ All seeder configuration lives in `seeder/variables.py`. Edit it directly before
 | `SEED_MIN_STUDENTS` / `SEED_MAX_STUDENTS` | `int` | `1000` / `2000` | Range for student count per school. |
 | `SEED_MIN_EVENTS` / `SEED_MAX_EVENTS` | `int` | `30` / `100` | Range for event count per school. |
 
-Min/max pairs are swap-protected in `seed.py` — if you accidentally set `min > max`, they are silently corrected before being passed to `run_demo()`.
+Min/max pairs are swap-protected in `seed.py` â€” if you accidentally set `min > max`, they are silently corrected before being passed to `run_demo()`.
 
 ### Temporal Window
 
@@ -76,11 +76,11 @@ Min/max pairs are swap-protected in `seed.py` — if you accidentally set `min >
 - `variables.py` must exist at `seeder/variables.py`
 - `variables.py` must be syntactically valid Python
 - Every variable must be present and of the correct type
-- `SEED_N_SCHOOLS` ≥ 1
-- `SEED_MIN_COLLEGES`, `SEED_MAX_COLLEGES`, `SEED_MIN_PROGRAMS` ≥ 1
-- `SEED_MIN_STUDENTS`, `SEED_MAX_STUDENTS`, `SEED_MIN_EVENTS`, `SEED_MAX_EVENTS` ≥ 0
-- `SEED_USER_SUFFIX_PROBABILITY` ∈ [0.0, 1.0]
-- `SEED_CREDENTIALS_FORMAT` ∈ `{"csv", "tsv", "psv"}`
+- `SEED_N_SCHOOLS` â‰¥ 1
+- `SEED_MIN_COLLEGES`, `SEED_MAX_COLLEGES`, `SEED_MIN_PROGRAMS` â‰¥ 1
+- `SEED_MIN_STUDENTS`, `SEED_MAX_STUDENTS`, `SEED_MIN_EVENTS`, `SEED_MAX_EVENTS` â‰¥ 0
+- `SEED_USER_SUFFIX_PROBABILITY` âˆˆ [0.0, 1.0]
+- `SEED_CREDENTIALS_FORMAT` âˆˆ `{"csv", "tsv", "psv"}`
 - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` must not be empty strings
 - Each date tuple must be `(month, day, year)` with valid calendar ranges
 - Start date must not be later than end date
@@ -99,4 +99,5 @@ python seed.py demo --start-mmddyy 1,1,2025 --end-mmddyy 6,30,2025
 python seed.py demo --credentials-format tsv
 ```
 
-CLI flags take precedence over `variables.py` for that run only. `SEED_DATABASE`, `SEED_WIPE_EXISTING`, `SEED_RANDOMIZER_KEY`, `SEED_UNIQUE_PASSWORDS`, and `SEED_USER_SUFFIX_PROBABILITY` cannot be overridden via CLI — edit `variables.py` for those.
+CLI flags take precedence over `variables.py` for that run only. `SEED_DATABASE`, `SEED_WIPE_EXISTING`, `SEED_RANDOMIZER_KEY`, `SEED_UNIQUE_PASSWORDS`, and `SEED_USER_SUFFIX_PROBABILITY` cannot be overridden via CLI â€” edit `variables.py` for those.
+

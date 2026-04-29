@@ -1,7 +1,7 @@
 # Seeder Service
 
 <!--nav-->
-[Previous](../frontend/aura-apk/README.md) | [Next](docs/README.md) | [Home](/README.md)
+[Previous](../README.md) | [Next](docs/01-purpose.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -10,7 +10,7 @@ The seeder generates deterministic demo data for Aura (schools, users, governanc
 
 ## Docs
 
-- [Seeder Docs Index](docs/README.md)
+- [Chapter 1 - Purpose and Design Philosophy](docs/01-purpose.md)
 - [Chapter 11 - Running the Seeder](docs/11-running.md)
 - [Chapter 12 - Output Files](docs/12-output.md)
 

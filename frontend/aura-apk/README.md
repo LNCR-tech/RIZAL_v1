@@ -1,7 +1,7 @@
 # Aura APK Workspace
 
 <!--nav-->
-[Previous](../docs/README.md) | [Next](../../seeder/README.md) | [Home](/README.md)
+[Previous](../README.md) | [Next](../docs/android-apk-build.md) | [Home](/README.md)
 
 ---
 <!--/nav-->

@@ -1,7 +1,7 @@
-# Chapter 7 — Governance Hierarchy Generation
+﻿# Chapter 7 â€” Governance Hierarchy Generation
 
 <!--nav-->
-[← Ch.6 Users](06-users.md) | [🏠 Home](/README.md) | [Ch.8 Events →](08-events.md)
+[Previous](06-users.md) | [Next](08-events.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -13,9 +13,9 @@
 Each school gets a three-level governance hierarchy:
 
 ```
-SSG (Supreme Student Government)          — 1 per school
-  └── SG (Student Government)             — 1 per department
-        └── ORG (Student Organization)    — 0–2 per SG
+SSG (Supreme Student Government)          â€” 1 per school
+  â””â”€â”€ SG (Student Government)             â€” 1 per department
+        â””â”€â”€ ORG (Student Organization)    â€” 0â€“2 per SG
 ```
 
 This mirrors the real-world governance structure that Aura is designed to manage.
@@ -61,7 +61,7 @@ SG_PERMISSIONS = [
 
 ## 7.4 ORG Units
 
-For each SG unit, 0–2 ORG units are created:
+For each SG unit, 0â€“2 ORG units are created:
 
 ```math
 n_\text{org} \sim \text{Uniform}(0, 2)
@@ -101,7 +101,7 @@ If it fires, one announcement template is drawn uniformly and prefixed with the 
 
 ---
 
-## 7.6 Governance Officers — The Leader Pool
+## 7.6 Governance Officers â€” The Leader Pool
 
 Officers are drawn from the student body using a two-stage process.
 
@@ -119,7 +119,7 @@ The leader pool is a fixed subset for the duration of the school's generation. A
 
 ### Stage 2: Officer Assignment
 
-Officers are assigned per governance unit by sampling from the leader pool **with replacement** (i.e., the same student can be assigned to multiple units). This is the "hybrid overlay" — a student can simultaneously be an SSG officer, an SG officer for one department, and an ORG officer for another.
+Officers are assigned per governance unit by sampling from the leader pool **with replacement** (i.e., the same student can be assigned to multiple units). This is the "hybrid overlay" â€” a student can simultaneously be an SSG officer, an SG officer for one department, and an ORG officer for another.
 
 | Unit type | Officers per unit |
 |-----------|------------------|
@@ -160,5 +160,6 @@ Students are sampled without replacement. For each noted student:
 
 - A random leader is chosen as the note creator
 - The note is assigned to either the SSG unit (50% probability) or a random SG unit (50%)
-- 1–2 tags are sampled from `MOCK_NOTE_TAGS`
+- 1â€“2 tags are sampled from `MOCK_NOTE_TAGS`
 - The note body is drawn uniformly from `MOCK_NOTES_POOL`
+

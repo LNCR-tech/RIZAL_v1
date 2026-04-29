@@ -1,4 +1,11 @@
-# Android APK Build Guide
+﻿# Android APK Build Guide
+
+<!--nav-->
+[Previous](../README.md) | [Next](../README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 
 This project can now package as a Capacitor Android app for pilot testing without hardcoding the backend host into the source code.
 
@@ -99,7 +106,7 @@ Or copy the APK to the phone and install it manually.
 
 - Build the web app with the same ngrok backend env.
 - Serve the built frontend over HTTPS.
-- Open the frontend ngrok URL in Safari, then use **Share → Add to Home Screen**.
+- Open the frontend ngrok URL in Safari, then use **Share â†’ Add to Home Screen**.
 - `dist/runtime-config.js` now writes both web and native API base URLs when an absolute ngrok backend URL is configured, so the iOS PWA can call the same tunnel directly.
 
 ## Rebuild after backend change
@@ -110,3 +117,4 @@ If the backend URL changes:
 2. Run `npm run android:build:release` again
 
 The Capacitor config will regenerate automatically for the new backend host.
+

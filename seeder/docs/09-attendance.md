@@ -1,7 +1,7 @@
-# Chapter 9 — Attendance Generation
+﻿# Chapter 9 â€” Attendance Generation
 
 <!--nav-->
-[← Ch.8 Events](08-events.md) | [🏠 Home](/README.md) | [Ch.10 Sanctions →](10-sanctions.md)
+[Previous](08-events.md) | [Next](10-sanctions.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -18,7 +18,7 @@ Not every event generates attendance records. The chaos engine assigns a gate pr
 | `ONGOING` | `p_g ~ Uniform(0.20, 0.70)` |
 | `CANCELLED` (emergency) | `p_g ~ Uniform(0.01, 0.15)` |
 | `CANCELLED` (pre-emptive) | `0.0` (no attendance) |
-| `UPCOMING` | `0.0` (no attendance — hallucination protection) |
+| `UPCOMING` | `0.0` (no attendance â€” hallucination protection) |
 
 The gate probability represents the fraction of students who "managed to record" attendance for that event. For a completed event, all students are eligible. For an ongoing event, only a partial snapshot exists. For an emergency cancellation, only a tiny fraction recorded before the event was cut short.
 
@@ -41,7 +41,7 @@ For students who pass the gate, an absence decision is made:
 \end{cases}
 ```
 
-The base absence probability is fixed at 25%. This is a simplification — in a real system, absence probability would vary per student based on their history. The seeder uses a uniform rate for all students.
+The base absence probability is fixed at 25%. This is a simplification â€” in a real system, absence probability would vary per student based on their history. The seeder uses a uniform rate for all students.
 
 For present students, the status is further split:
 
@@ -67,7 +67,7 @@ where `p_{g,i}` is the gate probability for event i.
 
 For a completed event, `p_{g,i} = 1.0`, so it contributes `n_s` records. For an ongoing event with `p_{g,i} = 0.45` (midpoint of the range), it contributes `0.45 * n_s` records.
 
-With default settings (1,000–2,000 students, 30–100 events, ~57% completed), the expected attendance volume per school is approximately:
+With default settings (1,000â€“2,000 students, 30â€“100 events, ~57% completed), the expected attendance volume per school is approximately:
 
 ```math
 E[\text{records}] \approx 1500 \times (0.573 \times 65 \times 1.0 + 0.049 \times 65 \times 0.45 + 0.039 \times 65 \times 0.08)
@@ -112,3 +112,4 @@ status = AttendanceStatus.ABSENT.value if absent else rng.choices(
 ```
 
 This is necessary because the backend model uses `PG_ENUM` with `create_type=True`, which stores raw strings rather than Python enum objects.
+

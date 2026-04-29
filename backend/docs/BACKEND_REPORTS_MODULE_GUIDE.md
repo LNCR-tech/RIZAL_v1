@@ -1,7 +1,7 @@
-# Backend Reports Module Guide
+﻿# Backend Reports Module Guide
 
 <!--nav-->
-[← Railway Deployment](BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md) | [🏠 Home](/README.md) | [Report Catalog →](REPORT_CATALOG.md)
+[Previous](BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md) | [Next](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -164,4 +164,5 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - call `GET /api/attendance/students/{student_profile_id}/stats?group_by=month`
    - verify the endpoint returns `200` and includes `event_type_breakdown` with `event_type=Seminar`
    - verify events without an assigned type still fall back to `Regular Events`.
+
 

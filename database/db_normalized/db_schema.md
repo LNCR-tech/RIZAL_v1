@@ -1,4 +1,11 @@
-# Aura Database Schema
+﻿# Aura Database Schema
+
+<!--nav-->
+[Previous](../README.md) | [Next](../README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 
 The live schema has 66 application tables across 8 domains. The SQL definition is in `db_schema.sql`. The ERD is in `erd/`.
 
@@ -28,7 +35,7 @@ A school is the top-level tenant. All data is scoped to a school.
 | Table | Purpose |
 |---|---|
 | `schools` | Core school identity (name, code, address) |
-| `school_branding` | Logo, colors — separated so branding can change without touching the school row |
+| `school_branding` | Logo, colors â€” separated so branding can change without touching the school row |
 | `school_event_policies` | Default event timing settings per school |
 | `school_subscriptions` | Active plan, dates, renewal settings |
 | `school_subscription_reminders` | Scheduled reminder log for upcoming renewals |
@@ -40,8 +47,8 @@ A school is the top-level tenant. All data is scoped to a school.
 
 | Table | Purpose |
 |---|---|
-| `users` | Core user record — email, password hash, name, school, import password flag |
-| `user_roles` | Many-to-many: users ↔ roles |
+| `users` | Core user record â€” email, password hash, name, school, import password flag |
+| `user_roles` | Many-to-many: users â†” roles |
 | `user_sessions` | Active JWT sessions |
 | `mfa_challenges` | One-time MFA codes |
 | `login_history` | Audit log of login attempts (success and failure) |
@@ -60,7 +67,7 @@ A school is the top-level tenant. All data is scoped to a school.
 |---|---|
 | `departments` | Colleges/departments within a school |
 | `programs` | Degree programs within a school |
-| `program_departments` | Many-to-many: programs ↔ departments |
+| `program_departments` | Many-to-many: programs â†” departments |
 | `academic_periods` | School years and semesters (e.g. `2024-2025 1st Semester`) |
 | `student_profiles` | Student-specific data: student number, year level, section, RFID |
 | `faculty_profiles` | Faculty-specific data: department and program assignment |
@@ -76,13 +83,13 @@ A school is the top-level tenant. All data is scoped to a school.
 | `events` | School events with timing, geo, and status |
 | `event_departments` | Scopes an event to specific departments |
 | `event_programs` | Scopes an event to specific programs |
-| `attendance_records` | One row per student per event — method, status, geo, liveness |
+| `attendance_records` | One row per student per event â€” method, status, geo, liveness |
 
 ---
 
 ## Governance
 
-Student government hierarchy: SSG → SG → ORG.
+Student government hierarchy: SSG â†’ SG â†’ ORG.
 
 | Table | Purpose |
 |---|---|
@@ -129,3 +136,4 @@ Student government hierarchy: SSG → SG → ORG.
 | `data_requests` | Export or deletion requests |
 | `data_request_items` | Items within a data request |
 | `data_retention_run_logs` | Audit log of data retention runs |
+

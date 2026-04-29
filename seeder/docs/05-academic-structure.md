@@ -1,7 +1,7 @@
-# Chapter 5 — Academic Structure Generation
+﻿# Chapter 5 â€” Academic Structure Generation
 
 <!--nav-->
-[← Ch.4 RNG Model](04-rng.md) | [🏠 Home](/README.md) | [Ch.6 Users →](06-users.md)
+[Previous](04-rng.md) | [Next](06-users.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -10,7 +10,7 @@
 
 ## 5.1 School Selection
 
-Schools are selected from a fixed pool of 21 names in `data.py` using `rng.sample()` — sampling without replacement. This guarantees no duplicate school names regardless of how many schools are requested.
+Schools are selected from a fixed pool of 21 names in `data.py` using `rng.sample()` â€” sampling without replacement. This guarantees no duplicate school names regardless of how many schools are requested.
 
 ```math
 	ext{selected\_schools} = \text{sample}(\text{SCHOOL\_NAMES},\ k = \min(N_s,\ 21))
@@ -20,8 +20,8 @@ where `N_s` is `SEED_N_SCHOOLS`. If you request more than 21 schools, the seeder
 
 Each school gets:
 - A `school_name` (the full name from the pool)
-- A `school_code` derived as the first 3 characters uppercased + `"U"` (e.g., `"Aura University"` → `"AURU"`)
-- A `school_domain` derived by stripping non-alpha characters and appending `.edu.ph` (e.g., `"Aura University"` → `"aurauniversity.edu.ph"`)
+- A `school_code` derived as the first 3 characters uppercased + `"U"` (e.g., `"Aura University"` â†’ `"AURU"`)
+- A `school_domain` derived by stripping non-alpha characters and appending `.edu.ph` (e.g., `"Aura University"` â†’ `"aurauniversity.edu.ph"`)
 - Default branding colors: primary `#162F65`, secondary `#2C5F9E`, accent `#4A90E2`
 
 ---
@@ -55,7 +55,7 @@ The program pool per school directly affects student distribution (see [Chapter 
 
 Each college becomes a `Department` record. Each program becomes a `Program` record. The many-to-many link between them is created via the `program_department_association` table.
 
-All operations use get-or-create semantics — if a department or program with the same name already exists for that school, it is reused rather than duplicated. This makes the seeder safe to run with `SEED_WIPE_EXISTING = False`.
+All operations use get-or-create semantics â€” if a department or program with the same name already exists for that school, it is reused rather than duplicated. This makes the seeder safe to run with `SEED_WIPE_EXISTING = False`.
 
 ---
 
@@ -65,17 +65,17 @@ For each school, the seeder seeds `academic_periods` rows covering every school 
 
 | Semester | Months (approximate) |
 |---|---|
-| 1st Semester | August – December |
-| 2nd Semester | January – May |
-| Summer | June – July |
+| 1st Semester | August â€“ December |
+| 2nd Semester | January â€“ May |
+| Summer | June â€“ July |
 
-For example, with a 2024–2026 range, each school gets 9 academic period rows (3 years × 3 semesters). These are used to link `sanction_compliance_history` records to a realistic academic term based on the event date (see [Chapter 10](./10-sanctions.md)).
+For example, with a 2024â€“2026 range, each school gets 9 academic period rows (3 years Ã— 3 semesters). These are used to link `sanction_compliance_history` records to a realistic academic term based on the event date (see [Chapter 10](./10-sanctions.md)).
 
 ---
 
 ## 5.5 School Settings
 
-Each school gets a `SchoolSetting` record created alongside it, with the same branding colors. This is required by the backend — the settings record is expected to exist for any school that has users.
+Each school gets a `SchoolSetting` record created alongside it, with the same branding colors. This is required by the backend â€” the settings record is expected to exist for any school that has users.
 
 ---
 
@@ -83,7 +83,8 @@ Each school gets a `SchoolSetting` record created alongside it, with the same br
 
 The seeder respects the following schema constraints:
 
-- `UniqueConstraint("school_id", "name")` on `departments` — enforced by get-or-create
-- `UniqueConstraint("school_id", "name")` on `programs` — enforced by get-or-create
-- `UniqueConstraint("school_id", "unit_code")` on `governance_units` — unit codes are derived from IDs, which are unique
-- `UniqueConstraint("school_id", "student_id")` on `student_profiles` — enforced by a collision-resistant loop (see [Chapter 6](./06-users.md))
+- `UniqueConstraint("school_id", "name")` on `departments` â€” enforced by get-or-create
+- `UniqueConstraint("school_id", "name")` on `programs` â€” enforced by get-or-create
+- `UniqueConstraint("school_id", "unit_code")` on `governance_units` â€” unit codes are derived from IDs, which are unique
+- `UniqueConstraint("school_id", "student_id")` on `student_profiles` â€” enforced by a collision-resistant loop (see [Chapter 6](./06-users.md))
+

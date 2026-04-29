@@ -1,7 +1,7 @@
 # Frontend Service
 
 <!--nav-->
-[Previous](../database/README.md) | [Next](docs/README.md) | [Home](/README.md)
+[Previous](../README.md) | [Next](docs/android-apk-build.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -12,7 +12,6 @@ Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://
 
 ## Docs
 
-- [Frontend Docs Index](docs/README.md)
 - [Android APK Build Guide](docs/android-apk-build.md)
 - [User Overview](docs/user/overview.md)
 - [Navigation Map](docs/user/navigation.md)

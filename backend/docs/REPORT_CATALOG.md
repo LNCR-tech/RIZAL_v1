@@ -1,7 +1,7 @@
-# Report Catalog
+﻿# Report Catalog
 
 <!--nav-->
-[← Reports Module](BACKEND_REPORTS_MODULE_GUIDE.md) | [🏠 Home](/README.md) | [Sanctions Guide →](BACKEND_SANCTIONS_MANAGEMENT_GUIDE.md)
+[Previous](compatibility-fixes-apr-2026.md) | [Next](runtime-behavior.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -78,5 +78,6 @@ Role labels used below:
   - `ORG`: organization/program-scoped
 - `Student` access is mostly own-data only.
 - Multiple roles can see the same report, with different scope limits.
+
 
 

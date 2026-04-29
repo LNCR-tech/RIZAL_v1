@@ -1,7 +1,7 @@
-# Chapter 11 — Running the Seeder
+﻿# Chapter 11 â€” Running the Seeder
 
 <!--nav-->
-[← Ch.10 Sanctions](10-sanctions.md) | [🏠 Home](/README.md) | [Ch.12 Output →](12-output.md)
+[Previous](10-sanctions.md) | [Next](12-output.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -67,7 +67,7 @@ The seeder service mounts the entire repo root at `/repo` so both `backend/` and
 
 The seeder is safe to re-run. With `SEED_WIPE_EXISTING = True` (default), it truncates all seeded tables before inserting, producing a clean dataset every time.
 
-With `SEED_WIPE_EXISTING = False`, the seeder is additive — it skips records that already exist (get-or-create pattern). This is useful for adding more schools to an existing dataset without wiping what's already there.
+With `SEED_WIPE_EXISTING = False`, the seeder is additive â€” it skips records that already exist (get-or-create pattern). This is useful for adding more schools to an existing dataset without wiping what's already there.
 
 ---
 
@@ -88,19 +88,20 @@ Because commits are issued per school and per attendance chunk, an interruption 
 
 ## 11.7 Performance Expectations
 
-With default settings (5 schools, 1,000–2,000 students, 30–100 events):
+With default settings (5 schools, 1,000â€“2,000 students, 30â€“100 events):
 
 | Phase | Approximate time |
 |---|---|
 | Config validation | < 1 second |
-| Table wipe | 1–3 seconds |
+| Table wipe | 1â€“3 seconds |
 | Roles + permissions | < 1 second |
-| Per school: academic structure | 1–2 seconds |
-| Per school: students (bcrypt, rounds=6) | 5–15 seconds |
-| Per school: events | 1–3 seconds |
-| Per school: attendance + sanctions | 10–30 seconds |
-| **Total (5 schools)** | **~3–5 minutes** |
+| Per school: academic structure | 1â€“2 seconds |
+| Per school: students (bcrypt, rounds=6) | 5â€“15 seconds |
+| Per school: events | 1â€“3 seconds |
+| Per school: attendance + sanctions | 10â€“30 seconds |
+| **Total (5 schools)** | **~3â€“5 minutes** |
 
-The dominant cost is bcrypt hashing for student passwords. With `SEED_UNIQUE_PASSWORDS = False` (default), all students share one hash, so this cost is negligible. With `SEED_UNIQUE_PASSWORDS = True`, hashing 10,000 students at `rounds=6` with 10 workers takes approximately 30–60 seconds.
+The dominant cost is bcrypt hashing for student passwords. With `SEED_UNIQUE_PASSWORDS = False` (default), all students share one hash, so this cost is negligible. With `SEED_UNIQUE_PASSWORDS = True`, hashing 10,000 students at `rounds=6` with 10 workers takes approximately 30â€“60 seconds.
 
 The second dominant cost is the attendance + sanctions phase, which involves large batch inserts. The chunk size of 2,000 is tuned to balance memory and throughput.
+

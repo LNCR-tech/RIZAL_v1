@@ -1,7 +1,7 @@
-# Backend Railway / Constrained Deployment Guide
+﻿# Backend Railway / Constrained Deployment Guide
 
 <!--nav-->
-[← Face Engine Migration](BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md) | [🏠 Home](/README.md) | [Reports Module →](BACKEND_REPORTS_MODULE_GUIDE.md)
+[Previous](BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md) | [Next](BACKEND_REPORTS_MODULE_GUIDE.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -56,3 +56,4 @@ Non-secret runtime defaults such as face warm-up and import limits now come from
 3. Run the bootstrap command once.
 4. Verify the admin can log in and that no demo schools or sample users were created.
 5. If Mailjet is enabled, confirm the backend startup logs show successful Mailjet connectivity verification.
+

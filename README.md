@@ -87,13 +87,10 @@ Variables are tagged with one of four types:
 
 - [Assistant README](assistant/README.md)
 - [Backend README](backend/README.md)
-- [Backend Docs README](backend/docs/README.md)
 - [Database README](database/README.md)
 - [Frontend README](frontend/README.md)
-- [Frontend Docs README](frontend/docs/README.md)
 - [Frontend APK README](frontend/aura-apk/README.md)
 - [Seeder README](seeder/README.md)
-- [Seeder Docs README](seeder/docs/README.md)
 
 ## Notes
 

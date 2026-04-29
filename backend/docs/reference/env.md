@@ -1,7 +1,7 @@
-# Environment Variables
+﻿# Environment Variables
 
 <!--nav-->
-[← Common Commands](common-commands.md) | [🏠 Home](/README.md) | [Ports and URLs →](ports.md)
+[Previous](common-commands.md) | [Next](ports.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -21,7 +21,7 @@ Do not put frontend `VITE_*` local-dev overrides in the root `.env`.
 
 Frontend-specific required vs optional variables are documented in:
 
-- [Frontend configuration](../frontend/configuration.md)
+- [Frontend README](../../../frontend/README.md)
 
 ## Local Setup
 
@@ -69,7 +69,7 @@ Optional in root `.env`:
 
 Frontend local-dev variables:
 
-- see [Frontend configuration](../frontend/configuration.md)
+- see [Frontend README](../../../frontend/README.md)
 
 ### Docker
 
@@ -132,7 +132,7 @@ Optional:
 
 ### Docker
 
-Required — change these from local defaults for production:
+Required â€” change these from local defaults for production:
 
 - `SECRET_KEY`
 - `LOGIN_URL`
@@ -145,12 +145,12 @@ Required — change these from local defaults for production:
 
 Optional:
 
-- `FRONTEND_PORT` — change to `80` or `443`
-- `EMAIL_TRANSPORT` — set to `mailjet_api`
-- `MAILJET_API_KEY` — your Mailjet API key
-- `MAILJET_API_SECRET` — your Mailjet API secret
+- `FRONTEND_PORT` â€” change to `80` or `443`
+- `EMAIL_TRANSPORT` â€” set to `mailjet_api`
+- `MAILJET_API_KEY` â€” your Mailjet API key
+- `MAILJET_API_SECRET` â€” your Mailjet API secret
 - `SMTP_*` / `MAILJET_*`
-- `UVICORN_WORKERS` — increase for production
+- `UVICORN_WORKERS` â€” increase for production
 
 Important:
 
@@ -183,3 +183,4 @@ python bootstrap.py --admin-email admin@example.com --admin-password ChangeMe123
 ```
 
 Default credentials are configured in `backend/app/core/app_settings.py`.
+

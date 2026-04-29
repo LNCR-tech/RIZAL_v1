@@ -1,7 +1,7 @@
-# Deploying to AWS Ubuntu (EC2)
+﻿# Deploying to AWS Ubuntu (EC2)
 
 <!--nav-->
-[← Local Dev](local-dev.md) | [🏠 Home](/README.md) | [Common Commands →](../reference/common-commands.md)
+[Previous](how-to-run.md) | [Next](local-dev.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -22,7 +22,7 @@ The face recognition model (InsightFace) and bcrypt hashing are CPU-heavy. A `t3
 
 ---
 
-## AWS Security Group — Required Inbound Rules
+## AWS Security Group â€” Required Inbound Rules
 
 Before running the deploy script, open these ports in your EC2 Security Group:
 
@@ -33,7 +33,7 @@ Before running the deploy script, open these ports in your EC2 Security Group:
 | 8000 | TCP | 0.0.0.0/0 | Backend API |
 | 8500 | TCP | 0.0.0.0/0 | Assistant API |
 
-Ports 5432 (Postgres) and 6379 (Redis) are **not** exposed to the host in the prod compose — they are internal only.
+Ports 5432 (Postgres) and 6379 (Redis) are **not** exposed to the host in the prod compose â€” they are internal only.
 
 ---
 
@@ -41,25 +41,25 @@ Ports 5432 (Postgres) and 6379 (Redis) are **not** exposed to the host in the pr
 
 Compared to the dev `docker-compose.yml`:
 
-- Uses `Dockerfile.prod` for the backend — runs as a non-root user, no source bind mounts
-- Postgres and Redis have **no host port exposure** — only reachable between containers
+- Uses `Dockerfile.prod` for the backend â€” runs as a non-root user, no source bind mounts
+- Postgres and Redis have **no host port exposure** â€” only reachable between containers
 - Frontend runs on port **80** (not 5174)
 - Backend runs on port **8000**, assistant on **8500**
-- `mailpit` and `pgadmin` are removed — not needed in production
+- `mailpit` and `pgadmin` are removed â€” not needed in production
 - All secrets come from `.env` via `DB_PASSWORD`, `LOGIN_URL`, `BACKEND_ORIGIN`, etc.
-- Backend has a healthcheck — frontend waits for it before starting
+- Backend has a healthcheck â€” frontend waits for it before starting
 
 ---
 
 ## Running the Deploy Script
 
-### Option A — Run directly from GitHub (fresh server)
+### Option A â€” Run directly from GitHub (fresh server)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/LNCR-tech/RIZAL_v1/Pre-Production-v1/deploy.sh | bash
 ```
 
-### Option B — Clone first, then run
+### Option B â€” Clone first, then run
 
 ```bash
 git clone https://github.com/LNCR-tech/RIZAL_v1.git -b Pre-Production-v1
@@ -87,7 +87,7 @@ When `.env` doesn't exist yet, the script will ask for:
 
 | Prompt | Description |
 |---|---|
-| `SECRET_KEY` | Long random string — generate with `openssl rand -hex 32` |
+| `SECRET_KEY` | Long random string â€” generate with `openssl rand -hex 32` |
 | `DB_PASSWORD` | Postgres password for the containerized database |
 | `AI_API_KEY` | Your AI provider API key |
 | `AI_API_BASE` | Your AI provider base URL (e.g. `https://api.openai.com/v1`) |
@@ -162,8 +162,9 @@ cd /opt/aura && docker compose -f docker-compose.prod.yml down
 
 ## Notes
 
-- The script is idempotent — running it again on an already-deployed server pulls the latest code and restarts the stack without touching `.env`.
-- Migrations and bootstrap run automatically on every `up --build` — no manual steps needed.
+- The script is idempotent â€” running it again on an already-deployed server pulls the latest code and restarts the stack without touching `.env`.
+- Migrations and bootstrap run automatically on every `up --build` â€” no manual steps needed.
 - If Docker was just installed, you may need to run `newgrp docker` or log out and back in before Docker commands work without `sudo`.
 - For HTTPS, put a reverse proxy (Caddy or nginx) in front of the frontend on port 443 and terminate TLS there. The simplest option on AWS is to put an **Application Load Balancer** in front with an ACM certificate.
-- The dev `docker-compose.yml` still works for local development — `docker-compose.prod.yml` is only for server deployments.
+- The dev `docker-compose.yml` still works for local development â€” `docker-compose.prod.yml` is only for server deployments.
+

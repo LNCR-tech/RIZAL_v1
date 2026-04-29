@@ -1,7 +1,7 @@
-# Getting Started (Docker)
+﻿# Getting Started (Docker)
 
 <!--nav-->
-[← How to Run](how-to-run.md) | [🏠 Home](/README.md) | [Local Dev →](local-dev.md)
+[Previous](../../README.md) | [Next](how-to-run.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -64,15 +64,15 @@ The compose file handles this automatically:
 
 ```
 db (healthy)
-  └── migrate        (alembic upgrade heads)
-        └── bootstrap  (python bootstrap.py — seeds roles, event types, admin)
-              └── backend / worker / beat
-                    └── frontend / assistant
+  â””â”€â”€ migrate        (alembic upgrade heads)
+        â””â”€â”€ bootstrap  (python bootstrap.py â€” seeds roles, event types, admin)
+              â””â”€â”€ backend / worker / beat
+                    â””â”€â”€ frontend / assistant
 ```
 
 ## Notes
 
-- Running `docker compose up --build` multiple times is safe — migrations and bootstrap are both idempotent.
+- Running `docker compose up --build` multiple times is safe â€” migrations and bootstrap are both idempotent.
 - Local container logs are available in the log viewer at `http://localhost:8088`. It reads Docker container stdout/stderr through the read-only Docker socket mount in the `log-viewer` service.
 - Terminal log access is still available with `docker compose logs -f` for all services or `docker compose logs -f backend` for only the backend API server.
 - Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). For local email capture, set `EMAIL_TRANSPORT=smtp` with `SMTP_HOST=mailpit` and open Mailpit at `http://localhost:8025`. For production, use `EMAIL_TRANSPORT=mailjet_api` with `MAILJET_API_KEY` and `MAILJET_API_SECRET`.
@@ -85,16 +85,17 @@ Change these variables in `.env` before deploying:
 
 | Variable | Why |
 |---|---|
-| `SECRET_KEY` | Use a long random string — never the dev placeholder |
+| `SECRET_KEY` | Use a long random string â€” never the dev placeholder |
 | `DATABASE_URL` | Point to your production Postgres host |
 | `ASSISTANT_DB_URL` | Same |
 | `LOGIN_URL` | Your frontend's public URL |
 | `CORS_ALLOWED_ORIGINS` | Same as `LOGIN_URL` |
 | `BACKEND_API_BASE_URL` | Your backend's public URL |
-| `BACKEND_ORIGIN` | Your backend's public URL — used by the frontend NGINX container to proxy `/__backend__/` requests |
+| `BACKEND_ORIGIN` | Your backend's public URL â€” used by the frontend NGINX container to proxy `/__backend__/` requests |
 | `ASSISTANT_ORIGIN` | Your assistant's public URL |
 | `EMAIL_TRANSPORT` | Set to `mailjet_api` for production |
 | `MAILJET_API_KEY` | Your Mailjet API key |
 | `MAILJET_API_SECRET` | Your Mailjet API secret |
 | `UVICORN_WORKERS` | Increase to match your CPU count |
 | `FRONTEND_PORT` | Change from `5173` to `80` or `443` |
+

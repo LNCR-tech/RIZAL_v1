@@ -1,8 +1,15 @@
-# Backend Testing Guide
+﻿# Backend Testing Guide
+
+<!--nav-->
+[Previous](SECURITY_HARDENING.md) | [Next](../README.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 
 ## Overview
 
-The backend has a pytest suite of **195 tests** covering all router modules. Tests run against a real PostgreSQL database using the same schema as production. Celery tasks run synchronously in eager mode during tests — no Redis or worker process required.
+The backend has a pytest suite of **195 tests** covering all router modules. Tests run against a real PostgreSQL database using the same schema as production. Celery tasks run synchronously in eager mode during tests â€” no Redis or worker process required.
 
 ## Running Tests Locally
 
@@ -72,7 +79,7 @@ alembic upgrade heads
 | `test_attendance_extended.py` | Bulk attendance, mark excused, face scan timeout, reports |
 | `test_attendance_overrides.py` | Mark excused, mark absent no timeout (all edge cases) |
 | `test_admin_import.py` | Preview valid/invalid, auth guards |
-| `test_import_lifecycle.py` | Full import pipeline: preview → commit → job completes → student created in DB |
+| `test_import_lifecycle.py` | Full import pipeline: preview â†’ commit â†’ job completes â†’ student created in DB |
 | `test_face_recognition.py` | Auth guards and role checks (face bypass enabled) |
 | `test_governance.py` | Governance access, settings |
 | `test_governance_hierarchy.py` | Governance unit CRUD |
@@ -95,9 +102,9 @@ alembic upgrade heads
 
 ## What Is Not Fully Tested
 
-- **Face recognition inference** — `FACE_SCAN_BYPASS_ALL=true` bypasses InsightFace model loading. The auth guards and role checks are tested, but actual embedding extraction and matching are not. These require real photos and a loaded ONNX model (~500MB).
-- **Public attendance multi-face-scan happy path** — only error cases (disabled feature, missing body, invalid event) are tested. The full scan flow requires face embeddings.
-- **WebSocket/SSE real-time delivery** — notification push over persistent connections is not testable with the synchronous `TestClient`.
+- **Face recognition inference** â€” `FACE_SCAN_BYPASS_ALL=true` bypasses InsightFace model loading. The auth guards and role checks are tested, but actual embedding extraction and matching are not. These require real photos and a loaded ONNX model (~500MB).
+- **Public attendance multi-face-scan happy path** â€” only error cases (disabled feature, missing body, invalid event) are tested. The full scan flow requires face embeddings.
+- **WebSocket/SSE real-time delivery** â€” notification push over persistent connections is not testable with the synchronous `TestClient`.
 
 ## Celery Eager Mode
 
@@ -107,7 +114,7 @@ Celery tasks run synchronously during tests via `CELERY_TASK_ALWAYS_EAGER=true`.
 - The import job completes before the test assertion runs
 - No Redis broker or Celery worker process is needed
 
-This is set automatically in `conftest.py` for local runs and in `ci.yml` for CI. Do not remove it — without it, import lifecycle tests will see jobs stuck in `pending` state.
+This is set automatically in `conftest.py` for local runs and in `ci.yml` for CI. Do not remove it â€” without it, import lifecycle tests will see jobs stuck in `pending` state.
 
 ## How CI Works
 
@@ -123,8 +130,9 @@ No real credentials are used. The AI API key is never called during backend test
 
 ## Test Architecture
 
-- **Seeded data** — `conftest.py` creates a test school, admin, campus_admin, and student user before tests run. Data is committed and cleaned up after the session.
-- **No mocking** — tests hit the real FastAPI app through Starlette's `TestClient` (in-process ASGI, no network). This catches schema mismatches, missing columns, and broken queries that unit tests would miss.
-- **Auth** — tokens are obtained via the real `/login` endpoint using seeded credentials. No JWT is manually crafted.
-- **Shared session** — the `db_session` fixture is `scope="session"` and shared across all tests. Tests that need to see rows committed by internal service sessions (e.g. import) must use a fresh `SessionLocal()` context, not `db_session`.
-- **Persistent local DB** — unlike CI (which starts fresh every run), your local `fastapi_db` persists between runs. Tests that insert rows with fixed identifiers (e.g. session JTIs) use `uuid4()` to avoid unique constraint violations on re-runs.
+- **Seeded data** â€” `conftest.py` creates a test school, admin, campus_admin, and student user before tests run. Data is committed and cleaned up after the session.
+- **No mocking** â€” tests hit the real FastAPI app through Starlette's `TestClient` (in-process ASGI, no network). This catches schema mismatches, missing columns, and broken queries that unit tests would miss.
+- **Auth** â€” tokens are obtained via the real `/login` endpoint using seeded credentials. No JWT is manually crafted.
+- **Shared session** â€” the `db_session` fixture is `scope="session"` and shared across all tests. Tests that need to see rows committed by internal service sessions (e.g. import) must use a fresh `SessionLocal()` context, not `db_session`.
+- **Persistent local DB** â€” unlike CI (which starts fresh every run), your local `fastapi_db` persists between runs. Tests that insert rows with fixed identifiers (e.g. session JTIs) use `uuid4()` to avoid unique constraint violations on re-runs.
+

@@ -1,7 +1,7 @@
-# Backend Email Delivery Guide (Mailjet / Disabled)
+﻿# Backend Email Delivery Guide (Mailjet / Disabled)
 
 <!--nav-->
-[← Backend Changelog](BACKEND_CHANGELOG.md) | [🏠 Home](/README.md) | [Face Attendance Policy →](BACKEND_FACE_ATTENDANCE_MODE_POLICY.md)
+[Previous](BACKEND_DB_NORMALIZED_SCHEMA_GUIDE.md) | [Next](BACKEND_FACE_ATTENDANCE_MODE_POLICY.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -69,3 +69,4 @@ If any of those fail, API startup aborts.
 4. Confirm startup fails fast with a Mailjet configuration error.
 5. Set valid Mailjet credentials and start the backend.
 6. Confirm startup succeeds and logs that Mailjet connectivity is verified.
+

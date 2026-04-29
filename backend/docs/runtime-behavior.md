@@ -1,7 +1,7 @@
-# Backend Runtime Behavior
+﻿# Backend Runtime Behavior
 
 <!--nav-->
-[← API Overview](api-overview.md) | [🏠 Home](/README.md) | [Backend Changelog →](BACKEND_CHANGELOG.md)
+[Previous](REPORT_CATALOG.md) | [Next](SECURITY_HARDENING.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -276,3 +276,4 @@ Event categorization now uses a dedicated lookup relation instead of a free-text
 8. Run `python -m alembic upgrade head` again after the timezone migrations and confirm the latest revisions convert attendance plus system timestamps to `TIMESTAMP WITH TIME ZONE`.
 9. Check a session, notification, governance, or password-reset API response and confirm returned datetime fields include explicit UTC offsets instead of naive strings.
 10. Call `POST /api/events/` twice with the same `X-Idempotency-Key` as the same user and confirm both responses return the same event ID while only one row is stored.
+

@@ -1,7 +1,7 @@
-# Project Audit: Student Attendance System (Aura Project)
+﻿# Project Audit: Student Attendance System (Aura Project)
 
 <!--nav-->
-[← Audit Report](AUDIT_REPORT.md) | [🏠 Home](/README.md)
+[Previous](AUDIT_REPORT.md) | [Next](../../README.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -119,4 +119,5 @@ The system follows a modern decoupled architecture:
 - **Scalability:** Uses background workers (Celery) for heavy tasks like student imports and face embedding computations.
 - **Maintainability:** Clear separation of Models, Schemas, Routers, and Services in the backend.
  
+
 

@@ -1,7 +1,7 @@
 # Database Service
 
 <!--nav-->
-[Previous](../backend/docs/README.md) | [Next](../frontend/README.md) | [Home](/README.md)
+[Previous](../README.md) | [Next](db_normalized/db_schema.md) | [Home](/README.md)
 
 ---
 <!--/nav-->

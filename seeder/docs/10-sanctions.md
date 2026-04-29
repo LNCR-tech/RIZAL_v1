@@ -1,7 +1,7 @@
-# Chapter 10 — Sanctions and Compliance Generation
+﻿# Chapter 10 â€” Sanctions and Compliance Generation
 
 <!--nav-->
-[← Ch.9 Attendance](09-attendance.md) | [🏠 Home](/README.md) | [Ch.11 Running →](11-running.md)
+[Previous](09-attendance.md) | [Next](11-running.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -32,7 +32,7 @@ Each sanction record is independently resolved with probability 0.30:
 \end{cases}
 ```
 
-This means approximately 30% of sanctions are `COMPLIED` and 70% remain `PENDING`. This ratio is intentional — it reflects a realistic scenario where most sanctions are still outstanding at any given time, which makes the sanctions dashboard non-trivial to look at.
+This means approximately 30% of sanctions are `COMPLIED` and 70% remain `PENDING`. This ratio is intentional â€” it reflects a realistic scenario where most sanctions are still outstanding at any given time, which makes the sanctions dashboard non-trivial to look at.
 
 ---
 
@@ -45,7 +45,7 @@ Each sanction record gets two items:
 | `LETTER` | Apology Letter |
 | `FINE` | Community Fine |
 
-Both items inherit the compliance status of their parent record — if the record is `COMPLIED`, both items are `COMPLIED`; if `PENDING`, both are `PENDING`.
+Both items inherit the compliance status of their parent record â€” if the record is `COMPLIED`, both items are `COMPLIED`; if `PENDING`, both are `PENDING`.
 
 For resolved records, `complied_at` is set to `t_\text{now}` (the wall-clock time at the start of the seeder run).
 
@@ -61,9 +61,9 @@ For each resolved sanction record, a `SanctionComplianceHistory` entry is create
 
 | Event month | School year | Semester |
 |---|---|---|
-| August – December | `year`–`year+1` | 1st |
-| January – May | `year-1`–`year` | 2nd |
-| June – July | `year-1`–`year` | Summer |
+| August â€“ December | `year`â€“`year+1` | 1st |
+| January â€“ May | `year-1`â€“`year` | 2nd |
+| June â€“ July | `year-1`â€“`year` | Summer |
 
 This ensures every compliance history entry is linked to a realistic academic period that was seeded for that school.
 
@@ -110,7 +110,7 @@ E[\text{compliance history entries}] \approx 21{,}825 \times 2 = 43{,}650
 
 ## 10.6 The `_seeder_sanction_config_id` Pattern
 
-The `Event` model has no `sanction_config_id` column — the relationship is one-to-one but navigated from the `EventSanctionConfig` side. After creating the sanction config for an event, the seeder stores the config ID as a transient Python attribute on the ORM object:
+The `Event` model has no `sanction_config_id` column â€” the relationship is one-to-one but navigated from the `EventSanctionConfig` side. After creating the sanction config for an event, the seeder stores the config ID as a transient Python attribute on the ORM object:
 
 ```python
 conf = create_sanction_config(db, school_id=school.id, event_id=ev.id, ...)
@@ -123,4 +123,5 @@ Later, during the attendance loop:
 conf = ev._seeder_sanction_config_id if hasattr(ev, '_seeder_sanction_config_id') else None
 ```
 
-This is a seeder-internal handoff pattern. The attribute is not persisted to the database — it exists only in memory during the seeder run. SQLAlchemy does not complain about extra attributes on ORM objects.
+This is a seeder-internal handoff pattern. The attribute is not persisted to the database â€” it exists only in memory during the seeder run. SQLAlchemy does not complain about extra attributes on ORM objects.
+

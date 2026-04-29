@@ -1,7 +1,7 @@
 # Backend Service
 
 <!--nav-->
-[Previous](../assistant/README.md) | [Next](docs/README.md) | [Home](/README.md)
+[Previous](../README.md) | [Next](docs/api-overview.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -29,7 +29,6 @@ uvicorn app.main:app --reload
 
 ## Docs
 
-- [Backend Docs](docs/README.md)
 - [API Overview](docs/api-overview.md)
 - [Runtime Behavior](docs/runtime-behavior.md)
 - [Testing Guide](docs/TESTING.md)

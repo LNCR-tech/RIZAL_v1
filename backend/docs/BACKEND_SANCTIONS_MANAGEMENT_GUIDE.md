@@ -1,7 +1,7 @@
-# Backend Sanctions Management Guide
+﻿# Backend Sanctions Management Guide
 
 <!--nav-->
-[← Report Catalog](REPORT_CATALOG.md) | [🏠 Home](/README.md) | [User Preferences & Auth →](BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md)
+[Previous](BACKEND_REPORTS_MODULE_GUIDE.md) | [Next](BACKEND_USER_PREFERENCES_AND_AUTH_SESSION_GUIDE.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -236,4 +236,5 @@ Sanctions role-fallback verification:
 3. Confirm scoped endpoints return `200` (for example config, students list, dashboard, and export for their owned event scope).
 4. Confirm cross-scope access without delegation still returns `404` (for example `SG` reading an `SSG`-owned event sanctions list).
 5. Login as platform `admin` with `school_id = NULL`, call `GET /api/sanctions/dashboard`, and confirm `200`.
+
 

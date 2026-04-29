@@ -1,7 +1,7 @@
-# Face Attendance Mode Policy
+﻿# Face Attendance Mode Policy
 
 <!--nav-->
-[← Email Guide](BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md) | [🏠 Home](/README.md) | [Face Engine Migration →](BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md)
+[Previous](BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md) | [Next](BACKEND_FACE_ENGINE_MIGRATION_GUIDE.md) | [Home](/README.md)
 
 ---
 <!--/nav-->
@@ -79,3 +79,4 @@ The following security behaviors should be verified manually:
 - This policy does not disable Gather behavior.
 - Governance/admin users should use Gather/public attendance flows for multi-person scanning, not the student self-scan endpoint.
 - `PRIVILEGED_FACE_VERIFICATION_ENABLED` is related to privileged verification flows and does not replace this mode separation policy.
+

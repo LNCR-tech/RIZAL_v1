@@ -1,4 +1,11 @@
-# Backend Normalized Schema (aura_norm) Guide
+﻿# Backend Normalized Schema (aura_norm) Guide
+
+<!--nav-->
+[Previous](BACKEND_CHANGELOG.md) | [Next](BACKEND_EMAIL_LOCAL_TESTING_GUIDE.md) | [Home](/README.md)
+
+---
+<!--/nav-->
+
 
 This repo contains a **proposed normalized schema** in `db_normalized/new_db_schema.sql`.
 
@@ -29,7 +36,7 @@ The revision `backend/alembic/versions/f19c2a7b3d10_create_aura_norm_schema.py` 
 
 In psql:
 - `\\dn` should show `aura_norm`
-- `\\dt aura_norm.*` should show the normalized tables (e.g. `schools`, `users`, `events`, …)
+- `\\dt aura_norm.*` should show the normalized tables (e.g. `schools`, `users`, `events`, â€¦)
 
 ## Notes / Caveats
 
@@ -43,3 +50,4 @@ The backend settings now include:
 - `AURA_NORM_SCHEMA` (default: `aura_norm`)
 
 These are placeholders for a future backend cutover; current endpoints still use `public.*`.
+
