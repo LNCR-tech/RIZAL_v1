@@ -60,9 +60,8 @@ test('authenticated user cannot access login page', async ({ page }) => {
 })
 
 test('unauthenticated user is redirected to login from protected route', async ({ page }) => {
-  // Clear any existing session
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
+  // Clear storage before any page load so the router sees no token
+  await page.addInitScript(() => localStorage.clear())
 
   await page.goto('/dashboard')
   await expect(page).toHaveURL('/', { timeout: 8000 })
