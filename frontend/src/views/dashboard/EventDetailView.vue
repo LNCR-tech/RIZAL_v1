@@ -162,7 +162,7 @@ import {
   Navigation,
   Ruler,
 } from 'lucide-vue-next'
-import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
@@ -178,7 +178,7 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const { ensureDashboardEvent, getDashboardEventById, token } = useDashboardSession()
+const { ensureDashboardEvent, getDashboardEventById, token, schoolSettings } = useDashboardSession()
 const isCouncilPreviewRoute = computed(() => props.preview && isGovernancePreviewPath(route))
 const isSchoolItPreviewRoute = computed(() => props.preview && route.path.startsWith('/exposed/workspace'))
 const { previewBundle } = useSgPreviewBundle(isCouncilPreviewRoute)
@@ -210,7 +210,20 @@ const previewSchoolSettings = computed(() => {
   return studentDashboardPreviewData.schoolSettings
 })
 
-usePreviewTheme(() => props.preview, previewSchoolSettings)
+const activeSchoolSettings = computed(() => (
+  props.preview
+    ? previewSchoolSettings.value
+    : schoolSettings.value
+))
+
+watch(
+  activeSchoolSettings,
+  (nextSchoolSettings) => {
+    if (!nextSchoolSettings) return
+    applyTheme(loadTheme(nextSchoolSettings))
+  },
+  { immediate: true, deep: true }
+)
 
 watch(
   [eventId, token],
