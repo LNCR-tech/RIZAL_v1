@@ -21,7 +21,7 @@ async function login(page, email, password) {
 test('chat window opens when Aura button is clicked', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
 
-  const chatTrigger = page.locator('button[aria-label*="Aura"], button[aria-label*="chat"], button[aria-label*="assistant"]').first()
+  const chatTrigger = page.locator('[aria-label="Expand chat to full window"]')
   await chatTrigger.click()
 
   await expect(page.locator('[aria-label="Talk with Aura"]')).toBeVisible({ timeout: 5000 })
@@ -31,7 +31,7 @@ test('chat window opens when Aura button is clicked', async ({ page }) => {
 test('chat input is interactive after window opens', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
 
-  const chatTrigger = page.locator('button[aria-label*="Aura"], button[aria-label*="chat"], button[aria-label*="assistant"]').first()
+  const chatTrigger = page.locator('[aria-label="Expand chat to full window"]')
   await chatTrigger.click()
 
   const input = page.locator('.chat-input')
@@ -44,7 +44,7 @@ test('chat input is interactive after window opens', async ({ page }) => {
 test('sending a message shows user bubble and triggers assistant response', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
 
-  const chatTrigger = page.locator('button[aria-label*="Aura"], button[aria-label*="chat"], button[aria-label*="assistant"]').first()
+  const chatTrigger = page.locator('[aria-label="Expand chat to full window"]')
   await chatTrigger.click()
 
   const input = page.locator('.chat-input')
@@ -59,7 +59,7 @@ test('sending a message shows user bubble and triggers assistant response', asyn
 test('AI response bubble appears after message is sent', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
 
-  const chatTrigger = page.locator('button[aria-label*="Aura"], button[aria-label*="chat"], button[aria-label*="assistant"]').first()
+  const chatTrigger = page.locator('[aria-label="Expand chat to full window"]')
   await chatTrigger.click()
 
   const input = page.locator('.chat-input')
@@ -73,7 +73,7 @@ test('AI response bubble appears after message is sent', async ({ page }) => {
 test('chat window closes when close button is clicked', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
 
-  const chatTrigger = page.locator('button[aria-label*="Aura"], button[aria-label*="chat"], button[aria-label*="assistant"]').first()
+  const chatTrigger = page.locator('[aria-label="Expand chat to full window"]')
   await chatTrigger.click()
 
   await expect(page.locator('[aria-label="Talk with Aura"]')).toBeVisible({ timeout: 5000 })
