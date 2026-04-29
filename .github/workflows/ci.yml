@@ -153,6 +153,60 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: assistant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -r ../backend/requirements.txt
+      - name: Install assistant dependencies
+        run: pip install -r requirements.txt
+      - name: Create database
+        run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
+        env:
+          PGPASSWORD: postgres
+      - name: Run backend migrations
+        run: alembic upgrade heads
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+      - name: Run integration tests
+        run: pytest -v -m integration tests/test_integration.py
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          ASSISTANT_DB_URL: sqlite:///./test_assistant_integration.db
+          SECRET_KEY: test-secret-key
+          AI_API_KEY: test-key
+          AI_API_BASE: https://test.example.com/v1
+          AI_MODEL: test-model
+          BACKEND_API_BASE_URL: http://localhost:8000
+          RATE_LIMIT_ENABLED: "false"
+          FACE_SCAN_BYPASS_ALL: "true"
+          CELERY_TASK_ALWAYS_EAGER: "true"
+          EMAIL_TRANSPORT: disabled
+
   docker-build:
     name: Docker Build Test
     runs-on: ubuntu-latest
@@ -162,6 +216,7 @@ jobs:
         backend-checks,
         backend-tests,
         assistant-tests,
+        integration-tests,
         frontend-checks,
       ]
     steps:
