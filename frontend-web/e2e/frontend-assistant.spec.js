@@ -17,20 +17,15 @@ async function login(page, email, password) {
 /** Opens the full AuraChatWindow from the desktop side nav pill */
 /** @param {import('@playwright/test').Page} page */
 async function openChatWindow(page) {
-  // The pill is the Aura AI button in the side nav — click it to open mini chat
-  const pill = page.locator('.nav-rail__shell').getByTitle('Open full chat').locator('..')
-  // If pill is already open, just click expand; otherwise click pill first
-  const expandBtn = page.locator('[aria-label="Expand chat to full window"]')
-  if (!await expandBtn.isVisible()) {
-    // Click the collapsed pill (the div containing the Aura logo + "Aura AI" text)
-    await page.locator('.nav-rail__shell').locator('img[alt="Aura"]').first().click()
-  }
-  await expandBtn.click()
+  // Click the collapsed pill to open mini chat first
+  await page.locator('.nav-rail__shell').locator('img[alt="Aura"]').first().click()
+  // Then click expand to full window
+  await page.locator('[aria-label="Expand chat to full window"]').click()
   await expect(page.locator('[aria-label="Talk with Aura"]')).toBeVisible({ timeout: 5000 })
 }
 
 // ---------------------------------------------------------------------------
-// Frontend → Assistant: Chat contract
+// Frontend → Assistant: Chat UI contract
 // ---------------------------------------------------------------------------
 
 test('chat window opens when Aura button is clicked', async ({ page }) => {
@@ -39,43 +34,21 @@ test('chat window opens when Aura button is clicked', async ({ page }) => {
   await expect(page.locator('.chat-input')).toBeVisible()
 })
 
-test('chat input is interactive after window opens', async ({ page }) => {
+test('chat window shows under development notice', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
   await openChatWindow(page)
-
-  const input = page.locator('.chat-input')
-  await expect(input).toBeEnabled()
-  await input.fill('hello')
-  await expect(input).toHaveValue('hello')
+  await expect(page.locator('.chat-disabled-note')).toBeVisible()
 })
 
-test('sending a message shows user bubble and triggers assistant response', async ({ page }) => {
+test('chat input is disabled when feature is under development', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
   await openChatWindow(page)
-
-  const input = page.locator('.chat-input')
-  await input.fill('hello')
-  await page.locator('[aria-label="Send message"]').click()
-
-  await expect(page.locator('.bubble--user').last()).toContainText('hello', { timeout: 5000 })
-  await expect(page.locator('.bubble--ai, .bubble--typing')).toBeVisible({ timeout: 15000 })
-})
-
-test('AI response bubble appears after message is sent', async ({ page }) => {
-  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
-  await openChatWindow(page)
-
-  const input = page.locator('.chat-input')
-  await input.fill('ping')
-  await page.locator('[aria-label="Send message"]').click()
-
-  await expect(page.locator('.bubble--ai:not(.bubble--typing)')).toBeVisible({ timeout: 20000 })
+  await expect(page.locator('.chat-input')).toBeDisabled()
 })
 
 test('chat window closes when close button is clicked', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
   await openChatWindow(page)
-
   await page.locator('[aria-label="Close chat"]').click()
   await expect(page.locator('[aria-label="Talk with Aura"]')).not.toBeVisible({ timeout: 3000 })
 })
