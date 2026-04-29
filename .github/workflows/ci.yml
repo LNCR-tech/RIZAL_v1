@@ -207,6 +207,126 @@ jobs:
           CELERY_TASK_ALWAYS_EAGER: "true"
           EMAIL_TRANSPORT: disabled
 
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+        working-directory: backend
+
+      - name: Install assistant dependencies
+        run: pip install -r requirements.txt
+        working-directory: assistant
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend-web
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend-web
+
+      - name: Create databases
+        run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;" -c "CREATE DATABASE ai_assistant;"
+        env:
+          PGPASSWORD: postgres
+
+      - name: Run backend migrations
+        run: alembic upgrade heads
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+
+      - name: Start backend
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo "Waiting for backend..."
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/health && break || sleep 2
+          done
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+          RATE_LIMIT_ENABLED: "false"
+          FACE_SCAN_BYPASS_ALL: "true"
+          CELERY_TASK_ALWAYS_EAGER: "true"
+          EMAIL_TRANSPORT: disabled
+          CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+          REDIS_URL: redis://127.0.0.1:6379/0
+
+      - name: Start assistant
+        run: |
+          uvicorn main:app --host 0.0.0.0 --port 8500 &
+          echo "Waiting for assistant..."
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8500/health && break || sleep 2
+          done
+        working-directory: assistant
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          ASSISTANT_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_assistant
+          SECRET_KEY: test-secret-key
+          AI_API_KEY: test-key
+          AI_API_BASE: https://test.example.com/v1
+          AI_MODEL: test-model
+          BACKEND_API_BASE_URL: http://localhost:8000
+
+      - name: Run E2E tests
+        run: npx playwright test
+        working-directory: frontend-web
+        env:
+          CI: "true"
+          VITE_API_BASE_URL: http://localhost:8000
+          VITE_ASSISTANT_BASE_URL: http://localhost:8500
+          E2E_ADMIN_EMAIL: campus_admin@test.com
+          E2E_ADMIN_PASSWORD: TestPass123!
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend-web/playwright-report/
+          retention-days: 7
+
   docker-build:
     name: Docker Build Test
     runs-on: ubuntu-latest
@@ -217,6 +337,7 @@ jobs:
         backend-tests,
         assistant-tests,
         integration-tests,
+        e2e-tests,
         frontend-checks,
       ]
     steps:

@@ -13,7 +13,8 @@
     "android:sync": "npm run build && npm run runtime:config:dist && npm run cap:config && capacitor sync android",
     "android:open": "npm run cap:config && capacitor open android",
     "android:build:debug": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleDebug",
-    "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease"
+    "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -40,6 +41,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "tailwindcss": "^4.2.1",
