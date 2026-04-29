@@ -1,7 +1,7 @@
 # Backend Documentation
 
 <!--nav-->
-[← Repository Layout](../reference/repository-layout.md) | [🏠 Home](/README.md) | [API Overview →](api-overview.md)
+[← Repository Layout](./reference/repository-layout.md) | [🏠 Home](/README.md) | [API Overview →](api-overview.md)
 
 ---
 <!--/nav-->

@@ -81,7 +81,7 @@ Variables are tagged with one of four types:
 - [Assistant docs](assistant/docs/)
 - [Database docs](database/)
 - [Seeder docs](seeder/docs/)
-- [Audit Report](docs/audits/AUDIT_REPORT.md)
+- [Audit Report](frontend/docs/audits/AUDIT_REPORT.md)
 
 ## Notes
 

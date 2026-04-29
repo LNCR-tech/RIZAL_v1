@@ -5,7 +5,7 @@ The frontend is a Vue 3 (Vite) SPA with optional Capacitor Android packaging.
 ## Start Here
 
 <!--nav-->
-[← Backend Docs](../backend/README.md) | [🏠 Home](/README.md) | [Frontend Local Dev →](local-dev.md)
+[← Backend Docs](../../backend/docs/README.md) | [🏠 Home](/README.md) | [Frontend Local Dev →](local-dev.md)
 
 ---
 <!--/nav-->
