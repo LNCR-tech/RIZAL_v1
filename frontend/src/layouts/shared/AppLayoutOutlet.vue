@@ -3,9 +3,11 @@
     <Suspense timeout="0">
       <template #default>
         <Transition name="page-fade" mode="out-in">
-          <RouteErrorBoundary :key="resolveRouteViewKey(route, Component)">
-            <component :is="Component" />
-          </RouteErrorBoundary>
+          <div :key="resolveRouteViewKey(route, Component)" class="app-layout-outlet__route-frame">
+            <RouteErrorBoundary>
+              <component :is="Component" />
+            </RouteErrorBoundary>
+          </div>
         </Transition>
       </template>
 
@@ -66,6 +68,11 @@ function resolveRouteViewKey(route, component) {
 .page-fade-leave-to {
   opacity: 0;
   transform: translateY(-6px) scale(0.995);
+}
+
+.app-layout-outlet__route-frame {
+  width: 100%;
+  min-width: 0;
 }
 
 .app-layout-outlet__fallback {
