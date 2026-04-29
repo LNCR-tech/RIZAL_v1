@@ -7,7 +7,8 @@ Aura is a school-grade student attendance management system with face recognitio
 | Folder | Description |
 |---|---|
 | `backend/` | FastAPI API, Alembic migrations, Celery workers |
-| `frontend/` | Vue 3 (Vite) SPA + Capacitor mobile |
+| `frontend-web/` | Vue 3 (Vite) SPA + Capacitor mobile |
+| `frontend-apk/` | Capacitor Android native project |
 | `assistant/` | Streaming LLM assistant with MCP tool integration |
 | `database/` | Postgres service, schema docs, Docker init scripts |
 | `seeder/` | Demo data seeder (dev only) |
@@ -77,7 +78,7 @@ Variables are tagged with one of four types:
 
 - [Security Guide](SECURITY.md)
 - [Backend docs](backend/docs/)
-- [Frontend docs](frontend/docs/)
+- [Frontend docs](frontend-web/docs/)
 - [Assistant docs](assistant/docs/)
 - [Database docs](database/)
 - [Seeder docs](seeder/docs/)
@@ -88,8 +89,8 @@ Variables are tagged with one of four types:
 - [Assistant README](assistant/README.md)
 - [Backend README](backend/README.md)
 - [Database README](database/README.md)
-- [Frontend README](frontend/README.md)
-- [Frontend APK README](frontend/aura-apk/README.md)
+- [Frontend README](frontend-web/README.md)
+- [Frontend APK README](frontend-apk/README.md)
 - [Seeder README](seeder/README.md)
 
 ## Notes

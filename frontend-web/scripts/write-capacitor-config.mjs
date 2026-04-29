@@ -127,7 +127,7 @@ const config = {
     allowNavigation,
   },
   android: {
-    path: 'aura-apk/android',
+    path: '../frontend-apk/android',
     allowMixedContent: nativeApiBaseUrl.startsWith('http://'),
   },
   plugins: {

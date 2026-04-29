@@ -2,7 +2,7 @@
 setlocal
 
 set "ROOT_DIR=%~dp0"
-set "APP_DIR=%ROOT_DIR%.."
+set "APP_DIR=%ROOT_DIR%..\frontend-web"
 set "OUTPUT_DIR=%ROOT_DIR%outputs"
 set "BUILD_MODE=%~1"
 

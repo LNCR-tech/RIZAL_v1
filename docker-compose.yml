@@ -153,7 +153,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend-web
     image: aura-frontend:${APP_ENV:-dev}
     ports:
       - "80:80"

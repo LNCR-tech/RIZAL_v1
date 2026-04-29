@@ -14,7 +14,7 @@
     ]
   },
   "android": {
-    "path": "aura-apk/android",
+    "path": "../frontend-apk/android",
     "allowMixedContent": true
   },
   "plugins": {
