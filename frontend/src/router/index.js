@@ -741,6 +741,11 @@ const routes = [
     },
     // Student dashboard routes (wrapped in AppLayout)
     {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: () => import('@/views/NotFoundView.vue'),
+    },
+    {
         path: '/dashboard',
         component: AppLayout,
         meta: {
