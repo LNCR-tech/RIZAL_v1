@@ -11,7 +11,6 @@ async function login(page, email, password) {
   await page.fill('#email', email)
   await page.fill('#password', password)
   await page.click('button[type="submit"]')
-  await page.getByRole('button', { name: 'I Understand' }).click()
 }
 
 // ---------------------------------------------------------------------------
@@ -31,7 +30,7 @@ test('wrong password shows error message', async ({ page }) => {
   await page.fill('#email', ADMIN_EMAIL)
   await page.fill('#password', 'wrongpassword')
   await page.click('button[type="submit"]')
-  await expect(page.locator('p.text-red-500')).toBeVisible({ timeout: 8000 })
+  await expect(page.locator('.mobile-login__message')).toBeVisible({ timeout: 8000 })
 })
 
 test('valid login redirects to dashboard', async ({ page }) => {
