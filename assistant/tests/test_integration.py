@@ -78,7 +78,16 @@ def setup_assistant_db():
 
 @pytest.fixture(scope="session")
 def backend_db():
+    import importlib.util
     db = BackendSessionLocal()
+    spec = importlib.util.spec_from_file_location(
+        "backend_conftest",
+        str(Path(_BACKEND_DIR) / "tests" / "conftest.py")
+    )
+    backend_conftest = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(backend_conftest)
+    backend_conftest._seed(db)
+    db.commit()
     yield db
     db.close()
 
