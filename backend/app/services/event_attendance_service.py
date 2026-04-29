@@ -33,10 +33,11 @@ def get_event_participant_student_ids(db: Session, event: EventModel) -> list[in
 
 
 def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[str, int]:
-    """Auto-close unfinished attendance and create absent rows once sign-out is fully closed.
-    
-    This function keeps NULL values for time_in and time_out when students didn't actually
-    sign in or sign out. This preserves data integrity and provides accurate audit trails.
+    """Auto-close unfinished attendance for students who signed in but never signed out.
+
+    Only updates rows for students who DID sign in (time_in is not NULL) but have no
+    time_out. Does NOT create rows for students who never signed in; absentees are
+    computed at report time from participant count minus valid attendance rows.
     """
     participant_ids = get_event_participant_student_ids(db, event)
     if not participant_ids:
@@ -51,41 +52,23 @@ def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[
         .all()
     )
 
-    existing_student_ids = {attendance.student_id for attendance in existing_attendances}
-
     marked_absent_no_timeout = 0
     for attendance in existing_attendances:
-        # Skip if already has sign-out or never signed in
+        # Only update rows where student actually signed in but never signed out
         if attendance.time_in is None or attendance.time_out is not None:
             continue
         if normalize_attendance_status(attendance.status) not in {"present", "late", "absent"}:
             continue
-        
-        # Keep time_out as NULL - student never signed out
-        # Only update status and check_out_status to reflect absence
-        attendance.check_out_status = None  # NULL because they didn't sign out
+
+        # time_out stays NULL; student signed in but never signed out.
+        attendance.check_out_status = None
         attendance.status = "absent"
         attendance.notes = "Auto-marked absent - no sign-out recorded."
         marked_absent_no_timeout += 1
 
-    # Create absent records for students who never signed in
-    missing_student_ids = [student_id for student_id in participant_ids if student_id not in existing_student_ids]
-    for student_id in missing_student_ids:
-        db.add(
-            AttendanceModel(
-                student_id=student_id,
-                event_id=event.id,
-                time_in=None,  # NULL - never signed in
-                time_out=None,  # NULL - never signed out
-                method=None,  # NULL - no method because they never signed in
-                status="absent",
-                check_in_status=None,  # NULL - never signed in
-                check_out_status=None,  # NULL - never signed out
-                notes="Auto-marked absent - no sign-in recorded.",
-            )
-        )
-
+    # Do NOT create rows for students who never signed in.
+    # Reports compute absentees as: participant_count - signed_in_count.
     return {
-        "created_absent": len(missing_student_ids),
+        "created_absent": 0,
         "marked_absent_no_timeout": marked_absent_no_timeout,
     }

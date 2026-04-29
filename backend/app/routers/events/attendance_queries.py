@@ -30,7 +30,6 @@ def get_event_attendees(
         governance_context=governance_context,
     )
 
-    _persist_event_status_sync(db, event)
     attendances = db.query(AttendanceModel).filter(AttendanceModel.event_id == event_id).order_by(
         AttendanceModel.status,
         AttendanceModel.time_in,
@@ -71,7 +70,6 @@ def get_event_stats(
         governance_context=governance_context,
     )
 
-    _persist_event_status_sync(db, event)
     attendances = db.query(AttendanceModel).filter(
         AttendanceModel.event_id == event_id
     ).all()

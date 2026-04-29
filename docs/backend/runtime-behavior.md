@@ -23,6 +23,32 @@ This includes:
 - event sync timing
 - email timeout and startup verification defaults
 
+## List Pagination And Read-Only GETs
+
+List routes that can grow large now return a shared paginated envelope with `data`, `page`, `total`, `total_pages`, `limit`, `next`, and `prev`.
+
+Affected routes:
+
+- `GET /api/events/`
+- `GET /api/events/ongoing`
+- `GET /api/users/`
+- `GET /api/users/by-role/{role_name}`
+- `GET /api/governance/students`
+
+Runtime behavior:
+
+- clients pass `page` and `limit`; backend limits enforce safe maximum page sizes.
+- event list, event detail, event attendees, and event stats GET routes no longer persist event workflow status sync side effects.
+- attendance event-report GET no longer commits event workflow sync side effects before report generation.
+- completed-event attendance finalization no longer creates absent attendance rows for students who never signed in; those absences are computed from the event participant scope and real attendance rows.
+
+How to test:
+
+1. Run `python -m compileall Backend/app`.
+2. Call the affected routes with `page=1&limit=1` and confirm the response has a `data` array plus pagination metadata.
+3. Compare attendance rows before and after calling `GET /api/events/`, `GET /api/events/{event_id}`, `GET /api/events/{event_id}/attendees`, `GET /api/events/{event_id}/stats`, and `GET /api/attendance/events/{event_id}/report`; row counts should not change.
+4. For a completed event with participants who never signed in, verify no new attendance rows are created by finalization and report absentees are computed from participants minus real valid attendance rows.
+
 ## Anti-Abuse and Request Hardening
 
 The API now has shared abuse controls in addition to endpoint-specific validation.

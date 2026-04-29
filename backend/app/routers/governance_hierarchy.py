@@ -17,6 +17,7 @@ from app.core.security import (
 from app.models.governance_hierarchy import GovernanceAnnouncementStatus, GovernanceUnitType
 from app.reports.system import router as system_reports_router
 from app.models.user import User
+from app.schemas.base import PaginatedResponse
 from app.schemas.governance_hierarchy import (
     GovernanceAccessResponse,
     GovernanceAccessibleStudentResponse,
@@ -94,22 +95,31 @@ def search_governance_student_candidates(
     )
 
 
-@router.get("/students", response_model=list[GovernanceAccessibleStudentResponse])
+@router.get("/students", response_model=PaginatedResponse[GovernanceAccessibleStudentResponse])
 def list_accessible_governance_students(
     governance_context: GovernanceUnitType | None = Query(default=None),
-    skip: int = Query(default=0, ge=0),
-    limit: int | None = Query(default=None, ge=1, le=250),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=50, ge=1, le=250),
     current_user: User = Depends(get_current_governance_route_user),
     db: Session = Depends(get_db),
 ):
+    safe_page = max(page, 1)
+    safe_limit = max(1, min(limit, 250))
+    skip = (safe_page - 1) * safe_limit
+
+    total = governance_hierarchy_service.count_accessible_students(
+        db,
+        current_user=current_user,
+        unit_type=governance_context,
+    )
     student_profiles = governance_hierarchy_service.get_accessible_students(
         db,
         current_user=current_user,
         unit_type=governance_context,
         skip=skip,
-        limit=limit,
+        limit=safe_limit,
     )
-    return [
+    items = [
         GovernanceAccessibleStudentResponse(
             user=student_profile.user,
             student_profile={
@@ -124,6 +134,7 @@ def list_accessible_governance_students(
         )
         for student_profile in student_profiles
     ]
+    return PaginatedResponse.build(items, total=total, page=safe_page, limit=safe_limit)
 
 
 @router.get(

@@ -2375,6 +2375,57 @@ def get_accessible_students(
     return _finalize(query.filter(or_(*filters)))
 
 
+def count_accessible_students(
+    db: Session,
+    *,
+    current_user: User,
+    permission_codes: Iterable[PermissionCode] | None = None,
+    unit_type: GovernanceUnitType | None = None,
+) -> int:
+    """Return the total count of student profiles visible to the actor via governance scope."""
+    school_id = get_school_id_or_403(current_user)
+    base_query = db.query(StudentProfile).filter(StudentProfile.school_id == school_id)
+
+    if _is_school_it(current_user):
+        return base_query.count()
+
+    memberships = _get_active_governance_memberships(
+        db,
+        school_id=school_id,
+        user_id=current_user.id,
+    )
+
+    required_permission_codes = set(permission_codes or {PermissionCode.VIEW_STUDENTS, PermissionCode.MANAGE_STUDENTS})
+
+    permitted_units = [
+        membership.governance_unit
+        for membership in memberships
+        if (unit_type is None or membership.governance_unit.unit_type == unit_type)
+        and _membership_has_any_permission(membership, required_permission_codes)
+    ]
+
+    if not permitted_units:
+        return 0
+
+    if any(unit.department_id is None and unit.program_id is None for unit in permitted_units):
+        return base_query.count()
+
+    filters = []
+    for governance_unit in permitted_units:
+        condition_parts = []
+        if governance_unit.department_id is not None:
+            condition_parts.append(StudentProfile.department_id == governance_unit.department_id)
+        if governance_unit.program_id is not None:
+            condition_parts.append(StudentProfile.program_id == governance_unit.program_id)
+        if condition_parts:
+            filters.append(and_(*condition_parts))
+
+    if not filters:
+        return 0
+
+    return base_query.filter(or_(*filters)).count()
+
+
 def list_governance_announcements(
     db: Session,
     *,

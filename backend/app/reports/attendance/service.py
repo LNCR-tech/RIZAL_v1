@@ -14,7 +14,6 @@ from app.schemas.attendance import (
     AttendanceStatus,
     AttendanceWithStudent,
 )
-from app.services.event_workflow_status import sync_event_workflow_status
 from app.routers.attendance.shared import (
     _attendance_display_status_value,
     _attendance_is_valid_value,
@@ -57,10 +56,6 @@ def get_event_attendance_report(
         raise HTTPException(404, "Event not found")
 
     _ensure_event_in_attendance_scope(event, governance_units)
-    sync_result = sync_event_workflow_status(db, event)
-    if sync_result.changed:
-        db.commit()
-        db.refresh(event)
 
     school_id = event.school_id
     if school_id is None:

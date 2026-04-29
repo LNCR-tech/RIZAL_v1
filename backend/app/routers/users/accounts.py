@@ -1,6 +1,9 @@
 """Account-management routes for the user router package."""
 
+from fastapi import Query
+
 from .shared import *  # noqa: F403
+from app.schemas.base import PaginatedResponse
 
 router = APIRouter()
 
@@ -96,43 +99,57 @@ def create_user(
         raise HTTPException(status_code=500, detail=f"Failed to create user: {exc}")
 
 
-@router.get("/", response_model=List[UserWithRelations])
+@router.get("/", response_model=PaginatedResponse[UserWithRelations])
 def get_all_users(
-    skip: int = 0,
-    limit: int = 100,
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=500),
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
-    safe_skip = max(skip, 0)
+    safe_page = max(page, 1)
     safe_limit = max(1, min(limit, 500))
+    safe_skip = (safe_page - 1) * safe_limit
 
-    query = _with_user_relations(db.query(UserModel))
-    query = _apply_user_scope(query, current_user)
-    users = query.order_by(UserModel.id.asc()).offset(safe_skip).limit(safe_limit).all()
-    return _serialize_users(users)
+    base_query = _apply_user_scope(db.query(UserModel), current_user)
+    total = base_query.count()
+    users = (
+        _with_user_relations(base_query)
+        .order_by(UserModel.id.asc())
+        .offset(safe_skip)
+        .limit(safe_limit)
+        .all()
+    )
+    return PaginatedResponse.build(_serialize_users(users), total=total, page=safe_page, limit=safe_limit)
 
 
-@router.get("/by-role/{role_name}", response_model=List[UserWithRelations])
+@router.get("/by-role/{role_name}", response_model=PaginatedResponse[UserWithRelations])
 def get_users_by_role(
     role_name: str,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=500),
     current_user: UserModel = Depends(get_current_admin_or_campus_admin),
     db: Session = Depends(get_db)
 ):
-    safe_skip = max(skip, 0)
+    safe_page = max(page, 1)
     safe_limit = max(1, min(limit, 500))
+    safe_skip = (safe_page - 1) * safe_limit
 
-    query = (
-        _with_user_relations(db.query(UserModel))
+    base_query = (
+        db.query(UserModel)
         .join(UserRole)
         .join(Role)
         .filter(Role.name.in_(get_role_lookup_names(role_name)))
     )
-    query = _apply_user_scope(query, current_user)
-    users = query.order_by(UserModel.id.asc()).offset(safe_skip).limit(safe_limit).all()
-
-    return _serialize_users(users)
+    base_query = _apply_user_scope(base_query, current_user)
+    total = base_query.count()
+    users = (
+        _with_user_relations(base_query)
+        .order_by(UserModel.id.asc())
+        .offset(safe_skip)
+        .limit(safe_limit)
+        .all()
+    )
+    return PaginatedResponse.build(_serialize_users(users), total=total, page=safe_page, limit=safe_limit)
 
 
 @router.get("/me/", response_model=UserWithRelations)

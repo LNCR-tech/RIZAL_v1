@@ -1,13 +1,14 @@
 """Read/query routes for the event router package."""
 
 from .shared import *  # noqa: F403
+from app.schemas.base import PaginatedResponse
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[EventSchema])
+@router.get("/", response_model=PaginatedResponse[EventSchema])
 def read_events(
-    skip: int = Query(0, ge=0),
+    page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=1000),
     status: Optional[EventStatus] = None,
     start_from: Optional[datetime] = None,
@@ -16,9 +17,8 @@ def read_events(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """List events visible to the actor after syncing their computed workflow statuses."""
+    """List events visible to the actor. Read-only; does not mutate DB."""
     school_id = _actor_school_scope_id(current_user)
-    _persist_scope_status_sync(db, school_id)
 
     query = _school_scoped_event_query(db, school_id).options(
         joinedload(EventModel.departments),
@@ -39,20 +39,23 @@ def read_events(
         governance_context=governance_context,
         events=events,
     )
-    return events[skip : skip + limit]
+
+    total = len(events)
+    skip = (page - 1) * limit
+    page_items = events[skip : skip + limit]
+    return PaginatedResponse.build(page_items, total=total, page=page, limit=limit)
 
 
-@router.get("/ongoing", response_model=list[EventSchema])
+@router.get("/ongoing", response_model=PaginatedResponse[EventSchema])
 def get_ongoing_events(
-    skip: int = Query(0, ge=0),
+    page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=1000),
     governance_context: GovernanceUnitType | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """List only currently ongoing events that the actor is allowed to see."""
+    """List only currently ongoing events. Read-only; does not mutate DB."""
     school_id = _actor_school_scope_id(current_user)
-    _persist_scope_status_sync(db, school_id)
     events = (
         _school_scoped_event_query(db, school_id)
         .options(
@@ -70,7 +73,11 @@ def get_ongoing_events(
         governance_context=governance_context,
         events=events,
     )
-    return events[skip : skip + limit]
+
+    total = len(events)
+    skip = (page - 1) * limit
+    page_items = events[skip : skip + limit]
+    return PaginatedResponse.build(page_items, total=total, page=page, limit=limit)
 
 
 @router.get("/{event_id}", response_model=EventWithRelations)
@@ -80,7 +87,7 @@ def read_event(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """Load one event, enforce visibility, and return the synced current record."""
+    """Load one event, enforce visibility. Read-only; does not mutate DB."""
     school_id = _actor_school_scope_id(current_user)
     event = (
         _school_scoped_event_query(db, school_id)
@@ -102,7 +109,6 @@ def read_event(
         event=event,
         governance_context=governance_context,
     )
-    _persist_event_status_sync(db, event)
     return event
 
 
@@ -113,7 +119,7 @@ def read_event_time_status(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    """Return the computed attendance time window state for one event."""
+    """Return the computed attendance time window state for one event. Read-only."""
     event = (
         _school_scoped_event_query(db, _actor_school_scope_id(current_user))
         .filter(EventModel.id == event_id)
@@ -127,7 +133,6 @@ def read_event_time_status(
         event=event,
         governance_context=governance_context,
     )
-    _persist_event_status_sync(db, event)
     return build_event_time_status_info(event)
 
 
@@ -153,7 +158,6 @@ def verify_event_location(
         event=event,
         governance_context=governance_context,
     )
-    _persist_event_status_sync(db, event)
     return verify_event_geolocation(
         event,
         latitude=payload.latitude,

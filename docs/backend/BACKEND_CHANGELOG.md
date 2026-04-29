@@ -20,6 +20,43 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-29 - Paginated list responses and read-only attendance/event GETs
+
+### Purpose
+
+Keep list routes accurate and scalable while preventing GET requests from changing event or attendance data.
+
+### Main files
+
+- `Backend/app/schemas/base.py`
+- `Backend/app/routers/events/attendance_queries.py`
+- `Backend/app/routers/events/queries.py`
+- `Backend/app/routers/users/accounts.py`
+- `Backend/app/routers/users/__init__.py`
+- `Backend/app/routers/governance_hierarchy.py`
+- `Backend/app/reports/attendance/service.py`
+- `Backend/app/services/event_attendance_service.py`
+- `Backend/app/services/governance_hierarchy_service/shared.py`
+
+### Runtime behavior
+
+- `GET /api/events/`, `GET /api/events/ongoing`, `GET /api/users/`, `GET /api/users/by-role/{role_name}`, and `GET /api/governance/students` now return the shared `PaginatedResponse` envelope with `data`, `page`, `total`, `total_pages`, `limit`, `next`, and `prev`.
+- event list/detail/time-status/attendees/stats GET routes no longer persist workflow sync side effects.
+- attendance event-report GET no longer commits workflow sync side effects before building the report.
+- completed-event attendance finalization no longer creates synthetic absent rows for students with no sign-in record.
+
+### Route or schema impact
+
+- added shared schema `PaginatedResponse[T]`.
+- updated the affected list route response models to use `PaginatedResponse`.
+- no database migration required.
+
+### How to test
+
+1. Run `python -m compileall Backend/app`.
+2. Call each paginated route with `page=1&limit=1` and confirm the envelope shape.
+3. Call event and attendance report GET routes and verify attendance row counts do not change.
+
 ## 2026-04-29 - Final attendance status for no sign-out records
 
 ### Purpose

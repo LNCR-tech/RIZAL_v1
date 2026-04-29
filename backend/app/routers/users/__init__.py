@@ -5,6 +5,7 @@ Role: Router package. It groups user routes by domain while preserving the publi
 
 from fastapi import APIRouter
 
+from app.schemas.base import PaginatedResponse
 from app.schemas.user import UserCreateResponse, UserWithRelations
 from app.services.email_service import EmailDeliveryError, is_outbound_email_enabled, send_welcome_email
 from app.utils.passwords import generate_secure_password
@@ -17,7 +18,7 @@ from .students import router as student_router
 
 router = APIRouter(prefix="/users", tags=["users"])
 router.post("", response_model=UserCreateResponse, include_in_schema=False)(create_user)
-router.get("", response_model=list[UserWithRelations], include_in_schema=False)(get_all_users)
+router.get("", response_model=PaginatedResponse[UserWithRelations], include_in_schema=False)(get_all_users)
 router.include_router(account_router)
 router.include_router(student_router)
 router.include_router(role_router)

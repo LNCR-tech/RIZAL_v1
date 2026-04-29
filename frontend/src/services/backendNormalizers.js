@@ -4,10 +4,6 @@ const DEFAULT_PRIMARY_COLOR = '#0057B8'
 const DEFAULT_SECONDARY_COLOR = '#FFD400'
 const DEFAULT_ACCENT_COLOR = '#000000'
 
-function nowIso() {
-    return new Date().toISOString()
-}
-
 function toOptionalString(value, fallback = null) {
     if (value == null) return fallback
     const normalized = String(value).trim()
@@ -162,11 +158,11 @@ export function normalizeEvent(event = {}) {
         id: toOptionalNumber(event.id, 0),
         school_id: toOptionalNumber(event.school_id, null),
         name: toOptionalString(event.name, 'Untitled Event'),
-        location: toOptionalString(event.location, 'TBA'),
+        location: toOptionalString(event.location, null),
         scope_label: toOptionalString(event.scope_label, null),
         start_datetime: toOptionalString(event.start_datetime, null),
         end_datetime: toOptionalString(event.end_datetime, null),
-        status: toOptionalString(event.status, 'upcoming'),
+        status: toOptionalString(event.status, null),
         geo_required: Boolean(event.geo_required),
         geo_latitude: typeof event.geo_latitude === 'number' ? event.geo_latitude : toOptionalNumber(event.geo_latitude, null),
         geo_longitude: typeof event.geo_longitude === 'number' ? event.geo_longitude : toOptionalNumber(event.geo_longitude, null),
@@ -190,7 +186,7 @@ export function normalizeAttendanceRecord(attendance = {}) {
         event_name: toOptionalString(attendance.event_name, null),
         student_id: toIntegerOrOriginal(attendance.student_id, null),
         method: toOptionalString(attendance.method, null),  // NULL preserved - no default
-        status: toOptionalString(attendance.status, 'present'),
+        status: toOptionalString(attendance.status, null),
         display_status: toOptionalString(attendance.display_status, null),
         notes: toOptionalString(attendance.notes, null),
         time_in: toOptionalUtcDateTimeString(attendance.time_in, null),
@@ -329,7 +325,7 @@ export function normalizeUserWithRelations(user = null) {
         middle_name: toOptionalString(user.middle_name, null),
         last_name: toOptionalString(user.last_name, ''),
         is_active: typeof user.is_active === 'boolean' ? user.is_active : true,
-        created_at: toOptionalUtcDateTimeString(user.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(user.created_at, null),
         school_id: toOptionalNumber(user.school_id, null),
         school_name: toOptionalString(user.school_name, null),
         school_code: toOptionalString(user.school_code, null),
@@ -424,8 +420,8 @@ export function normalizeSchoolSummary(summary = null) {
         school_code: toOptionalString(summary.school_code, null),
         subscription_status: toOptionalString(summary.subscription_status, 'trial'),
         active_status: typeof summary.active_status === 'boolean' ? summary.active_status : true,
-        created_at: toOptionalUtcDateTimeString(summary.created_at, nowIso()),
-        updated_at: toOptionalUtcDateTimeString(summary.updated_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(summary.created_at, null),
+        updated_at: toOptionalUtcDateTimeString(summary.updated_at, null),
     }
 }
 
@@ -458,7 +454,7 @@ export function normalizeAuditLogItem(item = null) {
         details_json: item.details_json && typeof item.details_json === 'object'
             ? item.details_json
             : null,
-        created_at: toOptionalUtcDateTimeString(item.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(item.created_at, null),
     }
 }
 
@@ -488,7 +484,7 @@ export function normalizeNotificationLogItem(item = null) {
         metadata_json: item.metadata_json && typeof item.metadata_json === 'object'
             ? item.metadata_json
             : null,
-        created_at: toOptionalUtcDateTimeString(item.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(item.created_at, null),
     }
 }
 
@@ -513,7 +509,7 @@ export function normalizeGovernanceSetting(setting = null) {
         audit_log_retention_days: toOptionalNumber(setting.audit_log_retention_days, 365),
         import_file_retention_days: toOptionalNumber(setting.import_file_retention_days, 30),
         auto_delete_enabled: Boolean(setting.auto_delete_enabled),
-        updated_at: toOptionalUtcDateTimeString(setting.updated_at, nowIso()),
+        updated_at: toOptionalUtcDateTimeString(setting.updated_at, null),
     }
 }
 
@@ -535,7 +531,7 @@ export function normalizeGovernanceRequest(item = null) {
             : null,
         output_path: toOptionalString(item.output_path, null),
         handled_by_user_id: toOptionalNumber(item.handled_by_user_id, null),
-        created_at: toOptionalUtcDateTimeString(item.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(item.created_at, null),
         resolved_at: toOptionalUtcDateTimeString(item.resolved_at, null),
     }
 }
@@ -585,7 +581,7 @@ function normalizeEventTimeStatusInfo(payload = null) {
         ...payload,
         event_status: toOptionalString(payload.event_status ?? payload.status, 'unknown'),
         status: toOptionalString(payload.event_status ?? payload.status, 'unknown'),
-        current_time: toOptionalString(payload.current_time, nowIso()),
+        current_time: toOptionalString(payload.current_time, null),
         check_in_opens_at: toOptionalString(payload.check_in_opens_at, null),
         start_time: toOptionalString(payload.start_time, null),
         end_time: toOptionalString(payload.end_time, null),
@@ -612,7 +608,7 @@ function normalizeEventAttendanceDecisionInfo(payload = null) {
         attendance_status: toOptionalString(payload.attendance_status, null),
         reason_code: toOptionalString(payload.reason_code, null),
         message: toOptionalString(payload.message, ''),
-        current_time: toOptionalString(payload.current_time, nowIso()),
+        current_time: toOptionalString(payload.current_time, null),
         check_in_opens_at: toOptionalString(payload.check_in_opens_at, null),
         start_time: toOptionalString(payload.start_time, null),
         end_time: toOptionalString(payload.end_time, null),

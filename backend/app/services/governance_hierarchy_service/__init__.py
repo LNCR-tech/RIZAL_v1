@@ -14,6 +14,7 @@ from .engagement import (
 )
 from .membership import (
     assign_governance_member,
+    count_accessible_students,
     delete_governance_member,
     get_accessible_students,
     search_governance_student_candidates,

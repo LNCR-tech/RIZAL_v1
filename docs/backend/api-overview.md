@@ -44,6 +44,34 @@ Non-`/api` routes:
 
 If you are unsure about the exact request/response schema, use the live OpenAPI docs at `/docs`.
 
+## Paginated List Responses
+
+Paginated list endpoints use the shared `PaginatedResponse` envelope:
+
+```json
+{
+  "data": [],
+  "page": 1,
+  "total": 0,
+  "total_pages": 0,
+  "limit": 100,
+  "next": null,
+  "prev": null
+}
+```
+
+Updated endpoints:
+
+- `GET /api/events/`
+- `GET /api/events/ongoing`
+- `GET /api/users/`
+- `GET /api/users/by-role/{role_name}`
+- `GET /api/governance/students`
+
+Clients should request `page` and `limit` instead of loading all records and slicing locally.
+
+Event read endpoints compute their response from current database state and do not commit workflow sync side effects during GET requests.
+
 ## Auth Password Defaults
 
 - Student accounts created by bulk import or the Campus Admin student form use the lowercased last name as their default password.

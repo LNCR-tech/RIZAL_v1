@@ -149,6 +149,8 @@ Legacy router files were reduced to thin composition/wrapper behavior:
   - sign-in without sign-out displays and counts as `absent`
   - no sign-in displays as stored `absent` or `excused`
   - legacy `incomplete_*` response fields remain for compatibility but are not used as final display statuses
+- Event attendance report reads do not commit event workflow sync changes. Report responses are computed from current database rows and participant scope without mutating data during GET requests.
+- Completed-event attendance finalization no longer creates synthetic absent rows for students who never signed in. Absentees are computed from scoped participant counts minus real valid attendance rows.
 
 ## How To Test
 
@@ -176,4 +178,7 @@ Legacy router files were reduced to thin composition/wrapper behavior:
    - verify the row is counted as `absent`, not `incomplete`
    - call `GET /api/events/{event_id}/attendees?status=absent`
    - verify the same row is returned.
-
+9. Report read-only regression:
+   - record the attendance row count for an event with missing sign-ins.
+   - call `GET /api/attendance/events/{event_id}/report`.
+   - verify the attendance row count is unchanged after the GET request.
