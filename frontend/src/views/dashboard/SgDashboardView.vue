@@ -585,8 +585,8 @@ watch(searchActive, (active) => {
 
 .mobile-bubble--ai {
   align-self: flex-start;
-  background: #ffffff;
-  color: #0a0a0a;
+  background: var(--color-surface);
+  color: var(--color-surface-text);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 

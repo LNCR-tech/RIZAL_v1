@@ -27,7 +27,8 @@
     </header>
 
     <div v-if="isLoading" class="sg-members-state dashboard-enter dashboard-enter--2">
-      <p>Loading governance members...</p>
+      <p>Loading governance members…</p>
+      <p class="sg-members-state__hint">This may take a moment if your session is still starting.</p>
     </div>
 
     <div v-else-if="loadError" class="sg-members-state sg-members-state--error dashboard-enter dashboard-enter--2">
@@ -317,7 +318,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -382,6 +383,7 @@ const showPermissions = ref(false)
 const candidateResults = ref([])
 const governanceUnitId = ref(null)
 let candidateTimer = null
+let sgLoadingTimeoutId = null
 
 const memberDraft = ref({ ...createEmptyCouncilMemberDraft(), searchQuery: '', selectedStudent: null })
 
@@ -571,6 +573,16 @@ watch(
   },
   { immediate: true }
 )
+
+// Safety valve: if sgLoading never resolves (slow session init or stuck API),
+// force a loadUnit attempt after 7s so the page never hangs as a blank screen.
+onMounted(() => {
+  sgLoadingTimeoutId = setTimeout(() => {
+    if (isLoading.value && apiBaseUrl.value) {
+      loadUnit(apiBaseUrl.value)
+    }
+  }, 7000)
+})
 
 watch(
   [() => memberDraft.value.searchQuery, isCandidateSearchOpen, selectedStudent],
@@ -1005,7 +1017,10 @@ function permissionCountLabel(member = {}) {
   return count === 0 ? 'No permission grants' : `${count} permission${count === 1 ? '' : 's'}`
 }
 
-onBeforeUnmount(() => clearTimeout(candidateTimer))
+onBeforeUnmount(() => {
+  clearTimeout(candidateTimer)
+  clearTimeout(sgLoadingTimeoutId)
+})
 </script>
 
 <style scoped>
@@ -1235,6 +1250,12 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 .sg-members-state {
   border-radius: 28px;
   padding: 18px 20px;
+}
+
+.sg-members-state__hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
 }
 
 .sg-members-toolbar {

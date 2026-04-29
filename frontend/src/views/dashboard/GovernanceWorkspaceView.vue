@@ -3244,7 +3244,10 @@ const governanceHierarchyCards = computed(() => {
  */
 function navigateToChildUnitMembers(unit) {
   const unitId = unit?.id || unit?.governance_unit_id
-  if (!unitId) return
+  if (!unitId) {
+    console.warn('[GovernanceWorkspaceView] navigateToChildUnitMembers: unit has no id', unit)
+    return
+  }
   const baseRoute = props.preview ? '/exposed/governance/members' : '/governance/members'
   router.push(`${baseRoute}?unit_id=${unitId}`)
 }

@@ -444,21 +444,39 @@ const unreadAnnouncements = computed(() =>
 
 // --- Formatters ---
 function formatMonth(dt) {
-  return new Date(dt).toLocaleString('en', { month: 'short' }).toUpperCase()
+  if (!dt) return '---'
+  const d = new Date(dt)
+  if (Number.isNaN(d.getTime())) return '---'
+  return d.toLocaleString('en', { month: 'short' }).toUpperCase()
 }
 
 function formatDay(dt) {
-  return new Date(dt).getDate()
+  if (!dt) return '--'
+  const d = new Date(dt)
+  if (Number.isNaN(d.getTime())) return '--'
+  return d.getDate()
 }
 
 function statusStyle(status) {
   const map = {
-    upcoming: { background: 'rgba(170,255,0,0.2)', color: '#3a5c00' },
-    ongoing: { background: 'rgba(0,200,100,0.15)', color: '#006633' },
-    completed: { background: 'rgba(0,0,0,0.08)', color: '#555' },
-    cancelled: { background: 'rgba(255,80,80,0.12)', color: '#cc0000' },
+    upcoming: {
+      background: 'color-mix(in srgb, var(--color-primary) 18%, transparent)',
+      color: 'var(--color-text-primary)',
+    },
+    ongoing: {
+      background: 'color-mix(in srgb, var(--color-status-compliant) 14%, transparent)',
+      color: 'var(--color-status-compliant)',
+    },
+    completed: {
+      background: 'color-mix(in srgb, var(--color-surface-text-muted) 10%, transparent)',
+      color: 'var(--color-text-muted)',
+    },
+    cancelled: {
+      background: 'color-mix(in srgb, var(--color-status-non-compliant) 12%, transparent)',
+      color: 'var(--color-status-non-compliant)',
+    },
   }
-  return map[status] ?? map.upcoming
+  return map[String(status || '').toLowerCase()] ?? map.upcoming
 }
 
 function normalizeStatus(status) {

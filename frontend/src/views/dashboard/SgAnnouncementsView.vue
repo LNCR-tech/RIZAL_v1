@@ -282,14 +282,14 @@ function resolveNextPreviewAnnouncementId() {
 .sg-ann-body { font-size: 13px; color: var(--color-text-muted); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .sg-ann-meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
 .sg-ann-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px; text-transform: capitalize; }
-.sg-ann-status--draft { background: #f0ad4e33; color: #f0ad4e; }
-.sg-ann-status--published { background: #27ae6033; color: #27ae60; }
-.sg-ann-status--archived { background: #95a5a633; color: #95a5a6; }
+.sg-ann-status--draft { background: color-mix(in srgb, var(--color-status-at-risk) 15%, transparent); color: var(--color-status-at-risk); }
+.sg-ann-status--published { background: color-mix(in srgb, var(--color-status-compliant) 15%, transparent); color: var(--color-status-compliant); }
+.sg-ann-status--archived { background: color-mix(in srgb, var(--color-surface-text-muted) 14%, transparent); color: var(--color-surface-text-muted); }
 .sg-ann-date { font-size: 11px; color: var(--color-text-muted); }
 .sg-ann-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .sg-ann-btn { background: none; border: none; color: var(--color-text-muted); cursor: pointer; padding: 6px; border-radius: 8px; }
 .sg-ann-btn:hover { color: var(--color-primary); }
-.sg-ann-btn--danger:hover { color: #e74c3c; }
+.sg-ann-btn--danger:hover { color: var(--color-status-non-compliant); }
 
 .sg-ann-form { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
 .sg-ann-form-title { font-size: 20px; font-weight: 800; color: var(--color-text-primary); }
@@ -297,7 +297,7 @@ function resolveNextPreviewAnnouncementId() {
 .sg-ann-field-label { font-size: 12px; font-weight: 600; color: var(--color-primary); }
 .sg-ann-field-input { background: var(--color-surface-border); border: none; border-radius: 12px; padding: 10px 14px; font-size: 14px; color: var(--color-text-primary); outline: none; font-family: inherit; }
 .sg-ann-field-input--textarea { resize: vertical; min-height: 80px; }
-.sg-ann-form-error { font-size: 13px; color: #e74c3c; }
+.sg-ann-form-error { font-size: 13px; color: var(--color-status-non-compliant); }
 .sg-ann-form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .sg-ann-form-cancel { background: none; border: none; color: var(--color-text-muted); font-size: 13px; font-weight: 600; cursor: pointer; }
 </style>

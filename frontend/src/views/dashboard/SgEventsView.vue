@@ -26,15 +26,15 @@
           <span class="sg-summary-lbl">Total Events</span>
         </div>
         <div class="sg-summary-card">
-          <span class="sg-summary-val" style="color: #3498db">{{ upcomingCount }}</span>
+          <span class="sg-summary-val" style="color: var(--color-primary)">{{ upcomingCount }}</span>
           <span class="sg-summary-lbl">Upcoming</span>
         </div>
         <div class="sg-summary-card">
-          <span class="sg-summary-val" style="color: #27ae60">{{ ongoingCount }}</span>
+          <span class="sg-summary-val" style="color: var(--color-status-compliant)">{{ ongoingCount }}</span>
           <span class="sg-summary-lbl">Ongoing</span>
         </div>
         <div class="sg-summary-card">
-          <span class="sg-summary-val" style="color: #95a5a6">{{ completedCount }}</span>
+          <span class="sg-summary-val" style="color: var(--color-surface-text-muted)">{{ completedCount }}</span>
           <span class="sg-summary-lbl">Completed</span>
         </div>
       </div>
@@ -1109,6 +1109,15 @@ watch(
   { immediate: true }
 )
 
+// Safety valve: if sgLoading never resolves, force a load attempt after 7s.
+onMounted(() => {
+  setTimeout(() => {
+    if (isLoading.value && apiBaseUrl.value) {
+      loadEvents(apiBaseUrl.value)
+    }
+  }, 7000)
+})
+
 async function loadEvents(url) {
   if (props.preview) {
     events.value = Array.isArray(previewBundle.value?.events)
@@ -1495,8 +1504,8 @@ function resolveNextPreviewEventId() {
   margin: 0;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(220, 38, 38, 0.12);
-  color: #7f1d1d;
+  background: color-mix(in srgb, var(--color-status-non-compliant) 12%, transparent);
+  color: var(--color-status-non-compliant);
   font-size: 13px;
   font-weight: 800;
   line-height: 1.5;
@@ -1659,7 +1668,7 @@ function resolveNextPreviewEventId() {
   cursor: not-allowed;
   transform: none;
 }
-.sg-action-delete { color: #e74c3c; }
+.sg-action-delete { color: var(--color-status-non-compliant); }
 .sg-action-edit { color: var(--color-text-primary); border-color: color-mix(in srgb, var(--color-text-primary) 30%, transparent); }
 
 /* Foreground Pill (The Main Row) */
