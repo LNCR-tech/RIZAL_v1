@@ -46,6 +46,16 @@
             </button>
           </div>
 
+          <BasePagination
+            v-if="!isLoadingEvents && totalPages > 1"
+            :current-page="currentPage"
+            :total-pages="totalPages"
+            :total="totalEvents"
+            :limit="pageLimit"
+            :loading="isLoadingEvents"
+            @page-change="handlePageChange"
+          />
+
           <div class="school-it-reports__table-wrap">
             <table class="school-it-reports__table">
               <thead>
@@ -318,6 +328,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, FileSpreadsheet, Search, X } from 'lucide-vue-next'
+import BasePagination from '@/components/ui/BasePagination.vue'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -326,7 +337,7 @@ import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 import {
   getEventAttendance,
   getEventAttendanceReport,
-  getEvents,
+  getEventsPage,
   resolveApiBaseUrl,
 } from '@/services/backendApi.js'
 import { downloadBlobFile } from '@/services/fileDownload.js'
@@ -364,6 +375,10 @@ const attendeeFilter = ref('all')
 const isDownloading = ref('')
 const eventsList = ref([])
 const isLoadingEvents = ref(true)
+const currentPage = ref(1)
+const totalPages = ref(1)
+const totalEvents = ref(0)
+const pageLimit = ref(50)
 const selectedEventId = ref(null)
 const selectedEventReport = ref(null)
 const selectedEventAttendanceRecords = ref([])
@@ -586,7 +601,7 @@ watch(
   { immediate: true },
 )
 
-async function fetchEvents() {
+async function fetchEvents(page = 1) {
   isLoadingEvents.value = true
 
   if (props.preview) {
@@ -596,12 +611,25 @@ async function fetchEvents() {
 
   try {
     const token = localStorage.getItem('aura_token') || ''
-    eventsList.value = await getEvents(apiBaseUrl.value || resolveApiBaseUrl(), token)
+    const response = await getEventsPage(apiBaseUrl.value || resolveApiBaseUrl(), token, {
+      page,
+      limit: pageLimit.value
+    })
+    eventsList.value = response.data
+    currentPage.value = response.page
+    totalPages.value = response.total_pages
+    totalEvents.value = response.total
   } catch (error) {
     selectionError.value = error?.message || 'Unable to load the event list right now.'
   } finally {
     isLoadingEvents.value = false
   }
+}
+
+function handlePageChange(newPage) {
+  currentPage.value = newPage
+  fetchEvents(newPage)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function syncSelectionFromRoute() {
