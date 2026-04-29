@@ -18,7 +18,17 @@ async function login(page, email, password) {
 /** @param {import('@playwright/test').Page} page */
 async function openChatWindow(page) {
   // Click the collapsed pill to open mini chat first
-  await page.locator('.nav-rail__shell').locator('img[alt="Aura"]').first().click()
+  const pill = page.locator('.nav-rail__shell').locator('img[alt="Aura"]').first()
+  try {
+    await pill.click({ timeout: 5000 })
+  } catch {
+    // Log what's on the page to help debug layout issues
+    const snapshot = await page.locator('body').innerHTML()
+    console.log('PAGE URL:', page.url())
+    console.log('NAV RAIL EXISTS:', await page.locator('.nav-rail__shell').count())
+    console.log('BODY CLASSES:', await page.locator('body').getAttribute('class'))
+    throw new Error(`Could not click Aura pill. URL: ${page.url()}, nav-rail count: ${await page.locator('.nav-rail__shell').count()}`)
+  }
   // Then click expand to full window
   await page.locator('[aria-label="Expand chat to full window"]').click()
   await expect(page.locator('[aria-label="Talk with Aura"]')).toBeVisible({ timeout: 5000 })
