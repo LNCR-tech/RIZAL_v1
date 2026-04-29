@@ -8,8 +8,10 @@ async function login(page, email, password) {
   await page.goto('/')
   await page.fill('#email', email)
   await page.fill('#password', password)
+  await page.evaluate(() => localStorage.setItem('aura_terms_agreed', 'true'))
   await page.click('button[type="submit"]')
   await page.getByRole('button', { name: 'I Understand' }).click()
+  // Wait for dashboard to load
   await expect(page).not.toHaveURL('/', { timeout: 10000 })
 }
 

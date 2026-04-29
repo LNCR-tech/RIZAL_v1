@@ -13,9 +13,13 @@ async function login(page, email, password) {
   await page.goto('/')
   await page.fill('#email', email)
   await page.fill('#password', password)
+
+  // Pre-accept terms so the router navigates after modal close
+  await page.evaluate(() => localStorage.setItem('aura_terms_agreed', 'true'))
+
   await page.click('button[type="submit"]')
 
-  // Terms modal appears — click I Understand (now correctly emits agree → router navigates)
+  // Terms modal appears — click I Understand
   await page.getByRole('button', { name: 'I Understand' }).click()
 }
 
