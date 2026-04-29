@@ -69,8 +69,7 @@ def test_stream_success(client, auth_headers):
 
 def test_stream_tool_call_events(client, auth_headers):
     """Tool call flow emits tool_call and tool_done SSE events."""
-    async def mock_stream_with_tool(messages, tools=None):
-        # First turn: LLM requests a tool call
+    async def turn_one(messages, tools=None):
         yield {
             "role": "assistant",
             "content": None,
@@ -79,11 +78,12 @@ def test_stream_tool_call_events(client, auth_headers):
                 "function": {"name": "query_attendance", "arguments": "{}"},
             }],
         }
-        # Second turn: LLM responds after tool result
+
+    async def turn_two(messages, tools=None):
         yield {"type": "chunk", "content": "Done."}
         yield {"role": "assistant", "content": "Done.", "tool_calls": None}
 
-    with patch("main.call_llm_stream", return_value=mock_stream_with_tool([])), \
+    with patch("main.call_llm_stream", side_effect=[turn_one(), turn_two()]), \
          patch("main.resolve_backend_user_id", new=AsyncMock(return_value=None)), \
          patch("main.resolve_runtime_governance_access", new=AsyncMock(return_value={"permission_codes": [], "roles": [], "school_id": 1})):
 
