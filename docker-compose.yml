@@ -51,7 +51,6 @@ services:
   migrate:
     build:
       context: ./backend
-      dockerfile: ${DOCKERFILE:-Dockerfile}
     image: aura-backend:${APP_ENV:-dev}
     command: alembic upgrade heads
     env_file:
