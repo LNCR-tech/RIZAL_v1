@@ -37,17 +37,7 @@
       </div>
     </section>
 
-    <section v-else-if="isDesktop" class="desktop-notice-screen">
-      <div class="desktop-notice-card">
-        <p class="desktop-notice-eyebrow">Mobile only for now</p>
-        <h1 class="desktop-notice-title">Please use mobile to continue.</h1>
-        <p class="desktop-notice-message">
-          Desktop is under development for better GPS accuracy.
-        </p>
-      </div>
-    </section>
-
-    <RouterView v-else />
+    <RouterView />
 
     <Transition name="mobile-fullscreen-hint">
       <button

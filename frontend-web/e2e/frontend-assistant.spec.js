@@ -11,6 +11,7 @@ async function login(page, email, password) {
   await page.fill('#email', email)
   await page.fill('#password', password)
   await page.click('button[type="submit"]')
+  await page.getByRole('button', { name: 'I Understand' }).click()
   await expect(page).not.toHaveURL('/', { timeout: 10000 })
 }
 
