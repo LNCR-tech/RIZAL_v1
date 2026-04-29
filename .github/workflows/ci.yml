@@ -275,6 +275,33 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
 
+      - name: Seed backend test data
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          os.environ.setdefault('DATABASE_URL', 'postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db')
+          os.environ.setdefault('SECRET_KEY', 'test-secret-key')
+          os.environ.setdefault('FACE_SCAN_BYPASS_ALL', 'true')
+          os.environ.setdefault('EMAIL_TRANSPORT', 'disabled')
+          from app.core.database import SessionLocal
+          import importlib.util, pathlib
+          spec = importlib.util.spec_from_file_location('conftest', pathlib.Path('tests/conftest.py'))
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+          db = SessionLocal()
+          m._seed(db)
+          db.commit()
+          db.close()
+          print('Seed complete')
+          "
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+          FACE_SCAN_BYPASS_ALL: "true"
+          EMAIL_TRANSPORT: disabled
+
       - name: Start backend
         run: |
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
