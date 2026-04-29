@@ -11,7 +11,7 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     headless: true,
     screenshot: 'only-on-failure',
-    video: 'off',
+    video: 'retain-on-failure',
     storageState: { cookies: [], origins: [] },
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
