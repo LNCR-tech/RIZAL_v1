@@ -1,0 +1,72 @@
+# CI Pipeline Summary — aurav3-pilot
+# Branch: integrate/pilot-merge
+# File: .github/workflows/ci.yml
+
+## Jobs (run in parallel, docker-build waits for all)
+
+### 1. compose-config
+- Copies all .env.example files
+- Checks for unresolved merge conflict markers
+- Validates docker compose config
+
+### 2. backend-checks
+- Compiles all Python sources (backend + assistant) with compileall
+
+### 3. backend-tests (Postgres + Redis)
+- Installs backend deps
+- Creates fastapi_db + ai_assistant databases
+- Runs alembic migrations
+- Runs pytest (195 tests)
+- Ignores segfault exit code 139 (CPython 3.12 cleanup bug)
+- Key env: FACE_SCAN_BYPASS_ALL=true, PRIVILEGED_FACE_VERIFICATION_ENABLED=false,
+           CELERY_TASK_ALWAYS_EAGER=true, EMAIL_TRANSPORT=disabled
+
+### 4. assistant-tests (SQLite only, no Postgres needed)
+- Installs assistant deps
+- Runs pytest (20 unit tests)
+- test_integration.py is excluded via pytest.ini addopts --ignore
+- Key env: ASSISTANT_DB_URL=sqlite:///./test_assistant.db
+
+### 5. integration-tests (Postgres)
+- Installs backend + assistant deps
+- Creates fastapi_db
+- Runs alembic migrations
+- Runs pytest -v -m integration tests/test_integration.py (21 tests)
+- Ignores segfault exit code 139
+- Tests: assistant↔backend auth, MCP tools↔DB, full stream flow
+
+### 6. e2e-tests (Postgres + Redis + Chromium)
+- Installs backend + assistant + frontend deps
+- Installs Playwright Chromium browser
+- Creates fastapi_db + ai_assistant databases
+- Runs alembic migrations
+- Seeds backend test data (campus_admin@test.com / TestPass123!)
+- Starts backend on :8000 (waits for health)
+- Starts assistant on :8500 (waits for health)
+- Runs npx playwright test (4 tests, 2 workers)
+- Uploads playwright-report + test-results on failure
+- Key env: VITE_APP_BASE_PATH=/, PRIVILEGED_FACE_VERIFICATION_ENABLED not set
+           (must be false in backend for campus_admin to land on /workspace)
+
+### 7. frontend-checks
+- npm ci + npm run build (Vite production build)
+
+### 8. docker-build (needs all above)
+- Copies all .env.example files
+- Runs docker compose build
+
+## Test counts
+- backend-tests:      195 tests
+- assistant-tests:     20 tests
+- integration-tests:   21 tests
+- e2e-tests:            4 tests (frontend-backend.spec.js only)
+                        frontend-assistant.spec.js removed —
+                        useChat.js has isAuraChatUnderDevelopment=ref(true) hardcoded,
+                        chat window not connected to assistant yet
+
+## Known issues / notes
+- backend-tests and integration-tests ignore exit code 139 (CPython 3.12 segfault on shutdown)
+- e2e VITE_APP_BASE_PATH=/ must be set to prevent Vite auto-detecting /RIZAL_v1/ base path
+- campus_admin role maps to school_it → lands on /workspace (requires PRIVILEGED_FACE_VERIFICATION_ENABLED=false)
+- assistant pytest.ini has: addopts = --ignore=tests/test_integration.py
+- integration tests seed DB via importlib loading backend/tests/conftest.py _seed()
