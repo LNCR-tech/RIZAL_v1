@@ -55,13 +55,6 @@ function resolveBasePath(env = {}) {
     return normalizeBasePath(configuredBasePath)
   }
 
-  if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REPOSITORY) {
-    const [, repositoryName = ''] = String(process.env.GITHUB_REPOSITORY).split('/')
-    if (repositoryName) {
-      return `/${repositoryName}/`
-    }
-  }
-
   return '/'
 }
 
