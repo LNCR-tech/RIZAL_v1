@@ -1,5 +1,5 @@
-"""Compatibility shim — re-exports Base from the normalized schema base."""
+"""Re-exports Base from the core model base."""
 
-from app.models.aura_norm.base import AuraNormBase as Base  # noqa: F401
+from app.models.core.base import AppBase as Base  # noqa: F401
 
 __all__ = ["Base"]

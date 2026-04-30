@@ -1,9 +1,4 @@
-"""Subset of SQLAlchemy models for `aura_norm.*`.
-
-These are intended for future incremental adoption. They are aligned to
-`db_normalized/new_db_schema.sql`, but the running app continues to use the
-current `public.*` models unless explicitly switched.
-"""
+"""SQLAlchemy models for the public schema."""
 
 from __future__ import annotations
 
@@ -23,12 +18,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.models.aura_norm.base import AURA_NORM_SCHEMA, AuraNormBase
+from app.models.core.base import DB_SCHEMA, AppBase
 
 
-class SubscriptionPlan(AuraNormBase):
+class SubscriptionPlan(AppBase):
     __tablename__ = "subscription_plans"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     id = Column(BigInteger, primary_key=True)
     code = Column(Text, nullable=False, unique=True)
@@ -40,9 +35,9 @@ class SubscriptionPlan(AuraNormBase):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class Role(AuraNormBase):
+class Role(AppBase):
     __tablename__ = "roles"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     id = Column(BigInteger, primary_key=True)
     code = Column(Text, nullable=False, unique=True)
@@ -50,42 +45,42 @@ class Role(AuraNormBase):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class AttendanceStatus(AuraNormBase):
+class AttendanceStatus(AppBase):
     __tablename__ = "attendance_statuses"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     code = Column(Text, primary_key=True)
     display_name = Column(Text, nullable=False)
 
 
-class AttendanceMethod(AuraNormBase):
+class AttendanceMethod(AppBase):
     __tablename__ = "attendance_methods"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     code = Column(Text, primary_key=True)
     display_name = Column(Text, nullable=False)
 
 
-class NotificationChannel(AuraNormBase):
+class NotificationChannel(AppBase):
     __tablename__ = "notification_channels"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     code = Column(Text, primary_key=True)
     display_name = Column(Text, nullable=False)
     supports_address = Column(Boolean, nullable=False, default=False)
 
 
-class NotificationTopic(AuraNormBase):
+class NotificationTopic(AppBase):
     __tablename__ = "notification_topics"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     code = Column(Text, primary_key=True)
     display_name = Column(Text, nullable=False)
 
 
-class School(AuraNormBase):
+class School(AppBase):
     __tablename__ = "schools"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     id = Column(BigInteger, primary_key=True)
     school_code = Column(Text, unique=True)
@@ -97,12 +92,12 @@ class School(AuraNormBase):
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class User(AuraNormBase):
+class User(AppBase):
     __tablename__ = "users"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"))
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"))
     email = Column(Text, nullable=False, unique=True)
     password_hash = Column(Text, nullable=False)
     prefix = Column(Text)
@@ -119,35 +114,35 @@ class User(AuraNormBase):
     school = relationship("School")
 
 
-class UserRole(AuraNormBase):
+class UserRole(AppBase):
     __tablename__ = "user_roles"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     user_id = Column(
         BigInteger,
-        ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="CASCADE"),
+        ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="CASCADE"),
         primary_key=True,
     )
     role_id = Column(
         BigInteger,
-        ForeignKey(f"{AURA_NORM_SCHEMA}.roles.id", ondelete="CASCADE"),
+        ForeignKey(f"{DB_SCHEMA}.roles.id", ondelete="CASCADE"),
         primary_key=True,
     )
     assigned_at = Column(DateTime(timezone=True), nullable=False)
-    assigned_by_user_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="SET NULL"))
+    assigned_by_user_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="SET NULL"))
 
     user = relationship("User", foreign_keys=[user_id])
     role = relationship("Role")
     assigned_by_user = relationship("User", foreign_keys=[assigned_by_user_id])
 
 
-class UserNotificationPreference(AuraNormBase):
+class UserNotificationPreference(AppBase):
     __tablename__ = "user_notification_preferences"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     user_id = Column(
         BigInteger,
-        ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="CASCADE"),
+        ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="CASCADE"),
         primary_key=True,
     )
     email_enabled = Column(Boolean, nullable=False, default=True)
@@ -160,34 +155,34 @@ class UserNotificationPreference(AuraNormBase):
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class Department(AuraNormBase):
+class Department(AppBase):
     __tablename__ = "departments"
-    __table_args__ = (UniqueConstraint("school_id", "name"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("school_id", "name"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
     name = Column(Text, nullable=False)
 
     school = relationship("School")
 
 
-class Program(AuraNormBase):
+class Program(AppBase):
     __tablename__ = "programs"
-    __table_args__ = (UniqueConstraint("school_id", "name"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("school_id", "name"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
     name = Column(Text, nullable=False)
 
     school = relationship("School")
 
 
-class AcademicPeriod(AuraNormBase):
+class AcademicPeriod(AppBase):
     __tablename__ = "academic_periods"
-    __table_args__ = (UniqueConstraint("school_id", "school_year", "semester"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("school_id", "school_year", "semester"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
     school_year = Column(Text, nullable=False)
     semester = Column(Text, nullable=False)
     label = Column(Text, nullable=False)
@@ -197,12 +192,12 @@ class AcademicPeriod(AuraNormBase):
     school = relationship("School")
 
 
-class EventType(AuraNormBase):
+class EventType(AppBase):
     __tablename__ = "event_types"
-    __table_args__ = (UniqueConstraint("school_id", "name"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("school_id", "name"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"))
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"))
     name = Column(Text, nullable=False)
     code = Column(Text)
     description = Column(Text)
@@ -212,18 +207,18 @@ class EventType(AuraNormBase):
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class Event(AuraNormBase):
+class Event(AppBase):
     __tablename__ = "events"
     __table_args__ = (
         CheckConstraint("end_at >= start_at", name="ck_events_end_after_start"),
         UniqueConstraint("created_by_user_id", "create_idempotency_key"),
-        {"schema": AURA_NORM_SCHEMA},
+        {"schema": DB_SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
-    event_type_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.event_types.id", ondelete="SET NULL"))
-    created_by_user_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="SET NULL"))
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
+    event_type_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.event_types.id", ondelete="SET NULL"))
+    created_by_user_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="SET NULL"))
     create_idempotency_key = Column(Text)
     name = Column(Text, nullable=False)
     location = Column(Text)
@@ -246,43 +241,43 @@ class Event(AuraNormBase):
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class AttendanceRecord(AuraNormBase):
+class AttendanceRecord(AppBase):
     __tablename__ = "attendance_records"
-    __table_args__ = (UniqueConstraint("student_profile_id", "event_id"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("student_profile_id", "event_id"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
     student_profile_id = Column(BigInteger, nullable=False)
-    event_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.events.id", ondelete="CASCADE"), nullable=False)
+    event_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.events.id", ondelete="CASCADE"), nullable=False)
     time_in = Column(DateTime(timezone=True), nullable=False)
     time_out = Column(DateTime(timezone=True))
-    method_code = Column(Text, ForeignKey(f"{AURA_NORM_SCHEMA}.attendance_methods.code", ondelete="RESTRICT"), nullable=False)
-    status_code = Column(Text, ForeignKey(f"{AURA_NORM_SCHEMA}.attendance_statuses.code", ondelete="RESTRICT"), nullable=False)
-    verified_by_user_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="SET NULL"))
+    method_code = Column(Text, ForeignKey(f"{DB_SCHEMA}.attendance_methods.code", ondelete="RESTRICT"), nullable=False)
+    status_code = Column(Text, ForeignKey(f"{DB_SCHEMA}.attendance_statuses.code", ondelete="RESTRICT"), nullable=False)
+    verified_by_user_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="SET NULL"))
     notes = Column(Text)
     created_at = Column(DateTime(timezone=True), nullable=False)
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class GovernanceUnit(AuraNormBase):
+class GovernanceUnit(AppBase):
     __tablename__ = "governance_units"
-    __table_args__ = (UniqueConstraint("school_id", "unit_code"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("school_id", "unit_code"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
-    school_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
-    parent_unit_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.governance_units.id", ondelete="SET NULL"))
+    school_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.schools.id", ondelete="CASCADE"), nullable=False)
+    parent_unit_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.governance_units.id", ondelete="SET NULL"))
     unit_code = Column(Text, nullable=False)
     unit_name = Column(Text, nullable=False)
     description = Column(Text)
     unit_type = Column(Text, nullable=False)
-    created_by_user_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="SET NULL"))
+    created_by_user_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="SET NULL"))
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False)
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class GovernancePermission(AuraNormBase):
+class GovernancePermission(AppBase):
     __tablename__ = "governance_permissions"
-    __table_args__ = {"schema": AURA_NORM_SCHEMA}
+    __table_args__ = {"schema": DB_SCHEMA}
 
     id = Column(BigInteger, primary_key=True)
     permission_code = Column(Text, nullable=False, unique=True)
@@ -290,26 +285,26 @@ class GovernancePermission(AuraNormBase):
     description = Column(Text)
 
 
-class GovernanceMember(AuraNormBase):
+class GovernanceMember(AppBase):
     __tablename__ = "governance_members"
-    __table_args__ = (UniqueConstraint("governance_unit_id", "user_id"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("governance_unit_id", "user_id"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
     governance_unit_id = Column(
         BigInteger,
-        ForeignKey(f"{AURA_NORM_SCHEMA}.governance_units.id", ondelete="CASCADE"),
+        ForeignKey(f"{DB_SCHEMA}.governance_units.id", ondelete="CASCADE"),
         nullable=False,
     )
-    user_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="CASCADE"), nullable=False)
     position_title = Column(Text)
-    assigned_by_user_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.users.id", ondelete="SET NULL"))
+    assigned_by_user_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.users.id", ondelete="SET NULL"))
     assigned_at = Column(DateTime(timezone=True), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
 
 
-class SanctionItemTemplate(AuraNormBase):
+class SanctionItemTemplate(AppBase):
     __tablename__ = "sanction_item_templates"
-    __table_args__ = (UniqueConstraint("sanction_config_id", "item_code"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("sanction_config_id", "item_code"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
     sanction_config_id = Column(BigInteger, nullable=False)
@@ -320,12 +315,12 @@ class SanctionItemTemplate(AuraNormBase):
     is_required = Column(Boolean, nullable=False, default=True)
 
 
-class SanctionRecord(AuraNormBase):
+class SanctionRecord(AppBase):
     __tablename__ = "sanction_records"
-    __table_args__ = (UniqueConstraint("event_id", "student_profile_id"), {"schema": AURA_NORM_SCHEMA})
+    __table_args__ = (UniqueConstraint("event_id", "student_profile_id"), {"schema": DB_SCHEMA})
 
     id = Column(BigInteger, primary_key=True)
-    event_id = Column(BigInteger, ForeignKey(f"{AURA_NORM_SCHEMA}.events.id", ondelete="CASCADE"), nullable=False)
+    event_id = Column(BigInteger, ForeignKey(f"{DB_SCHEMA}.events.id", ondelete="CASCADE"), nullable=False)
     student_profile_id = Column(BigInteger, nullable=False)
     status = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False)

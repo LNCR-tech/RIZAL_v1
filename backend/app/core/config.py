@@ -87,7 +87,6 @@ def _as_csv_list(value: str | None, default: list[str]) -> list[str]:
 @dataclass(frozen=True)
 class Settings:
     database_url: str
-    database_admin_url: str | None
     db_pool_size: int
     db_max_overflow: int
     db_pool_timeout_seconds: int
@@ -168,9 +167,6 @@ class Settings:
     school_logo_max_file_size_mb: int
     school_logo_public_prefix: str
     cors_allowed_origins: list[str]
-    aura_norm_enabled: bool
-    aura_norm_schema: str
-
     default_admin_email: str
     default_admin_password: str
 
@@ -185,7 +181,6 @@ def get_settings() -> Settings:
 
     return Settings(
         database_url=os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/fastapi_db"),
-        database_admin_url=(os.getenv("DATABASE_ADMIN_URL") or "").strip() or None,
         db_pool_size=APP_SETTINGS.db_pool_size,
         db_max_overflow=APP_SETTINGS.db_max_overflow,
         db_pool_timeout_seconds=APP_SETTINGS.db_pool_timeout_seconds,
@@ -331,8 +326,6 @@ def get_settings() -> Settings:
             os.getenv("CORS_ALLOWED_ORIGINS"),
             ["http://localhost:5173", "http://127.0.0.1:5173"],
         ),
-        aura_norm_enabled=_as_bool(os.getenv("AURA_NORM_ENABLED"), False),
-        aura_norm_schema=(os.getenv("AURA_NORM_SCHEMA") or "aura_norm").strip() or "aura_norm",
         default_admin_email=os.getenv("DEFAULT_ADMIN_EMAIL", APP_SETTINGS.default_admin_email).strip(),
         default_admin_password=os.getenv("DEFAULT_ADMIN_PASSWORD", APP_SETTINGS.default_admin_password),
         google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),
