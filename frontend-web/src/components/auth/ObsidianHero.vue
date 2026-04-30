@@ -30,9 +30,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue - Physical Canvas Edition
- * Replaces CSS background with a true physics-based dot grid.
- * Every dot is independently animated for real vertical lift.
+ * ObsidianHero.vue - 3D Pin-Mesh Edition
+ * Implements "Pillar" connections for a tactical 3D depth effect.
  */
 
 const heroContainer = ref(null)
@@ -47,7 +46,7 @@ const isHovering = ref(false)
 const GRID_SIZE = 20
 const DOT_SIZE = 1.5
 const HOVER_RADIUS = 120
-const MAX_LIFT = 10 // Max pixels a dot can float UP
+const MAX_LIFT = 12 // Increased lift for better pillar visibility
 
 let ctx = null
 let width = 0
@@ -70,24 +69,31 @@ class Dot {
     const dist = Math.sqrt(dx * dx + dy * dy)
 
     if (hovering && dist < HOVER_RADIUS) {
-      // Calculate lift factor based on proximity (0 to 1)
       const factor = 1 - (dist / HOVER_RADIUS)
       const targetY = this.baseY - (factor * MAX_LIFT)
       
-      // Smoothly move toward the lifted position
       this.currentY += (targetY - this.currentY) * 0.1
       this.targetOpacity = 0.16 + (factor * 0.8)
     } else {
-      // Return to base position
       this.currentY += (this.baseY - this.currentY) * 0.08
       this.targetOpacity = 0.16
     }
 
-    // Smoothly transition opacity
     this.opacity += (this.targetOpacity - this.opacity) * 0.1
   }
 
   draw(context) {
+    // 1. Draw the "Pillar" (Stem) if lifted
+    if (Math.abs(this.currentY - this.baseY) > 0.5) {
+      context.strokeStyle = `rgba(255, 255, 255, ${this.opacity * 0.25})`
+      context.lineWidth = 0.5
+      context.beginPath()
+      context.moveTo(this.baseX, this.baseY)
+      context.lineTo(this.baseX, this.currentY)
+      context.stroke()
+    }
+
+    // 2. Draw the "Cap" (The Dot)
     context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
     context.beginPath()
     context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
@@ -122,7 +128,6 @@ function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
 
-  // Draw dots
   for (let i = 0; i < dots.length; i++) {
     dots[i].update(mouseX.value, mouseY.value, isHovering.value)
     dots[i].draw(ctx)
@@ -134,6 +139,7 @@ function animate() {
 function handleMouseMove(e) {
   if (!heroContainer.value) return
   const rect = heroContainer.value.getBoundingClientRect()
+  mouseX.value = e.clientX - rect.left
   mouseX.value = e.clientX - rect.left
   mouseY.value = e.clientY - rect.top
   isHovering.value = true
@@ -217,16 +223,8 @@ onUnmounted(() => {
 }
 
 @keyframes obsidian-shimmer {
-  0% { 
-    transform: translate3d(-15%, -10%, 0) scale(1) rotate(0deg); 
-    opacity: 0.4; 
-  }
-  50% {
-    opacity: 0.8;
-  }
-  100% { 
-    transform: translate3d(15%, 10%, 0) scale(1.2) rotate(10deg); 
-    opacity: 0.4; 
-  }
+  0% { transform: translate3d(-15%, -10%, 0) scale(1) rotate(0deg); opacity: 0.4; }
+  50% { opacity: 0.8; }
+  100% { transform: translate3d(15%, 10%, 0) scale(1.2) rotate(10deg); opacity: 0.4; }
 }
 </style>
