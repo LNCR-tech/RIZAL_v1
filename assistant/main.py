@@ -260,12 +260,18 @@ async def _apply_prompt_budget(
     return messages, tools
 
 async def _summarize_title(messages: List[Dict[str, Any]]) -> Optional[str]:
+    # Strip thought tags from messages before summarizing
+    def _clean(text: str) -> str:
+        return re.sub(r'<thought>.*?</thought>', '', str(text or ''), flags=re.DOTALL | re.IGNORECASE).strip()
+
     prompt = [
-        {"role": "system", "content": "Summarize this conversation in 3-6 words. Return only the title."},
-        {"role": "user", "content": json.dumps(messages[-4:], ensure_ascii=False)},
+        {"role": "system", "content": "Summarize this conversation in 3-6 words. Return only the title, no punctuation."},
+        {"role": "user", "content": json.dumps([{**m, "content": _clean(m.get("content", ""))} for m in messages[-4:]], ensure_ascii=False)},
     ]
     result = await call_openai(prompt)
-    title = _extract_text_content(result.get("content")).strip().strip('"')
+    title = _extract_text_content(result.get("content")).strip().strip('"').strip("'")
+    # Strip any thought tags that leaked into the title
+    title = re.sub(r'<thought>.*?</thought>', '', title, flags=re.DOTALL | re.IGNORECASE).strip()
     return title[:80] if title else None
 
 async def _update_conversation_title(db: Session, conversation_id: str, messages: List[Dict[str, Any]]):
