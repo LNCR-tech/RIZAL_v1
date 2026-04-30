@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, nextTick, ref } from 'vue'
 import { isGoogleLoginAvailable } from '@/config/googleAuth.js'
 import { renderGoogleButton } from '@/services/googleSignIn.js'
 
@@ -21,6 +21,7 @@ onMounted(async () => {
     return
   }
   try {
+    await nextTick()
     await renderGoogleButton(buttonHost.value, {
       theme: 'outline',
       size: 'large',
