@@ -38,7 +38,7 @@
 
           <div v-if="visibleStudents.length" class="school-it-unassigned__list">
             <article
-              v-for="(student, index) in visibleStudents"
+              v-for="student in visibleStudents"
               :key="student.id"
               class="school-it-unassigned__row"
             >

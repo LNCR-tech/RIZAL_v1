@@ -192,7 +192,7 @@ async function parsePublicResponse(response) {
     const contentType = response.headers.get('content-type') || ''
     const isJson = contentType.includes('application/json')
 
-    let payload = null
+    let payload
     try {
         payload = isJson ? await response.json() : await response.text()
     } catch {

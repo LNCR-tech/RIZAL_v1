@@ -2,34 +2,55 @@ name: CI
 
 on:
   push:
-    branches:
-      - integrate/pilot-merge
   pull_request:
-    branches:
-      - integrate/pilot-merge
+  workflow_dispatch:
+    inputs:
+      deploy_frontend:
+        description: Publish the frontend Docker image after all checks pass
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FRONTEND_DIR: frontend-web
+  FRONTEND_PRIMARY_NODE_VERSION: '20'
+  FRONTEND_CI_MAX_ANNOTATIONS: '30'
+  FRONTEND_CI_LOG_EXCERPT_LINES: '120'
 
 jobs:
   # ===========================================================================
-  # CI — runs on every push and PR
+  # Shared repo validation
   # ===========================================================================
-
   compose-config:
     name: Validate Compose
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Create CI env files
+        shell: bash
         run: |
+          set -euo pipefail
           cp backend/.env.example backend/.env
           cp assistant/.env.example assistant/.env
           cp database/.env.example database/.env
           cp frontend-web/.env.example frontend-web/.env
-          cp seeder/.env.example seeder/.env
+          if [ -f seeder/.env.example ]; then
+            cp seeder/.env.example seeder/.env
+          fi
+
       - name: Check for unresolved merge conflicts
+        shell: bash
         run: |
+          set -euo pipefail
           if grep -R -n -E '^(<<<<<<<|>>>>>>>|=======$)' . \
             --exclude-dir=.git \
             --exclude='.env' \
@@ -37,9 +58,13 @@ jobs:
             echo "Unresolved merge conflict markers found."
             exit 1
           fi
+
       - name: Validate local compose config
         run: docker compose config --quiet
 
+  # ===========================================================================
+  # Backend and assistant validation
+  # ===========================================================================
   backend-checks:
     name: Backend Checks
     runs-on: ubuntu-latest
@@ -47,7 +72,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Compile Python sources
         run: python -m compileall backend assistant
 
@@ -84,7 +109,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Create databases
@@ -102,15 +127,15 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
-          RATE_LIMIT_ENABLED: "false"
-          RATE_LIMIT_FAIL_OPEN: "true"
-          FACE_SCAN_BYPASS_ALL: "true"
-          PRIVILEGED_FACE_VERIFICATION_ENABLED: "false"
+          RATE_LIMIT_ENABLED: 'false'
+          RATE_LIMIT_FAIL_OPEN: 'true'
+          FACE_SCAN_BYPASS_ALL: 'true'
+          PRIVILEGED_FACE_VERIFICATION_ENABLED: 'false'
           EMAIL_TRANSPORT: disabled
-          API_DOCS_ENABLED: "true"
+          API_DOCS_ENABLED: 'true'
           CELERY_BROKER_URL: redis://127.0.0.1:6379/0
           REDIS_URL: redis://127.0.0.1:6379/0
-          CELERY_TASK_ALWAYS_EAGER: "true"
+          CELERY_TASK_ALWAYS_EAGER: 'true'
 
   assistant-tests:
     name: Assistant Tests
@@ -122,7 +147,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run tests
@@ -134,24 +159,6 @@ jobs:
           AI_API_BASE: https://test.example.com/v1
           AI_MODEL: test-model
           BACKEND_API_BASE_URL: http://localhost:8000
-
-  frontend-checks:
-    name: Frontend Checks
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend-web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend-web/package-lock.json
-      - name: Install frontend deps
-        run: npm ci
-      - name: Build frontend
-        run: npm run build
 
   integration-tests:
     name: Integration Tests
@@ -177,7 +184,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Install backend dependencies
         run: pip install -r ../backend/requirements.txt
       - name: Install assistant dependencies
@@ -203,14 +210,582 @@ jobs:
           AI_API_BASE: https://test.example.com/v1
           AI_MODEL: test-model
           BACKEND_API_BASE_URL: http://localhost:8000
-          RATE_LIMIT_ENABLED: "false"
-          FACE_SCAN_BYPASS_ALL: "true"
-          CELERY_TASK_ALWAYS_EAGER: "true"
+          RATE_LIMIT_ENABLED: 'false'
+          FACE_SCAN_BYPASS_ALL: 'true'
+          CELERY_TASK_ALWAYS_EAGER: 'true'
           EMAIL_TRANSPORT: disabled
 
+  # ===========================================================================
+  # Enterprise frontend gates
+  # ===========================================================================
+  frontend-install:
+    name: Frontend Install (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        node-version: ['20', '22']
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Clean install from lockfile with retry
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ci-reports
+          : > install.log
+          status=1
+          for attempt in 1 2 3; do
+            echo "npm ci attempt ${attempt}/3" | tee -a install.log
+            npm ci 2>&1 | tee -a install.log
+            status=${PIPESTATUS[0]}
+            if [ "$status" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              npm cache verify 2>&1 | tee -a install.log || true
+              sleep $((attempt * 5))
+            fi
+          done
+          node ./scripts/ci-log-summary.mjs \
+            --stage "frontend-install-node-${{ matrix.node-version }}-lockfile" \
+            --command "npm ci" \
+            --log install.log \
+            --exit-code "$status" \
+            --summary-path "ci-reports/frontend-install-node-${{ matrix.node-version }}-lockfile.md" \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Validate dependency tree, missing packages, and peer dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ls --all --omit=optional 2>&1 | tee dependency-tree.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage "frontend-install-node-${{ matrix.node-version }}-dependencies" \
+            --command "npm ls --all --omit=optional" \
+            --log dependency-tree.log \
+            --exit-code "$status" \
+            --summary-path "ci-reports/frontend-install-node-${{ matrix.node-version }}-dependencies.md" \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload dependency diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dependency-tree-node-${{ matrix.node-version }}
+          path: |
+            frontend-web/install.log
+            frontend-web/dependency-tree.log
+            frontend-web/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    needs: frontend-install
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ci 2>&1 | tee lint-install.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-lint-install \
+            --command "npm ci" \
+            --log lint-install.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-lint-install.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Run ESLint (zero warnings)
+        shell: bash
+        run: |
+          set +e
+          npm run lint 2>&1 | tee lint-eslint.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-lint-eslint \
+            --command "npm run lint" \
+            --log lint-eslint.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-lint-eslint.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Run Prettier format check
+        shell: bash
+        run: |
+          set +e
+          npm run format:check 2>&1 | tee lint-prettier.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-lint-prettier \
+            --command "npm run format:check" \
+            --log lint-prettier.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-lint-prettier.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload frontend lint logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-lint-logs
+          path: |
+            frontend-web/lint-install.log
+            frontend-web/lint-eslint.log
+            frontend-web/lint-prettier.log
+            frontend-web/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-typecheck:
+    name: Frontend Typecheck
+    runs-on: ubuntu-latest
+    needs: frontend-install
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ci 2>&1 | tee typecheck-install.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-typecheck-install \
+            --command "npm ci" \
+            --log typecheck-install.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-typecheck-install.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Validate environment contract
+        shell: bash
+        run: |
+          set +e
+          npm run validate:env 2>&1 | tee typecheck-env.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-typecheck-env \
+            --command "npm run validate:env" \
+            --log typecheck-env.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-typecheck-env.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Run TypeScript strict type checks
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck 2>&1 | tee typecheck-vue.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-typecheck-vue \
+            --command "npm run typecheck" \
+            --log typecheck-vue.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-typecheck-vue.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload frontend typecheck logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-typecheck-logs
+          path: |
+            frontend-web/typecheck-install.log
+            frontend-web/typecheck-env.log
+            frontend-web/typecheck-vue.log
+            frontend-web/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-security:
+    name: Frontend Security
+    runs-on: ubuntu-latest
+    needs: frontend-install
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ci 2>&1 | tee security-install.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-security-install \
+            --command "npm ci" \
+            --log security-install.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-security-install.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Run npm audit (high severity fails)
+        shell: bash
+        run: |
+          set +e
+          npm audit --audit-level=high 2>&1 | tee security-audit.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-security-audit \
+            --command "npm audit --audit-level=high" \
+            --log security-audit.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-security-audit.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Scan for hardcoded secrets and API keys
+        shell: bash
+        run: |
+          set +e
+          npm run check:secrets 2>&1 | tee security-secrets.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-security-secrets \
+            --command "npm run check:secrets" \
+            --log security-secrets.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-security-secrets.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload frontend security logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-security-logs
+          path: |
+            frontend-web/security-install.log
+            frontend-web/security-audit.log
+            frontend-web/security-secrets.log
+            frontend-web/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    needs:
+      - frontend-lint
+      - frontend-typecheck
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ci 2>&1 | tee test-install.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-test-install \
+            --command "npm ci" \
+            --log test-install.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-test-install.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Run unit and component tests
+        shell: bash
+        run: |
+          set +e
+          npm run test:unit -- --reporter=verbose 2>&1 | tee test.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-test-unit \
+            --command "npm run test:unit -- --reporter=verbose" \
+            --log test.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-test-unit.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload frontend test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-unit-test-artifacts
+          path: |
+            frontend-web/coverage/
+            frontend-web/test-install.log
+            frontend-web/test.log
+            frontend-web/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-build:
+    name: Frontend Build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    needs:
+      - frontend-lint
+      - frontend-typecheck
+    strategy:
+      fail-fast: true
+      matrix:
+        node-version: ['20', '22']
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ci 2>&1 | tee build-install.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage "frontend-build-node-${{ matrix.node-version }}-install" \
+            --command "npm ci" \
+            --log build-install.log \
+            --exit-code "$status" \
+            --summary-path "ci-reports/frontend-build-node-${{ matrix.node-version }}-install.md" \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Run strict production build
+        shell: bash
+        env:
+          CI_STRICT_BUILD_WARNINGS: 'true'
+          CI_CHUNK_SIZE_WARNING_LIMIT_KB: '1400'
+          FRONTEND_MAX_JS_BYTES: '1433600'
+          FRONTEND_MAX_CSS_BYTES: '153600'
+          FRONTEND_MAX_TOTAL_DIST_BYTES: '8388608'
+        run: |
+          set +e
+          npm run build 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage "frontend-build-node-${{ matrix.node-version }}-compile" \
+            --command "npm run build" \
+            --log build.log \
+            --exit-code "$status" \
+            --summary-path "ci-reports/frontend-build-node-${{ matrix.node-version }}-compile.md" \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Validate dist structure and bundle budgets
+        shell: bash
+        env:
+          FRONTEND_MAX_JS_BYTES: '1433600'
+          FRONTEND_MAX_CSS_BYTES: '153600'
+          FRONTEND_MAX_TOTAL_DIST_BYTES: '8388608'
+        run: |
+          set +e
+          npm run check:dist 2>&1 | tee build-dist.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage "frontend-build-node-${{ matrix.node-version }}-dist" \
+            --command "npm run check:dist" \
+            --log build-dist.log \
+            --exit-code "$status" \
+            --summary-path "ci-reports/frontend-build-node-${{ matrix.node-version }}-dist.md" \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload frontend build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-logs-node-${{ matrix.node-version }}
+          path: |
+            frontend-web/build-install.log
+            frontend-web/build.log
+            frontend-web/build-dist.log
+            frontend-web/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload frontend build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist-node-${{ matrix.node-version }}
+          path: frontend-web/dist/
+          retention-days: 7
+
+  frontend-preview-check:
+    name: Frontend Preview Check
+    runs-on: ubuntu-latest
+    needs:
+      - frontend-build
+      - frontend-security
+      - frontend-test
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend-web/package-lock.json') }}
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          set +e
+          npm ci 2>&1 | tee preview-install.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-preview-install \
+            --command "npm ci" \
+            --log preview-install.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-preview-install.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Download production build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist-node-${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
+          path: frontend-web
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run production preview smoke tests
+        shell: bash
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+          PLAYWRIGHT_REUSE_SERVER: 'false'
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 4173
+          PLAYWRIGHT_WEB_SERVER_URL: http://127.0.0.1:4173
+          VITE_APP_BASE_PATH: /
+        run: |
+          set +e
+          npm run test:e2e:preview 2>&1 | tee preview-check.log
+          status=${PIPESTATUS[0]}
+          node ./scripts/ci-log-summary.mjs \
+            --stage frontend-preview-smoke \
+            --command "npm run test:e2e:preview" \
+            --log preview-check.log \
+            --exit-code "$status" \
+            --summary-path ci-reports/frontend-preview-smoke.md \
+            --max-annotations "${FRONTEND_CI_MAX_ANNOTATIONS}" \
+            --excerpt-lines "${FRONTEND_CI_LOG_EXCERPT_LINES}"
+          exit "$status"
+
+      - name: Upload preview diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-preview-check-artifacts
+          path: |
+            frontend-web/preview-install.log
+            frontend-web/preview-check.log
+            frontend-web/ci-reports/
+            frontend-web/playwright-report/
+            frontend-web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ===========================================================================
+  # Full-stack browser validation
+  # ===========================================================================
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
+    needs:
+      - assistant-tests
+      - backend-tests
+      - frontend-preview-check
+      - integration-tests
     services:
       postgres:
         image: pgvector/pgvector:pg15
@@ -239,13 +814,19 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
           cache: npm
           cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend-web/package-lock.json') }}
 
       - name: Install backend dependencies
         run: pip install -r requirements.txt
@@ -299,7 +880,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
-          FACE_SCAN_BYPASS_ALL: "true"
+          FACE_SCAN_BYPASS_ALL: 'true'
           EMAIL_TRANSPORT: disabled
 
       - name: Start backend
@@ -313,9 +894,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
-          RATE_LIMIT_ENABLED: "false"
-          FACE_SCAN_BYPASS_ALL: "true"
-          CELERY_TASK_ALWAYS_EAGER: "true"
+          RATE_LIMIT_ENABLED: 'false'
+          FACE_SCAN_BYPASS_ALL: 'true'
+          CELERY_TASK_ALWAYS_EAGER: 'true'
           EMAIL_TRANSPORT: disabled
           CELERY_BROKER_URL: redis://127.0.0.1:6379/0
           REDIS_URL: redis://127.0.0.1:6379/0
@@ -338,10 +919,10 @@ jobs:
           BACKEND_API_BASE_URL: http://localhost:8000
 
       - name: Run E2E tests
-        run: npx playwright test
+        run: npm run test:e2e
         working-directory: frontend-web
         env:
-          CI: "true"
+          CI: 'true'
           VITE_APP_BASE_PATH: /
           VITE_API_BASE_URL: http://localhost:8000
           VITE_ASSISTANT_BASE_URL: http://localhost:8500
@@ -358,27 +939,89 @@ jobs:
             frontend-web/test-results/
           retention-days: 7
 
+  # ===========================================================================
+  # Image build and gated deployment
+  # ===========================================================================
   docker-build:
     name: Docker Build Test
     runs-on: ubuntu-latest
     needs:
-      [
-        compose-config,
-        backend-checks,
-        backend-tests,
-        assistant-tests,
-        integration-tests,
-        e2e-tests,
-        frontend-checks,
-      ]
+      - compose-config
+      - backend-checks
+      - e2e-tests
     steps:
       - uses: actions/checkout@v4
+
       - name: Create CI env files
+        shell: bash
         run: |
+          set -euo pipefail
           cp backend/.env.example backend/.env
           cp assistant/.env.example assistant/.env
           cp database/.env.example database/.env
           cp frontend-web/.env.example frontend-web/.env
-          cp seeder/.env.example seeder/.env
+          if [ -f seeder/.env.example ]; then
+            cp seeder/.env.example seeder/.env
+          fi
+
       - name: Build images
         run: docker compose build
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs:
+      - docker-build
+      - frontend-preview-check
+    if: >-
+      (github.event_name == 'push' &&
+      contains(fromJson('["integrate/pilot-merge","preproduction","production"]'), github.ref_name)) ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true)
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare GHCR image tags
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          branch_tag="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr '/' '-')"
+          image="ghcr.io/${owner}/aura-frontend"
+
+          tags=(
+            "${image}:${GITHUB_SHA}"
+            "${image}:${branch_tag}"
+          )
+
+          if [ "${GITHUB_REF_NAME}" = "production" ]; then
+            tags+=("${image}:latest")
+          fi
+
+          {
+            echo "image=${image}"
+            echo "tags<<EOF"
+            printf '%s\n' "${tags[@]}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend-web
+          file: ./frontend-web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}

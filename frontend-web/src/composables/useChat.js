@@ -16,11 +16,9 @@ import {
   AssistantApiError,
 } from '@/services/assistantApi.js'
 
-const THOUGHT_RE = /<thought>(.*?)<\/thought>/gis
-
 function parseThoughtsFromContent(content) {
   const thoughts = []
-  let cleaned = content
+  let cleaned
   let match
   const re = /<thought>(.*?)<\/thought>/gis
   while ((match = re.exec(content)) !== null) {

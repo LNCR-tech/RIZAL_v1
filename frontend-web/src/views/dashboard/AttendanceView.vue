@@ -947,7 +947,7 @@ async function recordFaceScanAttendance() {
     accuracyM: userCoords.value?.accuracy ?? null,
   }
 
-  let result = null
+  let result
   try {
     result = await postFaceScanAttendance(apiBaseUrl, token, payload)
   } catch {

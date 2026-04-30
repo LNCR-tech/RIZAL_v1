@@ -7,6 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint . --max-warnings=0",
+    "format:check": "prettier --check \"*.{js,json,md}\" \"scripts/**/*.mjs\" \"e2e/**/*.js\" \"tests/**/*.js\"",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "validate:env": "node ./scripts/validate-env.mjs",
+    "test:unit": "vitest run --coverage",
+    "test:unit:watch": "vitest",
+    "check:dist": "node ./scripts/check-dist.mjs",
+    "check:secrets": "node ./scripts/scan-secrets.mjs",
     "cap:config": "node ./scripts/write-capacitor-config.mjs",
     "runtime:config:dist": "node ./scripts/write-runtime-config.mjs dist/runtime-config.js",
     "cap:sync": "npm run cap:config && capacitor sync",
@@ -14,7 +22,8 @@
     "android:open": "npm run cap:config && capacitor open android",
     "android:build:debug": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleDebug",
     "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:preview": "playwright test e2e/preview-smoke.spec.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -50,10 +59,25 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.1",
     "@vitejs/plugin-vue": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vue/compiler-sfc": "^3.5.33",
+    "@vue/test-utils": "^2.4.10",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "eslint-plugin-vue": "^10.9.0",
+    "globals": "^17.5.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4.2.1",
-    "vite": "^7.3.1"
+    "typescript": "^6.0.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.5",
+    "vue-eslint-parser": "^10.4.0",
+    "vue-tsc": "^3.2.7"
   }
 }

@@ -1156,7 +1156,7 @@ export function useMobileStudentAttendance(previewSource = false) {
       accuracyM: coords?.accuracy ?? null,
     }
 
-    let result = null
+    let result
     try {
       result = await postFaceScanAttendance(apiBaseUrl, token, payload)
     } catch {

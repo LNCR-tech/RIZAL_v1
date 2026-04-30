@@ -47,10 +47,6 @@ function handlePlayerReady() {
     return
   }
 
-  if (dotLottieInstance.activeAnimationId !== 'Main Scene') {
-    dotLottieInstance.loadAnimation('Main Scene')
-  }
-
   dotLottieInstance.setLoop(true)
   dotLottieInstance.play()
   notifyPlaybackReady()

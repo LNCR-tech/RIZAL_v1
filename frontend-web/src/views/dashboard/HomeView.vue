@@ -176,7 +176,7 @@
       <div class="flex flex-col gap-3">
         <TransitionGroup name="list" appear>
           <div
-            v-for="(event, i) in upcomingEvents.slice(1)"
+            v-for="event in upcomingEvents.slice(1)"
             :key="event.id"
             class="rounded-2xl px-4 py-3.5 flex items-center gap-4 cursor-pointer transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]"
             style="background: var(--color-surface);"

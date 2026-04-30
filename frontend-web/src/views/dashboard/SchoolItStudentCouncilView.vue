@@ -657,8 +657,9 @@ async function loadCouncilState(resolvedApiBaseUrl) {
 
     setStageMessage(error?.message || 'Unable to load Student Council data right now.', true)
   } finally {
-    if (requestId !== councilLoadRequestId) return
-    isLoadingCouncilState.value = false
+    if (requestId === councilLoadRequestId) {
+      isLoadingCouncilState.value = false
+    }
   }
 }
 

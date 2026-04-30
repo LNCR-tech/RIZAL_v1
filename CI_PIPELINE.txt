@@ -1,85 +1,97 @@
-# CI Pipeline Summary — aurav3-pilot
-# Branch: integrate/pilot-merge
+# CI Pipeline Summary — Aura
 # File: .github/workflows/ci.yml
 
-## Jobs (run in parallel, docker-build waits for all)
+## Triggers
 
-### 1. compose-config
-- Copies all .env.example files
-- Checks for unresolved merge conflict markers
-- Validates docker compose config
+- `push`
+- `pull_request`
+- `workflow_dispatch`
 
-### 2. backend-checks
-- Compiles all Python sources (backend + assistant) with compileall
+`workflow_dispatch` also exposes a `deploy_frontend` boolean input so the frontend image can be published manually after all checks pass.
 
-### 3. backend-tests (Postgres + Redis)
-- Installs backend deps
-- Creates fastapi_db + ai_assistant databases
-- Runs alembic migrations
-- Runs pytest (195 tests)
-- Ignores segfault exit code 139 (CPython 3.12 cleanup bug)
-- Key env: FACE_SCAN_BYPASS_ALL=true, PRIVILEGED_FACE_VERIFICATION_ENABLED=false,
-           CELERY_TASK_ALWAYS_EAGER=true, EMAIL_TRANSPORT=disabled
+## Frontend Gate Order
 
-### 4. assistant-tests (SQLite only, no Postgres needed)
-- Installs assistant deps
-- Runs pytest (20 unit tests)
-- test_integration.py is excluded via pytest.ini addopts --ignore
-- Key env: ASSISTANT_DB_URL=sqlite:///./test_assistant.db
+### 1. `frontend-install`
+- Runs on Node `20` and `22`
+- Uses `npm ci` with retry
+- Validates the dependency tree with `npm ls --all --omit=optional`
+- Fails on missing packages, invalid peer deps, or dependency conflicts
 
-### 5. integration-tests (Postgres)
-- Installs backend + assistant deps
-- Creates fastapi_db
-- Runs alembic migrations
-- Runs pytest -v -m integration tests/test_integration.py (21 tests)
-- Ignores segfault exit code 139
-- Tests: assistant↔backend auth, MCP tools↔DB, full stream flow
+### 2. `frontend-lint`
+- Runs ESLint with `--max-warnings=0`
+- Runs Prettier format check
+- Uploads lint logs as artifacts
 
-### 6. e2e-tests (Postgres + Redis + Chromium)
-- Installs backend + assistant + frontend deps
-- Installs Playwright Chromium browser
-- Creates fastapi_db + ai_assistant databases
-- Runs alembic migrations
-- Seeds backend test data (campus_admin@test.com / TestPass123!)
-- Starts backend on :8000 (waits for health)
-- Starts assistant on :8500 (waits for health)
-- Runs npx playwright test (4 tests, 2 workers)
-- Uploads playwright-report + test-results on failure
-- Key env: VITE_APP_BASE_PATH=/, PRIVILEGED_FACE_VERIFICATION_ENABLED not set
-           (must be false in backend for campus_admin to land on /workspace)
+### 3. `frontend-typecheck`
+- Validates required frontend env variables and URL shapes
+- Runs `vue-tsc --noEmit`
+- Uploads typecheck logs as artifacts
 
-### 7. frontend-checks
-- npm ci + npm run build (Vite production build)
+### 4. `frontend-security`
+- Runs `npm audit --audit-level=high`
+- Scans the frontend repo for hardcoded secrets and API keys
+- Uploads security logs as artifacts
 
-### 8. docker-build (needs all above)
-- Copies all .env.example files
-- Runs docker compose build
+### 5. `frontend-test`
+- Runs Vitest unit/component tests with coverage
+- Uploads coverage and test logs as artifacts
 
-## Test counts
-- backend-tests:      195 tests
-- assistant-tests:     20 tests
-- integration-tests:   21 tests
-- e2e-tests:            4 tests (frontend-backend.spec.js only)
-                        frontend-assistant.spec.js removed —
-                        useChat.js has isAuraChatUnderDevelopment=ref(true) hardcoded,
-                        chat window not connected to assistant yet
+### 6. `frontend-build`
+- Runs on Node `20` and `22`
+- Treats Rollup warnings as CI failures
+- Builds the production bundle
+- Validates `dist/` structure
+- Enforces bundle-size thresholds:
+  - JS per-file limit: `1.4 MiB`
+  - CSS per-file limit: `150 KiB`
+  - Total `dist/` limit: `8 MiB`
+- Uploads build logs and `dist/` artifacts
 
-## Known issues / notes
-- backend-tests and integration-tests ignore exit code 139 (CPython 3.12 segfault on shutdown)
-- e2e VITE_APP_BASE_PATH=/ must be set to prevent Vite auto-detecting /RIZAL_v1/ base path
-- campus_admin role maps to school_it → lands on /workspace (requires PRIVILEGED_FACE_VERIFICATION_ENABLED=false)
-- assistant pytest.ini has: addopts = --ignore=tests/test_integration.py
-- integration tests seed DB via importlib loading backend/tests/conftest.py _seed()
+### 7. `frontend-preview-check`
+- Downloads the Node 20 production build artifact
+- Serves the compiled bundle with `vite preview`
+- Runs Playwright smoke checks for:
+  - auth page render
+  - exposed dashboard render + navigation
+  - exposed workspace render + navigation
+- Uploads preview logs and Playwright artifacts
 
-## TODO
+### 8. `deploy-frontend`
+- Runs only after all frontend gates and `docker-build` pass
+- Publishes the frontend Docker image to GHCR
+- Runs automatically on push to:
+  - `integrate/pilot-merge`
+  - `preproduction`
+  - `production`
+- Also runs on manual dispatch when `deploy_frontend=true`
 
-### CI improvements
-- Cache pip deps and Playwright browsers in CI to speed up e2e-tests job (currently ~8-15 min)
-- frontend-assistant e2e tests: restore once useChat.js is wired to the real assistant API
-  (currently isAuraChatUnderDevelopment=ref(true) hardcoded in frontend-web/src/composables/useChat.js)
-  When connected, test: SSE streaming, message send/receive, conversation persistence, user isolation
-- e2e coverage gaps: workspace loading, event list, profile page — all exercise real backend API calls
-  through the frontend but are not yet tested
+## Backend / Full Stack Jobs
 
-### CD pipeline (implement once integrate/pilot-merge becomes the production branch)
-- Auto-deploy to server on push to production branch
+- `compose-config`
+- `backend-checks`
+- `backend-tests`
+- `assistant-tests`
+- `integration-tests`
+- `e2e-tests`
+- `docker-build`
+
+`e2e-tests` now wait for the frontend preview gate so obvious frontend failures stop the pipeline before the full browser stack boots.
+
+## Failure Behavior
+
+- Deployment is blocked if any frontend job fails.
+- GitHub Actions shows the exact failed stage in the job graph.
+- Every frontend gate now writes a structured step summary (`GITHUB_STEP_SUMMARY`) with:
+  - command run
+  - exit code
+  - parsed diagnostics
+  - a tail excerpt of the failure log
+- Frontend gates emit GitHub error annotations with file/line/column when parsable.
+- Build, lint, typecheck, security, unit-test, and preview jobs upload logs + `ci-reports/` markdown summaries as artifacts.
+
+## Reliability Notes
+
+- Workflow concurrency cancels superseded runs on the same ref.
+- Node dependency cache is enabled through `actions/setup-node`.
+- Playwright browser cache is enabled for preview and full-stack E2E jobs.
+- Seeder env creation is conditional so branches without `seeder/` do not fail on missing files.

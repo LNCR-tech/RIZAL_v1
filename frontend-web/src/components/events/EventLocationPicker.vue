@@ -411,7 +411,9 @@ function cleanupMap() {
     try {
       mapInstance.off('click', handleMapClick)
       mapInstance.remove()
-    } catch {}
+    } catch (error) {
+      void error
+    }
     mapInstance = null
   }
 
@@ -941,7 +943,9 @@ function removeMarkerFromMap() {
   try {
     markerInstance.off('dragend', handleMarkerDragEnd)
     markerInstance.dragging?.disable?.()
-  } catch {}
+  } catch (error) {
+    void error
+  }
 
   try {
     if (mapInstance?.hasLayer?.(markerInstance)) {
@@ -949,7 +953,9 @@ function removeMarkerFromMap() {
     } else {
       markerInstance.remove?.()
     }
-  } catch {}
+  } catch (error) {
+    void error
+  }
 
   markerInstance = null
 }
@@ -963,7 +969,9 @@ function removeRadiusPreview() {
     } else {
       radiusPreview.remove?.()
     }
-  } catch {}
+  } catch (error) {
+    void error
+  }
 
   radiusPreview = null
 }

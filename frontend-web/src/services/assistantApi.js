@@ -14,7 +14,7 @@ function buildUrl(baseUrl, path) {
 }
 
 async function readErrorDetails(response) {
-  let details = null
+  let details
   try {
     details = await response.json()
   } catch {

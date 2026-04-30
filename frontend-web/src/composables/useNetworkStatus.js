@@ -3,7 +3,7 @@
  *
  * Uses @capacitor/network on native, falls back to navigator.onLine on web.
  */
-import { ref, onMounted, onBeforeUnmount, readonly } from 'vue'
+import { ref, readonly } from 'vue'
 import { Capacitor } from '@capacitor/core'
 
 const isOnline = ref(true)

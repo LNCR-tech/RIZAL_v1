@@ -1,9 +1,11 @@
 # Frontend Service
 
 <!--nav-->
+
 [Previous](../README.md) | [Next](docs/android-apk-build.md) | [Home](/README.md)
 
 ---
+
 <!--/nav-->
 
 This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
@@ -106,9 +108,9 @@ Publish a `runtime-config.js` alongside the built app with:
 
 ```js
 window.__AURA_RUNTIME_CONFIG__ = {
-  apiBaseUrl: 'https://your-cloud-backend.example.com',
+  apiBaseUrl: "https://your-cloud-backend.example.com",
   apiTimeoutMs: 15000,
-}
+};
 ```
 
 If your backend root is accidentally configured as `https://host/api`, Aura now normalizes that to the host root automatically to avoid duplicated `/api/api/...` requests.

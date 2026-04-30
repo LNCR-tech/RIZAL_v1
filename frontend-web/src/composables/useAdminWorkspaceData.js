@@ -27,7 +27,7 @@ import {
     normalizeSchoolItAccount,
     normalizeSchoolSummary,
 } from '@/services/backendNormalizers.js'
-import { adminDashboardPreviewData, createAdminDashboardPreviewData } from '@/data/adminDashboardPreview.js'
+import { createAdminDashboardPreviewData } from '@/data/adminDashboardPreview.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
 
 function createStatuses() {

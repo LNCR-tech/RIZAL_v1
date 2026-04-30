@@ -482,7 +482,7 @@ export async function initializeDashboardSession(force = false) {
         return null
     }
 
-    if (Boolean(getStoredAuthMeta()?.mustChangePassword)) {
+    if (getStoredAuthMeta()?.mustChangePassword) {
         resetDashboardState()
         return null
     }

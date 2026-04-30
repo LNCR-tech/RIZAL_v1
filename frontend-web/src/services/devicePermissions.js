@@ -431,7 +431,7 @@ async function resolveNativePreciseCurrentPosition(options = {}) {
         throw new Error('Geolocation plugin not available.')
     }
 
-    let permissionStatus = null
+    let permissionStatus
     try {
         permissionStatus = await Geolocation.checkPermissions()
     } catch {
@@ -490,7 +490,7 @@ async function resolveNativePreciseCurrentPosition(options = {}) {
         }
     } catch (error) {
         if (isLocationPermissionDeniedError(error) || isLocationServicesDisabledError(error)) {
-            throw new Error(getLocationErrorMessage(error))
+            throw new Error(getLocationErrorMessage(error), { cause: error })
         }
     }
 

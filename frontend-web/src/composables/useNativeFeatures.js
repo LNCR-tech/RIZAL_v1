@@ -4,7 +4,7 @@
  * Provides haptic feedback, status bar control, screen wake lock,
  * and app lifecycle hooks using Capacitor plugins.
  */
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
 
 const isNative = Capacitor.isNativePlatform()

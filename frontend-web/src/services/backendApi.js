@@ -182,7 +182,7 @@ async function parseResponse(response) {
     const contentType = response.headers.get('content-type') || ''
     const isJson = contentType.includes('application/json')
 
-    let payload = null
+    let payload
     try {
         payload = isJson ? await response.json() : await response.text()
     } catch {
@@ -649,7 +649,7 @@ function pickSsgUnitFromGovernanceUnits(units = [], schoolId = null) {
 }
 
 export async function getCampusSsgSetup(baseUrl, token) {
-    let primaryError = null
+    let primaryError
 
     try {
         const setup = normalizeGovernanceSsgSetup(await request(baseUrl, '/api/governance/ssg/setup', {
