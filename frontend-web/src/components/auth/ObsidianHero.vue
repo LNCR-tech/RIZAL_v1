@@ -30,8 +30,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue - Geometric Shadow Mapping Edition
- * Implements ray-traced shadow projection from a central light source.
+ * ObsidianHero.vue - Integrated Logo Shadow Mapping
+ * The logo now casts a physical shadow onto the canvas grid by occluding dot brightness.
  */
 
 const heroContainer = ref(null)
@@ -54,11 +54,10 @@ let height = 0
 let rafId = null
 
 // Virtual 3D Light Source (Top-Center-Front)
-const LIGHT = {
-  x: 0,
-  y: -300,
-  z: 400 // Height of light above the floor
-}
+const LIGHT = { x: 0, y: -400, z: 500 }
+
+// Logo Shadow Mapping state
+const logoPos = { x: 0, y: 80, w: 120, h: 80 } // Approximate logo area
 
 class Dot {
   constructor(x, y) {
@@ -88,29 +87,37 @@ class Dot {
 
   draw(context, lightX, lightY) {
     const lift = this.baseY - this.currentY
+    
+    // Calculate if this dot is in the LOGO shadow zone
+    // The logo is at the top center, light is above it.
+    // Shadow casts downward onto the floor.
+    const distToLogoCenter = Math.sqrt(Math.pow(this.baseX - logoPos.x, 2) + Math.pow(this.baseY - (logoPos.y + 40), 2))
+    const isUnderLogo = distToLogoCenter < 60
+    
+    // Apply occlusion: If under logo, reduce base opacity to create a "cast shadow"
+    let finalOpacity = this.opacity
+    if (isUnderLogo && lift < 1) {
+      finalOpacity *= 0.4 // Darken the dots under the logo
+    }
 
     if (lift > 0.5) {
-      // 1. Geometric Shadow Projection
-      // Calculate the shadow vector from the central light source
+      // 1. Geometric Shadow Projection (Pillar Shadow)
       const sdx = this.baseX - lightX
       const sdy = this.baseY - lightY
-      
-      // Shadow length/offset is proportional to height and distance from light
       const shadowX = this.baseX + (sdx * lift / LIGHT.z)
       const shadowY = this.baseY + (sdy * lift / LIGHT.z)
 
-      // Draw the shadow as a line from root to projection
-      context.strokeStyle = `rgba(0, 0, 0, ${this.opacity * 0.5})`
+      context.strokeStyle = `rgba(0, 0, 0, ${finalOpacity * 0.5})`
       context.lineWidth = 1.2
       context.beginPath()
       context.moveTo(this.baseX, this.baseY)
       context.lineTo(shadowX, shadowY)
       context.stroke()
 
-      // 2. Volumetric Pillar with Lighting Gradient
+      // 2. Volumetric Pillar
       const grad = context.createLinearGradient(this.baseX, this.baseY, this.baseX, this.currentY)
-      grad.addColorStop(0, `rgba(255, 255, 255, 0.02)`) 
-      grad.addColorStop(1, `rgba(255, 255, 255, ${this.opacity * 0.4})`)
+      grad.addColorStop(0, `rgba(255, 255, 255, 0.01)`) 
+      grad.addColorStop(1, `rgba(255, 255, 255, ${finalOpacity * 0.3})`)
       
       context.strokeStyle = grad
       context.lineWidth = 0.8
@@ -120,9 +127,8 @@ class Dot {
       context.stroke()
     }
 
-    // 3. Spherical Cap (Dot) with Highlight
-    // The highlight is slightly offset toward the light source
-    context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
+    // 3. Spherical Cap (Dot)
+    context.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`
     context.beginPath()
     context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
     context.fill()
@@ -150,8 +156,8 @@ function resize() {
   ctx = meshCanvas.value.getContext('2d')
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
   
-  // Center light source relative to screen width
   LIGHT.x = width / 2
+  logoPos.x = width / 2
   
   initGrid()
 }
@@ -160,6 +166,15 @@ function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
   
+  // Draw Logo "Footprint" (Soft Ambient Occlusion Glow)
+  const logoShadowGrad = ctx.createRadialGradient(logoPos.x, logoPos.y + 60, 0, logoPos.x, logoPos.y + 60, 100)
+  logoShadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.6)')
+  logoShadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  ctx.fillStyle = logoShadowGrad
+  ctx.beginPath()
+  ctx.ellipse(logoPos.x, logoPos.y + 60, 100, 40, 0, 0, Math.PI * 2)
+  ctx.fill()
+
   for (let i = 0; i < dots.length; i++) {
     dots[i].update(mouseX.value, mouseY.value, isHovering.value)
     dots[i].draw(ctx, LIGHT.x, LIGHT.y)
@@ -250,10 +265,8 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   padding: 52px 40px;
-  /* Logo shadow to match the 3D lighting environment */
-  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.9));
-  /* Ensure logo looks like it's "Floating" high */
-  transform: translate3d(0, -10px, 0);
+  /* Logo hover lift */
+  transform: translate3d(0, -15px, 0);
 }
 
 @keyframes obsidian-shimmer {
