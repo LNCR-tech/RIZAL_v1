@@ -13,16 +13,17 @@
     <div class="obsidian-hero__glint obsidian-hero__glint--1"></div>
     <div class="obsidian-hero__glint obsidian-hero__glint--2"></div>
 
-    <!-- Base Halftone Mesh (Static/Subtle) -->
+    <!-- Base Halftone Mesh (The "Floor") -->
     <div class="obsidian-hero__mesh obsidian-hero__mesh--base"></div>
 
-    <!-- Active Halftone Mesh (The Glow/Pop Layer) -->
+    <!-- Levitating Halftone Mesh (The "Floating" Layer) -->
     <div 
       class="obsidian-hero__mesh obsidian-hero__mesh--active"
       :style="{
         '-webkit-mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
         'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
-        'opacity': renderedOpacity
+        'opacity': renderedOpacity,
+        'transform': `translate3d(${parallaxX}px, ${parallaxY}px, 0)`
       }"
     ></div>
 
@@ -41,7 +42,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
  * ObsidianHero.vue
- * Implements smooth trailing delay (Lerp) and graceful exit momentum.
+ * Implements 3D Levitation via Parallax Shift and Under-Glow.
  */
 
 const heroContainer = ref(null)
@@ -55,6 +56,10 @@ const renderedX = ref(0)
 const renderedY = ref(0)
 const renderedOpacity = ref(0)
 
+// Parallax displacement for the "levitation" effect
+const parallaxX = ref(0)
+const parallaxY = ref(0)
+
 let rafId = null
 
 const lerp = (start, end, factor) => start + (end - start) * factor
@@ -63,6 +68,11 @@ function updatePhysics() {
   // Smoothly chase the target position
   renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
   renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+  
+  // Create a slight parallax offset to simulate "height"
+  // The dots shift slightly toward the mouse, making them look closer to the eye
+  parallaxX.value = lerp(parallaxX.value, (targetX.value - renderedX.value) * 0.15, 0.1)
+  parallaxY.value = lerp(parallaxY.value, (targetY.value - renderedY.value) * 0.15, 0.1)
   
   // Smoothly fade in/out
   renderedOpacity.value = lerp(renderedOpacity.value, targetOpacity.value, 0.08)
@@ -76,7 +86,6 @@ function handleMouseMove(e) {
   const x = e.clientX - rect.left
   const y = e.clientY - rect.top
   
-  // First entry snap to prevent top-left ghosting
   if (targetOpacity.value === 0) {
     renderedX.value = x
     renderedY.value = y
@@ -88,8 +97,6 @@ function handleMouseMove(e) {
 }
 
 function handleMouseLeave() {
-  // When leaving, we keep the last targetX/Y but fade out the opacity.
-  // This allows the "follow through" as the rendered position finishes its lerp.
   targetOpacity.value = 0
 }
 
@@ -141,7 +148,7 @@ onUnmounted(() => {
   animation-delay: -4s;
 }
 
-/* Mesh Base: The normal dots */
+/* Mesh Base: The normal dots (The "Floor") */
 .obsidian-hero__mesh {
   position: absolute;
   inset: 0;
@@ -158,12 +165,16 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* Mesh Active: The "Glow" dots */
+/* Mesh Active: The "Levitating" Layer */
 .obsidian-hero__mesh--active {
-  /* Exactly the same size as base: 1.5px */
   background-image: radial-gradient(rgba(255, 255, 255, 0.9) 1.5px, transparent 0);
   z-index: 2;
-  will-change: mask-image, -webkit-mask-image, opacity;
+  
+  /* Drop-shadow creates the "Under-glow" on the floor */
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+  
+  /* Optimize for movement */
+  will-change: mask-image, -webkit-mask-image, transform, opacity;
 }
 
 .obsidian-hero__texture {
