@@ -109,8 +109,7 @@ function normalizeConversationTitle(convo) {
   const raw = String(convo?.title || '').trim()
   if (raw) return raw
   const fallback = String(convo?.last_message || '').trim()
-  const cleaned = fallback.replace(/<thought>.*?<\/thought>/gis, '').trim()
-  return cleaned ? cleaned.slice(0, 44) : 'New chat'
+  return fallback ? fallback.slice(0, 44) : 'New chat'
 }
 
 function resetToGreeting() {
