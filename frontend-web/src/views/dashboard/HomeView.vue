@@ -795,7 +795,7 @@ function formatSearchMeta(event) {
   }
 
   .home-page {
-    padding: 36px 36px 40px;
+    padding: 40px 0 40px;
   }
 
   .search-area {

@@ -2,7 +2,9 @@
   <div class="desktop-app-layout">
     <DesktopSideNav />
     <main class="desktop-app-layout__main">
-      <AppLayoutOutlet />
+      <div class="desktop-app-layout__content">
+        <AppLayoutOutlet />
+      </div>
     </main>
   </div>
 </template>
@@ -26,6 +28,12 @@ useProtectedShellSession()
   min-height: 100vh;
   margin-left: 80px;
   padding-bottom: 32px;
+}
+
+.desktop-app-layout__content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
 }
 </style>
 
