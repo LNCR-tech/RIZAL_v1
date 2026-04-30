@@ -159,11 +159,12 @@ onUnmounted(() => {
 
 /* Mesh Active: The "Lifted" Layer */
 .obsidian-hero__mesh--active {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.95) 1.5px, transparent 0);
+  /* Sync color with base (0.16) instead of 0.95 to "turn off" glow */
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.5px, transparent 0);
   z-index: 2;
   
-  /* Drop-shadow is offset DOWNWARD (10px) to simulate height from the floor */
-  filter: drop-shadow(0 10px 5px rgba(255, 255, 255, 0.25));
+  /* Drop-shadow disabled as requested */
+  /* filter: drop-shadow(0 10px 5px rgba(255, 255, 255, 0.25)); */
   
   will-change: mask-image, -webkit-mask-image, transform, opacity;
 }
