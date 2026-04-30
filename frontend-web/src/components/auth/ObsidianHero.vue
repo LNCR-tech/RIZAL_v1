@@ -158,9 +158,10 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* Mesh Active: The "Pop and Glow" dots */
+/* Mesh Active: The "Glow" dots */
 .obsidian-hero__mesh--active {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.9) 2.5px, transparent 0);
+  /* Exactly the same size as base: 1.5px */
+  background-image: radial-gradient(rgba(255, 255, 255, 0.9) 1.5px, transparent 0);
   z-index: 2;
   will-change: mask-image, -webkit-mask-image, opacity;
 }
