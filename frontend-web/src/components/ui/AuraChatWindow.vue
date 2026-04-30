@@ -384,9 +384,23 @@ watch(isFullOpen, (val) => {
   cursor: pointer;
   user-select: none;
   list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.bubble-thought__toggle::-webkit-details-marker { display: none; }
+.bubble-thought__toggle::after {
+  content: '\203A';
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 400;
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
+}
+
+details[open] .bubble-thought__toggle::after {
+  transform: rotate(270deg);
+}
 
 .bubble-thought__content {
   padding: 6px 10px 8px;
