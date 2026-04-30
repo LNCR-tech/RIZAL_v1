@@ -26,16 +26,15 @@ Copy-Item frontend-web\.env.example frontend-web\.env
 
 # 2. Fill in the required values in each .env file
 
-# 3. Start everything in dev mode (includes pgAdmin + Mailpit)
-docker compose --profile dev up --build
+# 3. Start everything in dev mode (includes pgAdmin)
+docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer
 ```
 
 When ready:
 
 - Frontend: `http://localhost:5173`
-- Backend API docs: `http://localhost:8000/docs`
+- Backend API docs: `http://localhost:8001/docs`
 - Assistant docs: `http://localhost:8500/docs`
-- Mailpit (email capture): `http://localhost:8025`
 - pgAdmin: `http://localhost:5050`
 - Log viewer: `http://localhost:8080`
 
@@ -45,7 +44,7 @@ When ready:
 docker compose --profile prod up --build
 ```
 
-Production excludes pgAdmin and Mailpit. Make sure to set production values in each `.env` before deploying — see `SECURITY.md`.
+Production excludes pgAdmin. Make sure to set production values in each `.env` before deploying — see `SECURITY.md`.
 
 ## Database Seeding (Dev Only)
 

@@ -20,6 +20,43 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-04-30 - Align Docker default ports with pilot stack
+
+### Purpose
+
+Make the repo-root Docker Compose defaults match the running pilot stack ports and remove Mailpit from the default local stack.
+
+### Main files
+
+- `docker-compose.yml`
+- `README.md`
+- `backend/docs/getting-started/docker.md`
+- `backend/docs/getting-started/how-to-run.md`
+- `backend/docs/getting-started/local-dev.md`
+- `backend/docs/reference/common-commands.md`
+- `backend/docs/reference/ports.md`
+
+### Runtime behavior
+
+- frontend publishes host port `5173` to container port `80`
+- backend publishes host port `8001` to container port `8000`
+- assistant remains published on `8500`
+- pgAdmin remains published on `5050`
+- Postgres and Redis remain available inside the Docker network but are no longer published to host ports by default
+- Mailpit is no longer part of the repo-root Compose services
+
+### Migration impact
+
+- no database migration or schema change
+
+### How to test
+
+1. Run `docker compose config` and confirm no `mailpit` service is listed.
+2. Run `docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer`.
+3. Open `http://localhost:5173` for the frontend.
+4. Open `http://localhost:8001/health` for backend health.
+5. Open `http://localhost:8500/health` for assistant health.
+
 ## 2026-04-25 - Add pgvector-backed student face search
 
 ### Purpose

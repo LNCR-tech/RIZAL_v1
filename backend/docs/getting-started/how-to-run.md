@@ -13,7 +13,7 @@ One command is all you need in every scenario. The stack handles database creati
 ## Linux — Local
 
 ```bash
-docker compose up --build
+docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer
 ```
 
 Visit `http://localhost:5173`.
@@ -54,7 +54,7 @@ Visit `http://<your-server-ip>`.
 ## Windows — Local
 
 ```powershell
-docker compose up --build
+docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer
 ```
 
 Visit `http://localhost:5173`.
@@ -104,10 +104,9 @@ db (healthy)
 | Service | Local | Production |
 |---|---|---|
 | Frontend | `http://localhost:5173` | `http://<server-ip>` |
-| Backend API docs | `http://localhost:8000/docs` | `http://<server-ip>:8000/docs` |
+| Backend API docs | `http://localhost:8001/docs` | `http://<server-ip>:8000/docs` |
 | Assistant API docs | `http://localhost:8500/docs` | `http://<server-ip>:8500/docs` |
 | pgAdmin | `http://localhost:5050` | not included in prod |
-| Mailpit | `http://localhost:8025` | not included in prod |
 
 pgAdmin login: `admin@example.com` / `admin123` (local only).
 

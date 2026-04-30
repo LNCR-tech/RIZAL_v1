@@ -14,7 +14,7 @@ Quick reference for all common operations. All commands run from the repo root u
 
 Start everything:
 ```bash
-docker compose up --build
+docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer
 ```
 
 Stop:

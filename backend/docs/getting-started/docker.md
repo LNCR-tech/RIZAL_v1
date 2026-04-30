@@ -40,7 +40,7 @@ notepad .\.env
 3. Start the stack:
 
 ```powershell
-docker compose up --build
+docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer
 ```
 
 That's it. Migrations, bootstrap, and all services start automatically in the correct order. When the stack is ready you'll see a summary printed in the logs:
@@ -50,11 +50,10 @@ That's it. Migrations, bootstrap, and all services start automatically in the co
    AURA SYSTEM IS READY!
 -------------------------------------------------------
 Frontend:        http://localhost:5173
-Backend API:     http://localhost:8000/docs
+Backend API:     http://localhost:8001/docs
 Assistant API:   http://localhost:8500/docs
 pgAdmin (DB):    http://localhost:5050 (admin@example.com / admin123)
-Mailpit (Email): http://localhost:8025
-Logs:            http://localhost:8088
+Logs:            http://localhost:8080
 -------------------------------------------------------
 ```
 
@@ -72,10 +71,10 @@ db (healthy)
 
 ## Notes
 
-- Running `docker compose up --build` multiple times is safe â€” migrations and bootstrap are both idempotent.
-- Local container logs are available in the log viewer at `http://localhost:8088`. It reads Docker container stdout/stderr through the read-only Docker socket mount in the `log-viewer` service.
+- Running `docker compose up --build postgres redis migrate bootstrap backend worker beat assistant frontend pgadmin log-viewer` multiple times is safe â€” migrations and bootstrap are both idempotent.
+- Local container logs are available in the log viewer at `http://localhost:8080`. It reads Docker container stdout/stderr through the read-only Docker socket mount in the `log-viewer` service.
 - Terminal log access is still available with `docker compose logs -f` for all services or `docker compose logs -f backend` for only the backend API server.
-- Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). For local email capture, set `EMAIL_TRANSPORT=smtp` with `SMTP_HOST=mailpit` and open Mailpit at `http://localhost:8025`. For production, use `EMAIL_TRANSPORT=mailjet_api` with `MAILJET_API_KEY` and `MAILJET_API_SECRET`.
+- Email delivery is disabled by default (`EMAIL_TRANSPORT=disabled`). The repo-root Compose stack no longer starts Mailpit by default. For production, use `EMAIL_TRANSPORT=mailjet_api` with `MAILJET_API_KEY` and `MAILJET_API_SECRET`.
 - The default admin credentials are set in `backend/app/core/app_settings.py` (`default_admin_email` / `default_admin_password`).
 - The repo-root `docker-compose.yml` defaults to the local Postgres container, but honors `DATABASE_URL` and `ASSISTANT_DB_URL` from `.env` when you need to point the stack at an external Postgres host.
 

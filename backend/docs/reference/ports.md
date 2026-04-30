@@ -11,16 +11,16 @@ These are the defaults from `docker-compose.yml`.
 ## Local (Docker)
 
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
-  - OpenAPI docs: `http://localhost:8000/docs`
+- Backend API: `http://localhost:8001`
+  - OpenAPI docs: `http://localhost:8001/docs`
   - OpenAPI docs via frontend proxy: `http://localhost:5173/__backend__/docs`
 - Assistant:
   - OpenAPI docs: `http://localhost:8500/docs`
   - Health: `http://localhost:8500/health`
 - pgAdmin: `http://localhost:5050`
-- Log viewer: `http://localhost:8088`
-- Postgres: `localhost:5433` on the host and `db:5432` inside the Docker network
-- Redis: `localhost:6379`
+- Log viewer: `http://localhost:8080`
+- Postgres: `postgres:5432` inside the Docker network; not published to the host by default
+- Redis: `redis:6379` inside the Docker network; not published to the host by default
 
 ## Local (Manual / No Docker)
 
@@ -33,8 +33,8 @@ These are the defaults from `docker-compose.yml`.
 
 ## Notes
 
-- `5433` is used in Docker to avoid conflicts with a local Postgres already bound to `5432`.
-- `8088` is used by the local log viewer, which reads container stdout/stderr through the read-only Docker socket mount.
+- `8001` is used for the backend host port so it can run beside stacks that already publish `8000`.
+- `8080` is used by the local log viewer, which reads container stdout/stderr through the read-only Docker socket mount.
 - The frontend reverse-proxies:
   - `/__backend__/...` to the backend origin
   - `/__assistant__/...` to the assistant origin

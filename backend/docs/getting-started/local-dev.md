@@ -177,7 +177,7 @@ npm run dev
 | Service | URL |
 |---|---|
 | Frontend | `http://localhost:5173` |
-| Backend API docs | `http://localhost:8000/docs` |
+| Backend API docs | `http://localhost:8001/docs` |
 | Assistant API docs | `http://localhost:8500/docs` |
 
 ---
