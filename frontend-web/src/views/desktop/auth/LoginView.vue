@@ -1,10 +1,9 @@
 <template>
   <div class="desktop-login" :class="{ 'desktop-login--mounted': isMounted }">
-    <!-- Left: Hero -->
-    <div class="desktop-login__hero" :style="heroBackgroundStyle">
-      <div class="desktop-login__hero-overlay" />
+    <!-- Left: Dynamic Obsidian Hero -->
+    <ObsidianHero class="desktop-login__hero">
       <img :src="auraLogoWhite" alt="Aura" class="desktop-login__logo" />
-    </div>
+    </ObsidianHero>
 
     <!-- Right: Form sheet -->
     <div class="desktop-login__sheet">
@@ -105,14 +104,11 @@
 <script setup>
 import { ref } from 'vue'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton.vue'
-import logBackground from '@/assets/images/login_bg.jpg'
+import ObsidianHero from '@/components/auth/ObsidianHero.vue'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
 const passwordVisible = ref(false)
 const auraLogoWhite = '/logos/aura_logo_white.png'
-const heroBackgroundStyle = {
-  backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.32) 100%), url(${logBackground})`,
-}
 
 const {
   email, password, isMounted, isLoading, googleLoading,
@@ -139,10 +135,6 @@ const {
 .desktop-login__hero {
   flex: 1;
   position: relative;
-  background-color: #050505;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -157,24 +149,6 @@ const {
   transform: translateX(0);
 }
 
-.desktop-login__hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 20% 28%, rgba(255,255,255,0.16), transparent 28%),
-    linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.3) 100%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-}
-
-.desktop-login__hero-overlay {
-  position: absolute;
-  inset: auto 0 0;
-  height: 200px;
-  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 100%);
-  pointer-events: none;
-}
 
 .desktop-login__logo {
   position: relative;
