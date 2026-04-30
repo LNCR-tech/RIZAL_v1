@@ -13,25 +13,8 @@
     <div class="obsidian-hero__glint obsidian-hero__glint--1"></div>
     <div class="obsidian-hero__glint obsidian-hero__glint--2"></div>
 
-    <!-- Base Halftone Mesh (The "Floor") with Inverse Masking -->
-    <div 
-      class="obsidian-hero__mesh obsidian-hero__mesh--base"
-      :style="{
-        '-webkit-mask-image': targetX !== null ? `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, transparent 0%, black 100%)` : 'none',
-        'mask-image': targetX !== null ? `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, transparent 0%, black 100%)` : 'none'
-      }"
-    ></div>
-
-    <!-- Floating Halftone Mesh (The "Lifted" Layer) -->
-    <div 
-      class="obsidian-hero__mesh obsidian-hero__mesh--active"
-      :style="{
-        '-webkit-mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
-        'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
-        'opacity': renderedOpacity,
-        'transform': `translate3d(0, ${renderedOpacity * -10}px, 0)`
-      }"
-    ></div>
+    <!-- The Interactive Physics Mesh (Canvas) -->
+    <canvas ref="meshCanvas" class="obsidian-hero__canvas"></canvas>
 
     <!-- Subtle texture -->
     <div class="obsidian-hero__texture"></div>
@@ -47,62 +30,127 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue
- * Implements Inverse Masking to prevent "cloning" and simulate real displacement.
+ * ObsidianHero.vue - Physical Canvas Edition
+ * Replaces CSS background with a true physics-based dot grid.
+ * Every dot is independently animated for real vertical lift.
  */
 
 const heroContainer = ref(null)
+const meshCanvas = ref(null)
 
-// Physics state
-const targetX = ref(null)
-const targetY = ref(null)
-const targetOpacity = ref(0)
+// Mouse tracking
+const mouseX = ref(-1000)
+const mouseY = ref(-1000)
+const isHovering = ref(false)
 
-const renderedX = ref(0)
-const renderedY = ref(0)
-const renderedOpacity = ref(0)
+// Grid Settings
+const GRID_SIZE = 20
+const DOT_SIZE = 1.5
+const HOVER_RADIUS = 120
+const MAX_LIFT = 10 // Max pixels a dot can float UP
 
+let ctx = null
+let width = 0
+let height = 0
 let rafId = null
 
-const lerp = (start, end, factor) => start + (end - start) * factor
-
-function updatePhysics() {
-  if (targetX.value !== null) {
-    renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
-    renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+// Dot object structure
+class Dot {
+  constructor(x, y) {
+    this.baseX = x
+    this.baseY = y
+    this.currentY = y
+    this.opacity = 0.16
+    this.targetOpacity = 0.16
   }
-  
-  renderedOpacity.value = lerp(renderedOpacity.value, targetOpacity.value, 0.08)
-  
-  rafId = requestAnimationFrame(updatePhysics)
+
+  update(mX, mY, hovering) {
+    const dx = mX - this.baseX
+    const dy = mY - this.baseY
+    const dist = Math.sqrt(dx * dx + dy * dy)
+
+    if (hovering && dist < HOVER_RADIUS) {
+      // Calculate lift factor based on proximity (0 to 1)
+      const factor = 1 - (dist / HOVER_RADIUS)
+      const targetY = this.baseY - (factor * MAX_LIFT)
+      
+      // Smoothly move toward the lifted position
+      this.currentY += (targetY - this.currentY) * 0.1
+      this.targetOpacity = 0.16 + (factor * 0.8)
+    } else {
+      // Return to base position
+      this.currentY += (this.baseY - this.currentY) * 0.08
+      this.targetOpacity = 0.16
+    }
+
+    // Smoothly transition opacity
+    this.opacity += (this.targetOpacity - this.opacity) * 0.1
+  }
+
+  draw(context) {
+    context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
+    context.beginPath()
+    context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
+    context.fill()
+  }
+}
+
+let dots = []
+
+function initGrid() {
+  dots = []
+  for (let x = GRID_SIZE / 2; x < width; x += GRID_SIZE) {
+    for (let y = GRID_SIZE / 2; y < height; y += GRID_SIZE) {
+      dots.push(new Dot(x, y))
+    }
+  }
+}
+
+function resize() {
+  if (!heroContainer.value || !meshCanvas.value) return
+  const rect = heroContainer.value.getBoundingClientRect()
+  width = rect.width
+  height = rect.height
+  meshCanvas.value.width = width * window.devicePixelRatio
+  meshCanvas.value.height = height * window.devicePixelRatio
+  ctx = meshCanvas.value.getContext('2d')
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+  initGrid()
+}
+
+function animate() {
+  if (!ctx) return
+  ctx.clearRect(0, 0, width, height)
+
+  // Draw dots
+  for (let i = 0; i < dots.length; i++) {
+    dots[i].update(mouseX.value, mouseY.value, isHovering.value)
+    dots[i].draw(ctx)
+  }
+
+  rafId = requestAnimationFrame(animate)
 }
 
 function handleMouseMove(e) {
   if (!heroContainer.value) return
   const rect = heroContainer.value.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const y = e.clientY - rect.top
-  
-  if (targetOpacity.value === 0) {
-    renderedX.value = x
-    renderedY.value = y
-  }
-  
-  targetX.value = x
-  targetY.value = y
-  targetOpacity.value = 1
+  mouseX.value = e.clientX - rect.left
+  mouseY.value = e.clientY - rect.top
+  isHovering.value = true
 }
 
 function handleMouseLeave() {
-  targetOpacity.value = 0
-  // Note: We don't null targetX/Y immediately to allow the fade-out to finish smoothly
+  isHovering.value = false
 }
 
 onMounted(() => {
-  updatePhysics()
+  window.addEventListener('resize', resize)
+  resize()
+  animate()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', resize)
   if (rafId) cancelAnimationFrame(rafId)
 })
 </script>
@@ -125,12 +173,20 @@ onUnmounted(() => {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
 }
 
+.obsidian-hero__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
 .obsidian-hero__glint {
   position: absolute;
   border-radius: 50%;
   filter: blur(120px);
   pointer-events: none;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   will-change: transform, opacity;
 }
 
@@ -141,38 +197,9 @@ onUnmounted(() => {
 
 .obsidian-hero__glint--2 {
   width: 60%; height: 40%; bottom: 0%; right: -5%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
   animation: obsidian-shimmer 20s infinite alternate-reverse ease-in-out;
   animation-delay: -4s;
-}
-
-/* Mesh Base: The normal dots (The "Floor") */
-.obsidian-hero__mesh {
-  position: absolute;
-  inset: 0;
-  background-size: 20px 20px;
-  background-position: center;
-  pointer-events: none;
-}
-
-.obsidian-hero__mesh--base {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.5px, transparent 0);
-  /* The base layer now has a lighting gradient AND the inverse mouse mask */
-  opacity: 0.8;
-  z-index: 1;
-  will-change: mask-image, -webkit-mask-image;
-}
-
-/* Mesh Active: The "Lifted" Layer */
-.obsidian-hero__mesh--active {
-  /* Glow is currently turned off as per requested inspection */
-  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.5px, transparent 0);
-  z-index: 2;
-  
-  /* Drop-shadow is currently commented out as per requested inspection */
-  /* filter: drop-shadow(0 10px 5px rgba(255, 255, 255, 0.25)); */
-  
-  will-change: mask-image, -webkit-mask-image, transform, opacity;
 }
 
 .obsidian-hero__texture {
