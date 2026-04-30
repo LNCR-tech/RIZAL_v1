@@ -167,6 +167,7 @@ services:
       - "${FRONTEND_PORT:-5173}:80"
     environment:
       BACKEND_ORIGIN: ${BACKEND_ORIGIN:-http://backend:8000}
+      AURA_GOOGLE_WEB_CLIENT_ID: ${AURA_GOOGLE_WEB_CLIENT_ID:-}
     restart: unless-stopped
     depends_on:
       backend:

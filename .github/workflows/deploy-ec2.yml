@@ -166,6 +166,14 @@ jobs:
 
             cp .env.production .env
 
+            # Derive frontend Google client ID from backend var (same value, different name)
+            GOOGLE_ID=$(grep -oP '^GOOGLE_WEB_CLIENT_ID=\K.*' .env || true)
+            if [ -n "$GOOGLE_ID" ]; then
+              sed -i '/^AURA_GOOGLE_WEB_CLIENT_ID=/d' .env
+              echo "AURA_GOOGLE_WEB_CLIENT_ID=${GOOGLE_ID}" >> .env
+              echo ">>> Injected AURA_GOOGLE_WEB_CLIENT_ID for frontend container"
+            fi
+
             # Create host directories for bind-mount volumes
             mkdir -p docker-data/{postgres,imports,branding,insightface,pgadmin}
 
