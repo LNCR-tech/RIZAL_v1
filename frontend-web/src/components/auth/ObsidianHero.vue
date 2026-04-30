@@ -21,7 +21,8 @@
       class="obsidian-hero__mesh obsidian-hero__mesh--active"
       :style="{
         '-webkit-mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
-        'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`
+        'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
+        'opacity': renderedOpacity
       }"
     ></div>
 
@@ -40,28 +41,33 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
  * ObsidianHero.vue
- * Fixed: Snap on first entry to prevent "ghost" movement from top-left.
+ * Implements smooth trailing delay (Lerp) and graceful exit momentum.
  */
 
 const heroContainer = ref(null)
 
-// Use null to indicate "off-screen" or "not yet entered"
-const targetX = ref(null)
-const targetY = ref(null)
-const renderedX = ref(null)
-const renderedY = ref(null)
+// Physics state
+const targetX = ref(0)
+const targetY = ref(0)
+const targetOpacity = ref(0)
+
+const renderedX = ref(0)
+const renderedY = ref(0)
+const renderedOpacity = ref(0)
 
 let rafId = null
 
 const lerp = (start, end, factor) => start + (end - start) * factor
 
-function updateGlowPosition() {
-  if (targetX.value !== null && renderedX.value !== null) {
-    renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
-    renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
-  }
+function updatePhysics() {
+  // Smoothly chase the target position
+  renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
+  renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
   
-  rafId = requestAnimationFrame(updateGlowPosition)
+  // Smoothly fade in/out
+  renderedOpacity.value = lerp(renderedOpacity.value, targetOpacity.value, 0.08)
+  
+  rafId = requestAnimationFrame(updatePhysics)
 }
 
 function handleMouseMove(e) {
@@ -70,25 +76,25 @@ function handleMouseMove(e) {
   const x = e.clientX - rect.left
   const y = e.clientY - rect.top
   
-  // If this is the first move (entry), snap instantly to prevent the top-left ghost effect
-  if (targetX.value === null) {
+  // First entry snap to prevent top-left ghosting
+  if (targetOpacity.value === 0) {
     renderedX.value = x
     renderedY.value = y
   }
   
   targetX.value = x
   targetY.value = y
+  targetOpacity.value = 1
 }
 
 function handleMouseLeave() {
-  targetX.value = null
-  targetY.value = null
-  renderedX.value = null
-  renderedY.value = null
+  // When leaving, we keep the last targetX/Y but fade out the opacity.
+  // This allows the "follow through" as the rendered position finishes its lerp.
+  targetOpacity.value = 0
 }
 
 onMounted(() => {
-  updateGlowPosition()
+  updatePhysics()
 })
 
 onUnmounted(() => {
@@ -156,7 +162,7 @@ onUnmounted(() => {
 .obsidian-hero__mesh--active {
   background-image: radial-gradient(rgba(255, 255, 255, 0.9) 2.5px, transparent 0);
   z-index: 2;
-  will-change: mask-image, -webkit-mask-image;
+  will-change: mask-image, -webkit-mask-image, opacity;
 }
 
 .obsidian-hero__texture {
