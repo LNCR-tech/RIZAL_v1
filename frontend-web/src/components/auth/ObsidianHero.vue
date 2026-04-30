@@ -13,7 +13,7 @@
     <div class="obsidian-hero__glint obsidian-hero__glint--1"></div>
     <div class="obsidian-hero__glint obsidian-hero__glint--2"></div>
 
-    <!-- The Interactive Physics Mesh (Canvas) -->
+    <!-- The Geometric Physics Mesh (Canvas) -->
     <canvas ref="meshCanvas" class="obsidian-hero__canvas"></canvas>
 
     <!-- Subtle texture -->
@@ -30,8 +30,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue - Volumetric 3D Edition
- * Implements fake shadow mapping and light-aware pillar shading.
+ * ObsidianHero.vue - Geometric Shadow Mapping Edition
+ * Implements ray-traced shadow projection from a central light source.
  */
 
 const heroContainer = ref(null)
@@ -46,16 +46,19 @@ const isHovering = ref(false)
 const GRID_SIZE = 20
 const DOT_SIZE = 1.5
 const HOVER_RADIUS = 130
-const MAX_LIFT = 15 // Higher lift for better lighting visibility
+const MAX_LIFT = 18 
 
 let ctx = null
 let width = 0
 let height = 0
 let rafId = null
 
-// Lighting Settings
-const LIGHT_X = -200 // Light source is top-left
-const LIGHT_Y = -200
+// Virtual 3D Light Source (Top-Center-Front)
+const LIGHT = {
+  x: 0,
+  y: -300,
+  z: 400 // Height of light above the floor
+}
 
 class Dot {
   constructor(x, y) {
@@ -83,23 +86,31 @@ class Dot {
     this.opacity += (this.targetOpacity - this.opacity) * 0.1
   }
 
-  draw(context) {
+  draw(context, lightX, lightY) {
     const lift = this.baseY - this.currentY
 
     if (lift > 0.5) {
-      // 1. Draw "Ambient Occlusion" Shadow at the base
-      // The shadow is offset based on the height (lift)
-      const shadowAlpha = (this.opacity - 0.16) * 0.4
-      context.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`
-      context.beginPath()
-      context.ellipse(this.baseX + (lift * 0.3), this.baseY + (lift * 0.2), DOT_SIZE, DOT_SIZE / 2, 0, 0, Math.PI * 2)
-      context.fill()
+      // 1. Geometric Shadow Projection
+      // Calculate the shadow vector from the central light source
+      const sdx = this.baseX - lightX
+      const sdy = this.baseY - lightY
+      
+      // Shadow length/offset is proportional to height and distance from light
+      const shadowX = this.baseX + (sdx * lift / LIGHT.z)
+      const shadowY = this.baseY + (sdy * lift / LIGHT.z)
 
-      // 2. Draw Volumetric Pillar with Gradient
-      // Lit from the top, darker at the root
+      // Draw the shadow as a line from root to projection
+      context.strokeStyle = `rgba(0, 0, 0, ${this.opacity * 0.5})`
+      context.lineWidth = 1.2
+      context.beginPath()
+      context.moveTo(this.baseX, this.baseY)
+      context.lineTo(shadowX, shadowY)
+      context.stroke()
+
+      // 2. Volumetric Pillar with Lighting Gradient
       const grad = context.createLinearGradient(this.baseX, this.baseY, this.baseX, this.currentY)
-      grad.addColorStop(0, `rgba(255, 255, 255, 0.05)`) // Connection point
-      grad.addColorStop(1, `rgba(255, 255, 255, ${this.opacity * 0.3})`) // Near cap
+      grad.addColorStop(0, `rgba(255, 255, 255, 0.02)`) 
+      grad.addColorStop(1, `rgba(255, 255, 255, ${this.opacity * 0.4})`)
       
       context.strokeStyle = grad
       context.lineWidth = 0.8
@@ -109,7 +120,8 @@ class Dot {
       context.stroke()
     }
 
-    // 3. Draw the "Cap" (Dot)
+    // 3. Spherical Cap (Dot) with Highlight
+    // The highlight is slightly offset toward the light source
     context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
     context.beginPath()
     context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
@@ -137,15 +149,20 @@ function resize() {
   meshCanvas.value.height = height * window.devicePixelRatio
   ctx = meshCanvas.value.getContext('2d')
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+  
+  // Center light source relative to screen width
+  LIGHT.x = width / 2
+  
   initGrid()
 }
 
 function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
+  
   for (let i = 0; i < dots.length; i++) {
     dots[i].update(mouseX.value, mouseY.value, isHovering.value)
-    dots[i].draw(ctx)
+    dots[i].draw(ctx, LIGHT.x, LIGHT.y)
   }
   rafId = requestAnimationFrame(animate)
 }
