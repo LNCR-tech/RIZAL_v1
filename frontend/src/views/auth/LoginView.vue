@@ -74,16 +74,18 @@
           </BaseButton>
 
           <!-- Google Sign-In below Log In -->
-          <div class="flex items-center gap-3 my-1" aria-hidden="true">
-            <div class="flex-1 h-px" style="background: var(--color-border, #2a2a2a);"></div>
-            <span class="text-[11px] uppercase tracking-wide" style="color: var(--color-text-secondary);">or</span>
-            <div class="flex-1 h-px" style="background: var(--color-border, #2a2a2a);"></div>
-          </div>
+          <template v-if="!googleUnavailable">
+            <div class="flex items-center gap-3 my-1" aria-hidden="true">
+              <div class="flex-1 h-px" style="background: var(--color-border, #2a2a2a);"></div>
+              <span class="text-[11px] uppercase tracking-wide" style="color: var(--color-text-secondary);">or</span>
+              <div class="flex-1 h-px" style="background: var(--color-border, #2a2a2a);"></div>
+            </div>
 
-          <GoogleSignInButton
-            @credential="handleGoogleCredential"
-            @unavailable="googleUnavailable = true"
-          />
+            <GoogleSignInButton
+              @credential="handleGoogleCredential"
+              @unavailable="googleUnavailable = true"
+            />
+          </template>
         </form>
 
         <!-- Powered by Aura -->

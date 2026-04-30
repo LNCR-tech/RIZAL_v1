@@ -1,19 +1,17 @@
 <template>
   <div class="google-btn-wrapper">
-    <div v-if="!available && !errorMessage" class="google-btn-placeholder" aria-hidden="true"></div>
-    <div v-show="available" ref="buttonHost" class="google-btn-host"></div>
+    <div ref="buttonHost" class="google-btn-host"></div>
     <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, nextTick } from 'vue'
+import { onMounted, ref } from 'vue'
 import { isGoogleLoginAvailable } from '@/config/googleAuth.js'
 import { renderGoogleButton } from '@/services/googleSignIn.js'
 
 const emit = defineEmits(['credential', 'unavailable'])
 
-const available = ref(false)
 const errorMessage = ref('')
 const buttonHost = ref(null)
 
@@ -23,13 +21,11 @@ onMounted(async () => {
     return
   }
   try {
-    await nextTick()
     await renderGoogleButton(buttonHost.value, {
       theme: 'outline',
       size: 'large',
       onCredential: (idToken) => emit('credential', idToken),
     })
-    available.value = true
   } catch (err) {
     errorMessage.value = err?.message || 'Google sign-in unavailable.'
     emit('unavailable')
@@ -44,13 +40,10 @@ onMounted(async () => {
 
 .google-btn-host {
   width: 100%;
+  min-height: 44px;
   display: flex;
   justify-content: center;
-}
-
-.google-btn-placeholder {
-  width: 100%;
-  height: 44px;
+  align-items: center;
 }
 
 .error-msg {
