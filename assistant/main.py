@@ -407,6 +407,10 @@ async def assistant_stream(
             thought_buffer = ""
             
             for turn in range(10): # Recursive Loop
+                # Reset per-turn streaming state
+                accumulated_thought = ""
+                in_thought = False
+                thought_buffer = ""
                 async for chunk in call_llm_stream(messages, tools=tools):
                     if chunk.get("type") == "chunk":
                         content = chunk.get("content", "")
@@ -414,16 +418,17 @@ async def assistant_stream(
                             continue
                         thought_buffer += content
                         final_raw += content  # accumulate raw for DB
-                        # Process thought_buffer to separate thought from visible text
                         while True:
                             if not in_thought:
                                 start = thought_buffer.find('<thought>')
                                 if start == -1:
-                                    # No thought tag — emit everything as visible
-                                    if thought_buffer:
-                                        final_text += thought_buffer
-                                        await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": thought_buffer}))
-                                        thought_buffer = ""
+                                    # Hold back enough chars to catch a split tag
+                                    hold = 9  # len('<thought>')
+                                    if len(thought_buffer) > hold:
+                                        emit = thought_buffer[:-hold]
+                                        thought_buffer = thought_buffer[-hold:]
+                                        final_text += emit
+                                        await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": emit}))
                                     break
                                 else:
                                     # Emit text before the thought tag
@@ -452,22 +457,31 @@ async def assistant_stream(
                     # Otherwise, it's the final message for this turn
                     response = chunk
                 
+                # Flush any remaining thought_buffer after streaming ends
+                if thought_buffer and not in_thought:
+                    final_text += thought_buffer
+                    await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": thought_buffer}))
+                    thought_buffer = ""
+
                 messages.append(response)
 
                 if not response.get("tool_calls"):
+                    # Always get the full raw content for this turn
+                    if not final_raw:
+                        final_raw = _extract_text_content(response.get("content"))
+                    if looks_like_tool_markup(final_raw) and not final_text:
+                        recovered = extract_function_markup(final_raw)
+                        if recovered:
+                            messages[-1] = recovered
+                            continue
+                    # Strip thoughts from whatever we have
+                    cleaned, thoughts = _extract_and_strip_thoughts(final_raw)
                     if not final_text:
-                        content = _extract_text_content(response.get("content"))
-                        if looks_like_tool_markup(content):
-                            recovered = extract_function_markup(content)
-                            if recovered:
-                                messages[-1] = recovered
-                                continue
-                        final_raw = content
-                        cleaned, thoughts = _extract_and_strip_thoughts(content)
+                        # Non-streaming path: send now
                         if thoughts:
                             await queue.put(_sse_event("thought", {"conversation_id": conversation_id, "content": thoughts}))
-                        final_text = cleaned
                         await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": cleaned}))
+                    final_text = cleaned
                     break
                 
                 # Execute Tools via MCP
