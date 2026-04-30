@@ -4,6 +4,7 @@
     class="obsidian-hero" 
     aria-hidden="true"
     @mousemove="handleMouseMove"
+    @mouseleave="handleMouseLeave"
   >
     <!-- Base Layer: Deep Obsidian -->
     <div class="obsidian-hero__base"></div>
@@ -12,18 +13,19 @@
     <div class="obsidian-hero__glint obsidian-hero__glint--1"></div>
     <div class="obsidian-hero__glint obsidian-hero__glint--2"></div>
 
-    <!-- Interactive Mouse Glow -->
+    <!-- Base Halftone Mesh (Static/Subtle) -->
+    <div class="obsidian-hero__mesh obsidian-hero__mesh--base"></div>
+
+    <!-- Active Halftone Mesh (The Glow/Pop Layer) -->
     <div 
-      class="obsidian-hero__mouse-glow"
+      class="obsidian-hero__mesh obsidian-hero__mesh--active"
       :style="{
-        transform: `translate3d(${mouseX}px, ${mouseY}px, 0)`
+        '-webkit-mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
+        'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`
       }"
     ></div>
 
-    <!-- Halftone Mesh: Large, crisp dots with lighting gradient -->
-    <div class="obsidian-hero__mesh"></div>
-
-    <!-- Subtle Premium Texture: Very low opacity noise -->
+    <!-- Subtle texture -->
     <div class="obsidian-hero__texture"></div>
 
     <!-- Branding Layer -->
@@ -34,26 +36,54 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * Refined ObsidianHero.vue with Interactive Mouse Glow
+ * ObsidianHero.vue
+ * Implements smooth trailing delay (Lerp) and dual-layer mesh for dot-only glow.
  */
 
 const heroContainer = ref(null)
-const mouseX = ref(-500) // Start off-screen
-const mouseY = ref(-500)
+
+// Target is where the mouse is
+const targetX = ref(-500)
+const targetY = ref(-500)
+
+// Rendered is where the glow currently is (the trailing effect)
+const renderedX = ref(-500)
+const renderedY = ref(-500)
+
+let rafId = null
+
+const lerp = (start, end, factor) => start + (end - start) * factor
+
+function updateGlowPosition() {
+  // 0.1 factor creates the "smooth trailing" feel
+  renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
+  renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+  
+  rafId = requestAnimationFrame(updateGlowPosition)
+}
 
 function handleMouseMove(e) {
   if (!heroContainer.value) return
-  
   const rect = heroContainer.value.getBoundingClientRect()
-  mouseX.value = e.clientX - rect.left
-  mouseY.value = e.clientY - rect.top
+  targetX.value = e.clientX - rect.left
+  targetY.value = e.clientY - rect.top
+}
+
+function handleMouseLeave() {
+  // Optionally move the glow off-screen when mouse leaves
+  targetX.value = -500
+  targetY.value = -500
 }
 
 onMounted(() => {
-  // Initial position check if needed
+  updateGlowPosition()
+})
+
+onUnmounted(() => {
+  if (rafId) cancelAnimationFrame(rafId)
 })
 </script>
 
@@ -75,66 +105,52 @@ onMounted(() => {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
 }
 
-/* Sharp, bright light glints */
 .obsidian-hero__glint {
   position: absolute;
   border-radius: 50%;
   filter: blur(120px);
   pointer-events: none;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
   will-change: transform, opacity;
 }
 
 .obsidian-hero__glint--1 {
-  width: 80%;
-  height: 60%;
-  top: -20%;
-  left: -10%;
+  width: 80%; height: 60%; top: -20%; left: -10%;
   animation: obsidian-shimmer 15s infinite alternate ease-in-out;
 }
 
 .obsidian-hero__glint--2 {
-  width: 60%;
-  height: 40%;
-  bottom: 0%;
-  right: -5%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+  width: 60%; height: 40%; bottom: 0%; right: -5%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
   animation: obsidian-shimmer 20s infinite alternate-reverse ease-in-out;
   animation-delay: -4s;
 }
 
-/* Mouse spotlight effect */
-.obsidian-hero__mouse-glow {
-  position: absolute;
-  width: 400px;
-  height: 400px;
-  top: -200px;
-  left: -200px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-  mix-blend-mode: overlay;
-  will-change: transform;
-  z-index: 2;
-}
-
-/* The Halftone Mesh: Large dots with depth-based opacity */
+/* Mesh Base: The normal dots */
 .obsidian-hero__mesh {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1.5px, transparent 0);
   background-size: 20px 20px;
   background-position: center;
-  
+  pointer-events: none;
+}
+
+.obsidian-hero__mesh--base {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.5px, transparent 0);
   mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
   -webkit-mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
-  
-  mix-blend-mode: screen;
   opacity: 0.8;
   z-index: 1;
 }
 
-/* Subtle texture */
+/* Mesh Active: The "Pop and Glow" dots */
+.obsidian-hero__mesh--active {
+  /* Larger, brighter dots (2.5px instead of 1.5px) */
+  background-image: radial-gradient(rgba(255, 255, 255, 0.9) 2.5px, transparent 0);
+  z-index: 2;
+  will-change: mask-image, -webkit-mask-image;
+}
+
 .obsidian-hero__texture {
   position: absolute;
   inset: 0;
@@ -152,9 +168,5 @@ onMounted(() => {
 @keyframes obsidian-shimmer {
   0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.6; }
   100% { transform: translate3d(10%, 5%, 0) scale(1.15); opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .obsidian-hero__glint { animation: none; }
 }
 </style>
