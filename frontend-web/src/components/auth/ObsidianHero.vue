@@ -16,14 +16,14 @@
     <!-- Base Halftone Mesh (The "Floor") -->
     <div class="obsidian-hero__mesh obsidian-hero__mesh--base"></div>
 
-    <!-- Levitating Halftone Mesh (The "Floating" Layer) -->
+    <!-- Floating Halftone Mesh (The "Lifted" Layer) -->
     <div 
       class="obsidian-hero__mesh obsidian-hero__mesh--active"
       :style="{
         '-webkit-mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
         'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
         'opacity': renderedOpacity,
-        'transform': `translate3d(0, 0, 0) scale(${1 + (renderedOpacity * 0.2)})`
+        'transform': `translate3d(0, ${renderedOpacity * -10}px, 0)`
       }"
     ></div>
 
@@ -42,7 +42,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
  * ObsidianHero.vue
- * Implements "True Levitation" using scale-based depth and expanding shadows.
+ * Implements "Physical Lift" using translateY and downward shadow offsets.
  */
 
 const heroContainer = ref(null)
@@ -111,8 +111,6 @@ onUnmounted(() => {
   align-items: flex-start;
   justify-content: center;
   z-index: 0;
-  /* Add perspective for 3D depth perception */
-  perspective: 1000px;
 }
 
 .obsidian-hero__base {
@@ -159,18 +157,15 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* Mesh Active: The "Levitating" Layer */
+/* Mesh Active: The "Lifted" Layer */
 .obsidian-hero__mesh--active {
-  /* High contrast dots */
-  background-image: radial-gradient(rgba(255, 255, 255, 1) 1.5px, transparent 0);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.95) 1.5px, transparent 0);
   z-index: 2;
   
-  /* Large, soft drop-shadow creates the "height" effect */
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+  /* Drop-shadow is offset DOWNWARD (10px) to simulate height from the floor */
+  filter: drop-shadow(0 10px 5px rgba(255, 255, 255, 0.25));
   
-  /* Optimized for movement and depth */
   will-change: mask-image, -webkit-mask-image, transform, opacity;
-  transform-style: preserve-3d;
 }
 
 .obsidian-hero__texture {
