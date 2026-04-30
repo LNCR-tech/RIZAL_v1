@@ -59,7 +59,6 @@ export async function renderGoogleButton(targetElement, { onCredential, theme = 
         shape: 'pill',
         text: 'continue_with',
         logo_alignment: 'left',
-        locale: 'en',
         width: targetElement?.clientWidth || 320,
     })
 }
