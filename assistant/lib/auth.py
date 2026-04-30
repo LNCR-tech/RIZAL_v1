@@ -1,4 +1,14 @@
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    _env = Path(__file__).resolve().parents[1] / ".env"
+    if _env.exists():
+        load_dotenv(_env, override=False)
+except ImportError:
+    pass
+
 import httpx
 from fastapi import Header, HTTPException, status
 from typing import Dict, Any, Optional, List
