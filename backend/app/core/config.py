@@ -174,6 +174,10 @@ class Settings:
     default_admin_email: str
     default_admin_password: str
 
+    google_login_enabled: bool
+    google_web_client_id: str
+    google_android_client_id: str
+
 
 def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -331,4 +335,7 @@ def get_settings() -> Settings:
         aura_norm_schema=(os.getenv("AURA_NORM_SCHEMA") or "aura_norm").strip() or "aura_norm",
         default_admin_email=os.getenv("DEFAULT_ADMIN_EMAIL", APP_SETTINGS.default_admin_email).strip(),
         default_admin_password=os.getenv("DEFAULT_ADMIN_PASSWORD", APP_SETTINGS.default_admin_password),
+        google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),
+        google_web_client_id=os.getenv("GOOGLE_WEB_CLIENT_ID", "").strip(),
+        google_android_client_id=os.getenv("GOOGLE_ANDROID_CLIENT_ID", "").strip(),
     )

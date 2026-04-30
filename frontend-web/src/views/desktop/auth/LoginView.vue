@@ -22,7 +22,7 @@
             placeholder="Gmail"
             autocomplete="email"
             tone="neutral"
-            :disabled="isLoading"
+            :disabled="isLoading || googleLoading"
           />
 
           <BaseInput
@@ -32,9 +32,20 @@
             placeholder="Password"
             autocomplete="current-password"
             tone="neutral"
-            :disabled="isLoading"
+            :disabled="isLoading || googleLoading"
             @enter="handleLogin"
           />
+
+          <div class="flex justify-end -mt-1">
+            <a
+              href="#"
+              class="text-[12px] font-medium transition-colors"
+              style="color: var(--color-text-secondary);"
+              @click.prevent="goToForgotPassword"
+            >
+              Forgot password?
+            </a>
+          </div>
 
           <Transition name="fade">
             <p v-if="visibleMessage" class="text-red-500 text-xs text-center mt-1">
@@ -48,20 +59,18 @@
             size="md"
             class="mt-1 group"
             :loading="isLoading"
+            :disabled="googleLoading"
           >
             Log In
           </BaseButton>
 
-          <div class="text-center mt-2">
-            <a
-              href="#"
-              class="text-[13px] font-medium transition-colors"
-              style="color: var(--color-text-secondary);"
-              @click.prevent="goToForgotPassword"
-            >
-              Forgot password?
-            </a>
+          <div class="flex items-center gap-3 my-1" aria-hidden="true">
+            <div class="flex-1 h-px" style="background: var(--color-border, #2a2a2a);" />
+            <span class="text-[11px] uppercase tracking-wide" style="color: var(--color-text-secondary);">or</span>
+            <div class="flex-1 h-px" style="background: var(--color-border, #2a2a2a);" />
           </div>
+
+          <GoogleSignInButton @credential="handleGoogleCredential" />
         </form>
 
         <div
@@ -100,6 +109,7 @@
 <script setup>
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import GoogleSignInButton from '@/components/auth/GoogleSignInButton.vue'
 import { surfaceAuraLogo } from '@/config/theme.js'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
@@ -108,8 +118,10 @@ const {
   password,
   isMounted,
   isLoading,
+  googleLoading,
   visibleMessage,
   handleLogin,
+  handleGoogleCredential,
   goToForgotPassword,
 } = useLoginViewModel()
 </script>

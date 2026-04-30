@@ -25,6 +25,13 @@ from app.core.security import (
 )
 from app.core.dependencies import get_db
 from app.schemas.auth import ChangePasswordRequest, Token, LoginRequest
+from app.schemas.google_auth import GoogleLoginRequest
+from app.services.google_auth_service import (
+    GoogleAuthDisabledError,
+    GoogleAuthInvalidTokenError,
+    GoogleEmailNotVerifiedError,
+    verify_google_id_token,
+)
 from app.schemas.common import MessageResponse
 from app.schemas.password_reset import (
     ForgotPasswordRequestCreate,
@@ -166,6 +173,99 @@ def login_with_email(
         request=request,
     )
 
+    db.commit()
+    return response_payload
+
+
+@router.post("/auth/google", response_model=Token)
+def login_with_google(
+    request: Request,
+    payload: GoogleLoginRequest,
+    db: Session = Depends(get_db),
+):
+    """Verify a Google ID token and issue an access token for a registered user."""
+    enforce_rate_limit(
+        build_login_rule(),
+        f"{client_ip_identity(request)}:google",
+        request=request,
+    )
+
+    try:
+        google_payload = verify_google_id_token(payload.id_token)
+    except GoogleAuthDisabledError:
+        record_login_history(
+            db,
+            email_attempted="",
+            user=None,
+            success=False,
+            auth_method="google",
+            failure_reason="google_login_disabled",
+            request=request,
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Google login is disabled.")
+    except GoogleEmailNotVerifiedError:
+        record_login_history(
+            db,
+            email_attempted="",
+            user=None,
+            success=False,
+            auth_method="google",
+            failure_reason="email_not_verified",
+            request=request,
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google email is not verified.")
+    except GoogleAuthInvalidTokenError:
+        record_login_history(
+            db,
+            email_attempted="",
+            user=None,
+            success=False,
+            auth_method="google",
+            failure_reason="invalid_token",
+            request=request,
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token.")
+
+    email = google_payload["email"]
+
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(UserRole.role))
+        .filter(User.email == email)
+        .first()
+    )
+    if user is None:
+        record_login_history(
+            db,
+            email_attempted=email,
+            user=None,
+            success=False,
+            auth_method="google",
+            failure_reason="not_registered",
+            request=request,
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google account is not registered.")
+
+    validate_login_account_state(db, user)
+
+    response_payload = issue_login_token_response(
+        db=db,
+        user=user,
+        request=request,
+        remember_me=False,
+    )
+    record_login_history(
+        db,
+        email_attempted=user.email,
+        user=user,
+        success=True,
+        auth_method="google",
+        request=request,
+    )
     db.commit()
     return response_payload
 

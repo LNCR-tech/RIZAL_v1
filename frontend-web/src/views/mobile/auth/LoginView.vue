@@ -29,7 +29,7 @@
                 autocomplete="email"
                 autocapitalize="none"
                 spellcheck="false"
-                :disabled="isLoading"
+                :disabled="isLoading || googleLoading"
               >
             </label>
 
@@ -42,14 +42,14 @@
                 :type="passwordVisible ? 'text' : 'password'"
                 placeholder="Password"
                 autocomplete="current-password"
-                :disabled="isLoading"
+                :disabled="isLoading || googleLoading"
               >
 
               <button
                 type="button"
                 class="mobile-login__field-action"
                 :aria-label="passwordVisible ? 'Hide password' : 'Show password'"
-                :disabled="isLoading"
+                :disabled="isLoading || googleLoading"
                 @click="togglePasswordVisibility"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -82,10 +82,20 @@
             <button
               type="submit"
               class="mobile-login__button mobile-login__button--primary"
-              :disabled="isLoading"
+              :disabled="isLoading || googleLoading"
             >
               {{ isLoading ? 'Logging In...' : 'Log In' }}
             </button>
+
+            <div class="mobile-login__divider" aria-hidden="true">
+              <span />
+              <strong>or</strong>
+              <span />
+            </div>
+
+            <div class="mobile-login__google">
+              <GoogleSignInButton @credential="handleGoogleCredential" />
+            </div>
 
             <div class="mobile-login__forgot-password">
               <a
@@ -117,6 +127,7 @@
 import { ref } from 'vue'
 import logBackground from '@/assets/images/login_bg.jpg'
 import { withBase } from '@/services/appPath.js'
+import GoogleSignInButton from '@/components/auth/GoogleSignInButton.vue'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
 const passwordVisible = ref(false)
@@ -130,8 +141,10 @@ const {
   password,
   isMounted,
   isLoading,
+  googleLoading,
   visibleMessage,
   handleLogin,
+  handleGoogleCredential,
   goToForgotPassword,
 } = useLoginViewModel()
 
@@ -394,6 +407,31 @@ function togglePasswordVisibility() {
   display: flex;
   justify-content: center;
   margin-top: 8px;
+}
+
+.mobile-login__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0;
+  color: rgba(16, 16, 16, 0.54);
+}
+
+.mobile-login__divider span {
+  flex: 1;
+  height: 1px;
+  background: rgba(16, 16, 16, 0.18);
+}
+
+.mobile-login__divider strong {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mobile-login__google {
+  min-height: 44px;
 }
 
 .mobile-login__forgot-link {

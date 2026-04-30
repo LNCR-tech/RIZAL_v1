@@ -1,6 +1,7 @@
 import { computed, onBeforeMount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth.js'
+import { useGoogleLogin } from '@/composables/useGoogleLogin.js'
 import { applyTheme, loadUnbrandedTheme } from '@/config/theme.js'
 import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'
 
@@ -11,7 +12,12 @@ export function useLoginViewModel() {
   const sessionNotice = ref('')
   const router = useRouter()
   const { login, isLoading, error } = useAuth()
-  const visibleMessage = computed(() => error.value || sessionNotice.value)
+  const {
+    loginWithGoogleCredential,
+    isLoading: googleLoading,
+    error: googleError,
+  } = useGoogleLogin()
+  const visibleMessage = computed(() => error.value || googleError.value || sessionNotice.value)
 
   onBeforeMount(() => {
     applyTheme(loadUnbrandedTheme())
@@ -29,6 +35,10 @@ export function useLoginViewModel() {
     await login(email.value, password.value)
   }
 
+  async function handleGoogleCredential(credential) {
+    await loginWithGoogleCredential(credential)
+  }
+
   function goToForgotPassword() {
     router.push({ name: 'ForgotPassword' })
   }
@@ -38,8 +48,10 @@ export function useLoginViewModel() {
     password,
     isMounted,
     isLoading,
+    googleLoading,
     visibleMessage,
     handleLogin,
+    handleGoogleCredential,
     goToForgotPassword,
   }
 }
