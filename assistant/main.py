@@ -400,6 +400,7 @@ async def assistant_stream(
         bg_db = SessionLocal()
         try:
             final_text = ""
+            final_raw = ""  # raw content including thought tags, saved to DB
             final_visual = None
             accumulated_thought = ""
             in_thought = False
@@ -412,6 +413,7 @@ async def assistant_stream(
                         if not content:
                             continue
                         thought_buffer += content
+                        final_raw += content  # accumulate raw for DB
                         # Process thought_buffer to separate thought from visible text
                         while True:
                             if not in_thought:
@@ -460,6 +462,7 @@ async def assistant_stream(
                             if recovered:
                                 messages[-1] = recovered
                                 continue
+                        final_raw = content
                         cleaned, thoughts = _extract_and_strip_thoughts(content)
                         if thoughts:
                             await queue.put(_sse_event("thought", {"conversation_id": conversation_id, "content": thoughts}))
@@ -500,8 +503,9 @@ async def assistant_stream(
                         except: pass
 
             # Save Completion (with optional visualization data)
+            # Save raw content (with thought tags) to DB so frontend can re-render thoughts
             msg_visual_data = json.dumps({"visual": final_visual}, default=str) if final_visual else None
-            assistant_msg = Message(conversation_id=conversation_id, role="assistant", content=final_text, visual_data=msg_visual_data)
+            assistant_msg = Message(conversation_id=conversation_id, role="assistant", content=final_raw or final_text, visual_data=msg_visual_data)
             bg_db.add(assistant_msg)
             
             # Auto-title logic

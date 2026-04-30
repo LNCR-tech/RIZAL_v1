@@ -16,7 +16,20 @@ import {
   AssistantApiError,
 } from '@/services/assistantApi.js'
 
-// ─── Shared singleton state ───────────────────────────────────────────────────
+const THOUGHT_RE = /<thought>(.*?)<\/thought>/gis
+
+function parseThoughtsFromContent(content) {
+  const thoughts = []
+  let cleaned = content
+  let match
+  const re = /<thought>(.*?)<\/thought>/gis
+  while ((match = re.exec(content)) !== null) {
+    thoughts.push(match[1].trim())
+  }
+  cleaned = content.replace(/<thought>.*?<\/thought>/gis, '').trim()
+  return { cleaned, thought: thoughts.join('\n') || null }
+}
+
 const messages   = ref([
   { id: 1, sender: 'ai', text: 'Hi! I am Aura AI. How can I help you today?' }
 ])
@@ -261,12 +274,17 @@ async function selectConversation(targetConversationId) {
       conversationId: normalized,
     })
 
-    const mapped = (convo?.messages || []).map((m, idx) => ({
-      id: idx + 1,
-      sender: m?.role === 'user' ? 'user' : 'ai',
-      text: String(m?.content ?? ''),
-      visual: m?.visual_data?.visual ?? null,
-    }))
+    const mapped = (convo?.messages || []).map((m, idx) => {
+      const raw = String(m?.content ?? '')
+      const { cleaned, thought } = m?.role === 'assistant' ? parseThoughtsFromContent(raw) : { cleaned: raw, thought: null }
+      return {
+        id: idx + 1,
+        sender: m?.role === 'user' ? 'user' : 'ai',
+        text: cleaned,
+        visual: m?.visual_data?.visual ?? null,
+        thought,
+      }
+    })
 
     messages.value = mapped.length
       ? mapped
