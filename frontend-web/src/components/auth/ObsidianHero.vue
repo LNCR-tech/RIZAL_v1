@@ -30,8 +30,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue - True-Shape Shadow Mapping
- * Uses the actual Aura logo asset to cast a geometrically correct shadow onto the grid.
+ * ObsidianHero.vue - Integrated Compositing Shadow Edition
+ * Uses 'multiply' compositing to cast a true-shape shadow without 'force fields'.
  */
 
 const heroContainer = ref(null)
@@ -90,32 +90,24 @@ class Dot {
   draw(context, lightX, lightY) {
     const lift = this.baseY - this.currentY
     
-    // Check if dot is inside the logo's shadow projection
-    // Simplified bounding check for occlusion
-    const isInShadowZone = Math.abs(this.baseX - logoPos.x) < 50 && 
-                          Math.abs(this.baseY - (logoPos.y + 45)) < 40
-    
-    let finalOpacity = this.opacity
-    if (isInShadowZone && lift < 1) {
-      finalOpacity *= 0.35 // Darken dots in the shadow
-    }
-
     if (lift > 0.5) {
+      // 1. Pillar Shadow projection
       const sdx = this.baseX - lightX
       const sdy = this.baseY - lightY
       const shadowX = this.baseX + (sdx * lift / LIGHT.z)
       const shadowY = this.baseY + (sdy * lift / LIGHT.z)
 
-      context.strokeStyle = `rgba(0, 0, 0, ${finalOpacity * 0.5})`
+      context.strokeStyle = `rgba(0, 0, 0, ${this.opacity * 0.5})`
       context.lineWidth = 1.2
       context.beginPath()
       context.moveTo(this.baseX, this.baseY)
       context.lineTo(shadowX, shadowY)
       context.stroke()
 
+      // 2. Volumetric Pillar
       const grad = context.createLinearGradient(this.baseX, this.baseY, this.baseX, this.currentY)
       grad.addColorStop(0, `rgba(255, 255, 255, 0.01)`) 
-      grad.addColorStop(1, `rgba(255, 255, 255, ${finalOpacity * 0.3})`)
+      grad.addColorStop(1, `rgba(255, 255, 255, ${this.opacity * 0.3})`)
       
       context.strokeStyle = grad
       context.lineWidth = 0.8
@@ -125,7 +117,8 @@ class Dot {
       context.stroke()
     }
 
-    context.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`
+    // 3. Dot Cap
+    context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
     context.beginPath()
     context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
     context.fill()
@@ -163,16 +156,24 @@ function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
   
-  // Draw the TRUE SHAPE shadow (Aura Logo Geometry)
+  // First Pass: Draw all Dots and Pillars
+  for (let i = 0; i < dots.length; i++) {
+    dots[i].update(mouseX.value, mouseY.value, isHovering.value)
+    dots[i].draw(ctx, LIGHT.x, LIGHT.y)
+  }
+
+  // Second Pass: Draw Logo Shadow using MULTIPLY compositing
+  // This darkens the dots and floor ONLY within the logo shape
   if (logoImg.complete) {
     ctx.save()
-    // Transform logo to shadow projection (Down and slightly offset)
     const shadowY = logoPos.y + 45
     const shadowWidth = logoPos.size * 1.1
-    const shadowHeight = logoPos.size * 0.8 // Squashed for perspective
+    const shadowHeight = logoPos.size * 0.8
     
-    ctx.filter = 'brightness(0) blur(14px)'
-    ctx.globalAlpha = 0.7
+    // Switch to MULTIPLY to occlude everything underneath organically
+    ctx.globalCompositeOperation = 'multiply'
+    ctx.filter = 'brightness(0) blur(16px)'
+    ctx.globalAlpha = 0.85
     ctx.drawImage(
       logoImg, 
       logoPos.x - shadowWidth / 2, 
@@ -183,10 +184,6 @@ function animate() {
     ctx.restore()
   }
 
-  for (let i = 0; i < dots.length; i++) {
-    dots[i].update(mouseX.value, mouseY.value, isHovering.value)
-    dots[i].draw(ctx, LIGHT.x, LIGHT.y)
-  }
   rafId = requestAnimationFrame(animate)
 }
 
@@ -273,7 +270,6 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   padding: 52px 40px;
-  /* Hover lift */
   transform: translate3d(0, -10px, 0);
 }
 
