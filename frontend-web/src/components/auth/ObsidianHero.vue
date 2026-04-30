@@ -23,7 +23,7 @@
         '-webkit-mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
         'mask-image': `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, black 0%, transparent 100%)`,
         'opacity': renderedOpacity,
-        'transform': `translate3d(${parallaxX}px, ${parallaxY}px, 0)`
+        'transform': `translate3d(0, 0, 0) scale(${1 + (renderedOpacity * 0.2)})`
       }"
     ></div>
 
@@ -42,39 +42,31 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
  * ObsidianHero.vue
- * Implements 3D Levitation via Parallax Shift and Under-Glow.
+ * Implements "True Levitation" using scale-based depth and expanding shadows.
  */
 
 const heroContainer = ref(null)
 
 // Physics state
-const targetX = ref(0)
-const targetY = ref(0)
+const targetX = ref(null)
+const targetY = ref(null)
 const targetOpacity = ref(0)
 
 const renderedX = ref(0)
 const renderedY = ref(0)
 const renderedOpacity = ref(0)
 
-// Parallax displacement for the "levitation" effect
-const parallaxX = ref(0)
-const parallaxY = ref(0)
-
 let rafId = null
 
 const lerp = (start, end, factor) => start + (end - start) * factor
 
 function updatePhysics() {
-  // Smoothly chase the target position
-  renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
-  renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+  if (targetX.value !== null) {
+    renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
+    renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+  }
   
-  // Create a slight parallax offset to simulate "height"
-  // The dots shift slightly toward the mouse, making them look closer to the eye
-  parallaxX.value = lerp(parallaxX.value, (targetX.value - renderedX.value) * 0.15, 0.1)
-  parallaxY.value = lerp(parallaxY.value, (targetY.value - renderedY.value) * 0.15, 0.1)
-  
-  // Smoothly fade in/out
+  // Smoothly fade/lift in and out
   renderedOpacity.value = lerp(renderedOpacity.value, targetOpacity.value, 0.08)
   
   rafId = requestAnimationFrame(updatePhysics)
@@ -119,6 +111,8 @@ onUnmounted(() => {
   align-items: flex-start;
   justify-content: center;
   z-index: 0;
+  /* Add perspective for 3D depth perception */
+  perspective: 1000px;
 }
 
 .obsidian-hero__base {
@@ -167,14 +161,16 @@ onUnmounted(() => {
 
 /* Mesh Active: The "Levitating" Layer */
 .obsidian-hero__mesh--active {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.9) 1.5px, transparent 0);
+  /* High contrast dots */
+  background-image: radial-gradient(rgba(255, 255, 255, 1) 1.5px, transparent 0);
   z-index: 2;
   
-  /* Drop-shadow creates the "Under-glow" on the floor */
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+  /* Large, soft drop-shadow creates the "height" effect */
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
   
-  /* Optimize for movement */
+  /* Optimized for movement and depth */
   will-change: mask-image, -webkit-mask-image, transform, opacity;
+  transform-style: preserve-3d;
 }
 
 .obsidian-hero__texture {
