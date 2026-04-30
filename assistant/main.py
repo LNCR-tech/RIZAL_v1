@@ -3,6 +3,15 @@ import json
 import logging
 import os
 import uuid
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    _env = Path(__file__).resolve().parent / ".env"
+    if _env.exists():
+        load_dotenv(_env, override=False)
+except ImportError:
+    pass
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Generator, AsyncGenerator
