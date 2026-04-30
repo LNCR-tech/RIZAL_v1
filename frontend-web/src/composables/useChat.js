@@ -203,6 +203,14 @@ async function streamAiResponse(userMessage, { token, userMeta } = {}) {
       onToolDone: () => {
         currentToolCall.value = null
       },
+      onThought: (thought) => {
+        if (messages.value[msgIdx] !== undefined) {
+          messages.value[msgIdx] = {
+            ...messages.value[msgIdx],
+            thought: (messages.value[msgIdx].thought || '') + thought,
+          }
+        }
+      },
     })
   } catch (err) {
     const idx = messages.value.findIndex((m) => m.id === msgId)

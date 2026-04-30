@@ -67,6 +67,7 @@ export async function streamAssistantReply({
   onVisualization,
   onToolCall,
   onToolDone,
+  onThought,
 } = {}) {
   const trimmed = String(message || '').trim()
   if (!trimmed) throw new AssistantApiError('Message is required.')
@@ -120,6 +121,13 @@ export async function streamAssistantReply({
       if (parsed) {
         if (parsed?.data?.conversation_id) {
           latestConversationId = parsed.data.conversation_id
+        }
+
+        if (parsed.event === 'thought') {
+          const thought = String(parsed?.data?.content ?? '')
+          if (thought && typeof onThought === 'function') {
+            onThought(thought, { conversationId: latestConversationId })
+          }
         }
 
         if (parsed.event === 'tool_call') {

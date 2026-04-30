@@ -32,10 +32,15 @@ from lib.tools_logic import parse_tool_arguments, sanitize_tool_args, looks_like
 
 import re
 
-_THOUGHT_RE = re.compile(r'<thought>.*?</thought>', re.DOTALL | re.IGNORECASE)
+_THOUGHT_RE = re.compile(r'<thought>(.*?)</thought>', re.DOTALL | re.IGNORECASE)
 
-def _strip_thought_tags(text: str) -> str:
-    return _THOUGHT_RE.sub('', text).lstrip('\n')
+def _extract_and_strip_thoughts(text: str) -> tuple[str, str]:
+    """Return (cleaned_text, extracted_thoughts)."""
+    thoughts = []
+    for match in _THOUGHT_RE.finditer(text):
+        thoughts.append(match.group(1).strip())
+    cleaned = _THOUGHT_RE.sub('', text).strip()
+    return cleaned, '\n'.join(thoughts)
 
 
 ASSISTANT_DIR = os.path.dirname(__file__)
@@ -396,15 +401,50 @@ async def assistant_stream(
         try:
             final_text = ""
             final_visual = None
+            accumulated_thought = ""
+            in_thought = False
+            thought_buffer = ""
             
             for turn in range(10): # Recursive Loop
                 async for chunk in call_llm_stream(messages, tools=tools):
-                    # If it's an intermediate text chunk, stream it immediately
                     if chunk.get("type") == "chunk":
-                        content = _strip_thought_tags(chunk.get("content", ""))
-                        if content:
-                            final_text += content
-                            await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": content}))
+                        content = chunk.get("content", "")
+                        if not content:
+                            continue
+                        thought_buffer += content
+                        # Process thought_buffer to separate thought from visible text
+                        while True:
+                            if not in_thought:
+                                start = thought_buffer.find('<thought>')
+                                if start == -1:
+                                    # No thought tag — emit everything as visible
+                                    if thought_buffer:
+                                        final_text += thought_buffer
+                                        await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": thought_buffer}))
+                                        thought_buffer = ""
+                                    break
+                                else:
+                                    # Emit text before the thought tag
+                                    before = thought_buffer[:start]
+                                    if before:
+                                        final_text += before
+                                        await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": before}))
+                                    thought_buffer = thought_buffer[start + len('<thought>'):]
+                                    in_thought = True
+                            else:
+                                end = thought_buffer.find('</thought>')
+                                if end == -1:
+                                    # Still inside thought, accumulate
+                                    accumulated_thought += thought_buffer
+                                    thought_buffer = ""
+                                    break
+                                else:
+                                    # Thought complete
+                                    accumulated_thought += thought_buffer[:end]
+                                    await queue.put(_sse_event("thought", {"conversation_id": conversation_id, "content": accumulated_thought.strip()}))
+                                    accumulated_thought = ""
+                                    thought_buffer = thought_buffer[end + len('</thought>'):]
+                                    in_thought = False
                         continue
                     
                     # Otherwise, it's the final message for this turn
@@ -413,7 +453,6 @@ async def assistant_stream(
                 messages.append(response)
 
                 if not response.get("tool_calls"):
-                    # Check for recovered markup in text (only if not already streamed)
                     if not final_text:
                         content = _extract_text_content(response.get("content"))
                         if looks_like_tool_markup(content):
@@ -421,8 +460,11 @@ async def assistant_stream(
                             if recovered:
                                 messages[-1] = recovered
                                 continue
-                        
-                        final_text = _strip_thought_tags(content)
+                        cleaned, thoughts = _extract_and_strip_thoughts(content)
+                        if thoughts:
+                            await queue.put(_sse_event("thought", {"conversation_id": conversation_id, "content": thoughts}))
+                        final_text = cleaned
+                        await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": cleaned}))
                     break
                 
                 # Execute Tools via MCP

@@ -105,6 +105,10 @@
                     v-if="msg.sender === 'user' || (msg.text && msg.text.trim().length > 0)"
                     :class="['bubble', msg.sender === 'ai' ? 'bubble--ai' : 'bubble--user']"
                   >
+                    <details v-if="msg.thought" class="bubble-thought">
+                      <summary class="bubble-thought__toggle">Thought</summary>
+                      <p class="bubble-thought__content">{{ msg.thought }}</p>
+                    </details>
                     <ChatMarkdownMessage :text="msg.text" />
                   </div>
                 </template>
@@ -361,6 +365,37 @@ watch(isFullOpen, (val) => {
   align-self: flex-start;
   background: #ffffff;
   color: #0a0a0a;
+}
+
+.bubble-thought {
+  margin-bottom: 8px;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bubble-thought__toggle {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(0,0,0,0.45);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.bubble-thought__toggle::-webkit-details-marker { display: none; }
+
+.bubble-thought__content {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(0,0,0,0.5);
+  white-space: pre-wrap;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  margin: 0;
 }
 
 .bubble--user {
