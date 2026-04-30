@@ -13,8 +13,14 @@
     <div class="obsidian-hero__glint obsidian-hero__glint--1"></div>
     <div class="obsidian-hero__glint obsidian-hero__glint--2"></div>
 
-    <!-- Base Halftone Mesh (The "Floor") -->
-    <div class="obsidian-hero__mesh obsidian-hero__mesh--base"></div>
+    <!-- Base Halftone Mesh (The "Floor") with Inverse Masking -->
+    <div 
+      class="obsidian-hero__mesh obsidian-hero__mesh--base"
+      :style="{
+        '-webkit-mask-image': targetX !== null ? `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, transparent 0%, black 100%)` : 'none',
+        'mask-image': targetX !== null ? `radial-gradient(circle 100px at ${renderedX}px ${renderedY}px, transparent 0%, black 100%)` : 'none'
+      }"
+    ></div>
 
     <!-- Floating Halftone Mesh (The "Lifted" Layer) -->
     <div 
@@ -42,7 +48,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
  * ObsidianHero.vue
- * Implements "Physical Lift" using translateY and downward shadow offsets.
+ * Implements Inverse Masking to prevent "cloning" and simulate real displacement.
  */
 
 const heroContainer = ref(null)
@@ -66,7 +72,6 @@ function updatePhysics() {
     renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
   }
   
-  // Smoothly fade/lift in and out
   renderedOpacity.value = lerp(renderedOpacity.value, targetOpacity.value, 0.08)
   
   rafId = requestAnimationFrame(updatePhysics)
@@ -90,6 +95,7 @@ function handleMouseMove(e) {
 
 function handleMouseLeave() {
   targetOpacity.value = 0
+  // Note: We don't null targetX/Y immediately to allow the fade-out to finish smoothly
 }
 
 onMounted(() => {
@@ -151,19 +157,19 @@ onUnmounted(() => {
 
 .obsidian-hero__mesh--base {
   background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.5px, transparent 0);
-  mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+  /* The base layer now has a lighting gradient AND the inverse mouse mask */
   opacity: 0.8;
   z-index: 1;
+  will-change: mask-image, -webkit-mask-image;
 }
 
 /* Mesh Active: The "Lifted" Layer */
 .obsidian-hero__mesh--active {
-  /* Sync color with base (0.16) instead of 0.95 to "turn off" glow */
+  /* Glow is currently turned off as per requested inspection */
   background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.5px, transparent 0);
   z-index: 2;
   
-  /* Drop-shadow disabled as requested */
+  /* Drop-shadow is currently commented out as per requested inspection */
   /* filter: drop-shadow(0 10px 5px rgba(255, 255, 255, 0.25)); */
   
   will-change: mask-image, -webkit-mask-image, transform, opacity;
