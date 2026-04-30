@@ -40,27 +40,26 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
  * ObsidianHero.vue
- * Implements smooth trailing delay (Lerp) and dual-layer mesh for dot-only glow.
+ * Fixed: Snap on first entry to prevent "ghost" movement from top-left.
  */
 
 const heroContainer = ref(null)
 
-// Target is where the mouse is
-const targetX = ref(-500)
-const targetY = ref(-500)
-
-// Rendered is where the glow currently is (the trailing effect)
-const renderedX = ref(-500)
-const renderedY = ref(-500)
+// Use null to indicate "off-screen" or "not yet entered"
+const targetX = ref(null)
+const targetY = ref(null)
+const renderedX = ref(null)
+const renderedY = ref(null)
 
 let rafId = null
 
 const lerp = (start, end, factor) => start + (end - start) * factor
 
 function updateGlowPosition() {
-  // 0.1 factor creates the "smooth trailing" feel
-  renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
-  renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+  if (targetX.value !== null && renderedX.value !== null) {
+    renderedX.value = lerp(renderedX.value, targetX.value, 0.1)
+    renderedY.value = lerp(renderedY.value, targetY.value, 0.1)
+  }
   
   rafId = requestAnimationFrame(updateGlowPosition)
 }
@@ -68,14 +67,24 @@ function updateGlowPosition() {
 function handleMouseMove(e) {
   if (!heroContainer.value) return
   const rect = heroContainer.value.getBoundingClientRect()
-  targetX.value = e.clientX - rect.left
-  targetY.value = e.clientY - rect.top
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  
+  // If this is the first move (entry), snap instantly to prevent the top-left ghost effect
+  if (targetX.value === null) {
+    renderedX.value = x
+    renderedY.value = y
+  }
+  
+  targetX.value = x
+  targetY.value = y
 }
 
 function handleMouseLeave() {
-  // Optionally move the glow off-screen when mouse leaves
-  targetX.value = -500
-  targetY.value = -500
+  targetX.value = null
+  targetY.value = null
+  renderedX.value = null
+  renderedY.value = null
 }
 
 onMounted(() => {
@@ -145,7 +154,6 @@ onUnmounted(() => {
 
 /* Mesh Active: The "Pop and Glow" dots */
 .obsidian-hero__mesh--active {
-  /* Larger, brighter dots (2.5px instead of 1.5px) */
   background-image: radial-gradient(rgba(255, 255, 255, 0.9) 2.5px, transparent 0);
   z-index: 2;
   will-change: mask-image, -webkit-mask-image;
