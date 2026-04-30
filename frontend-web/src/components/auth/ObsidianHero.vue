@@ -30,8 +30,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue - Integrated Logo Shadow Mapping
- * The logo now casts a physical shadow onto the canvas grid by occluding dot brightness.
+ * ObsidianHero.vue - True-Shape Shadow Mapping
+ * Uses the actual Aura logo asset to cast a geometrically correct shadow onto the grid.
  */
 
 const heroContainer = ref(null)
@@ -53,11 +53,13 @@ let width = 0
 let height = 0
 let rafId = null
 
-// Virtual 3D Light Source (Top-Center-Front)
+// Virtual 3D Light Source
 const LIGHT = { x: 0, y: -400, z: 500 }
 
-// Logo Shadow Mapping state
-const logoPos = { x: 0, y: 80, w: 120, h: 80 } // Approximate logo area
+// Logo Shadow State
+const logoImg = new Image()
+logoImg.src = '/logos/aura_logo_white.png'
+const logoPos = { x: 0, y: 80, size: 80 } 
 
 class Dot {
   constructor(x, y) {
@@ -88,20 +90,17 @@ class Dot {
   draw(context, lightX, lightY) {
     const lift = this.baseY - this.currentY
     
-    // Calculate if this dot is in the LOGO shadow zone
-    // The logo is at the top center, light is above it.
-    // Shadow casts downward onto the floor.
-    const distToLogoCenter = Math.sqrt(Math.pow(this.baseX - logoPos.x, 2) + Math.pow(this.baseY - (logoPos.y + 40), 2))
-    const isUnderLogo = distToLogoCenter < 60
+    // Check if dot is inside the logo's shadow projection
+    // Simplified bounding check for occlusion
+    const isInShadowZone = Math.abs(this.baseX - logoPos.x) < 50 && 
+                          Math.abs(this.baseY - (logoPos.y + 45)) < 40
     
-    // Apply occlusion: If under logo, reduce base opacity to create a "cast shadow"
     let finalOpacity = this.opacity
-    if (isUnderLogo && lift < 1) {
-      finalOpacity *= 0.4 // Darken the dots under the logo
+    if (isInShadowZone && lift < 1) {
+      finalOpacity *= 0.35 // Darken dots in the shadow
     }
 
     if (lift > 0.5) {
-      // 1. Geometric Shadow Projection (Pillar Shadow)
       const sdx = this.baseX - lightX
       const sdy = this.baseY - lightY
       const shadowX = this.baseX + (sdx * lift / LIGHT.z)
@@ -114,7 +113,6 @@ class Dot {
       context.lineTo(shadowX, shadowY)
       context.stroke()
 
-      // 2. Volumetric Pillar
       const grad = context.createLinearGradient(this.baseX, this.baseY, this.baseX, this.currentY)
       grad.addColorStop(0, `rgba(255, 255, 255, 0.01)`) 
       grad.addColorStop(1, `rgba(255, 255, 255, ${finalOpacity * 0.3})`)
@@ -127,7 +125,6 @@ class Dot {
       context.stroke()
     }
 
-    // 3. Spherical Cap (Dot)
     context.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`
     context.beginPath()
     context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
@@ -166,14 +163,25 @@ function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
   
-  // Draw Logo "Footprint" (Soft Ambient Occlusion Glow)
-  const logoShadowGrad = ctx.createRadialGradient(logoPos.x, logoPos.y + 60, 0, logoPos.x, logoPos.y + 60, 100)
-  logoShadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.6)')
-  logoShadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)')
-  ctx.fillStyle = logoShadowGrad
-  ctx.beginPath()
-  ctx.ellipse(logoPos.x, logoPos.y + 60, 100, 40, 0, 0, Math.PI * 2)
-  ctx.fill()
+  // Draw the TRUE SHAPE shadow (Aura Logo Geometry)
+  if (logoImg.complete) {
+    ctx.save()
+    // Transform logo to shadow projection (Down and slightly offset)
+    const shadowY = logoPos.y + 45
+    const shadowWidth = logoPos.size * 1.1
+    const shadowHeight = logoPos.size * 0.8 // Squashed for perspective
+    
+    ctx.filter = 'brightness(0) blur(14px)'
+    ctx.globalAlpha = 0.7
+    ctx.drawImage(
+      logoImg, 
+      logoPos.x - shadowWidth / 2, 
+      shadowY - shadowHeight / 2, 
+      shadowWidth, 
+      shadowHeight
+    )
+    ctx.restore()
+  }
 
   for (let i = 0; i < dots.length; i++) {
     dots[i].update(mouseX.value, mouseY.value, isHovering.value)
@@ -265,8 +273,8 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   padding: 52px 40px;
-  /* Logo hover lift */
-  transform: translate3d(0, -15px, 0);
+  /* Hover lift */
+  transform: translate3d(0, -10px, 0);
 }
 
 @keyframes obsidian-shimmer {
