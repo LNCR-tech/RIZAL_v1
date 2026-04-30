@@ -21,12 +21,18 @@
 <script setup>
 import { onErrorCaptured, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { isChunkLoadError, attemptChunkRecovery } from '@/services/appBootstrap.js'
 
 const route = useRoute()
 const router = useRouter()
 const errorMessage = ref('')
 
 onErrorCaptured((error, instance, info) => {
+  if (isChunkLoadError(error)) {
+    attemptChunkRecovery(route.fullPath)
+    return false
+  }
+
   const componentName = instance?.type?.__name || instance?.type?.name || 'unknown component'
   const message = String(error?.message || error || 'Unexpected render error.').trim()
   console.error('Aura route render error:', {

@@ -21,7 +21,7 @@ function normalizeErrorMessage(error, context = '') {
   return context ? `${cleanedMessage} (${context})` : cleanedMessage
 }
 
-function isChunkLoadError(error) {
+export function isChunkLoadError(error) {
   const message = String(
     error?.message ||
     error?.reason?.message ||
@@ -38,7 +38,7 @@ function clearChunkReloadTarget() {
   window.sessionStorage?.removeItem(CHUNK_RELOAD_TARGET_KEY)
 }
 
-async function attemptChunkRecovery(targetPath = '') {
+export function attemptChunkRecovery(targetPath = '') {
   if (typeof window === 'undefined') return false
 
   const normalizedTarget = String(targetPath || window.location.pathname || '/').trim() || '/'
@@ -83,8 +83,8 @@ export function installAppErrorHandling(app, router) {
   if (handlersInstalled) return
   handlersInstalled = true
 
-  const handleError = async (error, context = '', targetPath = '') => {
-    if (isChunkLoadError(error) && await attemptChunkRecovery(targetPath)) {
+  const handleError = (error, context = '', targetPath = '') => {
+    if (isChunkLoadError(error) && attemptChunkRecovery(targetPath)) {
       return
     }
 
