@@ -30,9 +30,14 @@ from lib.llm import call_openai, call_llm_stream, _extract_text_content, _sugges
 from lib.prompt_budget import estimate_total_prompt_tokens
 from lib.tools_logic import parse_tool_arguments, sanitize_tool_args, looks_like_tool_markup, extract_function_markup, recover_tool_call_from_message
 
-logger = logging.getLogger("uvicorn.error")
+import re
 
-# --- Configuration (Verbatim from v1) ---
+_THOUGHT_RE = re.compile(r'<thought>.*?</thought>', re.DOTALL | re.IGNORECASE)
+
+def _strip_thought_tags(text: str) -> str:
+    return _THOUGHT_RE.sub('', text).lstrip('\n')
+
+
 ASSISTANT_DIR = os.path.dirname(__file__)
 
 class AssistantRequest(BaseModel):
@@ -396,7 +401,7 @@ async def assistant_stream(
                 async for chunk in call_llm_stream(messages, tools=tools):
                     # If it's an intermediate text chunk, stream it immediately
                     if chunk.get("type") == "chunk":
-                        content = chunk.get("content", "")
+                        content = _strip_thought_tags(chunk.get("content", ""))
                         if content:
                             final_text += content
                             await queue.put(_sse_event("message", {"conversation_id": conversation_id, "content": content}))
@@ -417,7 +422,7 @@ async def assistant_stream(
                                 messages[-1] = recovered
                                 continue
                         
-                        final_text = content
+                        final_text = _strip_thought_tags(content)
                     break
                 
                 # Execute Tools via MCP
