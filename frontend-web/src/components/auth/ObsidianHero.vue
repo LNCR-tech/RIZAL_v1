@@ -30,8 +30,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * ObsidianHero.vue - 3D Pin-Mesh Edition
- * Implements "Pillar" connections for a tactical 3D depth effect.
+ * ObsidianHero.vue - Volumetric 3D Edition
+ * Implements fake shadow mapping and light-aware pillar shading.
  */
 
 const heroContainer = ref(null)
@@ -45,15 +45,18 @@ const isHovering = ref(false)
 // Grid Settings
 const GRID_SIZE = 20
 const DOT_SIZE = 1.5
-const HOVER_RADIUS = 120
-const MAX_LIFT = 12 // Increased lift for better pillar visibility
+const HOVER_RADIUS = 130
+const MAX_LIFT = 15 // Higher lift for better lighting visibility
 
 let ctx = null
 let width = 0
 let height = 0
 let rafId = null
 
-// Dot object structure
+// Lighting Settings
+const LIGHT_X = -200 // Light source is top-left
+const LIGHT_Y = -200
+
 class Dot {
   constructor(x, y) {
     this.baseX = x
@@ -71,29 +74,42 @@ class Dot {
     if (hovering && dist < HOVER_RADIUS) {
       const factor = 1 - (dist / HOVER_RADIUS)
       const targetY = this.baseY - (factor * MAX_LIFT)
-      
       this.currentY += (targetY - this.currentY) * 0.1
       this.targetOpacity = 0.16 + (factor * 0.8)
     } else {
       this.currentY += (this.baseY - this.currentY) * 0.08
       this.targetOpacity = 0.16
     }
-
     this.opacity += (this.targetOpacity - this.opacity) * 0.1
   }
 
   draw(context) {
-    // 1. Draw the "Pillar" (Stem) if lifted
-    if (Math.abs(this.currentY - this.baseY) > 0.5) {
-      context.strokeStyle = `rgba(255, 255, 255, ${this.opacity * 0.25})`
-      context.lineWidth = 0.5
+    const lift = this.baseY - this.currentY
+
+    if (lift > 0.5) {
+      // 1. Draw "Ambient Occlusion" Shadow at the base
+      // The shadow is offset based on the height (lift)
+      const shadowAlpha = (this.opacity - 0.16) * 0.4
+      context.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`
+      context.beginPath()
+      context.ellipse(this.baseX + (lift * 0.3), this.baseY + (lift * 0.2), DOT_SIZE, DOT_SIZE / 2, 0, 0, Math.PI * 2)
+      context.fill()
+
+      // 2. Draw Volumetric Pillar with Gradient
+      // Lit from the top, darker at the root
+      const grad = context.createLinearGradient(this.baseX, this.baseY, this.baseX, this.currentY)
+      grad.addColorStop(0, `rgba(255, 255, 255, 0.05)`) // Connection point
+      grad.addColorStop(1, `rgba(255, 255, 255, ${this.opacity * 0.3})`) // Near cap
+      
+      context.strokeStyle = grad
+      context.lineWidth = 0.8
       context.beginPath()
       context.moveTo(this.baseX, this.baseY)
       context.lineTo(this.baseX, this.currentY)
       context.stroke()
     }
 
-    // 2. Draw the "Cap" (The Dot)
+    // 3. Draw the "Cap" (Dot)
     context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
     context.beginPath()
     context.arc(this.baseX, this.currentY, DOT_SIZE / 2, 0, Math.PI * 2)
@@ -127,19 +143,16 @@ function resize() {
 function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
-
   for (let i = 0; i < dots.length; i++) {
     dots[i].update(mouseX.value, mouseY.value, isHovering.value)
     dots[i].draw(ctx)
   }
-
   rafId = requestAnimationFrame(animate)
 }
 
 function handleMouseMove(e) {
   if (!heroContainer.value) return
   const rect = heroContainer.value.getBoundingClientRect()
-  mouseX.value = e.clientX - rect.left
   mouseX.value = e.clientX - rect.left
   mouseY.value = e.clientY - rect.top
   isHovering.value = true
