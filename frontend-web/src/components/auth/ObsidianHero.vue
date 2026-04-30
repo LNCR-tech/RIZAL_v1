@@ -217,7 +217,16 @@ onUnmounted(() => {
 }
 
 @keyframes obsidian-shimmer {
-  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.6; }
-  100% { transform: translate3d(10%, 5%, 0) scale(1.15); opacity: 1; }
+  0% { 
+    transform: translate3d(-15%, -10%, 0) scale(1) rotate(0deg); 
+    opacity: 0.4; 
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% { 
+    transform: translate3d(15%, 10%, 0) scale(1.2) rotate(10deg); 
+    opacity: 0.4; 
+  }
 }
 </style>
