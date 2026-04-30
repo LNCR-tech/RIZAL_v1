@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
@@ -25,6 +25,8 @@ class User(Base):
     must_change_password = Column(Boolean, default=True, nullable=False)
     should_prompt_password_change = Column(Boolean, default=False, nullable=False)
     using_default_import_password = Column(Boolean, default=False, nullable=False)
+    age = Column(Integer, nullable=True)
+    gender = Column(Text, nullable=True)  # male, female, other
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 

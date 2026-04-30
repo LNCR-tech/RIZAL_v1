@@ -58,6 +58,7 @@ from app.models import platform_features
 from app.models import user
 from app.models import governance_hierarchy
 from app.models import sanctions
+from app.models import report
 
 settings = get_settings()
 ini_database_url = config.get_main_option("sqlalchemy.url")
