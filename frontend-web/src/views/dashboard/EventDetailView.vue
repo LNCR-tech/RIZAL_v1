@@ -12,7 +12,18 @@
       </button>
     </header>
 
-    <section v-if="event" class="detail-body" aria-labelledby="event-detail-title">
+    <section v-if="isLoadingEvent" class="empty-state empty-state--panel" aria-live="polite" aria-busy="true">
+      <p>Loading event details...</p>
+    </section>
+
+    <section v-else-if="eventLoadError" class="empty-state empty-state--panel" aria-live="polite">
+      <p>{{ eventLoadError }}</p>
+      <button class="detail-action detail-action--inline" type="button" @click="goBack">
+        Back to schedule
+      </button>
+    </section>
+
+    <section v-else-if="event" class="detail-body" aria-labelledby="event-detail-title">
       <section class="event-summary dashboard-enter dashboard-enter--2">
         <div class="event-summary__top">
           <span :class="['status-pill', statusPillClass]">
@@ -28,7 +39,7 @@
           </div>
           <div class="summary-item">
             <MapPin :size="17" aria-hidden="true" />
-            <span>{{ venueText }}</span>
+            <span>{{ locationText }}</span>
           </div>
         </div>
       </section>
@@ -56,9 +67,9 @@
         <article class="detail-panel">
           <header class="panel-header">
             <MapPin :size="17" aria-hidden="true" />
-            <h2>Venue</h2>
+            <h2>Location</h2>
           </header>
-          <p class="venue-name">{{ venueText }}</p>
+          <p class="venue-name">{{ locationText }}</p>
           <p class="venue-coordinates">{{ coordinateSummary }}</p>
           <button
             class="detail-action"
@@ -129,14 +140,17 @@
       </section>
     </section>
 
-    <section v-else class="empty-state">
+    <section v-else class="empty-state empty-state--panel">
       <p>Event not found.</p>
+      <button class="detail-action detail-action--inline" type="button" @click="goBack">
+        Back to schedule
+      </button>
     </section>
   </main>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -148,7 +162,7 @@ import {
   Navigation,
   Ruler,
 } from 'lucide-vue-next'
-import { usePreviewTheme } from '@/composables/usePreviewTheme.js'
+import { applyTheme, loadTheme } from '@/config/theme.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { studentDashboardPreviewData } from '@/data/studentDashboardPreview.js'
@@ -164,10 +178,12 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const { ensureDashboardEvent, getDashboardEventById } = useDashboardSession()
+const { ensureDashboardEvent, getDashboardEventById, token, schoolSettings } = useDashboardSession()
 const isCouncilPreviewRoute = computed(() => props.preview && isGovernancePreviewPath(route))
 const isSchoolItPreviewRoute = computed(() => props.preview && route.path.startsWith('/exposed/workspace'))
 const { previewBundle } = useSgPreviewBundle(isCouncilPreviewRoute)
+const isLoadingEvent = ref(false)
+const eventLoadError = ref('')
 
 const eventId = computed(() => Number(route.params.id))
 const previewEvent = computed(() => {
@@ -194,12 +210,54 @@ const previewSchoolSettings = computed(() => {
   return studentDashboardPreviewData.schoolSettings
 })
 
-usePreviewTheme(() => props.preview, previewSchoolSettings)
+const activeSchoolSettings = computed(() => (
+  props.preview
+    ? previewSchoolSettings.value
+    : schoolSettings.value
+))
 
-onMounted(() => {
-  if (props.preview) return
-  ensureDashboardEvent(eventId.value).catch(() => null)
-})
+watch(
+  activeSchoolSettings,
+  (nextSchoolSettings) => {
+    if (!nextSchoolSettings) return
+    applyTheme(loadTheme(nextSchoolSettings))
+  },
+  { immediate: true, deep: true }
+)
+
+watch(
+  [eventId, token],
+  async ([id, sessionToken]) => {
+    if (props.preview) return
+
+    if (!Number.isFinite(id)) {
+      eventLoadError.value = 'Event not found.'
+      return
+    }
+
+    if (!sessionToken) {
+      isLoadingEvent.value = true
+      eventLoadError.value = ''
+      return
+    }
+
+    isLoadingEvent.value = !event.value
+    eventLoadError.value = ''
+
+    try {
+      const loadedEvent = await ensureDashboardEvent(id)
+      if (!loadedEvent && !getDashboardEventById(id)) {
+        eventLoadError.value = 'Event not found.'
+      }
+    } catch (error) {
+      console.error('Unable to load event detail:', error?.message || error)
+      eventLoadError.value = error?.message || 'Unable to load this event.'
+    } finally {
+      isLoadingEvent.value = false
+    }
+  },
+  { immediate: true }
+)
 
 function goBack() {
   if (hasNavigableHistory(route)) {
@@ -261,7 +319,7 @@ const startTimeText = computed(() => formatTimeOnly(startDate.value))
 const endDateText = computed(() => formatDateOnly(endDate.value))
 const endTimeText = computed(() => formatTimeOnly(endDate.value))
 
-const venueText = computed(() => {
+const locationText = computed(() => {
   const location = event.value?.location || event.value?.venue || event.value?.address
   return String(location || 'Location not set').trim()
 })
@@ -281,9 +339,16 @@ const dateRange = computed(() => {
 
 const geoLatitude = computed(() => Number(event.value?.geo_latitude))
 const geoLongitude = computed(() => Number(event.value?.geo_longitude))
+function isValidLatitude(value) {
+  return Number.isFinite(value) && value >= -90 && value <= 90
+}
+
+function isValidLongitude(value) {
+  return Number.isFinite(value) && value >= -180 && value <= 180
+}
 
 const hasGeo = computed(() =>
-  Number.isFinite(geoLatitude.value) && Number.isFinite(geoLongitude.value)
+  isValidLatitude(geoLatitude.value) && isValidLongitude(geoLongitude.value)
 )
 
 const latitudeText = computed(() => {
@@ -346,7 +411,7 @@ const mapDestination = computed(() => {
   if (hasGeo.value) {
     return `${geoLatitude.value},${geoLongitude.value}`
   }
-  const fallback = venueText.value.trim()
+  const fallback = locationText.value.trim()
   return fallback || ''
 })
 
@@ -362,7 +427,7 @@ function openInMaps() {
   min-height: 100vh;
   padding: 20px 16px 118px;
   background: var(--color-bg);
-  color: var(--color-text-always-dark);
+  color: var(--color-text-primary);
 }
 
 .detail-header {
@@ -390,7 +455,7 @@ function openInMaps() {
   height: 42px;
   border-radius: 50%;
   background: var(--color-surface);
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
   border: none;
   cursor: pointer;
   transition: transform 0.15s ease;
@@ -401,9 +466,9 @@ function openInMaps() {
 }
 
 .icon-btn--ghost {
-  background: #ffffff;
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.08);
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-nav) 10%, transparent);
 }
 
 .detail-body {
@@ -419,9 +484,9 @@ function openInMaps() {
 .map-panel,
 .geo-panel {
   background: var(--color-surface);
-  border: 1px solid rgba(17, 24, 39, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
   border-radius: 8px;
-  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.07);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-nav) 9%, transparent);
 }
 
 .event-summary {
@@ -440,7 +505,7 @@ function openInMaps() {
   font-size: 24px;
   line-height: 1.16;
   font-weight: 800;
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -455,7 +520,7 @@ function openInMaps() {
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: start;
   gap: 10px;
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
@@ -496,7 +561,7 @@ function openInMaps() {
   margin: 0;
   font-size: 15px;
   line-height: 1.2;
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
 }
 
 .panel-header svg {
@@ -509,7 +574,7 @@ function openInMaps() {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted);
 }
 
 .time-grid {
@@ -521,9 +586,9 @@ function openInMaps() {
 .time-grid div {
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(17, 24, 39, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 82%, transparent);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.025);
+  background: color-mix(in srgb, var(--color-bg) 38%, var(--color-surface));
 }
 
 .time-grid span,
@@ -534,13 +599,13 @@ function openInMaps() {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted);
 }
 
 .time-grid strong,
 .time-grid small {
   display: block;
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
 }
 
 .time-grid strong {
@@ -552,7 +617,7 @@ function openInMaps() {
   margin-top: 2px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
 }
 
 .venue-name {
@@ -560,7 +625,7 @@ function openInMaps() {
   font-size: 17px;
   font-weight: 800;
   line-height: 1.25;
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
   overflow-wrap: anywhere;
 }
 
@@ -568,7 +633,7 @@ function openInMaps() {
   margin: 6px 0 14px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted);
   overflow-wrap: anywhere;
 }
 
@@ -600,6 +665,12 @@ function openInMaps() {
   transform: none;
 }
 
+.detail-action--inline {
+  width: auto;
+  min-width: 156px;
+  padding: 0 18px;
+}
+
 .map-shell {
   position: relative;
   width: 100%;
@@ -607,8 +678,8 @@ function openInMaps() {
   aspect-ratio: 16 / 10;
   border-radius: 8px;
   overflow: hidden;
-  background: #f5f7f8;
-  border: 1px solid rgba(17, 24, 39, 0.08);
+  background: color-mix(in srgb, var(--color-bg) 48%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 82%, transparent);
 }
 
 .map-frame {
@@ -627,10 +698,10 @@ function openInMaps() {
   gap: 8px;
   overflow: hidden;
   background-image:
-    linear-gradient(to right, rgba(17, 24, 39, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(17, 24, 39, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in srgb, var(--color-surface-text-muted) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-surface-text-muted) 14%, transparent) 1px, transparent 1px);
   background-size: 24px 24px;
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted);
   font-size: 12px;
   font-weight: 800;
 }
@@ -640,13 +711,13 @@ function openInMaps() {
   align-items: center;
   gap: 7px;
   min-height: 30px;
-  background: rgba(17, 24, 39, 0.06);
+  background: color-mix(in srgb, var(--color-bg) 45%, var(--color-surface));
   border-radius: 999px;
   padding: 0 12px;
   font-size: 11px;
   font-weight: 800;
-  color: var(--color-text-always-dark);
-  border: 1px solid rgba(17, 24, 39, 0.08);
+  color: var(--color-surface-text);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 82%, transparent);
 }
 
 .status-dot {
@@ -658,7 +729,7 @@ function openInMaps() {
 .dot--red { background: #ef4444; }
 .dot--yellow { background: #f59e0b; }
 .dot--green { background: #22c55e; }
-.dot--gray { background: #cfcfcf; }
+.dot--gray { background: var(--color-surface-text-muted); }
 
 .status-pill--upcoming { background: rgba(245, 158, 11, 0.12); }
 .status-pill--ongoing { background: rgba(239, 68, 68, 0.12); }
@@ -671,14 +742,14 @@ function openInMaps() {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(17, 24, 39, 0.06);
-  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-bg) 45%, var(--color-surface));
+  color: var(--color-surface-text-secondary);
   font-size: 11px;
   font-weight: 800;
 }
 
 .geo-state--muted {
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted);
 }
 
 .geo-list {
@@ -690,9 +761,9 @@ function openInMaps() {
 .geo-list article {
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(17, 24, 39, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 82%, transparent);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.025);
+  background: color-mix(in srgb, var(--color-bg) 38%, var(--color-surface));
 }
 
 .geo-list svg {
@@ -703,17 +774,34 @@ function openInMaps() {
 .geo-list strong {
   display: block;
   min-height: 18px;
-  color: var(--color-text-always-dark);
+  color: var(--color-surface-text);
   font-size: 13px;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
 .empty-state {
+  width: min(100%, 720px);
+  margin: 0 auto;
   text-align: center;
-  padding: 60px 0;
+  padding: 60px 16px;
   color: var(--color-text-muted);
   font-weight: 600;
+}
+
+.empty-state--panel {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-surface-text-muted);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-nav) 9%, transparent);
+}
+
+.empty-state p {
+  margin: 0;
 }
 
 @media (min-width: 768px) {

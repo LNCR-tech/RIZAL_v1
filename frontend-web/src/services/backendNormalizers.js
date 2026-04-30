@@ -4,31 +4,22 @@ const DEFAULT_PRIMARY_COLOR = '#0057B8'
 const DEFAULT_SECONDARY_COLOR = '#FFD400'
 const DEFAULT_ACCENT_COLOR = '#000000'
 
-function nowIso() {
-    return new Date().toISOString()
-}
-
 function toOptionalString(value, fallback = null) {
     if (value == null) return fallback
     const normalized = String(value).trim()
     return normalized.length ? normalized : fallback
 }
 
-function normalizeUtcDateTimeString(value, fallback = null) {
+const ISO_DATETIME_WITHOUT_TIMEZONE_PATTERN = /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/
+const ISO_TIMEZONE_SUFFIX_PATTERN = /([zZ]|[+-]\d{2}:\d{2})$/
+
+function toOptionalUtcDateTimeString(value, fallback = null) {
     const normalized = toOptionalString(value, fallback)
-    if (!normalized) return fallback
+    if (!normalized) return normalized
+    if (ISO_TIMEZONE_SUFFIX_PATTERN.test(normalized)) return normalized
+    if (!ISO_DATETIME_WITHOUT_TIMEZONE_PATTERN.test(normalized)) return normalized
 
-    const timezoneSuffixPattern = /(z|[+\-]\d{2}:\d{2})$/i
-    if (timezoneSuffixPattern.test(normalized)) {
-        return normalized
-    }
-
-    const isoLikeValue = normalized.replace(' ', 'T')
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?$/.test(isoLikeValue)) {
-        return `${isoLikeValue}Z`
-    }
-
-    return normalized
+    return `${normalized.replace(' ', 'T')}Z`
 }
 
 function toOptionalNumber(value, fallback = null) {
@@ -111,7 +102,7 @@ export function normalizeTokenPayload(payload = {}) {
         session_id: toOptionalString(payload.session_id, null),
         mfa_required: Boolean(payload.mfa_required),
         mfa_challenge_id: toOptionalString(payload.mfa_challenge_id, null),
-        mfa_expires_at: toOptionalString(payload.mfa_expires_at, null),
+        mfa_expires_at: toOptionalUtcDateTimeString(payload.mfa_expires_at, null),
         face_verification_required: Boolean(payload.face_verification_required),
         face_reference_enrolled: Boolean(payload.face_reference_enrolled),
         face_verification_pending: Boolean(payload.face_verification_pending),
@@ -167,11 +158,11 @@ export function normalizeEvent(event = {}) {
         id: toOptionalNumber(event.id, 0),
         school_id: toOptionalNumber(event.school_id, null),
         name: toOptionalString(event.name, 'Untitled Event'),
-        location: toOptionalString(event.location, 'TBA'),
+        location: toOptionalString(event.location, null),
         scope_label: toOptionalString(event.scope_label, null),
         start_datetime: toOptionalString(event.start_datetime, null),
         end_datetime: toOptionalString(event.end_datetime, null),
-        status: toOptionalString(event.status, 'upcoming'),
+        status: toOptionalString(event.status, null),
         geo_required: Boolean(event.geo_required),
         geo_latitude: typeof event.geo_latitude === 'number' ? event.geo_latitude : toOptionalNumber(event.geo_latitude, null),
         geo_longitude: typeof event.geo_longitude === 'number' ? event.geo_longitude : toOptionalNumber(event.geo_longitude, null),
@@ -194,12 +185,12 @@ export function normalizeAttendanceRecord(attendance = {}) {
         event_id: toOptionalNumber(attendance.event_id, 0),
         event_name: toOptionalString(attendance.event_name, null),
         student_id: toIntegerOrOriginal(attendance.student_id, null),
-        method: toOptionalString(attendance.method, 'manual'),
-        status: toOptionalString(attendance.status, 'present'),
+        method: toOptionalString(attendance.method, null),  // NULL preserved - no default
+        status: toOptionalString(attendance.status, null),
         display_status: toOptionalString(attendance.display_status, null),
         notes: toOptionalString(attendance.notes, null),
-        time_in: toOptionalString(attendance.time_in, null),
-        time_out: toOptionalString(attendance.time_out, null),
+        time_in: toOptionalUtcDateTimeString(attendance.time_in, null),
+        time_out: toOptionalUtcDateTimeString(attendance.time_out, null),
         completion_state: toOptionalString(attendance.completion_state, null),
         check_in_status: toOptionalString(attendance.check_in_status, null),
         check_out_status: toOptionalString(attendance.check_out_status, null),
@@ -273,7 +264,7 @@ export function normalizeStudentAttendanceSummary(payload = {}) {
         attendance_rate: typeof payload?.attendance_rate === 'number'
             ? payload.attendance_rate
             : toOptionalNumber(payload?.attendance_rate, 0),
-        last_attendance: toOptionalString(payload?.last_attendance, null),
+        last_attendance: toOptionalUtcDateTimeString(payload?.last_attendance, null),
     }
 }
 
@@ -334,7 +325,7 @@ export function normalizeUserWithRelations(user = null) {
         middle_name: toOptionalString(user.middle_name, null),
         last_name: toOptionalString(user.last_name, ''),
         is_active: typeof user.is_active === 'boolean' ? user.is_active : true,
-        created_at: toOptionalString(user.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(user.created_at, null),
         school_id: toOptionalNumber(user.school_id, null),
         school_name: toOptionalString(user.school_name, null),
         school_code: toOptionalString(user.school_code, null),
@@ -362,8 +353,8 @@ export function normalizeFaceStatus(payload = {}) {
         face_verification_required: Boolean(payload.face_verification_required),
         face_reference_enrolled: Boolean(payload.face_reference_enrolled),
         provider: toOptionalString(payload.provider, 'face_recognition'),
-        updated_at: toOptionalString(payload.updated_at, null),
-        last_verified_at: toOptionalString(payload.last_verified_at, null),
+        updated_at: toOptionalUtcDateTimeString(payload.updated_at, null),
+        last_verified_at: toOptionalUtcDateTimeString(payload.last_verified_at, null),
         liveness_enabled: payload.liveness_enabled !== false,
         anti_spoof_ready: Boolean(payload.anti_spoof_ready),
         anti_spoof_reason: toOptionalString(payload.anti_spoof_reason, null),
@@ -377,7 +368,7 @@ export function normalizeFaceReferenceResponse(payload = {}) {
         user_id: toOptionalNumber(payload.user_id, null),
         face_reference_enrolled: Boolean(payload.face_reference_enrolled),
         provider: toOptionalString(payload.provider, 'face_recognition'),
-        updated_at: toOptionalString(payload.updated_at, null),
+        updated_at: toOptionalUtcDateTimeString(payload.updated_at, null),
         liveness: normalizeLiveness(payload.liveness),
     }
 }
@@ -389,7 +380,7 @@ export function normalizeFaceVerificationResponse(payload = {}) {
         distance: typeof payload.distance === 'number' ? payload.distance : toOptionalNumber(payload.distance, null),
         confidence: typeof payload.confidence === 'number' ? payload.confidence : toOptionalNumber(payload.confidence, null),
         threshold: typeof payload.threshold === 'number' ? payload.threshold : toOptionalNumber(payload.threshold, null),
-        verified_at: toOptionalString(payload.verified_at, null),
+        verified_at: toOptionalUtcDateTimeString(payload.verified_at, null),
         access_token: toOptionalString(payload.access_token, null),
         token_type: toOptionalString(payload.token_type, 'bearer'),
         session_id: toOptionalString(payload.session_id, null),
@@ -429,8 +420,8 @@ export function normalizeSchoolSummary(summary = null) {
         school_code: toOptionalString(summary.school_code, null),
         subscription_status: toOptionalString(summary.subscription_status, 'trial'),
         active_status: typeof summary.active_status === 'boolean' ? summary.active_status : true,
-        created_at: toOptionalString(summary.created_at, nowIso()),
-        updated_at: toOptionalString(summary.updated_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(summary.created_at, null),
+        updated_at: toOptionalUtcDateTimeString(summary.updated_at, null),
     }
 }
 
@@ -463,7 +454,7 @@ export function normalizeAuditLogItem(item = null) {
         details_json: item.details_json && typeof item.details_json === 'object'
             ? item.details_json
             : null,
-        created_at: toOptionalString(item.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(item.created_at, null),
     }
 }
 
@@ -493,7 +484,7 @@ export function normalizeNotificationLogItem(item = null) {
         metadata_json: item.metadata_json && typeof item.metadata_json === 'object'
             ? item.metadata_json
             : null,
-        created_at: normalizeUtcDateTimeString(item.created_at, nowIso()),
+        created_at: toOptionalUtcDateTimeString(item.created_at, null),
     }
 }
 
@@ -518,7 +509,7 @@ export function normalizeGovernanceSetting(setting = null) {
         audit_log_retention_days: toOptionalNumber(setting.audit_log_retention_days, 365),
         import_file_retention_days: toOptionalNumber(setting.import_file_retention_days, 30),
         auto_delete_enabled: Boolean(setting.auto_delete_enabled),
-        updated_at: toOptionalString(setting.updated_at, nowIso()),
+        updated_at: toOptionalUtcDateTimeString(setting.updated_at, null),
     }
 }
 
@@ -540,8 +531,8 @@ export function normalizeGovernanceRequest(item = null) {
             : null,
         output_path: toOptionalString(item.output_path, null),
         handled_by_user_id: toOptionalNumber(item.handled_by_user_id, null),
-        created_at: toOptionalString(item.created_at, nowIso()),
-        resolved_at: toOptionalString(item.resolved_at, null),
+        created_at: toOptionalUtcDateTimeString(item.created_at, null),
+        resolved_at: toOptionalUtcDateTimeString(item.resolved_at, null),
     }
 }
 
@@ -590,7 +581,7 @@ function normalizeEventTimeStatusInfo(payload = null) {
         ...payload,
         event_status: toOptionalString(payload.event_status ?? payload.status, 'unknown'),
         status: toOptionalString(payload.event_status ?? payload.status, 'unknown'),
-        current_time: toOptionalString(payload.current_time, nowIso()),
+        current_time: toOptionalString(payload.current_time, null),
         check_in_opens_at: toOptionalString(payload.check_in_opens_at, null),
         start_time: toOptionalString(payload.start_time, null),
         end_time: toOptionalString(payload.end_time, null),
@@ -617,7 +608,7 @@ function normalizeEventAttendanceDecisionInfo(payload = null) {
         attendance_status: toOptionalString(payload.attendance_status, null),
         reason_code: toOptionalString(payload.reason_code, null),
         message: toOptionalString(payload.message, ''),
-        current_time: toOptionalString(payload.current_time, nowIso()),
+        current_time: toOptionalString(payload.current_time, null),
         check_in_opens_at: toOptionalString(payload.check_in_opens_at, null),
         start_time: toOptionalString(payload.start_time, null),
         end_time: toOptionalString(payload.end_time, null),
@@ -678,6 +669,8 @@ export function normalizeGovernanceUserSummary(user = null) {
 }
 
 export function normalizeGovernanceStudentCandidate(candidate = {}) {
+    if (!candidate || typeof candidate !== 'object') return null
+
     return {
         ...candidate,
         user: normalizeGovernanceUserSummary(candidate.user),
@@ -699,6 +692,8 @@ export function normalizeGovernancePermission(permission = null) {
 }
 
 export function normalizeGovernanceMemberPermission(permission = {}) {
+    if (!permission || typeof permission !== 'object') return null
+
     const permissionRecord = normalizeGovernancePermission(permission.permission)
 
     return {
@@ -706,7 +701,7 @@ export function normalizeGovernanceMemberPermission(permission = {}) {
         id: toOptionalNumber(permission.id, 0),
         permission_id: toOptionalNumber(permission.permission_id, null),
         granted_by_user_id: toOptionalNumber(permission.granted_by_user_id, null),
-        created_at: toOptionalString(permission.created_at, null),
+        created_at: toOptionalUtcDateTimeString(permission.created_at, null),
         permission: permissionRecord,
         permission_code: toOptionalString(permission.permission_code ?? permissionRecord?.permission_code, null),
         permission_name: toOptionalString(permission.permission_name ?? permissionRecord?.permission_name, null),
@@ -715,6 +710,8 @@ export function normalizeGovernanceMemberPermission(permission = {}) {
 }
 
 export function normalizeGovernanceMember(member = {}) {
+    if (!member || typeof member !== 'object') return null
+
     return {
         ...member,
         id: toOptionalNumber(member.id, 0),
@@ -722,16 +719,18 @@ export function normalizeGovernanceMember(member = {}) {
         user_id: toOptionalNumber(member.user_id, null),
         position_title: toOptionalString(member.position_title, null),
         assigned_by_user_id: toOptionalNumber(member.assigned_by_user_id, null),
-        assigned_at: toOptionalString(member.assigned_at, null),
+        assigned_at: toOptionalUtcDateTimeString(member.assigned_at, null),
         is_active: typeof member.is_active === 'boolean' ? member.is_active : true,
         user: normalizeGovernanceUserSummary(member.user),
         member_permissions: Array.isArray(member.member_permissions)
-            ? member.member_permissions.map(normalizeGovernanceMemberPermission)
+            ? member.member_permissions.map(normalizeGovernanceMemberPermission).filter(Boolean)
             : [],
     }
 }
 
 export function normalizeGovernanceUnitPermission(permission = {}) {
+    if (!permission || typeof permission !== 'object') return null
+
     const permissionRecord = normalizeGovernancePermission(permission.permission)
 
     return {
@@ -740,7 +739,7 @@ export function normalizeGovernanceUnitPermission(permission = {}) {
         governance_unit_id: toOptionalNumber(permission.governance_unit_id, null),
         permission_id: toOptionalNumber(permission.permission_id, null),
         granted_by_user_id: toOptionalNumber(permission.granted_by_user_id, null),
-        created_at: toOptionalString(permission.created_at, null),
+        created_at: toOptionalUtcDateTimeString(permission.created_at, null),
         permission: permissionRecord,
         permission_code: toOptionalString(permission.permission_code ?? permissionRecord?.permission_code, null),
         permission_name: toOptionalString(permission.permission_name ?? permissionRecord?.permission_name, null),
@@ -764,13 +763,13 @@ export function normalizeGovernanceUnitDetail(unit = null) {
         program_id: toOptionalNumber(unit.program_id, null),
         created_by_user_id: toOptionalNumber(unit.created_by_user_id, null),
         is_active: typeof unit.is_active === 'boolean' ? unit.is_active : true,
-        created_at: toOptionalString(unit.created_at, null),
-        updated_at: toOptionalString(unit.updated_at, null),
+        created_at: toOptionalUtcDateTimeString(unit.created_at, null),
+        updated_at: toOptionalUtcDateTimeString(unit.updated_at, null),
         members: Array.isArray(unit.members)
-            ? unit.members.map(normalizeGovernanceMember)
+            ? unit.members.map(normalizeGovernanceMember).filter(Boolean)
             : [],
         unit_permissions: Array.isArray(unit.unit_permissions)
-            ? unit.unit_permissions.map(normalizeGovernanceUnitPermission)
+            ? unit.unit_permissions.map(normalizeGovernanceUnitPermission).filter(Boolean)
             : [],
     }
 }

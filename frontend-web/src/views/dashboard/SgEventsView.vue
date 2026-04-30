@@ -1,5 +1,6 @@
 <template>
-  <section class="sg-sub-page">
+  <div class="sg-events-view">
+    <section class="sg-sub-page">
     <header class="sg-sub-header dashboard-enter dashboard-enter--1">
       <div style="display: flex; align-items: center; gap: 16px;">
         <button class="sg-sub-back" type="button" @click="goBack">
@@ -25,15 +26,15 @@
           <span class="sg-summary-lbl">Total Events</span>
         </div>
         <div class="sg-summary-card">
-          <span class="sg-summary-val" style="color: #3498db">{{ upcomingCount }}</span>
+          <span class="sg-summary-val" style="color: var(--color-primary)">{{ upcomingCount }}</span>
           <span class="sg-summary-lbl">Upcoming</span>
         </div>
         <div class="sg-summary-card">
-          <span class="sg-summary-val" style="color: #27ae60">{{ ongoingCount }}</span>
+          <span class="sg-summary-val" style="color: var(--color-status-compliant)">{{ ongoingCount }}</span>
           <span class="sg-summary-lbl">Ongoing</span>
         </div>
         <div class="sg-summary-card">
-          <span class="sg-summary-val" style="color: #95a5a6">{{ completedCount }}</span>
+          <span class="sg-summary-val" style="color: var(--color-surface-text-muted)">{{ completedCount }}</span>
           <span class="sg-summary-lbl">Completed</span>
         </div>
       </div>
@@ -60,7 +61,7 @@
               <div>
                 <p class="sg-create-eyebrow">New governance event</p>
                 <h2 class="sg-create-heading">Create Event</h2>
-                <p class="sg-create-copy">Set the event schedule, venue, and optional attendance geofence.</p>
+                <p class="sg-create-copy">Set the event schedule, location, and optional attendance geofence.</p>
               </div>
 
               <button
@@ -81,11 +82,6 @@
                   <input v-model="form.name" type="text" placeholder="e.g. Campus Orientation" required />
                 </label>
 
-                <label class="sg-field-label sg-field-label--wide">
-                  <span>Venue Name</span>
-                  <input v-model="form.location_name" type="text" placeholder="e.g. University Gymnasium" required />
-                </label>
-
                 <label class="sg-field-label">
                   <span>Start date & time</span>
                   <input v-model="form.start_time" type="datetime-local" required />
@@ -104,7 +100,7 @@
                       <MapPin :size="18" />
                     </span>
                     <div>
-                      <h3>Attendance Location</h3>
+                      <h3>Location</h3>
                       <p>{{ geofenceSummary }}</p>
                     </div>
                   </div>
@@ -117,6 +113,7 @@
                 </header>
 
                 <EventLocationPicker
+                  v-model:location-label="form.location_name"
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
                   :radius-m="form.radius_meters"
@@ -224,19 +221,20 @@
         <p v-else class="sg-sub-empty">No events found matching your search.</p>
       </div>
     </template>
-  </section>
+    </section>
 
-  <EventEditorSheet
-    :is-open="isEventEditorOpen"
-    :event="editingEvent"
-    title="Edit Governance Event"
-    description="Update the event details using the same backend fields the governance event API accepts."
-    submit-label="Save Event"
-    :saving="isMutatingEvent"
-    :error-message="eventEditorError"
-    @close="closeEventEditor"
-    @save="saveEventEdits"
-  />
+    <EventEditorSheet
+      :is-open="isEventEditorOpen"
+      :event="editingEvent"
+      title="Edit Governance Event"
+      description="Update the event details using the same backend fields the governance event API accepts."
+      submit-label="Save Event"
+      :saving="isMutatingEvent"
+      :error-message="eventEditorError"
+      @close="closeEventEditor"
+      @save="saveEventEdits"
+    />
+  </div>
 </template>
 
 <script setup>
@@ -255,6 +253,7 @@ import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
 import { useSgPreviewBundle } from '@/composables/useSgPreviewBundle.js'
 import { useSgDashboard } from '@/composables/useSgDashboard.js'
+import { createIdempotencyKey } from '@/services/idempotency.js'
 import {
   BackendApiError,
   createGovernanceEvent,
@@ -298,6 +297,7 @@ const eventEditorError = ref('')
 const isCreating = ref(false)
 const isSubmitting = ref(false)
 const createError = ref('')
+const pendingCreateRequestKey = ref('')
 const form = ref({
   name: '',
   location_name: '',
@@ -522,6 +522,7 @@ function openCreateForm() {
 function closeCreateForm(force = false) {
   if (isSubmitting.value && !force) return
   createError.value = ''
+  pendingCreateRequestKey.value = ''
   isCreating.value = false
 }
 
@@ -554,7 +555,8 @@ function closeAllEventSwipes() {
 
 function handleDocumentPointerDown(event) {
   if (!hasOpenEventSwipe.value) return
-  if (event.target.closest('.sg-event-swipe-container')) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.sg-event-swipe-container')) return
   closeAllEventSwipes()
 }
 
@@ -1010,7 +1012,7 @@ function canRetryCreateEvent(error) {
   )
 }
 
-async function createEventWithResolvedScope(url, payload) {
+async function createEventWithResolvedScope(url, payload, requestOptions = {}) {
   const access = await resolveGovernanceEventAccess(url)
   const attempts = await buildCreateEventAttempts(url, access, payload)
 
@@ -1024,7 +1026,8 @@ async function createEventWithResolvedScope(url, payload) {
         url,
         token.value,
         attempt.payload,
-        attempt.params
+        attempt.params,
+        requestOptions
       )
 
       if (attempt.context) {
@@ -1047,6 +1050,8 @@ async function createEventWithResolvedScope(url, payload) {
 }
 
 async function submitEvent() {
+  if (isSubmitting.value) return
+
   isSubmitting.value = true
   createError.value = ''
   try {
@@ -1067,14 +1072,28 @@ async function submitEvent() {
       return
     }
 
-    await createEventWithResolvedScope(apiBaseUrl.value, buildCreateEventPayload())
+    if (!pendingCreateRequestKey.value) {
+      pendingCreateRequestKey.value = createIdempotencyKey('governance-event')
+    }
+
+    await createEventWithResolvedScope(
+      apiBaseUrl.value,
+      buildCreateEventPayload(),
+      {
+        headers: {
+          'X-Idempotency-Key': pendingCreateRequestKey.value,
+        },
+      }
+    )
     closeCreateForm(true)
     resetEventForm()
+    pendingCreateRequestKey.value = ''
 
     // Refresh events
     await loadEvents(apiBaseUrl.value)
     
   } catch (err) {
+    pendingCreateRequestKey.value = ''
     createError.value = err?.message || 'Error creating event.'
   } finally {
     isSubmitting.value = false
@@ -1089,6 +1108,15 @@ watch(
   },
   { immediate: true }
 )
+
+// Safety valve: if sgLoading never resolves, force a load attempt after 7s.
+onMounted(() => {
+  setTimeout(() => {
+    if (isLoading.value && apiBaseUrl.value) {
+      loadEvents(apiBaseUrl.value)
+    }
+  }, 7000)
+})
 
 async function loadEvents(url) {
   if (props.preview) {
@@ -1154,6 +1182,7 @@ async function loadEvents(url) {
 async function reload() { if (apiBaseUrl.value) await loadEvents(apiBaseUrl.value) }
 
 function resetEventForm() {
+  pendingCreateRequestKey.value = ''
   form.value = {
     name: '',
     location_name: '',
@@ -1475,8 +1504,8 @@ function resolveNextPreviewEventId() {
   margin: 0;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(220, 38, 38, 0.12);
-  color: #7f1d1d;
+  background: color-mix(in srgb, var(--color-status-non-compliant) 12%, transparent);
+  color: var(--color-status-non-compliant);
   font-size: 13px;
   font-weight: 800;
   line-height: 1.5;
@@ -1639,7 +1668,7 @@ function resolveNextPreviewEventId() {
   cursor: not-allowed;
   transform: none;
 }
-.sg-action-delete { color: #e74c3c; }
+.sg-action-delete { color: var(--color-status-non-compliant); }
 .sg-action-edit { color: var(--color-text-primary); border-color: color-mix(in srgb, var(--color-text-primary) 30%, transparent); }
 
 /* Foreground Pill (The Main Row) */

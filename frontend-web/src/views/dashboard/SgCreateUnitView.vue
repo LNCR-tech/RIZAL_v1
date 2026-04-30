@@ -497,7 +497,7 @@ async function handleCreate() {
 .sg-create-success-copy { font-size: 14px; color: var(--color-text-muted); margin-bottom: 20px; }
 .sg-create-success-actions { display: flex; gap: 12px; justify-content: center; }
 .sg-create-back { background: none; border: none; color: var(--color-text-muted); font-size: 13px; font-weight: 600; cursor: pointer; }
-.sg-create-error { color: #e74c3c; font-size: 13px; text-align: center; line-height: 1.6; }
+.sg-create-error { color: var(--color-status-non-compliant); font-size: 13px; text-align: center; line-height: 1.6; }
 
 @media (max-width: 640px) {
   .sg-create-head { grid-template-columns: auto minmax(0, 1fr); }

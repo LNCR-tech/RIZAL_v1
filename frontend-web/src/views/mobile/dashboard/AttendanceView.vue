@@ -139,44 +139,6 @@
           </section>
         </div>
       </Transition>
-
-      <Transition name="mobile-attendance-failure">
-        <div
-          v-if="attendanceFailure"
-          class="mobile-student-attendance__failure-layer"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="mobile-attendance-failure-title"
-          aria-describedby="mobile-attendance-failure-message"
-        >
-          <section class="mobile-student-attendance__failure-card">
-            <span class="mobile-student-attendance__failure-icon" aria-hidden="true">
-              <ShieldX :size="28" :stroke-width="2.4" />
-            </span>
-            <p class="mobile-student-attendance__failure-eyebrow">Check-in blocked</p>
-            <h2
-              id="mobile-attendance-failure-title"
-              class="mobile-student-attendance__failure-title"
-            >
-              Face verification failed
-            </h2>
-            <p
-              id="mobile-attendance-failure-message"
-              class="mobile-student-attendance__failure-message"
-            >
-              {{ attendanceFailure.message }}
-            </p>
-            <button
-              type="button"
-              class="mobile-student-attendance__failure-button"
-              @click="retryAttendanceFailure"
-            >
-              <ScanFace :size="17" :stroke-width="2.3" />
-              <span>Scan Again</span>
-            </button>
-          </section>
-        </div>
-      </Transition>
     </template>
 
     <section v-else class="mobile-student-attendance__missing">
@@ -199,7 +161,6 @@ import {
   Clock3,
   LoaderCircle,
   MapPin,
-  ScanFace,
   Shield,
   ShieldCheck,
   ShieldX,
@@ -217,7 +178,6 @@ const props = defineProps({
 const {
   actionLabel,
   actionTone,
-  attendanceFailure,
   cameraReady,
   currentLocationLabel,
   currentTimeLabel,
@@ -231,7 +191,6 @@ const {
   isInitializing,
   isResolvingLocation,
   isSubmitting,
-  retryAttendanceFailure,
   setBackgroundVideoRef,
   setFocusVideoRef,
   statusModel,
@@ -569,89 +528,6 @@ const {
   transform: scale(0.98);
 }
 
-.mobile-student-attendance__failure-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 16px max(24px, env(safe-area-inset-bottom, 24px));
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 34%, rgba(0, 0, 0, 0.52) 100%);
-}
-
-.mobile-student-attendance__failure-card {
-  width: min(100%, 360px);
-  padding: 20px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.99);
-  box-shadow: 0 24px 58px rgba(7, 14, 23, 0.32);
-  border: 1px solid rgba(190, 18, 60, 0.14);
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-  text-align: center;
-}
-
-.mobile-student-attendance__failure-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(220, 38, 38, 0.12);
-  color: #dc2626;
-}
-
-.mobile-student-attendance__failure-eyebrow {
-  margin: 0;
-  color: #b91c1c;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.mobile-student-attendance__failure-title {
-  margin: 0;
-  color: #111827;
-  font-size: 21px;
-  line-height: 1.08;
-  font-weight: 800;
-}
-
-.mobile-student-attendance__failure-message {
-  margin: 0;
-  color: #475569;
-  font-size: 13px;
-  line-height: 1.45;
-  font-weight: 600;
-}
-
-.mobile-student-attendance__failure-button {
-  width: 100%;
-  min-height: 50px;
-  border: none;
-  border-radius: 999px;
-  background: #111827;
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-family: 'Manrope', sans-serif;
-  font-size: 14px;
-  line-height: 1;
-  font-weight: 800;
-  transition: transform 180ms ease, opacity 180ms ease;
-}
-
-.mobile-student-attendance__failure-button:active {
-  transform: scale(0.98);
-}
-
 .mobile-student-attendance__missing {
   position: absolute;
   inset: 0;
@@ -701,38 +577,29 @@ const {
 @media (prefers-reduced-motion: reduce) {
   .mobile-student-attendance__pill-spinner,
   .mobile-student-attendance__cta,
-  .mobile-student-attendance__success-button,
-  .mobile-student-attendance__failure-button {
+  .mobile-student-attendance__success-button {
     animation: none;
     transition: none;
   }
 }
 
 .mobile-attendance-success-enter-active,
-.mobile-attendance-success-leave-active,
-.mobile-attendance-failure-enter-active,
-.mobile-attendance-failure-leave-active {
+.mobile-attendance-success-leave-active {
   transition: opacity 180ms ease;
 }
 
 .mobile-attendance-success-enter-active .mobile-student-attendance__success-card,
-.mobile-attendance-success-leave-active .mobile-student-attendance__success-card,
-.mobile-attendance-failure-enter-active .mobile-student-attendance__failure-card,
-.mobile-attendance-failure-leave-active .mobile-student-attendance__failure-card {
+.mobile-attendance-success-leave-active .mobile-student-attendance__success-card {
   transition: transform 220ms ease, opacity 180ms ease;
 }
 
 .mobile-attendance-success-enter-from,
-.mobile-attendance-success-leave-to,
-.mobile-attendance-failure-enter-from,
-.mobile-attendance-failure-leave-to {
+.mobile-attendance-success-leave-to {
   opacity: 0;
 }
 
 .mobile-attendance-success-enter-from .mobile-student-attendance__success-card,
-.mobile-attendance-success-leave-to .mobile-student-attendance__success-card,
-.mobile-attendance-failure-enter-from .mobile-student-attendance__failure-card,
-.mobile-attendance-failure-leave-to .mobile-student-attendance__failure-card {
+.mobile-attendance-success-leave-to .mobile-student-attendance__success-card {
   opacity: 0;
   transform: translateY(18px) scale(0.98);
 }

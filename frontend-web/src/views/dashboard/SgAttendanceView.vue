@@ -152,8 +152,8 @@ async function reload() { if (apiBaseUrl.value) await loadAttendance(apiBaseUrl.
 .sg-att-event { font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
 .sg-att-date { font-size: 12px; color: var(--color-text-muted); }
 .sg-att-status-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 10px; text-transform: capitalize; }
-.sg-att-status-badge--present { background: #27ae6033; color: #27ae60; }
-.sg-att-status-badge--absent { background: #e74c3c33; color: #e74c3c; }
-.sg-att-status-badge--late { background: #f0ad4e33; color: #f0ad4e; }
-.sg-att-status-badge--excused { background: #3498db33; color: #3498db; }
+.sg-att-status-badge--present { background: color-mix(in srgb, var(--color-status-compliant) 15%, transparent); color: var(--color-status-compliant); }
+.sg-att-status-badge--absent { background: color-mix(in srgb, var(--color-status-non-compliant) 14%, transparent); color: var(--color-status-non-compliant); }
+.sg-att-status-badge--late { background: color-mix(in srgb, var(--color-status-at-risk) 15%, transparent); color: var(--color-status-at-risk); }
+.sg-att-status-badge--excused { background: color-mix(in srgb, var(--color-status-excused) 14%, transparent); color: var(--color-status-excused); }
 </style>

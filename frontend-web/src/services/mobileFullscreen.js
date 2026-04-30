@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
-import { withBase } from '@/services/appPath.js'
 
 const MOBILE_FULLSCREEN_HINT_KEY = 'aura_mobile_fullscreen_hint_seen'
 const mobileFullscreenEligible = ref(false)
@@ -143,6 +142,6 @@ export function registerAuraServiceWorker() {
     if (!window.isSecureContext) return
 
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register(withBase('sw.js'), { updateViaCache: 'none' }).catch(() => null)
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => null)
     }, { once: true })
 }

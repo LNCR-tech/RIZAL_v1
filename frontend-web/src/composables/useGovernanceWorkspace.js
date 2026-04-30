@@ -30,6 +30,13 @@ import {
   resolveEventDetailLocation,
   withPreservedGovernancePreviewQuery,
 } from '@/services/routeWorkspace.js'
+import {
+  formatTimeInDisplay,
+  formatTimeOutDisplay,
+  formatDurationDisplay,
+  formatMethodDisplay,
+  resolveAttendanceDisplayStatus,
+} from '@/services/attendanceFlow.js'
 
 const MAX_UPCOMING_EVENTS = 5
 const MAX_ANNOUNCEMENTS = 4
@@ -947,28 +954,14 @@ function buildArrivalInsight({ event = null, attendanceRecords = [] } = {}) {
 }
 
 
-function formatDurationLabel(value) {
-  const minutes = Number(value)
-  if (!Number.isFinite(minutes) || minutes <= 0) return 'Not available'
-  if (minutes < 60) return `${Math.round(minutes)}m`
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = Math.round(minutes % 60)
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
-}
-
-function resolveMethodLabel(method) {
-  const normalized = String(method || '').trim().toLowerCase()
-  if (normalized === 'face_scan') return 'Face Scan'
-  if (normalized === 'manual') return 'Manual'
-  return normalized ? normalized.replace(/_/g, ' ') : 'Unknown'
-}
-
 function resolveStatusLabel(attendance = {}) {
-  const status = String(attendance?.display_status || attendance?.status || '').trim().toLowerCase()
-  if (status === 'late') return 'Late'
+  const status = resolveAttendanceDisplayStatus(attendance)
+  if (status === 'excused') return 'Excused'
   if (status === 'absent') return 'Absent'
-  if (attendance?.completion_state === 'incomplete') return 'Waiting for Sign Out'
-  return 'Present'
+  if (status === 'late') return 'Late'
+  if (status === 'present') return 'Present'
+  if (status === 'incomplete') return 'Waiting for Sign Out'
+  return 'No sign-in record'
 }
 
 function buildMasterlistRows(records = [], students = []) {
@@ -988,10 +981,10 @@ function buildMasterlistRows(records = [], students = []) {
         programName: String(profile?.program_name || 'N/A'),
         yearLabel: Number.isFinite(Number(profile?.year_level)) ? `Year ${profile.year_level}` : 'N/A',
         statusLabel: resolveStatusLabel(attendance),
-        timeInLabel: formatDateTime(attendance?.time_in) || 'Not recorded',
-        timeOutLabel: formatDateTime(attendance?.time_out) || (attendance?.completion_state === 'incomplete' ? 'Waiting for sign out' : 'Not recorded'),
-        durationLabel: formatDurationLabel(attendance?.duration_minutes),
-        methodLabel: resolveMethodLabel(attendance?.method),
+        timeInLabel: formatTimeInDisplay(attendance, (value) => formatDateTime(value) || 'Not recorded'),
+        timeOutLabel: formatTimeOutDisplay(attendance, (value) => formatDateTime(value) || 'Not recorded'),
+        durationLabel: formatDurationDisplay(attendance),
+        methodLabel: formatMethodDisplay(attendance),
       }
     })
     .sort((left, right) => left.studentName.localeCompare(right.studentName))

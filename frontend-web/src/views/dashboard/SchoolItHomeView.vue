@@ -58,7 +58,7 @@
               @click="toggleAiPanel"
             >
               <img :src="secondaryAuraLogo" alt="Aura" class="school-it-home__ai-logo">
-              <span class="school-it-home__ai-copy">Aura AI<br>Soon</span>
+              <span class="school-it-home__ai-copy">Talk to<br>Aura Ai</span>
             </button>
           </div>
 
@@ -76,7 +76,7 @@
               id="school-it-ai-panel"
               class="school-it-home__ai-panel"
               role="region"
-              aria-label="Talk with Aura"
+              aria-label="Aura AI chat"
             >
               <div class="school-it-home__ai-panel-inner">
                 <div class="school-it-home__ai-shell">
@@ -114,15 +114,15 @@
                         v-model="inputText"
                         class="school-it-home__ai-input-field"
                         type="text"
-                        :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
-                        :disabled="isTyping || isAuraChatUnderDevelopment"
+                        placeholder="Ask Aura..."
+                        :disabled="isTyping"
                         @keyup.enter="sendMessage"
                       >
                       <button
                         class="school-it-home__ai-send"
                         type="button"
                         aria-label="Send message"
-                        :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
+                        :disabled="!inputText.trim() || isTyping"
                         @click="sendMessage"
                       >
                         <Send :size="15" />
@@ -139,7 +139,7 @@
           <section class="school-it-home__hero dashboard-enter dashboard-enter--4">
             <div class="school-it-home__hero-copy">
               <p class="school-it-home__hero-kicker">Hi School IT of</p>
-              <h2 class="school-it-home__hero-title" :style="heroTitleStyle">{{ schoolName }}</h2>
+              <h2 class="school-it-home__hero-title">{{ schoolName }}</h2>
               <button class="school-it-home__pill" type="button" @click="router.push({ name: settingsRouteName })">
                 <span class="school-it-home__pill-icon"><ArrowRight :size="18" /></span>
                 Edit Details
@@ -158,36 +158,24 @@
             </div>
           </section>
 
-          <section class="school-it-home__metrics dashboard-enter dashboard-enter--5">
-            <button class="school-it-home__metric" type="button" @click="router.push({ name: settingsRouteName })">
-              <div class="school-it-home__metric-header">
-                <span class="school-it-home__metric-title">Departments</span>
-                <div class="school-it-home__metric-icon"><ArrowRight :size="16" /></div>
-              </div>
-              <strong class="school-it-home__metric-value">{{ departmentCountLabel }}</strong>
-            </button>
+          <section class="school-it-home__summary dashboard-enter dashboard-enter--5">
+            <div class="school-it-home__summary-lead">
+              <h3 class="school-it-home__summary-title">Total<br>Dept.</h3>
+              <button class="school-it-home__pill school-it-home__pill--compact" type="button" @click="router.push({ name: settingsRouteName })">
+                <span class="school-it-home__pill-icon"><ArrowRight :size="18" /></span>
+                Open Setup
+              </button>
+            </div>
 
-            <button class="school-it-home__metric" type="button" @click="router.push({ name: settingsRouteName })">
-              <div class="school-it-home__metric-header">
-                <span class="school-it-home__metric-title">Programs</span>
-                <div class="school-it-home__metric-icon"><ArrowRight :size="16" /></div>
+            <div class="school-it-home__summary-panel">
+              <div>
+                <strong class="school-it-home__summary-number">{{ departmentCountLabel }}</strong>
+                <span class="school-it-home__summary-label">Departments</span>
               </div>
-              <strong class="school-it-home__metric-value">{{ programCountLabel }}</strong>
-            </button>
-
-            <button class="school-it-home__metric" type="button" @click="router.push({ name: scheduleRouteName })">
-              <div class="school-it-home__metric-header">
-                <span class="school-it-home__metric-title">Events</span>
-                <div class="school-it-home__metric-icon"><ArrowRight :size="16" /></div>
+              <div>
+                <strong class="school-it-home__summary-meta-number">{{ programCountLabel }}</strong>
+                <span class="school-it-home__summary-meta-label">Total programs</span>
               </div>
-              <strong class="school-it-home__metric-value">{{ filteredEvents.length }}</strong>
-            </button>
-
-            <div class="school-it-home__metric school-it-home__metric--static">
-              <div class="school-it-home__metric-header">
-                <span class="school-it-home__metric-title">Students</span>
-              </div>
-              <strong class="school-it-home__metric-value">{{ totalSchoolStudents }}</strong>
             </div>
           </section>
 
@@ -254,7 +242,6 @@ const {
   initializeSchoolItWorkspaceData,
 } = useSchoolItWorkspaceData()
 const {
-  isAuraChatUnderDevelopment,
   closeAll,
   inputText,
   isTyping,
@@ -310,27 +297,6 @@ const displayName = computed(() => {
 
 const initials = computed(() => buildInitials(displayName.value))
 const schoolInitials = computed(() => buildInitials(schoolName.value))
-const heroTitleStyle = computed(() => {
-  const normalized = String(schoolName.value || '').replace(/\s+/g, ' ').trim()
-  const letterCount = normalized.replace(/\s/g, '').length
-  const wordCount = normalized ? normalized.split(' ').length : 1
-
-  let scale = 1
-  if (letterCount > 46) scale = 0.62
-  else if (letterCount > 38) scale = 0.7
-  else if (letterCount > 30) scale = 0.8
-  else if (letterCount > 22) scale = 0.9
-
-  const widthCh = Math.min(18, Math.max(8, Math.ceil(letterCount / Math.max(2, Math.min(wordCount, 4))) + 3))
-
-  return {
-    '--school-it-title-width': `${widthCh}ch`,
-    '--school-it-title-mobile-fluid': `${(10 * scale).toFixed(2)}vw`,
-    '--school-it-title-mobile-max': `${Math.round(58 * scale)}px`,
-    '--school-it-title-desktop-fluid': `${(7 * scale).toFixed(2)}vw`,
-    '--school-it-title-desktop-max': `${Math.round(64 * scale)}px`,
-  }
-})
 const settingsRouteName = computed(() => isPreviewWorkspace.value ? 'PreviewSchoolItSettings' : 'SchoolItSettings')
 const scheduleRouteName = computed(() => isPreviewWorkspace.value ? 'PreviewSchoolItSchedule' : 'SchoolItSchedule')
 
@@ -386,8 +352,32 @@ const programsByDepartment = computed(() => {
 
 const VIBRANT_COLORS = ['#ff5a36', '#fbbf24', '#0f172a', '#e2e8f0', '#3b82f6', '#10b981', '#f43f5e']
 
+function normalizeRoleValue(role) {
+  return String(role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+}
+
+function hasRole(user, targetRole) {
+  const normalizedTarget = normalizeRoleValue(targetRole)
+  if (!normalizedTarget) return false
+
+  if (normalizeRoleValue(user?.role) === normalizedTarget) {
+    return true
+  }
+
+  const roles = Array.isArray(user?.roles) ? user.roles : []
+  return roles.some((entry) => {
+    const roleName = entry?.role?.name ?? entry?.name ?? entry
+    return normalizeRoleValue(roleName) === normalizedTarget
+  })
+}
+
 const collegeDemographics = computed(() => {
-  const students = filteredUsers.value.filter((user) => String(user.role || '').toLowerCase() === 'student')
+  const students = filteredUsers.value.filter((user) => (
+    hasRole(user, 'student') || user?.student_profile != null
+  ))
   
   const countsByDept = new Map()
   students.forEach((student) => {
@@ -398,11 +388,6 @@ const collegeDemographics = computed(() => {
       countsByDept.set('unassigned', (countsByDept.get('unassigned') || 0) + 1)
     }
   })
-
-  // If no students at all, return empty array
-  if (countsByDept.size === 0) {
-    return []
-  }
 
   let index = 0
   const result = []
@@ -428,9 +413,7 @@ const collegeDemographics = computed(() => {
 })
 
 const totalSchoolStudents = computed(() => {
-  // Calculate total from actual student count
-  const students = filteredUsers.value.filter((user) => String(user.role || '').toLowerCase() === 'student')
-  return students.length
+  return collegeDemographics.value.reduce((acc, item) => acc + item.count, 0)
 })
 
 
@@ -483,11 +466,9 @@ watch([apiBaseUrl, () => activeUser.value?.id, schoolId, () => isPreviewWorkspac
 watch(isAiOpen, (open) => {
   if (!open) return
   closeAll()
-  if (!isAuraChatUnderDevelopment.value) {
-    nextTick(() => {
-      setTimeout(() => aiInputEl.value?.focus(), 220)
-    })
-  }
+  nextTick(() => {
+    setTimeout(() => aiInputEl.value?.focus(), 220)
+  })
 })
 
 watch(searchActive, (active) => {
@@ -700,7 +681,7 @@ async function handleLogout() {
 </script>
 
 <style scoped>
-.school-it-home{min-height:100dvh;padding:30px 28px 120px;font-family:'Manrope',sans-serif;background:var(--color-bg)}
+.school-it-home{min-height:100vh;padding:30px 28px 120px;font-family:'Manrope',sans-serif}
 .school-it-home__shell{width:100%;max-width:1120px;margin:0 auto}
 .school-it-home__body{display:flex;flex-direction:column;gap:18px;margin-top:24px}
 .school-it-home__title{margin:0;font-size:22px;font-weight:800;line-height:1;letter-spacing:-.05em;color:var(--color-text-primary)}
@@ -750,26 +731,25 @@ async function handleLogout() {
 .school-it-home__bubble--ai.school-it-bubble-enter-active{transform-origin:bottom left}
 .school-it-home__bubble--user.school-it-bubble-enter-active{transform-origin:bottom right}
 .school-it-home__cards{display:grid;gap:20px}
-.school-it-home__hero,.school-it-home__breakdown{border-radius:32px;overflow:hidden}
-.school-it-home__hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:end;gap:clamp(16px,5vw,26px);min-height:auto;padding:28px 18px 22px;background:var(--color-primary);--school-it-hero-logo-size:clamp(96px,30vw,140px)}
-.school-it-home__hero-copy{position:relative;z-index:1;display:flex;flex-direction:column;min-width:0;min-height:auto;max-width:100%;align-self:stretch}
-.school-it-home__hero-kicker{margin:0;font-size:clamp(14px,4.2vw,17px);line-height:1.18;font-weight:500;color:var(--color-banner-text)}
-.school-it-home__hero-title{margin:8px 0 0;max-width:min(100%,var(--school-it-title-width,10ch));font-size:clamp(24px,var(--school-it-title-mobile-fluid,10vw),var(--school-it-title-mobile-max,58px));line-height:1;letter-spacing:-.065em;font-weight:800;color:var(--color-banner-text);overflow-wrap:anywhere;text-wrap:balance}
-.school-it-home__hero-logo{position:relative;display:flex;align-items:flex-end;justify-content:flex-end;pointer-events:none;z-index:0;justify-self:end;align-self:end;max-width:100%}
+.school-it-home__hero,.school-it-home__summary,.school-it-home__breakdown{border-radius:32px;overflow:hidden}
+.school-it-home__hero{position:relative;display:block;min-height:230px;padding:28px 18px 0;background:var(--color-primary);--school-it-hero-logo-size:140px;--school-it-hero-logo-offset:-20px;--school-it-hero-logo-top:68%}
+.school-it-home__hero-copy{position:relative;z-index:1;display:flex;flex-direction:column;min-width:0;min-height:202px;max-width:calc(100% - (var(--school-it-hero-logo-size) * 0.68));align-self:stretch}
+.school-it-home__hero-kicker{margin:0;font-size:17px;line-height:1.18;font-weight:500;color:var(--color-banner-text)}
+.school-it-home__hero-title{margin:8px 0 0;max-width:6ch;font-size:clamp(26px,10vw,58px);line-height:.95;letter-spacing:-.07em;font-weight:800;color:var(--color-banner-text)}
+.school-it-home__hero-logo{position:absolute;right:var(--school-it-hero-logo-offset);top:var(--school-it-hero-logo-top);transform:translateY(-50%);display:flex;align-items:flex-end;justify-content:flex-end;pointer-events:none;z-index:0}
 .school-it-home__hero-logo-image{width:var(--school-it-hero-logo-size);height:var(--school-it-hero-logo-size);object-fit:contain;object-position:bottom right}
 .school-it-home__hero-logo-fallback{width:var(--school-it-hero-logo-size);height:var(--school-it-hero-logo-size);border-radius:32px;background:rgba(10,10,10,.12);color:var(--color-banner-text);display:inline-flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;letter-spacing:.08em}
-.school-it-home__pill{width:fit-content;min-height:58px;margin-top:clamp(18px,6vw,30px);margin-bottom:0;padding:0 22px 0 8px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);display:inline-flex;align-items:center;gap:14px;font-size:13px;font-weight:700}
+.school-it-home__pill{width:fit-content;min-height:58px;margin-top:auto;margin-bottom:24px;padding:0 22px 0 8px;border:none;border-radius:999px;background:var(--color-surface);color:var(--color-text-always-dark);display:inline-flex;align-items:center;gap:14px;font-size:13px;font-weight:700}
 .school-it-home__pill--compact{min-height:56px;margin-bottom:0}
 .school-it-home__pill-icon{width:42px;height:42px;border-radius:999px;background:var(--color-nav);color:var(--color-nav-text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-home__metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.school-it-home__metric{background:var(--color-surface);border:none;border-radius:32px;padding:20px 18px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;min-height:clamp(132px,20vh,158px);transition:transform .2s cubic-bezier(.22,1,.36,1),background .2s ease;cursor:pointer;appearance:none;outline:none}
-.school-it-home__metric:active:not(.school-it-home__metric--static){transform:scale(.95);background:color-mix(in srgb,var(--color-surface) 95%,var(--color-text-always-dark))}
-.school-it-home__metric--static{cursor:default}
-.school-it-home__metric-header{display:flex;justify-content:space-between;align-items:flex-start;width:100%}
-.school-it-home__metric-title{font-size:clamp(13px,3.8vw,15px);line-height:1.15;font-weight:700;color:var(--color-text-secondary);overflow-wrap:anywhere}
-.school-it-home__metric-icon{width:34px;height:34px;border-radius:50%;background:color-mix(in srgb,var(--color-text-always-dark) 5%,transparent);color:var(--color-text-always-dark);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.school-it-home__metric-value{font-size:clamp(30px,9vw,42px);font-weight:800;line-height:1;letter-spacing:-.05em;color:var(--color-text-always-dark);margin-top:14px;overflow-wrap:anywhere}
-.school-it-home__metric-panel,.school-it-home__status-panel{background:color-mix(in srgb,var(--color-surface) 88%,var(--color-bg))}
+.school-it-home__summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(156px,.95fr);gap:8px;background:var(--color-surface)}
+.school-it-home__summary-lead{display:flex;flex-direction:column;justify-content:space-between;min-height:184px;padding:24px 18px 18px}
+.school-it-home__summary-title{margin:0;font-size:clamp(26px,10vw,52px);line-height:.95;letter-spacing:-.07em;font-weight:700;color:var(--color-text-always-dark)}
+.school-it-home__summary-panel,.school-it-home__metric-panel,.school-it-home__status-panel{background:color-mix(in srgb,var(--color-surface) 88%,var(--color-bg))}
+.school-it-home__summary-panel{display:flex;flex-direction:column;justify-content:center;gap:14px;padding:22px 18px}
+.school-it-home__summary-number{display:block;font-size:clamp(36px,11vw,56px);line-height:.9;letter-spacing:-.08em;font-weight:700;color:var(--color-primary)}
+.school-it-home__summary-label,.school-it-home__summary-meta-label{font-size:16px;line-height:1.08;font-weight:500;color:var(--color-text-always-dark)}
+.school-it-home__summary-meta-number{display:block;margin-bottom:2px;font-size:22px;line-height:1;letter-spacing:-.05em;font-weight:700;color:var(--color-text-always-dark)}
 .school-it-home__rate{display:grid;grid-template-columns:minmax(0,1fr) minmax(166px,.82fr);gap:8px;background:var(--color-surface);min-height:234px}
 .school-it-home__rate-copy{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:22px 18px}
 .school-it-home__metric-kicker{margin:0;max-width:13ch;font-size:12px;line-height:1.25;color:var(--color-text-secondary)}
@@ -791,10 +771,10 @@ async function handleLogout() {
   .school-it-home__search-row{max-width:780px}
   .school-it-home__ai-panel{max-width:780px}
   .school-it-home__cards{grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);grid-template-areas:"hero hero" "summary breakdown";gap:22px}
-  .school-it-home__hero{grid-area:hero;grid-template-columns:minmax(0,1fr) minmax(132px,.22fr);min-height:clamp(292px,34vh,332px);padding:34px 28px 28px;--school-it-hero-logo-size:clamp(138px,16vw,174px)}
-  .school-it-home__hero-copy{min-height:calc(clamp(292px,34vh,332px) - 62px);max-width:100%}
-  .school-it-home__hero-title{max-width:min(100%,var(--school-it-title-width,12ch));font-size:clamp(34px,var(--school-it-title-desktop-fluid,7vw),var(--school-it-title-desktop-max,64px))}
-  .school-it-home__metrics{grid-area:summary;gap:18px}
+  .school-it-home__hero{grid-area:hero;min-height:332px;padding:34px 28px 0;--school-it-hero-logo-size:164px;--school-it-hero-logo-offset:-24px;--school-it-hero-logo-top:69%}
+  .school-it-home__hero-copy{min-height:276px;max-width:calc(100% - (var(--school-it-hero-logo-size) * 0.74))}
+  .school-it-home__hero-title{max-width:8ch}
+  .school-it-home__summary{grid-area:summary;min-height:266px}
   .school-it-home__breakdown{grid-area:breakdown;display:flex;align-items:stretch;}
 
 

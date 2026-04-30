@@ -381,6 +381,7 @@ async function fetchDashboardData() {
 
         const shouldLoadPrivilegedFaceStatus = isPrivilegedFaceUser(user)
         const shouldLoadAttendance = isStudentUser(user)
+        const hasGovernanceRole = hasRole(user, 'ssg') || hasRole(user, 'sg')
         // Some deployments answer optional, role-scoped dashboard endpoints with 401
         // even though the authenticated session is still valid. Suppress the global
         // expiry handler for these auxiliary requests so students stay signed in.
@@ -388,9 +389,13 @@ async function fetchDashboardData() {
             suppressSessionExpiryHandling: true,
         }
 
+        const eventParams = hasGovernanceRole
+            ? { limit: 1000, governance_context: hasRole(user, 'ssg') ? 'SSG' : 'SG' }
+            : { limit: 1000 }
+
         const [settingsResult, eventsResult, attendanceResult, faceStatusResult] = await Promise.allSettled([
             getSchoolSettings(state.apiBaseUrl, state.token, auxiliaryRequestOptions),
-            getEvents(state.apiBaseUrl, state.token, { limit: 200 }, auxiliaryRequestOptions),
+            getEvents(state.apiBaseUrl, state.token, eventParams, auxiliaryRequestOptions),
             shouldLoadAttendance
                 ? getMyAttendance(state.apiBaseUrl, state.token, { limit: 200 }, auxiliaryRequestOptions)
                 : Promise.resolve([]),

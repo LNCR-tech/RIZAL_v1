@@ -820,6 +820,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+const jrmsuLogoUrl = '/logos/aura.png'
 import {
   changePassword,
   createSchoolWithSchoolIt,
@@ -837,9 +838,6 @@ import {
   updateSchoolSettings,
   verifyFaceReference,
 } from '@/services/backendApi.js'
-import { withBase } from '@/services/appPath.js'
-
-const jrmsuLogoUrl = withBase('logos/aura.png')
 
 const apiBaseUrl = ref(resolveApiBaseUrl())
 
@@ -855,7 +853,7 @@ const schoolForm = reactive({
   middleName: '',
   lastName: 'IT',
   email: '',
-  password: '',
+  password: 'SchoolIT123!',
   primaryColor: '#0057B8',
   secondaryColor: '#FFD400',
   accentColor: '#000000',
@@ -863,7 +861,7 @@ const schoolForm = reactive({
 
 const schoolItSession = reactive({
   email: '',
-  password: '',
+  password: 'SchoolIT123!',
 })
 
 const schoolItPasswordChangeForm = reactive({
@@ -877,7 +875,7 @@ const userForm = reactive({
   middleName: '',
   lastName: '',
   email: '',
-  password: '',
+  password: 'StudentPass123!',
 })
 
 const studentProfileForm = reactive({
@@ -890,7 +888,7 @@ const studentProfileForm = reactive({
 
 const studentSession = reactive({
   email: '',
-  password: '',
+  password: 'StudentPass123!',
 })
 
 const studentPasswordChangeForm = reactive({
@@ -1142,7 +1140,7 @@ function resetSchoolItState({ preserveCredentials = true } = {}) {
 
   if (!preserveCredentials) {
     schoolItSession.email = ''
-    schoolItSession.password = ''
+    schoolItSession.password = 'SchoolIT123!'
   }
 }
 
@@ -1156,7 +1154,7 @@ function resetStudentWorkflow() {
   studentIdentity.value = null
   studentNeedsPasswordChange.value = false
   studentSession.email = ''
-  studentSession.password = userForm.password || ''
+  studentSession.password = userForm.password || 'StudentPass123!'
   studentPasswordChangeForm.currentPassword = ''
   studentPasswordChangeForm.newPassword = ''
   studentPasswordChangeForm.confirmPassword = ''
@@ -2574,6 +2572,7 @@ function extractErrorMessage(error) {
   height: 100%;
   object-fit: cover;
   display: block;
+  transform: scaleX(-1);
 }
 
 .face-preview-empty {

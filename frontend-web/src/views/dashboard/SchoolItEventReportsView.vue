@@ -46,6 +46,16 @@
             </button>
           </div>
 
+          <BasePagination
+            v-if="!isLoadingEvents && totalPages > 1"
+            :current-page="currentPage"
+            :total-pages="totalPages"
+            :total="totalEvents"
+            :limit="pageLimit"
+            :loading="isLoadingEvents"
+            @page-change="handlePageChange"
+          />
+
           <div class="school-it-reports__table-wrap">
             <table class="school-it-reports__table">
               <thead>
@@ -318,6 +328,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, FileSpreadsheet, Search, X } from 'lucide-vue-next'
+import BasePagination from '@/components/ui/BasePagination.vue'
 import SchoolItTopHeader from '@/components/dashboard/SchoolItTopHeader.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useDashboardSession } from '@/composables/useDashboardSession.js'
@@ -326,11 +337,18 @@ import { filterWorkspaceEntitiesBySchool } from '@/services/workspaceScope.js'
 import {
   getEventAttendance,
   getEventAttendanceReport,
-  getEvents,
+  getEventsPage,
   resolveApiBaseUrl,
 } from '@/services/backendApi.js'
 import { downloadBlobFile } from '@/services/fileDownload.js'
 import { schoolItPreviewData } from '@/data/schoolItPreview.js'
+import {
+  resolveAbsenceType,
+  formatTimeInDisplay,
+  formatTimeOutDisplay,
+  formatDurationDisplay,
+  formatMethodDisplay,
+} from '@/services/attendanceFlow.js'
 
 const props = defineProps({
   preview: {
@@ -357,6 +375,10 @@ const attendeeFilter = ref('all')
 const isDownloading = ref('')
 const eventsList = ref([])
 const isLoadingEvents = ref(true)
+const currentPage = ref(1)
+const totalPages = ref(1)
+const totalEvents = ref(0)
+const pageLimit = ref(50)
 const selectedEventId = ref(null)
 const selectedEventReport = ref(null)
 const selectedEventAttendanceRecords = ref([])
@@ -579,7 +601,7 @@ watch(
   { immediate: true },
 )
 
-async function fetchEvents() {
+async function fetchEvents(page = 1) {
   isLoadingEvents.value = true
 
   if (props.preview) {
@@ -589,12 +611,25 @@ async function fetchEvents() {
 
   try {
     const token = localStorage.getItem('aura_token') || ''
-    eventsList.value = await getEvents(apiBaseUrl.value || resolveApiBaseUrl(), token)
+    const response = await getEventsPage(apiBaseUrl.value || resolveApiBaseUrl(), token, {
+      page,
+      limit: pageLimit.value
+    })
+    eventsList.value = response.data
+    currentPage.value = response.page
+    totalPages.value = response.total_pages
+    totalEvents.value = response.total
   } catch (error) {
     selectionError.value = error?.message || 'Unable to load the event list right now.'
   } finally {
     isLoadingEvents.value = false
   }
+}
+
+function handlePageChange(newPage) {
+  currentPage.value = newPage
+  fetchEvents(newPage)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function syncSelectionFromRoute() {
@@ -896,6 +931,7 @@ function dedupeAttendanceRows(records) {
 function buildAttendanceRow(record) {
   const attendance = record?.attendance || {}
   const category = resolveAttendanceCategory(attendance)
+  const absenceType = resolveAbsenceType(attendance)
 
   return {
     key: `${resolveAttendanceStudentKey(record)}:${attendance.id ?? attendance.time_in ?? record?.student_name ?? 'row'}`,
@@ -903,16 +939,11 @@ function buildAttendanceRow(record) {
     studentName: String(record?.student_name || 'Unknown Student').trim() || 'Unknown Student',
     statusLabel: resolveAttendanceStatusLabel(attendance),
     category,
-    timeInLabel: formatDateTime(attendance.time_in, category === 'absent' ? 'No sign-in record' : 'Not recorded'),
-    timeOutLabel: attendance.time_out
-      ? formatDateTime(attendance.time_out, 'Not recorded')
-      : category === 'waiting'
-      ? 'Waiting for sign out'
-      : category === 'absent'
-      ? 'No sign-out record'
-      : 'Not recorded',
-    durationLabel: formatDuration(attendance.duration_minutes),
-    methodLabel: resolveMethodLabel(attendance.method),
+    absenceType,
+    timeInLabel: formatTimeInDisplay(attendance, (value) => formatDateTime(value, 'Not recorded')),
+    timeOutLabel: formatTimeOutDisplay(attendance, (value) => formatDateTime(value, 'Not recorded')),
+    durationLabel: formatDurationDisplay(attendance),
+    methodLabel: formatMethodDisplay(attendance),
   }
 }
 
@@ -929,10 +960,11 @@ function resolveAttendanceStudentKey(record) {
 function resolveAttendanceCategory(attendance = {}) {
   const completionState = String(attendance?.completion_state || '').toLowerCase()
   const displayStatus = String(attendance?.display_status || attendance?.status || '').toLowerCase()
+  const signedInWithoutSignOut = Boolean(attendance?.time_in && !attendance?.time_out)
 
+  if (displayStatus === 'absent') return 'absent'
   if (completionState !== 'completed') return 'waiting'
   if (displayStatus === 'late') return 'late'
-  if (displayStatus === 'absent') return 'absent'
   return 'present'
 }
 
@@ -944,12 +976,7 @@ function resolveAttendanceStatusLabel(attendance = {}) {
   return 'Present'
 }
 
-function resolveMethodLabel(method) {
-  const normalized = String(method || '').trim().toLowerCase()
-  if (normalized === 'face_scan') return 'Face Scan'
-  if (normalized === 'manual') return 'Manual'
-  return normalized ? normalized.replace(/_/g, ' ') : 'Unknown'
-}
+
 
 function getAttendanceSortTimestamp(record) {
   const attendance = record?.attendance || {}
@@ -978,9 +1005,9 @@ function formatDate(isoString) {
 }
 
 function formatDateTime(value, fallback = 'Not recorded') {
-  if (!value) return fallback
+  if (value === null || value === undefined || value === '') return fallback
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return String(value)
+  if (Number.isNaN(parsed.getTime())) return fallback
 
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -991,15 +1018,6 @@ function formatDateTime(value, fallback = 'Not recorded') {
   }).format(parsed)
 }
 
-function formatDuration(value) {
-  const minutes = Number(value)
-  if (!Number.isFinite(minutes) || minutes <= 0) return 'Not available'
-  if (minutes < 60) return `${Math.round(minutes)}m`
-
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = Math.round(minutes % 60)
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
-}
 
 function roundPercent(value) {
   const normalized = Number(value)
@@ -1662,3 +1680,4 @@ async function handleLogout() {
   }
 }
 </style>
+

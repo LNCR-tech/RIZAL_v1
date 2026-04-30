@@ -27,6 +27,10 @@ const route = useRoute()
 const router = useRouter()
 const errorMessage = ref('')
 
+function normalizeErrorMessage(error) {
+  return String(error?.message || error || 'Unexpected render error.').trim() || 'Unexpected render error.'
+}
+
 onErrorCaptured((error, instance, info) => {
   if (isChunkLoadError(error)) {
     attemptChunkRecovery(route.fullPath)
@@ -34,14 +38,14 @@ onErrorCaptured((error, instance, info) => {
   }
 
   const componentName = instance?.type?.__name || instance?.type?.name || 'unknown component'
-  const message = String(error?.message || error || 'Unexpected render error.').trim()
-  console.error('Aura route render error:', {
+  const message = normalizeErrorMessage(error)
+  console.error('Aura route render error', {
     component: componentName,
-    info,
     message,
+    info: String(info || ''),
     route: route.fullPath,
   })
-  errorMessage.value = message || 'Unexpected render error.'
+  errorMessage.value = message
   return false
 })
 

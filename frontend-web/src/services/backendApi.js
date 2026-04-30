@@ -46,6 +46,38 @@ import {
 } from '@/services/studentImport.js'
 import { notifySessionExpired } from '@/services/sessionExpiry.js'
 
+/**
+ * Unwrap either a paginated envelope `{ data, page, total, ... }` or a legacy
+ * plain array into a unified paginated shape.  Every list caller gets the same
+ * structure regardless of which backend version is running.
+ */
+export function extractPagedData(payload, normalizer = null) {
+    const normalize = normalizer ?? ((x) => x)
+
+    if (payload == null) {
+        return { data: [], page: 1, total: 0, total_pages: 0, limit: 0, next: null, prev: null }
+    }
+
+    if (Array.isArray(payload)) {
+        const data = payload.map(normalize)
+        return { data, page: 1, total: data.length, total_pages: 1, limit: data.length, next: null, prev: null }
+    }
+
+    if (payload && typeof payload === 'object' && Array.isArray(payload.data)) {
+        return {
+            data: payload.data.map(normalize),
+            page: payload.page ?? 1,
+            total: payload.total ?? 0,
+            total_pages: payload.total_pages ?? 0,
+            limit: payload.limit ?? 0,
+            next: payload.next ?? null,
+            prev: payload.prev ?? null,
+        }
+    }
+
+    return { data: [], page: 1, total: 0, total_pages: 0, limit: 0, next: null, prev: null }
+}
+
 export class BackendApiError extends Error {
     constructor(message, { status = 0, details = null } = {}) {
         super(message)
@@ -459,7 +491,7 @@ export async function deleteProgram(baseUrl, token, programId) {
 }
 
 export async function getSchoolSettings(baseUrl, token, requestOptions = {}) {
-    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me', '/api/school-settings/me'], {
+    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school/me', '/api/school-settings/me', '/school-settings/me'], {
         method: 'GET',
         token,
         ...requestOptions,
@@ -467,7 +499,7 @@ export async function getSchoolSettings(baseUrl, token, requestOptions = {}) {
 }
 
 export async function updateSchoolSettings(baseUrl, token, payload) {
-    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school-settings/me'], {
+    return normalizeSchoolSettings(await requestWithFallback(baseUrl, ['/api/school-settings/me', '/school-settings/me'], {
         method: 'PUT',
         token,
         headers: {
@@ -512,14 +544,19 @@ export async function updateSchoolBranding(baseUrl, token, payload = {}, logoFil
     }))
 }
 
-export async function getEvents(baseUrl, token, params = {}, requestOptions = {}) {
+export async function getEventsPage(baseUrl, token, params = {}, requestOptions = {}) {
     const payload = await requestWithFallback(baseUrl, ['/api/events/', '/events/'], {
         method: 'GET',
         token,
         params,
         ...requestOptions,
     }, [404, 405])
-    return Array.isArray(payload) ? payload.map(normalizeEvent) : []
+    return extractPagedData(payload, normalizeEvent)
+}
+
+export async function getEvents(baseUrl, token, params = {}, requestOptions = {}) {
+    const page = await getEventsPage(baseUrl, token, params, requestOptions)
+    return page.data
 }
 
 export async function getEventById(baseUrl, token, eventId) {
@@ -549,13 +586,18 @@ export async function deleteEvent(baseUrl, token, eventId, params = {}) {
     }, [404, 405])
 }
 
-export async function getUsers(baseUrl, token, params = {}) {
+export async function getUsersPage(baseUrl, token, params = {}) {
     const payload = await requestWithFallback(baseUrl, ['/api/users/', '/users/'], {
         method: 'GET',
         token,
         params,
     }, [404, 405])
-    return Array.isArray(payload) ? payload.map(normalizeUserWithRelations) : []
+    return extractPagedData(payload, normalizeUserWithRelations)
+}
+
+export async function getUsers(baseUrl, token, params = {}) {
+    const page = await getUsersPage(baseUrl, token, params)
+    return page.data
 }
 
 export async function getGovernanceAccess(baseUrl, token) {
@@ -722,7 +764,7 @@ export async function searchGovernanceStudentCandidates(baseUrl, token, params =
         token,
         params,
     })
-    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate) : []
+    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate).filter(Boolean) : []
 }
 
 export async function assignGovernanceMember(baseUrl, token, governanceUnitId, payload) {
@@ -755,13 +797,18 @@ export async function deleteGovernanceMember(baseUrl, token, governanceMemberId)
     return true
 }
 
-export async function getGovernanceStudents(baseUrl, token, params = {}) {
+export async function getGovernanceStudentsPage(baseUrl, token, params = {}) {
     const payload = await request(baseUrl, '/api/governance/students', {
         method: 'GET',
         token,
         params,
     })
-    return Array.isArray(payload) ? payload.map(normalizeGovernanceStudentCandidate) : []
+    return extractPagedData(payload, (item) => normalizeGovernanceStudentCandidate(item) ?? item)
+}
+
+export async function getGovernanceStudents(baseUrl, token, params = {}) {
+    const page = await getGovernanceStudentsPage(baseUrl, token, params)
+    return page.data
 }
 
 export async function getGovernanceAnnouncements(baseUrl, token, governanceUnitId) {
@@ -1328,13 +1375,18 @@ export async function getAnnouncements(baseUrl, token, params = {}) {
  * @param {Object} payload - Event data payload
  * @returns {Promise<Object>} The created event
  */
-export async function createGovernanceEvent(baseUrl, token, payload, params = {}) {
+export async function createGovernanceEvent(baseUrl, token, payload, params = {}, requestOptions = {}) {
+    const extraHeaders = requestOptions?.headers && typeof requestOptions.headers === 'object'
+        ? requestOptions.headers
+        : {}
+
     return normalizeEvent(await requestWithFallback(baseUrl, ['/api/events/', '/events/', '/api/governance/events'], {
         method: 'POST',
         token,
         params,
         headers: {
             'Content-Type': 'application/json',
+            ...extraHeaders,
         },
         body: JSON.stringify(payload),
     }, [404, 405]))

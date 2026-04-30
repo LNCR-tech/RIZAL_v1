@@ -1,4 +1,5 @@
 const MANILA_OFFSET_SUFFIX = '+08:00'
+const UTC_SUFFIX = 'Z'
 const TIMEZONE_PATTERN = /([zZ]|[+-]\d{2}:\d{2})$/
 
 function normalizeLower(value) {
@@ -16,6 +17,17 @@ export function parseEventDateTime(value) {
     const normalizedValue = TIMEZONE_PATTERN.test(String(value))
         ? String(value)
         : `${value}${MANILA_OFFSET_SUFFIX}`
+
+    return new Date(normalizedValue)
+}
+
+export function parseAttendanceDateTime(value) {
+    if (!value) return new Date(Number.NaN)
+
+    const normalized = String(value).replace(' ', 'T')
+    const normalizedValue = TIMEZONE_PATTERN.test(normalized)
+        ? normalized
+        : `${normalized}${UTC_SUFFIX}`
 
     return new Date(normalizedValue)
 }
@@ -110,10 +122,30 @@ export function mapEventTimeStatusToEventStatus(timeStatus) {
     return null
 }
 
-export function resolveEventLifecycleStatus(event = null, timeStatus = null) {
+export function resolveEventLifecycleStatus(event = null, timeStatus = null, now = new Date()) {
     const mappedStatus = mapEventTimeStatusToEventStatus(timeStatus)
     if (mappedStatus) return mappedStatus
-    return normalizeEventStatus(event?.status)
+
+    const normalizedStatus = normalizeEventStatus(event?.status)
+    if (normalizedStatus === 'cancelled' || normalizedStatus === 'completed') {
+        return normalizedStatus
+    }
+
+    const nowMs = now.getTime()
+    const start = parseEventDateTime(event?.start_datetime)
+    const signOutClose = event?.end_datetime ? getSignOutCloseTime(event) : new Date(Number.NaN)
+
+    if (
+        Number.isFinite(nowMs)
+        && Number.isFinite(start.getTime())
+        && Number.isFinite(signOutClose.getTime())
+    ) {
+        if (nowMs > signOutClose.getTime()) return 'completed'
+        if (nowMs >= start.getTime()) return 'ongoing'
+        return 'upcoming'
+    }
+
+    return normalizedStatus
 }
 
 export function resolveEventTimeStatusMoment(value) {
@@ -256,10 +288,24 @@ export function resolveAttendanceCompletionState(attendanceRecord) {
 
 export function resolveAttendanceDisplayStatus(attendanceRecord) {
     const normalizedDisplayStatus = normalizeLower(attendanceRecord?.display_status)
-    if (normalizedDisplayStatus) return normalizedDisplayStatus
 
-    if (resolveAttendanceCompletionState(attendanceRecord) !== 'completed') {
-        return hasSignedInAttendance(attendanceRecord) ? 'incomplete' : ''
+    if (!hasSignedInAttendance(attendanceRecord)) {
+        const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
+        if (['excused', 'absent'].includes(normalizedDisplayStatus)) {
+            return normalizedDisplayStatus
+        }
+        if (['excused', 'absent'].includes(normalizedStoredStatus)) {
+            return normalizedStoredStatus
+        }
+        return ''
+    }
+
+    if (!hasSignedOutAttendance(attendanceRecord)) {
+        return 'absent'
+    }
+
+    if (['present', 'late', 'absent', 'excused'].includes(normalizedDisplayStatus)) {
+        return normalizedDisplayStatus
     }
 
     const normalizedStoredStatus = normalizeLower(attendanceRecord?.status)
@@ -267,7 +313,7 @@ export function resolveAttendanceDisplayStatus(attendanceRecord) {
         return normalizedStoredStatus
     }
 
-    return hasSignedOutAttendance(attendanceRecord) ? 'absent' : ''
+    return 'absent'
 }
 
 export function isValidCompletedAttendanceRecord(attendanceRecord) {
@@ -336,6 +382,29 @@ export function resolveAttendanceActionState({
         if (stage === 'sign_out_open') return 'sign-out'
         if (stage === 'closed') return 'closed'
         return 'waiting-sign-out'
+    }
+
+    // If no time_in during ongoing event, show as available for sign-in
+    if (!hasSignedInAttendance(attendanceRecord)) {
+        if (['early_check_in', 'late_check_in', 'absent_check_in'].includes(stage)) {
+            return 'sign-in'
+        }
+
+        if (stage === 'before_check_in') {
+            return 'not-open'
+        }
+
+        if (stage === 'sign_out_open' || stage === 'sign_out_pending') {
+            return 'missed-check-in'
+        }
+
+        if (stage === 'closed') {
+            return 'closed'
+        }
+
+        return normalizeEventStatus(eventStatus) === 'ongoing'
+            ? 'sign-in'
+            : 'closed'
     }
 
     if (['early_check_in', 'late_check_in', 'absent_check_in'].includes(stage)) {
@@ -423,4 +492,87 @@ export function buildAttendanceLocationErrorMessage(detail) {
     }
 
     return 'Location verification failed.'
+}
+
+/**
+ * Determine the type of absence based on attendance record
+ * @param {Object} attendanceRecord - The attendance record
+ * @returns {string} - 'never_attended', 'no_sign_out', or 'completed'
+ */
+export function resolveAbsenceType(attendanceRecord) {
+    if (!attendanceRecord) return 'never_attended'
+    
+    const hasTimeIn = Boolean(attendanceRecord.time_in)
+    const hasTimeOut = Boolean(attendanceRecord.time_out)
+    const status = normalizeLower(attendanceRecord.status)
+    
+    // Never signed in
+    if (!hasTimeIn) return 'never_attended'
+    
+    // Signed in but no sign out
+    if (hasTimeIn && !hasTimeOut && status === 'absent') return 'no_sign_out'
+    
+    // Completed attendance
+    return 'completed'
+}
+
+/**
+ * Format time_in display with context-aware fallback
+ * @param {Object} attendanceRecord - The attendance record
+ * @param {Function} formatDateTime - Function to format datetime
+ * @returns {string} - Formatted time or contextual message
+ */
+export function formatTimeInDisplay(attendanceRecord, formatDateTime) {
+    if (!attendanceRecord || !attendanceRecord.time_in) {
+        return 'No sign-in record'
+    }
+    return formatDateTime(attendanceRecord.time_in)
+}
+
+/**
+ * Format time_out display with context-aware fallback
+ * @param {Object} attendanceRecord - The attendance record
+ * @param {Function} formatDateTime - Function to format datetime
+ * @returns {string} - Formatted time or contextual message
+ */
+export function formatTimeOutDisplay(attendanceRecord, formatDateTime) {
+    if (!attendanceRecord || !attendanceRecord.time_out) {
+        return 'No sign-out record'
+    }
+    return formatDateTime(attendanceRecord.time_out)
+}
+
+/**
+ * Format duration display with NULL handling
+ * @param {Object} attendanceRecord - The attendance record
+ * @returns {string} - Formatted duration or 'N/A'
+ */
+export function formatDurationDisplay(attendanceRecord) {
+    if (!attendanceRecord || !attendanceRecord.time_in || !attendanceRecord.time_out) {
+        return 'N/A'
+    }
+    
+    const durationMinutes = attendanceRecord.duration_minutes
+    if (typeof durationMinutes === 'number' && Number.isFinite(durationMinutes)) {
+        const hours = Math.floor(durationMinutes / 60)
+        const minutes = Math.round(durationMinutes % 60)
+        
+        if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`
+        if (hours > 0) return `${hours}h`
+        return `${minutes}m`
+    }
+    
+    return 'N/A'
+}
+
+/**
+ * Format attendance method display with NULL handling
+ * @param {Object} attendanceRecord - The attendance record
+ * @returns {string} - Formatted method or 'N/A'
+ */
+export function formatMethodDisplay(attendanceRecord) {
+    if (!attendanceRecord || !attendanceRecord.method) {
+        return 'N/A'
+    }
+    return attendanceRecord.method
 }

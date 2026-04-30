@@ -350,7 +350,7 @@
               ref="fileInputEl"
               class="school-it-import__file-input"
               type="file"
-              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,*/*"
+              accept=".xlsx,.csv"
               @change="handleFileSelect"
             >
           </section>

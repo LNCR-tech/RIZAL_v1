@@ -85,7 +85,7 @@
             @click="toggleAi"
           >
             <img :src="secondaryAuraLogo" alt="Aura" class="mobile-dashboard__ai-logo">
-            <span class="mobile-dashboard__ai-copy">Aura AI<br>Soon</span>
+            <span class="mobile-dashboard__ai-copy">Talk to<br>Aura Ai</span>
           </button>
         </div>
 
@@ -106,16 +106,16 @@
                 ref="mobileInputEl"
                 v-model="inputText"
                 type="text"
-                :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
+                placeholder="Ask Aura..."
                 class="mobile-dashboard__ai-field"
-                :disabled="isTyping || isAuraChatUnderDevelopment"
+                :disabled="isTyping"
                 @keyup.enter="sendMessage"
               >
               <button
                 class="mobile-dashboard__ai-send"
                 type="button"
                 aria-label="Send message"
-                :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
+                :disabled="!inputText.trim() || isTyping"
                 @click="sendMessage"
               >
                 <Send :size="15" />
@@ -209,7 +209,7 @@ const tabs = [
 ]
 
 const { currentUser, events, attendanceRecords, hasAttendanceForEvent, hasOpenAttendanceForEvent } = useDashboardSession()
-const { isAuraChatUnderDevelopment, messages, inputText, isTyping, scrollEl, sendMessage, closeAll } = useChat()
+const { messages, inputText, isTyping, scrollEl, sendMessage, closeAll } = useChat()
 const activeUser = computed(() => props.preview ? studentDashboardPreviewData.user : currentUser.value)
 const activeEvents = computed(() => props.preview ? studentDashboardPreviewData.events : events.value)
 const activeAttendanceRecords = computed(() => props.preview ? studentDashboardPreviewData.attendanceRecords : attendanceRecords.value)
@@ -227,7 +227,7 @@ const initials = computed(() => {
   return parts.length >= 2 ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase() : displayName.value.slice(0, 2).toUpperCase()
 })
 const avatarUrl = computed(() => activeUser.value?.student_profile?.photo_url || activeUser.value?.student_profile?.avatar_url || activeUser.value?.avatar_url || '')
-const searchableEvents = computed(() => schoolEvents.value.filter((event) => ['upcoming', 'ongoing'].includes(normalizeStatus(event.status))))
+const searchableEvents = computed(() => schoolEvents.value.filter((event) => ['upcoming', 'ongoing', 'completed'].includes(normalizeStatus(event.status))))
 const filteredEvents = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return searchableEvents.value
@@ -303,9 +303,7 @@ const chartBars = computed(() => buildChartBars(latestAttendanceRecords.value, a
 watch(isAiOpen, (open) => {
   if (open) {
     closeAll()
-    if (!isAuraChatUnderDevelopment.value) {
-      nextTick(() => setTimeout(() => mobileInputEl.value?.focus(), 120))
-    }
+    nextTick(() => setTimeout(() => mobileInputEl.value?.focus(), 120))
   }
 })
 
@@ -321,9 +319,10 @@ function openEvent(event) {
   if (!event?.id) return
 
   const normalizedEventId = Number(event.id)
+  const status = normalizeStatus(event.status)
   const shouldRouteToAttendance = (
-    hasOpenAttendanceForEvent(normalizedEventId)
-    || (normalizeStatus(event.status) === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
+    (status === 'ongoing' && hasOpenAttendanceForEvent(normalizedEventId))
+    || (status === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
   )
 
   if (!props.preview && shouldRouteToAttendance) {

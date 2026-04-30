@@ -1,10 +1,67 @@
 <template>
   <section class="event-location-picker">
+    <label class="event-location-picker__search">
+      <span class="event-location-picker__search-label">Location</span>
+
+      <div class="event-location-picker__search-shell">
+        <input
+          ref="searchInputEl"
+          :value="locationQuery"
+          class="event-location-picker__search-input"
+          type="text"
+          name="event_location"
+          placeholder="Search nearby places"
+          autocomplete="off"
+          :disabled="disabled"
+          @input="handleLocationInput"
+          @focus="handleLocationFocus"
+          @blur="handleLocationBlur"
+          @keydown.down.prevent="moveSuggestionHighlight(1)"
+          @keydown.up.prevent="moveSuggestionHighlight(-1)"
+          @keydown.enter.prevent="confirmHighlightedSuggestion"
+          @keydown.escape.prevent="dismissSuggestions"
+        >
+
+        <LoaderCircle
+          v-if="searchingSuggestions"
+          :size="16"
+          :stroke-width="2"
+          class="event-location-picker__search-spinner"
+        />
+      </div>
+
+      <div
+        v-if="showSuggestionPanel"
+        class="event-location-picker__suggestions"
+        role="listbox"
+        aria-label="Suggested locations"
+      >
+        <button
+          v-for="(suggestion, index) in locationSuggestions"
+          :key="suggestion.id"
+          class="event-location-picker__suggestion"
+          :class="{ 'event-location-picker__suggestion--active': index === highlightedSuggestionIndex }"
+          type="button"
+          @mousedown.prevent="selectLocationSuggestion(suggestion)"
+        >
+          <strong>{{ suggestion.label }}</strong>
+          <span>{{ suggestion.secondaryLabel || suggestion.displayName }}</span>
+        </button>
+
+        <p
+          v-if="!locationSuggestions.length && locationSearchMessage"
+          class="event-location-picker__suggestions-empty"
+        >
+          {{ locationSearchMessage }}
+        </p>
+      </div>
+    </label>
+
     <div class="event-location-picker__header">
       <div class="event-location-picker__copy">
-        <p class="event-location-picker__eyebrow">Location</p>
+        <p class="event-location-picker__eyebrow">Map</p>
         <p class="event-location-picker__summary">
-          {{ hasCoordinates ? 'Pin selected.' : 'Tap map or use current.' }}
+          {{ hasCoordinates ? 'Pin selected.' : 'Search, tap map, or use current.' }}
         </p>
       </div>
 
@@ -28,7 +85,7 @@
         <button
           class="event-location-picker__action"
           type="button"
-          :disabled="disabled || !hasCoordinates"
+          :disabled="disabled || !hasCoordinateInput"
           @click="clearSelection"
         >
           <Trash2 :size="15" :stroke-width="2" />
@@ -92,9 +149,21 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-vue-next'
-import { getCurrentPositionOrThrow } from '@/services/devicePermissions.js'
+import {
+  getCurrentPositionIfAvailable,
+  getCurrentPositionOrThrow,
+} from '@/services/devicePermissions.js'
+import {
+  formatCoordinateLocationLabel,
+  resolveLocationLabel,
+  searchLocationSuggestions,
+} from '@/services/locationDisplay.js'
 
 const props = defineProps({
+  locationLabel: {
+    type: String,
+    default: '',
+  },
   latitude: {
     type: [Number, String],
     default: '',
@@ -113,14 +182,37 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:latitude', 'update:longitude'])
+const emit = defineEmits(['update:locationLabel', 'update:latitude', 'update:longitude'])
+
+const MIN_LATITUDE = -90
+const MAX_LATITUDE = 90
+const MIN_LONGITUDE = -180
+const MAX_LONGITUDE = 180
+const DEFAULT_MAP_CENTER = Object.freeze({
+  latitude: 8.1552,
+  longitude: 123.8421,
+})
+const DEFAULT_MAP_ZOOM = 14
+const DEFAULT_MAP_MIN_ZOOM = 6
+const DEFAULT_AUTO_LOCATE_ZOOM = 15
+const LOCATION_SEARCH_DEBOUNCE_MS = 220
+const SHORT_QUERY_SEARCH_RADIUS_M = 6000
+const MEDIUM_QUERY_SEARCH_RADIUS_M = 12000
+const LONG_QUERY_SEARCH_RADIUS_M = 22000
 
 const mapEl = ref(null)
+const searchInputEl = ref(null)
 const loadingMap = ref(true)
 const locating = ref(false)
 const loadError = ref('')
 const statusMessage = ref('')
 const statusTone = ref('info')
+const locationQuery = ref(String(props.locationLabel || ''))
+const locationSuggestions = ref([])
+const searchingSuggestions = ref(false)
+const locationSearchError = ref('')
+const highlightedSuggestionIndex = ref(-1)
+const isLocationInputFocused = ref(false)
 
 const normalizedLatitude = computed(() => toFiniteNumber(props.latitude))
 const normalizedLongitude = computed(() => toFiniteNumber(props.longitude))
@@ -128,9 +220,13 @@ const normalizedRadius = computed(() => {
   const parsed = Number(props.radiusM)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 })
-const hasCoordinates = computed(() => (
+const hasCoordinateInput = computed(() => (
   normalizedLatitude.value != null
-  && normalizedLongitude.value != null
+  || normalizedLongitude.value != null
+))
+const hasCoordinates = computed(() => (
+  isValidLatitude(normalizedLatitude.value)
+  && isValidLongitude(normalizedLongitude.value)
 ))
 const formattedLatitude = computed(() => formatCoordinate(normalizedLatitude.value))
 const formattedLongitude = computed(() => formatCoordinate(normalizedLongitude.value))
@@ -139,9 +235,23 @@ const formattedRadius = computed(() => (
     ? `${Math.round(normalizedRadius.value)} m`
     : 'No radius yet'
 ))
-
-const defaultMapCenter = [12.8797, 121.7740]
-const defaultMapZoom = 5
+const normalizedLocationQuery = computed(() => String(locationQuery.value || '').trim())
+const locationSearchMessage = computed(() => {
+  if (!normalizedLocationQuery.value) return ''
+  if (searchingSuggestions.value) return 'Searching nearby locations...'
+  if (locationSearchError.value) return locationSearchError.value
+  if (!locationSuggestions.value.length) return 'No nearby streets, barangays, or places matched your search.'
+  return ''
+})
+const showSuggestionPanel = computed(() => (
+  !props.disabled
+  && isLocationInputFocused.value
+  && (
+    searchingSuggestions.value
+    || Boolean(locationSuggestions.value.length)
+    || Boolean(locationSearchMessage.value)
+  )
+))
 
 let leafletRef = null
 let mapInstance = null
@@ -151,6 +261,14 @@ let resizeObserver = null
 let invalidateTimeoutId = 0
 let mapInitSequence = 0
 let isComponentUnmounted = false
+let autoLocateSequence = 0
+let autoLocateAttempted = false
+let suggestionFetchController = null
+let suggestionTimeoutId = 0
+let reverseGeocodeController = null
+let suppressedSearchValue = ''
+let blurDismissTimeoutId = 0
+let lastKnownUserCoordinates = { ...DEFAULT_MAP_CENTER }
 
 onMounted(() => {
   isComponentUnmounted = false
@@ -160,11 +278,26 @@ onMounted(() => {
 onBeforeUnmount(() => {
   isComponentUnmounted = true
   cleanupMap()
+  clearSuggestionSearch()
+  reverseGeocodeController?.abort?.()
+  reverseGeocodeController = null
+
+  if (blurDismissTimeoutId) {
+    window.clearTimeout(blurDismissTimeoutId)
+    blurDismissTimeoutId = 0
+  }
 })
 
 watch(
   () => [normalizedLatitude.value, normalizedLongitude.value, normalizedRadius.value],
-  () => {
+  ([latitude, longitude]) => {
+    if (isValidLatitude(latitude) && isValidLongitude(longitude)) {
+      lastKnownUserCoordinates = {
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+      }
+    }
+
     syncSelectionOnMap({ focus: false })
   }
 )
@@ -173,6 +306,26 @@ watch(
   () => props.disabled,
   () => {
     syncSelectionOnMap({ focus: false })
+    if (props.disabled) {
+      dismissSuggestions()
+    }
+  }
+)
+
+watch(
+  () => props.locationLabel,
+  (nextValue) => {
+    const normalizedValue = String(nextValue || '')
+    if (normalizedValue === locationQuery.value) return
+
+    locationQuery.value = normalizedValue
+    if (suppressedSearchValue && suppressedSearchValue === normalizedValue.trim()) {
+      suppressedSearchValue = ''
+      dismissSuggestions()
+      return
+    }
+
+    scheduleSuggestionSearch()
   }
 )
 
@@ -186,17 +339,6 @@ async function initializeMap() {
   loadError.value = ''
 
   try {
-    await waitForStableMapContainer(containerEl)
-
-    if (
-      isComponentUnmounted
-      || initSequence !== mapInitSequence
-      || !isUsableMapContainer(containerEl)
-      || mapEl.value !== containerEl
-    ) {
-      return
-    }
-
     const [leafletModule] = await Promise.all([
       import('leaflet'),
       import('leaflet/dist/leaflet.css'),
@@ -212,24 +354,29 @@ async function initializeMap() {
     }
 
     leafletRef = leafletModule.default || leafletModule
+    const worldBounds = leafletRef.latLngBounds([[-85, -180], [85, 180]])
     mapInstance = leafletRef.map(containerEl, {
       zoomControl: false,
       attributionControl: true,
-      center: defaultMapCenter,
-      zoom: defaultMapZoom,
+      minZoom: DEFAULT_MAP_MIN_ZOOM,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1,
+      worldCopyJump: false,
     })
 
     leafletRef.control.zoom({ position: 'bottomright' }).addTo(mapInstance)
     leafletRef.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
+      minZoom: DEFAULT_MAP_MIN_ZOOM,
       maxZoom: 19,
-      updateWhenIdle: true,
-      keepBuffer: 2,
+      noWrap: true,
     }).addTo(mapInstance)
 
     mapInstance.on('click', handleMapClick)
 
+    focusFallbackMap({ animate: false })
     syncSelectionOnMap({ focus: true })
+    startAutoLocateIfIdle()
     scheduleMapInvalidate()
     observeMapResize()
   } catch (error) {
@@ -245,6 +392,7 @@ async function initializeMap() {
 
 function cleanupMap() {
   mapInitSequence += 1
+  autoLocateSequence += 1
 
   if (invalidateTimeoutId) {
     window.clearTimeout(invalidateTimeoutId)
@@ -274,9 +422,7 @@ function observeMapResize() {
   if (!mapEl.value || typeof ResizeObserver === 'undefined') return
 
   resizeObserver = new ResizeObserver(() => {
-    if (isUsableMapContainer(mapEl.value)) {
-      safeMapOperation(() => mapInstance?.invalidateSize())
-    }
+    mapInstance?.invalidateSize()
   })
   resizeObserver.observe(mapEl.value)
 }
@@ -285,13 +431,9 @@ function scheduleMapInvalidate() {
   if (!mapInstance) return
 
   nextTick(() => {
-    if (isUsableMapContainer(mapEl.value)) {
-      safeMapOperation(() => mapInstance?.invalidateSize())
-    }
+    mapInstance?.invalidateSize()
     invalidateTimeoutId = window.setTimeout(() => {
-      if (isUsableMapContainer(mapEl.value)) {
-        safeMapOperation(() => mapInstance?.invalidateSize())
-      }
+      mapInstance?.invalidateSize()
       invalidateTimeoutId = 0
     }, 220)
   })
@@ -299,12 +441,16 @@ function scheduleMapInvalidate() {
 
 function handleMapClick(event) {
   if (props.disabled) return
-  applyCoordinates(event.latlng.lat, event.latlng.lng, 'Pin updated.')
+  void applyCoordinates(event.latlng.lat, event.latlng.lng, 'Pin updated.', {
+    resolveLabel: true,
+  })
 }
 
 function handleMarkerDragEnd(event) {
   const latLng = event.target.getLatLng()
-  applyCoordinates(latLng.lat, latLng.lng, 'Pin moved.')
+  void applyCoordinates(latLng.lat, latLng.lng, 'Pin moved.', {
+    resolveLabel: true,
+  })
 }
 
 async function handleUseCurrentLocation() {
@@ -323,10 +469,18 @@ async function handleUseCurrentLocation() {
       ? ` (accuracy ${Math.round(accuracy)} m)`
       : ''
 
-    applyCoordinates(
+    lastKnownUserCoordinates = {
+      latitude: position.latitude,
+      longitude: position.longitude,
+    }
+
+    await applyCoordinates(
       position.latitude,
       position.longitude,
-      `Current location selected${accuracyLabel}.`
+      `Current location selected${accuracyLabel}.`,
+      {
+        resolveLabel: true,
+      }
     )
   } catch (error) {
     setStatus(
@@ -338,8 +492,231 @@ async function handleUseCurrentLocation() {
   }
 }
 
+function handleLocationInput(event) {
+  const nextValue = String(event?.target?.value || '')
+  locationQuery.value = nextValue
+  emit('update:locationLabel', nextValue)
+  scheduleSuggestionSearch()
+}
+
+function handleLocationFocus() {
+  if (blurDismissTimeoutId) {
+    window.clearTimeout(blurDismissTimeoutId)
+    blurDismissTimeoutId = 0
+  }
+
+  isLocationInputFocused.value = true
+  scheduleSuggestionSearch()
+}
+
+function handleLocationBlur() {
+  blurDismissTimeoutId = window.setTimeout(() => {
+    isLocationInputFocused.value = false
+    dismissSuggestions()
+    blurDismissTimeoutId = 0
+  }, 120)
+}
+
+function moveSuggestionHighlight(step = 1) {
+  if (!locationSuggestions.value.length) return
+
+  const total = locationSuggestions.value.length
+  if (highlightedSuggestionIndex.value < 0) {
+    highlightedSuggestionIndex.value = step > 0 ? 0 : total - 1
+    return
+  }
+
+  highlightedSuggestionIndex.value = (
+    highlightedSuggestionIndex.value + step + total
+  ) % total
+}
+
+function confirmHighlightedSuggestion() {
+  if (!locationSuggestions.value.length) return
+
+  const targetIndex = highlightedSuggestionIndex.value >= 0
+    ? highlightedSuggestionIndex.value
+    : 0
+  const suggestion = locationSuggestions.value[targetIndex]
+  if (!suggestion) return
+
+  void selectLocationSuggestion(suggestion)
+}
+
+function dismissSuggestions() {
+  clearSuggestionSearch()
+  locationSuggestions.value = []
+  locationSearchError.value = ''
+  highlightedSuggestionIndex.value = -1
+  searchingSuggestions.value = false
+}
+
+function clearSuggestionSearch() {
+  if (suggestionTimeoutId) {
+    window.clearTimeout(suggestionTimeoutId)
+    suggestionTimeoutId = 0
+  }
+
+  suggestionFetchController?.abort?.()
+  suggestionFetchController = null
+}
+
+function scheduleSuggestionSearch() {
+  clearSuggestionSearch()
+  highlightedSuggestionIndex.value = -1
+  locationSearchError.value = ''
+
+  if (!isLocationInputFocused.value || props.disabled) {
+    return
+  }
+
+  if (!normalizedLocationQuery.value) {
+    locationSuggestions.value = []
+    return
+  }
+
+  suggestionTimeoutId = window.setTimeout(() => {
+    suggestionTimeoutId = 0
+    void loadLocationSuggestions()
+  }, LOCATION_SEARCH_DEBOUNCE_MS)
+}
+
+async function loadLocationSuggestions() {
+  if (!normalizedLocationQuery.value || props.disabled) {
+    locationSuggestions.value = []
+    return
+  }
+
+  suggestionFetchController?.abort?.()
+  suggestionFetchController = typeof AbortController !== 'undefined' ? new AbortController() : null
+  searchingSuggestions.value = true
+  locationSearchError.value = ''
+
+  try {
+    const nearbyAnchor = await resolveSearchBiasCoordinates()
+    const suggestions = await searchLocationSuggestions({
+      query: normalizedLocationQuery.value,
+      near: nearbyAnchor,
+      signal: suggestionFetchController?.signal,
+      limit: 6,
+      radiusMeters: resolveSearchRadiusMeters(normalizedLocationQuery.value),
+    })
+
+    locationSuggestions.value = suggestions
+    highlightedSuggestionIndex.value = suggestions.length ? 0 : -1
+  } catch (error) {
+    if (error?.name === 'AbortError') return
+
+    locationSuggestions.value = []
+    locationSearchError.value = error?.message || 'Unable to search nearby locations.'
+  } finally {
+    searchingSuggestions.value = false
+  }
+}
+
+async function resolveSearchBiasCoordinates() {
+  if (isValidLatitude(normalizedLatitude.value) && isValidLongitude(normalizedLongitude.value)) {
+    return {
+      latitude: normalizedLatitude.value,
+      longitude: normalizedLongitude.value,
+    }
+  }
+
+  const resolvedUserCoordinates = await resolveNearbyUserCoordinates()
+  if (resolvedUserCoordinates) {
+    return resolvedUserCoordinates
+  }
+
+  if (
+    Number.isFinite(Number(lastKnownUserCoordinates?.latitude))
+    && Number.isFinite(Number(lastKnownUserCoordinates?.longitude))
+  ) {
+    return lastKnownUserCoordinates
+  }
+
+  return DEFAULT_MAP_CENTER
+}
+
+async function resolveNearbyUserCoordinates() {
+  const hasResolvedNearbyCoordinates = (
+    Number.isFinite(Number(lastKnownUserCoordinates?.latitude))
+    && Number.isFinite(Number(lastKnownUserCoordinates?.longitude))
+    && !isDefaultSearchAnchor(lastKnownUserCoordinates)
+  )
+
+  if (hasResolvedNearbyCoordinates) {
+    return {
+      latitude: Number(lastKnownUserCoordinates.latitude),
+      longitude: Number(lastKnownUserCoordinates.longitude),
+    }
+  }
+
+  const position = await getCurrentPositionIfAvailable({
+    enableHighAccuracy: false,
+    timeout: 1800,
+    maximumAge: 180000,
+  })
+
+  if (!position) return null
+
+  lastKnownUserCoordinates = {
+    latitude: position.latitude,
+    longitude: position.longitude,
+  }
+
+  return {
+    latitude: position.latitude,
+    longitude: position.longitude,
+  }
+}
+
+function isDefaultSearchAnchor(coordinates = null) {
+  const latitude = Number(coordinates?.latitude)
+  const longitude = Number(coordinates?.longitude)
+
+  return (
+    Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && Math.abs(latitude - DEFAULT_MAP_CENTER.latitude) < 0.000001
+    && Math.abs(longitude - DEFAULT_MAP_CENTER.longitude) < 0.000001
+  )
+}
+
+function resolveSearchRadiusMeters(query) {
+  const normalizedLength = String(query || '').trim().length
+  if (normalizedLength <= 1) return SHORT_QUERY_SEARCH_RADIUS_M
+  if (normalizedLength === 2) return MEDIUM_QUERY_SEARCH_RADIUS_M
+  return LONG_QUERY_SEARCH_RADIUS_M
+}
+
+async function selectLocationSuggestion(suggestion) {
+  if (!suggestion) return
+
+  const label = buildSuggestionValue(suggestion)
+  setLocationLabel(label, { suppressSearch: true })
+  dismissSuggestions()
+  await applyCoordinates(
+    suggestion.latitude,
+    suggestion.longitude,
+    'Location selected.',
+    {
+      locationLabel: label,
+      focus: true,
+    }
+  )
+}
+
+function buildSuggestionValue(suggestion) {
+  const primary = String(suggestion?.label || '').trim()
+  const secondary = String(suggestion?.secondaryLabel || '').trim()
+  if (!primary) return String(suggestion?.displayName || '').trim()
+  if (!secondary) return primary
+  if (primary.toLowerCase() === secondary.toLowerCase()) return primary
+  return `${primary}, ${secondary}`
+}
+
 function clearSelection() {
-  if (props.disabled || !hasCoordinates.value) return
+  if (props.disabled || !hasCoordinateInput.value) return
 
   emit('update:latitude', '')
   emit('update:longitude', '')
@@ -347,7 +724,13 @@ function clearSelection() {
   syncSelectionOnMap({ focus: true, latitude: null, longitude: null })
 }
 
-function applyCoordinates(latitude, longitude, message) {
+async function applyCoordinates(latitude, longitude, message, options = {}) {
+  const {
+    focus = true,
+    resolveLabel = false,
+    locationLabel = '',
+  } = options
+
   const roundedLatitude = Number(Number(latitude).toFixed(6))
   const roundedLongitude = Number(Number(longitude).toFixed(6))
 
@@ -355,11 +738,52 @@ function applyCoordinates(latitude, longitude, message) {
   emit('update:longitude', roundedLongitude)
   setStatus(message, 'info')
 
+  lastKnownUserCoordinates = {
+    latitude: roundedLatitude,
+    longitude: roundedLongitude,
+  }
+
+  if (locationLabel) {
+    setLocationLabel(locationLabel, { suppressSearch: true })
+  } else if (resolveLabel) {
+    await resolveAndApplyLocationLabel(roundedLatitude, roundedLongitude)
+  }
+
   syncSelectionOnMap({
-    focus: true,
+    focus,
     latitude: roundedLatitude,
     longitude: roundedLongitude,
   })
+}
+
+async function resolveAndApplyLocationLabel(latitude, longitude) {
+  reverseGeocodeController?.abort?.()
+  reverseGeocodeController = typeof AbortController !== 'undefined' ? new AbortController() : null
+
+  try {
+    const label = await resolveLocationLabel({
+      latitude,
+      longitude,
+      signal: reverseGeocodeController?.signal,
+    })
+    if (label) {
+      setLocationLabel(label, { suppressSearch: true })
+      return label
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') return ''
+  }
+
+  const fallbackLabel = formatCoordinateLocationLabel({ latitude, longitude })
+  setLocationLabel(fallbackLabel, { suppressSearch: true })
+  return fallbackLabel
+}
+
+function setLocationLabel(value, { suppressSearch = false } = {}) {
+  const normalizedValue = String(value || '').trim()
+  suppressedSearchValue = suppressSearch ? normalizedValue : ''
+  locationQuery.value = normalizedValue
+  emit('update:locationLabel', normalizedValue)
 }
 
 function syncSelectionOnMap({
@@ -369,18 +793,14 @@ function syncSelectionOnMap({
 } = {}) {
   if (!mapInstance || !leafletRef) return
 
-  const hasPoint = Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
+  const hasPoint = isValidLatitude(latitude) && isValidLongitude(longitude)
 
   if (!hasPoint) {
     removeMarkerFromMap()
     removeRadiusPreview()
 
     if (focus) {
-      safeMapOperation(() => {
-        mapInstance.setView(defaultMapCenter, defaultMapZoom, {
-          animate: false,
-        })
-      })
+      focusFallbackMap()
     }
 
     return
@@ -410,19 +830,69 @@ function syncSelectionOnMap({
   if (!focus) return
 
   if (radiusPreview) {
-    safeMapOperation(() => {
-      mapInstance.fitBounds(radiusPreview.getBounds().pad(0.24), {
-        maxZoom: 17,
-      })
+    mapInstance.fitBounds(radiusPreview.getBounds().pad(0.24), {
+      maxZoom: 17,
     })
     return
   }
 
-  safeMapOperation(() => {
-    mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), 16), {
-      animate: true,
-    })
+  mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), 16), {
+    animate: true,
   })
+}
+
+function focusFallbackMap({ animate = true } = {}) {
+  if (!mapInstance) return
+
+  mapInstance.setView(
+    [DEFAULT_MAP_CENTER.latitude, DEFAULT_MAP_CENTER.longitude],
+    DEFAULT_MAP_ZOOM,
+    { animate }
+  )
+}
+
+function focusNearestAvailableLocation(latitude, longitude, { animate = true } = {}) {
+  if (!mapInstance || !leafletRef) return
+  if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+    focusFallbackMap({ animate })
+    return
+  }
+
+  const latLng = leafletRef.latLng(Number(latitude), Number(longitude))
+  mapInstance.setView(latLng, Math.max(mapInstance.getZoom(), DEFAULT_AUTO_LOCATE_ZOOM), {
+    animate,
+  })
+}
+
+function startAutoLocateIfIdle() {
+  if (autoLocateAttempted || hasCoordinates.value || !mapInstance) return
+
+  autoLocateAttempted = true
+  const locateSequence = ++autoLocateSequence
+
+  void (async () => {
+    const position = await getCurrentPositionIfAvailable({
+      enableHighAccuracy: false,
+      timeout: 3500,
+      maximumAge: 120000,
+    })
+
+    if (
+      !position
+      || isComponentUnmounted
+      || locateSequence !== autoLocateSequence
+      || !mapInstance
+      || hasCoordinates.value
+    ) {
+      return
+    }
+
+    lastKnownUserCoordinates = {
+      latitude: position.latitude,
+      longitude: position.longitude,
+    }
+    focusNearestAvailableLocation(position.latitude, position.longitude)
+  })()
 }
 
 function syncRadiusPreview(latLng) {
@@ -519,36 +989,14 @@ function toFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function isUsableMapContainer(element) {
-  if (!element?.isConnected) return false
-
-  const rect = element.getBoundingClientRect()
-  return rect.width > 0 && rect.height > 0
+function isValidLatitude(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_LATITUDE && parsed <= MAX_LATITUDE
 }
 
-async function waitForStableMapContainer(element) {
-  if (typeof window === 'undefined') return
-
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    if (isComponentUnmounted || element !== mapEl.value) return
-    if (isUsableMapContainer(element)) return
-
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
-  }
-}
-
-function safeMapOperation(operation) {
-  try {
-    operation()
-  } catch (error) {
-    const message = String(error?.message || '')
-    if (message.toLowerCase().includes('infinite number of tiles')) {
-      loadError.value = 'The map is still sizing. Reopen this panel or use current location if it does not appear.'
-      return
-    }
-
-    throw error
-  }
+function isValidLongitude(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_LONGITUDE && parsed <= MAX_LONGITUDE
 }
 
 function formatCoordinate(value) {
@@ -563,6 +1011,114 @@ function formatCoordinate(value) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.event-location-picker__search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-location-picker__search-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--color-text-always-dark, #111827);
+}
+
+.event-location-picker__search-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.event-location-picker__search-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-text-always-dark, #111827);
+  padding: 0 42px 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.event-location-picker__search-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-primary, #3b82f6) 40%, white);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #3b82f6) 16%, transparent);
+}
+
+.event-location-picker__search-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.event-location-picker__search-spinner {
+  position: absolute;
+  right: 14px;
+  color: var(--color-text-secondary, #6b7280);
+  animation: event-location-picker-spin 0.9s linear infinite;
+}
+
+.event-location-picker__suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.event-location-picker__suggestion {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.event-location-picker__suggestion strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text-always-dark, #111827);
+}
+
+.event-location-picker__suggestion span,
+.event-location-picker__suggestions-empty {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.event-location-picker__suggestion:hover,
+.event-location-picker__suggestion--active {
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 8%, white);
+  transform: translateY(-1px);
+}
+
+.event-location-picker__suggestions-empty {
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .event-location-picker__header,

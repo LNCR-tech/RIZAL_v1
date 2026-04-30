@@ -76,7 +76,7 @@
             class="text-[9px] font-extrabold text-left leading-[1.1]"
             style="color: var(--color-search-pill-text);"
           >
-            Aura AI<br>Soon
+            Talk to<br>Aura Ai
           </span>
         </button>
       </div>
@@ -96,7 +96,7 @@
           id="mobile-ai-panel"
           class="mobile-ai-panel md:hidden"
           role="region"
-          aria-label="Talk with Aura"
+          aria-label="Aura AI chat"
         >
           <div class="mobile-ai-panel-inner">
             <div class="mobile-ai-shell">
@@ -125,13 +125,13 @@
                     v-model="inputText"
                     class="mobile-ai-input-field"
                     type="text"
-                    :placeholder="isAuraChatUnderDevelopment ? 'Feature under development' : 'Ask Aura...'"
-                    :disabled="isTyping || isAuraChatUnderDevelopment"
+                    placeholder="Ask Aura..."
+                    :disabled="isTyping"
                     @keyup.enter="sendMessage"
                   />
                   <button
                     class="mobile-ai-send-btn"
-                    :disabled="!inputText.trim() || isTyping || isAuraChatUnderDevelopment"
+                    :disabled="!inputText.trim() || isTyping"
                     aria-label="Send message"
                     type="button"
                     @click="sendMessage"
@@ -172,7 +172,7 @@
 
     <!-- Upcoming events list (additional quick-view) -->
     <div v-if="!searchActive && upcomingEvents.length > 1" class="mt-4 dashboard-enter dashboard-enter--5">
-      <h2 class="text-[16px] font-bold mb-3 px-1" style="color: var(--color-text-primary);">Upcoming Events</h2>
+      <h2 class="text-[16px] font-bold mb-3 px-1" style="color: var(--color-text-primary);">Events</h2>
       <div class="flex flex-col gap-3">
         <TransitionGroup name="list" appear>
           <div
@@ -294,16 +294,15 @@ function sortHomeEvents(items) {
 
 // --- Computed ---
 const displayEvents = computed(() =>
-  schoolEvents.value.filter((e) => {
+  sortHomeEvents(schoolEvents.value.filter((e) => {
     const status = normalizeStatus(e.status)
-    return status === 'upcoming' || status === 'ongoing'
-  })
+    return status === 'upcoming' || status === 'ongoing' || status === 'completed'
+  }))
 )
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
 
 const {
-  isAuraChatUnderDevelopment,
   messages,
   inputText,
   isTyping,
@@ -368,11 +367,9 @@ function toggleMobileAi() {
 watch(isMobileAiOpen, (open) => {
   if (open) {
     closeAll()
-    if (!isAuraChatUnderDevelopment.value) {
-      nextTick(() => {
-        setTimeout(() => mobileInputEl.value?.focus(), 220)
-      })
-    }
+    nextTick(() => {
+      setTimeout(() => mobileInputEl.value?.focus(), 220)
+    })
   }
 })
 
@@ -447,21 +444,39 @@ const unreadAnnouncements = computed(() =>
 
 // --- Formatters ---
 function formatMonth(dt) {
-  return new Date(dt).toLocaleString('en', { month: 'short' }).toUpperCase()
+  if (!dt) return '---'
+  const d = new Date(dt)
+  if (Number.isNaN(d.getTime())) return '---'
+  return d.toLocaleString('en', { month: 'short' }).toUpperCase()
 }
 
 function formatDay(dt) {
-  return new Date(dt).getDate()
+  if (!dt) return '--'
+  const d = new Date(dt)
+  if (Number.isNaN(d.getTime())) return '--'
+  return d.getDate()
 }
 
 function statusStyle(status) {
   const map = {
-    upcoming: { background: 'rgba(170,255,0,0.2)', color: '#3a5c00' },
-    ongoing: { background: 'rgba(0,200,100,0.15)', color: '#006633' },
-    completed: { background: 'rgba(0,0,0,0.08)', color: '#555' },
-    cancelled: { background: 'rgba(255,80,80,0.12)', color: '#cc0000' },
+    upcoming: {
+      background: 'color-mix(in srgb, var(--color-primary) 18%, transparent)',
+      color: 'var(--color-text-primary)',
+    },
+    ongoing: {
+      background: 'color-mix(in srgb, var(--color-status-compliant) 14%, transparent)',
+      color: 'var(--color-status-compliant)',
+    },
+    completed: {
+      background: 'color-mix(in srgb, var(--color-surface-text-muted) 10%, transparent)',
+      color: 'var(--color-text-muted)',
+    },
+    cancelled: {
+      background: 'color-mix(in srgb, var(--color-status-non-compliant) 12%, transparent)',
+      color: 'var(--color-status-non-compliant)',
+    },
   }
-  return map[status] ?? map.upcoming
+  return map[String(status || '').toLowerCase()] ?? map.upcoming
 }
 
 function normalizeStatus(status) {
@@ -479,9 +494,10 @@ function handleSeeEvent(event) {
   if (props.preview || !event?.id) return
 
   const normalizedEventId = Number(event.id)
+  const status = normalizeStatus(event.status)
   const shouldRouteToAttendance = (
-    hasOpenAttendanceForEvent(normalizedEventId)
-    || (event.status === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
+    (status === 'ongoing' && hasOpenAttendanceForEvent(normalizedEventId))
+    || (status === 'ongoing' && !hasAttendanceForEvent(normalizedEventId))
   )
 
   if (shouldRouteToAttendance) {

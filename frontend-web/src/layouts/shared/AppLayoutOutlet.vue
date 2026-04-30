@@ -1,32 +1,35 @@
 <template>
-  <div class="app-layout-outlet">
-    <RouterView v-slot="{ Component, route }">
-      <Suspense timeout="0">
-        <template #default>
-          <Transition name="page-fade" mode="out-in">
-            <component :is="Component" :key="resolveRouteViewKey(route, Component)" />
-          </Transition>
-        </template>
+  <RouterView v-slot="{ Component, route }">
+    <Suspense timeout="0">
+      <template #default>
+        <Transition name="page-fade" mode="out-in">
+          <div :key="resolveRouteViewKey(route, Component)" class="app-layout-outlet__route-frame">
+            <RouteErrorBoundary>
+              <component :is="Component" />
+            </RouteErrorBoundary>
+          </div>
+        </Transition>
+      </template>
 
-        <template #fallback>
-          <div class="app-layout-outlet__fallback" aria-live="polite" aria-busy="true">
-            <div class="app-layout-outlet__fallback-card">
-              <span class="app-layout-outlet__fallback-pulse" aria-hidden="true" />
+      <template #fallback>
+        <div class="app-layout-outlet__fallback" aria-live="polite" aria-busy="true">
+          <div class="app-layout-outlet__fallback-card">
+            <span class="app-layout-outlet__fallback-pulse" aria-hidden="true" />
 
-              <div class="app-layout-outlet__fallback-copy">
-                <strong class="app-layout-outlet__fallback-title">Loading workspace</strong>
-                <span class="app-layout-outlet__fallback-subtitle">Preparing the next screen.</span>
-              </div>
+            <div class="app-layout-outlet__fallback-copy">
+              <strong class="app-layout-outlet__fallback-title">Loading workspace</strong>
+              <span class="app-layout-outlet__fallback-subtitle">Preparing the next screen.</span>
             </div>
           </div>
-        </template>
-      </Suspense>
-    </RouterView>
-  </div>
+        </div>
+      </template>
+    </Suspense>
+  </RouterView>
 </template>
 
 <script setup>
 import { RouterView } from 'vue-router'
+import RouteErrorBoundary from '@/components/shared/RouteErrorBoundary.vue'
 
 function resolveRouteViewKey(route, component) {
   const matchedRecords = Array.isArray(route?.matched) ? route.matched : []
@@ -51,11 +54,6 @@ function resolveRouteViewKey(route, component) {
 </script>
 
 <style scoped>
-.app-layout-outlet {
-  min-height: 100dvh;
-  background: var(--color-bg);
-}
-
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition: opacity 0.2s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
@@ -72,6 +70,11 @@ function resolveRouteViewKey(route, component) {
   transform: translateY(-6px) scale(0.995);
 }
 
+.app-layout-outlet__route-frame {
+  width: 100%;
+  min-width: 0;
+}
+
 .app-layout-outlet__fallback {
   position: fixed;
   inset: 0;
@@ -81,8 +84,8 @@ function resolveRouteViewKey(route, component) {
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(circle at top, rgba(170, 255, 0, 0.12), transparent 30%),
-    rgba(5, 5, 5, 0.78);
+    radial-gradient(circle at top, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 30%),
+    color-mix(in srgb, var(--color-nav) 78%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -94,9 +97,9 @@ function resolveRouteViewKey(route, component) {
   min-width: min(100%, 272px);
   padding: 16px 18px;
   border-radius: 999px;
-  background: rgba(20, 20, 20, 0.82);
+  background: color-mix(in srgb, var(--color-nav) 82%, transparent);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-  color: rgba(255, 255, 255, 0.96);
+  color: var(--color-nav-text);
 }
 
 .app-layout-outlet__fallback-pulse {
@@ -104,8 +107,8 @@ function resolveRouteViewKey(route, component) {
   height: 12px;
   flex: 0 0 12px;
   border-radius: 999px;
-  background: #aaff00;
-  box-shadow: 0 0 0 0 rgba(170, 255, 0, 0.42);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 42%, transparent);
   animation: app-layout-outlet-pulse 1.4s ease-out infinite;
 }
 
@@ -124,23 +127,23 @@ function resolveRouteViewKey(route, component) {
 .app-layout-outlet__fallback-subtitle {
   font-size: 12px;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.64);
+  color: color-mix(in srgb, var(--color-nav-text) 64%, transparent);
 }
 
 @keyframes app-layout-outlet-pulse {
   0% {
     transform: scale(0.92);
-    box-shadow: 0 0 0 0 rgba(170, 255, 0, 0.42);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 42%, transparent);
   }
 
   70% {
     transform: scale(1);
-    box-shadow: 0 0 0 14px rgba(170, 255, 0, 0);
+    box-shadow: 0 0 0 14px color-mix(in srgb, var(--color-primary) 0%, transparent);
   }
 
   100% {
     transform: scale(0.92);
-    box-shadow: 0 0 0 0 rgba(170, 255, 0, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 0%, transparent);
   }
 }
 </style>

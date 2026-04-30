@@ -27,7 +27,8 @@
     </header>
 
     <div v-if="isLoading" class="sg-members-state dashboard-enter dashboard-enter--2">
-      <p>Loading governance members...</p>
+      <p>Loading governance members…</p>
+      <p class="sg-members-state__hint">This may take a moment if your session is still starting.</p>
     </div>
 
     <div v-else-if="loadError" class="sg-members-state sg-members-state--error dashboard-enter dashboard-enter--2">
@@ -194,7 +195,7 @@
 
         <div v-else class="sg-members-empty">
           <UsersRound :size="18" :stroke-width="2.1" />
-          <p>No members match your search.</p>
+          <p>{{ emptyMembersLabel }}</p>
         </div>
       </section>
     </template>
@@ -317,7 +318,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -382,8 +383,17 @@ const showPermissions = ref(false)
 const candidateResults = ref([])
 const governanceUnitId = ref(null)
 let candidateTimer = null
+let sgLoadingTimeoutId = null
 
 const memberDraft = ref({ ...createEmptyCouncilMemberDraft(), searchQuery: '', selectedStudent: null })
+
+const requestedGovernanceUnitId = computed(() => normalizePositiveId(readFirstQueryValue(route.query, [
+  'unit_id',
+  'unitId',
+  'governance_unit_id',
+  'governanceUnitId',
+  'id',
+])))
 
 const permissionCodeSet = computed(() => new Set(
   (Array.isArray(permissionCodes.value) ? permissionCodes.value : [])
@@ -452,6 +462,12 @@ const filteredMembers = computed(() => {
       .includes(query)
   ))
 })
+
+const emptyMembersLabel = computed(() => (
+  members.value.length
+    ? 'No members match your search.'
+    : 'No members have been assigned to this unit yet.'
+))
 
 const detailMemberPermLabels = computed(() => {
   if (!detailMember.value) return []
@@ -550,13 +566,23 @@ watch(
 )
 
 watch(
-  [apiBaseUrl, () => sgLoading.value, () => route.query?.variant, () => route.query?.unit_id],
+  [apiBaseUrl, () => sgLoading.value, () => route.query?.variant, requestedGovernanceUnitId],
   async ([url]) => {
     if (!url || sgLoading.value) return
     await loadUnit(url)
   },
   { immediate: true }
 )
+
+// Safety valve: if sgLoading never resolves (slow session init or stuck API),
+// force a loadUnit attempt after 7s so the page never hangs as a blank screen.
+onMounted(() => {
+  sgLoadingTimeoutId = setTimeout(() => {
+    if (isLoading.value && apiBaseUrl.value) {
+      loadUnit(apiBaseUrl.value)
+    }
+  }, 7000)
+})
 
 watch(
   [() => memberDraft.value.searchQuery, isCandidateSearchOpen, selectedStudent],
@@ -588,11 +614,60 @@ function resolveHierarchyTone(stepType, activeType) {
   return 'muted'
 }
 
-function applyManagedUnit(detail = null) {
-  managedUnit.value = detail && typeof detail === 'object' ? { ...detail } : null
-  governanceUnitId.value = Number(detail?.id || null)
-  members.value = Array.isArray(detail?.members)
-    ? detail.members.map(mapGovernanceMemberToCouncilMember)
+function readFirstQueryValue(query = {}, keys = []) {
+  for (const key of keys) {
+    const value = query?.[key]
+    if (Array.isArray(value)) {
+      const firstValue = value.find((entry) => String(entry ?? '').trim())
+      if (firstValue != null) return firstValue
+      continue
+    }
+    if (String(value ?? '').trim()) return value
+  }
+
+  return null
+}
+
+function normalizePositiveId(value) {
+  const normalized = Number(value)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null
+}
+
+function mapGovernanceMemberSafely(member = null) {
+  try {
+    const mapped = mapGovernanceMemberToCouncilMember(member || {})
+    return Number.isFinite(Number(mapped?.id)) ? mapped : null
+  } catch (error) {
+    console.warn('Skipping invalid governance member payload:', error?.message || error)
+    return null
+  }
+}
+
+function applyManagedUnit(detail = null, fallbackUnitId = null) {
+  const normalizedDetail = detail && typeof detail === 'object' ? { ...detail } : null
+  const normalizedUnitId = normalizePositiveId(
+    normalizedDetail?.id
+    ?? normalizedDetail?.governance_unit_id
+    ?? normalizedDetail?.unit_id
+    ?? fallbackUnitId
+  )
+
+  managedUnit.value = normalizedDetail
+    ? {
+      ...normalizedDetail,
+      id: normalizedUnitId ?? normalizedDetail.id,
+    }
+    : null
+  governanceUnitId.value = normalizedUnitId
+
+  if (!normalizedDetail || !normalizedUnitId) {
+    members.value = []
+    loadError.value = 'The selected governance unit was not found or returned an invalid payload.'
+    return
+  }
+
+  members.value = Array.isArray(normalizedDetail.members)
+    ? normalizedDetail.members.map(mapGovernanceMemberSafely).filter(Boolean)
     : []
 }
 
@@ -616,11 +691,16 @@ async function loadUnit(url) {
   const token = localStorage.getItem('aura_token') || ''
 
   try {
-    const routeUnitId = Number(route.query?.unit_id) || null
+    if (!token) {
+      loadError.value = 'Please sign in again to manage governance members.'
+      return
+    }
+
+    const routeUnitId = requestedGovernanceUnitId.value
 
     if (routeUnitId) {
       const detail = await getGovernanceUnitDetail(url, token, routeUnitId)
-      applyManagedUnit(detail)
+      applyManagedUnit(detail, routeUnitId)
       return
     }
 
@@ -653,9 +733,16 @@ async function loadUnit(url) {
     }
 
     const targetUnit = childUnits[0]
-    const detail = await getGovernanceUnitDetail(url, token, targetUnit.id)
-    applyManagedUnit(detail)
+    const targetUnitId = normalizePositiveId(targetUnit?.id ?? targetUnit?.governance_unit_id)
+    if (!targetUnitId) {
+      loadError.value = `The first ${childUnitType} unit returned by the backend did not include a valid id.`
+      return
+    }
+
+    const detail = await getGovernanceUnitDetail(url, token, targetUnitId)
+    applyManagedUnit(detail, targetUnitId)
   } catch (error) {
+    console.error('Unable to load governance members:', error?.message || error)
     loadError.value = error?.message || 'Unable to load members.'
   } finally {
     isLoading.value = false
@@ -668,10 +755,10 @@ async function reload() {
 
 function goBack() {
   if (props.preview) {
-    router.push(withPreservedGovernancePreviewQuery(route, '/exposed/governance'))
+    router.push(withPreservedGovernancePreviewQuery(route, '/exposed/governance/admin'))
     return
   }
-  router.push('/governance')
+  router.push('/governance/admin')
 }
 
 function resetDraft() {
@@ -684,6 +771,10 @@ function resetDraft() {
 
 function openAddSheet() {
   if (!canManageMembers.value) return
+  if (!governanceUnitId.value) {
+    loadError.value = 'Select a valid governance unit before adding members.'
+    return
+  }
   resetDraft()
   isSheetOpen.value = true
 }
@@ -763,6 +854,7 @@ async function searchCandidates(query) {
       .filter((candidate) => !candidate.isCurrentGovernanceMember)
       .filter((candidate) => !members.value.some((member) => member.userId === candidate.userId))
   } catch {
+    console.warn('Unable to search governance student candidates.')
     candidateResults.value = []
   }
 }
@@ -800,6 +892,12 @@ async function handleSubmit() {
 
   isSaving.value = true
   const token = localStorage.getItem('aura_token') || ''
+  if (!governanceUnitId.value) {
+    loadError.value = 'Select a valid governance unit before saving members.'
+    isSaving.value = false
+    return
+  }
+
   const payload = {
     user_id: Number(memberDraft.value.studentId),
     position_title: memberDraft.value.position.trim(),
@@ -919,7 +1017,10 @@ function permissionCountLabel(member = {}) {
   return count === 0 ? 'No permission grants' : `${count} permission${count === 1 ? '' : 's'}`
 }
 
-onBeforeUnmount(() => clearTimeout(candidateTimer))
+onBeforeUnmount(() => {
+  clearTimeout(candidateTimer)
+  clearTimeout(sgLoadingTimeoutId)
+})
 </script>
 
 <style scoped>
@@ -937,9 +1038,9 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 .sg-members-state,
 .sg-sheet,
 .sg-detail {
-  border: 1px solid color-mix(in srgb, var(--color-primary) 10%, rgba(15, 23, 42, 0.08));
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
-  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.06);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
+  background: linear-gradient(180deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-bg) 28%, var(--color-surface)) 100%);
+  box-shadow: 0 20px 42px color-mix(in srgb, var(--color-nav) 8%, transparent);
 }
 
 .sg-members-hero {
@@ -951,7 +1052,7 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   gap: 18px;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+    linear-gradient(180deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-bg) 28%, var(--color-surface)) 100%);
 }
 
 .sg-members-hero__top,
@@ -973,13 +1074,13 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   height: 40px;
   border: none;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-bg) 30%, var(--color-surface));
+  color: var(--color-surface-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.88);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-surface-border) 88%, transparent);
 }
 
 .sg-members-hero__eyebrow,
@@ -1054,8 +1155,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 }
 
 .sg-members-chip--muted {
-  background: rgba(148, 163, 184, 0.14);
-  color: #475569;
+  background: color-mix(in srgb, var(--color-surface-text-muted) 16%, transparent);
+  color: var(--color-surface-text-secondary);
 }
 
 .sg-members-overview {
@@ -1082,7 +1183,7 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 }
 
 .sg-members-panel__icon {
-  color: color-mix(in srgb, var(--color-primary-dark) 70%, #334155);
+  color: color-mix(in srgb, var(--color-primary) 70%, var(--color-surface-text));
   flex-shrink: 0;
 }
 
@@ -1094,23 +1195,23 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 .sg-members-hierarchy__item {
   border-radius: 22px;
   padding: 16px;
-  border: 1px solid rgba(226, 232, 240, 0.88);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
+  background: color-mix(in srgb, var(--color-bg) 24%, var(--color-surface));
   display: grid;
   gap: 8px;
 }
 
 .sg-members-hierarchy__item--current {
-  border-color: color-mix(in srgb, var(--color-primary) 28%, rgba(226, 232, 240, 0.88));
-  background: color-mix(in srgb, var(--color-primary) 10%, rgba(255, 255, 255, 0.96));
+  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-surface-border));
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
 }
 
 .sg-members-hierarchy__item--upstream {
-  background: rgba(241, 245, 249, 0.9);
+  background: color-mix(in srgb, var(--color-bg) 34%, var(--color-surface));
 }
 
 .sg-members-hierarchy__item--downstream {
-  background: rgba(248, 250, 252, 0.92);
+  background: color-mix(in srgb, var(--color-bg) 42%, var(--color-surface));
 }
 
 .sg-members-hierarchy__tag {
@@ -1138,8 +1239,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 .sg-members-fact {
   border-radius: 20px;
   padding: 15px 16px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(226, 232, 240, 0.88);
+  background: color-mix(in srgb, var(--color-bg) 24%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
   display: grid;
   gap: 8px;
 }
@@ -1149,6 +1250,12 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 .sg-members-state {
   border-radius: 28px;
   padding: 18px 20px;
+}
+
+.sg-members-state__hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
 }
 
 .sg-members-toolbar {
@@ -1177,8 +1284,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: color-mix(in srgb, var(--color-bg) 24%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
 }
 
 .sg-members-search__icon {
@@ -1221,7 +1328,7 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 
 .sg-members-action:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 16px 28px color-mix(in srgb, var(--color-nav) 14%, transparent);
 }
 
 .sg-members-action:disabled {
@@ -1246,8 +1353,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 .sg-member-card {
   border-radius: 24px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: color-mix(in srgb, var(--color-bg) 24%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
   display: flex;
   gap: 14px;
   cursor: pointer;
@@ -1256,8 +1363,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 
 .sg-member-card:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--color-primary) 18%, rgba(226, 232, 240, 0.92));
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+  border-color: color-mix(in srgb, var(--color-primary) 24%, var(--color-surface-border));
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--color-nav) 10%, transparent);
 }
 
 .sg-member-card__avatar,
@@ -1265,8 +1372,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   width: 48px;
   height: 48px;
   border-radius: 18px;
-  background: color-mix(in srgb, var(--color-primary) 16%, rgba(255, 255, 255, 0.96));
-  color: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+  color: var(--color-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1303,8 +1410,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   height: 38px;
   border: none;
   border-radius: 14px;
-  background: rgba(248, 250, 252, 0.96);
-  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-bg) 38%, var(--color-surface));
+  color: var(--color-surface-text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1330,14 +1437,14 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 
 .sg-member-card__permission,
 .sg-detail__permission {
-  background: color-mix(in srgb, var(--color-primary) 12%, rgba(255, 255, 255, 0.96));
-  color: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary);
 }
 
 .sg-member-card__permission--muted,
 .sg-detail__permission--muted {
-  background: rgba(148, 163, 184, 0.14);
-  color: #475569;
+  background: color-mix(in srgb, var(--color-surface-text-muted) 16%, transparent);
+  color: var(--color-surface-text-secondary);
 }
 
 .sg-members-empty,
@@ -1353,14 +1460,14 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
 }
 
 .sg-members-state--error {
-  color: #b91c1c;
+  color: var(--color-status-non-compliant);
 }
 
 .sg-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 900;
-  background: rgba(15, 23, 42, 0.38);
+  background: color-mix(in srgb, var(--color-nav) 42%, transparent);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1402,8 +1509,8 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   height: 38px;
   border: none;
   border-radius: 14px;
-  background: rgba(248, 250, 252, 0.96);
-  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-bg) 38%, var(--color-surface));
+  color: var(--color-surface-text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1429,9 +1536,9 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   min-height: 50px;
   border-radius: 18px;
   padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(226, 232, 240, 0.92);
-  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-bg) 24%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 88%, transparent);
+  color: var(--color-surface-text);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.5;
@@ -1443,7 +1550,7 @@ onBeforeUnmount(() => clearTimeout(candidateTimer))
   border: none;
   border-radius: 18px;
   background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
+  color: var(--color-status-non-compliant);
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;

@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import {
     clearDashboardSession,
     getDefaultAuthenticatedRoute,
@@ -12,9 +12,9 @@ import {
 import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView, preloadPlatformViews } from '@/router/platformView.js'
-import { hashRouterEnabled, readEnvFlag } from '@/services/appPath.js'
 
 const AppLayout = () => import('@/layouts/AppLayout.vue')
+const NotFoundView = () => import('@/views/NotFoundView.vue')
 const authView = (viewName) => createPlatformView(`auth/${viewName}`)
 const dashboardView = (viewName) => createPlatformView(`dashboard/${viewName}`)
 const toolsView = (viewName) => createPlatformView(`tools/${viewName}`)
@@ -42,6 +42,7 @@ const SchoolItAttendanceMonitorView = dashboardView('SchoolItAttendanceMonitorVi
 const SchoolItEventReportsView = dashboardView('SchoolItEventReportsView')
 const SchoolItSettingsView = dashboardView('SchoolItSettingsView')
 const GovernanceWorkspaceView = dashboardView('GovernanceWorkspaceView')
+const SgMembersView = dashboardView('SgMembersView')
 const SgCreateUnitView = dashboardView('SgCreateUnitView')
 const GatherWelcomeView = dashboardView('GatherWelcomeView')
 const GatherAttendanceView = dashboardView('GatherAttendanceView')
@@ -66,36 +67,6 @@ const schoolItRoutePreloads = [
 const adminRoutePreloads = [
     'dashboard/AdminWorkspaceView',
 ]
-
-const previewRoutesEnabled = import.meta.env.DEV || readEnvFlag(import.meta.env.VITE_ENABLE_PREVIEW_ROUTES)
-const apiLabEnabled = import.meta.env.DEV || readEnvFlag(import.meta.env.VITE_ENABLE_API_LAB)
-
-function resolveDisabledPreviewRouteRedirect(path = '') {
-    const normalizedPath = String(path || '').trim()
-    if (!normalizedPath.startsWith('/exposed/')) return ''
-
-    if (normalizedPath === '/exposed/face-scan') {
-        return '/quick-attendance'
-    }
-
-    if (normalizedPath === '/exposed/sg') {
-        return '/governance'
-    }
-
-    if (normalizedPath.startsWith('/exposed/sg/')) {
-        return `/governance/${normalizedPath.slice('/exposed/sg/'.length)}`
-    }
-
-    if (normalizedPath === '/exposed/dashboard/sg') {
-        return '/governance'
-    }
-
-    if (normalizedPath.startsWith('/exposed/dashboard/sg/')) {
-        return `/governance/${normalizedPath.slice('/exposed/dashboard/sg/'.length)}`
-    }
-
-    return normalizedPath.replace(/^\/exposed/, '')
-}
 
 function preloadRouteContextViews(path = '') {
     const normalizedPath = String(path || '')
@@ -561,7 +532,8 @@ const routes = [
             },
             {
                 path: 'members',
-                redirect: { name: 'SgAdmin' },
+                name: 'SgMembers',
+                component: SgMembersView,
             },
             {
                 path: 'events',
@@ -633,7 +605,9 @@ const routes = [
             },
             {
                 path: 'members',
-                redirect: { name: 'PreviewSgAdmin' },
+                name: 'PreviewSgMembers',
+                component: SgMembersView,
+                props: { preview: true },
             },
             {
                 path: 'events',
@@ -741,11 +715,6 @@ const routes = [
     },
     // Student dashboard routes (wrapped in AppLayout)
     {
-        path: '/:pathMatch(.*)*',
-        name: 'NotFound',
-        component: () => import('@/views/NotFoundView.vue'),
-    },
-    {
         path: '/dashboard',
         component: AppLayout,
         meta: {
@@ -805,12 +774,15 @@ const routes = [
             },
         ],
     },
+    {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: NotFoundView,
+    },
 ]
 
 const router = createRouter({
-    history: hashRouterEnabled
-        ? createWebHashHistory(import.meta.env.BASE_URL)
-        : createWebHistory(import.meta.env.BASE_URL),
+    history: createWebHistory(import.meta.env.BASE_URL),
     routes,
     scrollBehavior() {
         return { left: 0, top: 0 }
@@ -823,17 +795,6 @@ router.beforeEach(async (to) => {
     const isAuthenticated = hasSessionToken()
     const mustChangePassword = needsStoredPasswordChange()
     const privilegedPendingFace = hasPrivilegedPendingFace()
-
-    if (!apiLabEnabled && to.name === 'ApiLab') {
-        return { name: 'Login' }
-    }
-
-    if (!previewRoutesEnabled) {
-        const previewRedirectPath = resolveDisabledPreviewRouteRedirect(to.path)
-        if (previewRedirectPath) {
-            return previewRedirectPath
-        }
-    }
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: 'Login' }

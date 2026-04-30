@@ -4,7 +4,6 @@ import {
   normalizeSchoolSettings,
   normalizeUserWithRelations,
 } from '@/services/backendNormalizers.js'
-import { withBase } from '@/services/appPath.js'
 
 const PREVIEW_SCHOOL_ID = 1999
 
@@ -42,7 +41,7 @@ export const studentDashboardPreviewData = {
     school_id: PREVIEW_SCHOOL_ID,
     school_name: 'University Name',
     school_code: 'UNI',
-    logo_url: withBase('logos/aura.png'),
+    logo_url: '/logos/aura.png',
     primary_color: '#AAFF00',
     secondary_color: '#64748B',
     accent_color: '#0A0A0A',

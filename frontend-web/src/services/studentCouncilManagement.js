@@ -366,6 +366,7 @@ export function deriveStudentCouncilMembers({ users = [], programs = [], departm
 export function mapGovernanceMemberToCouncilMember(member = {}) {
   const user = member.user || {}
   const profile = user.student_profile || {}
+  const userId = Number(user.id ?? member.user_id)
   const permissions = Array.isArray(member.member_permissions)
     ? member.member_permissions
       .map((permission) => mapBackendPermissionCodeToUi(permission.permission_code))
@@ -374,8 +375,8 @@ export function mapGovernanceMemberToCouncilMember(member = {}) {
 
   return {
     id: Number(member.id),
-    userId: Number(user.id),
-    studentId: String(profile.student_id || user.id || ''),
+    userId,
+    studentId: String(profile.student_id || user.id || member.user_id || ''),
     fullName: [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || user.email || 'Student',
     position: String(member.position_title || 'Officer').trim(),
     permissionIds: permissions,

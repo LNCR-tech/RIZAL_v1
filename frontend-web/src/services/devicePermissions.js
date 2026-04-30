@@ -900,6 +900,53 @@ export async function getCurrentPosition(options = {}) {
     }
 }
 
+export async function getCurrentPositionIfAvailable(options = {}) {
+    const cached = getCachedPosition(resolveRequestedMaximumAge(options))
+    if (cached) return cached
+
+    if (isNativeApp()) {
+        const Geolocation = await loadGeolocationPlugin().catch(() => null)
+        if (!Geolocation) return null
+
+        try {
+            const status = await Geolocation.checkPermissions()
+            if (!isLocationGrantedStatus(status)) {
+                return null
+            }
+        } catch {
+            return null
+        }
+
+        try {
+            return await resolveNativeCurrentPosition({
+                ...DEFAULT_LOCATION_PRIME_OPTIONS,
+                ...options,
+            })
+        } catch {
+            return null
+        }
+    }
+
+    const secureContextError = getWebSecureContextLocationError()
+    if (secureContextError || !navigator?.geolocation) {
+        return null
+    }
+
+    const permissionState = await getWebLocationPermissionState()
+    if (permissionState !== 'granted') {
+        return null
+    }
+
+    try {
+        return await resolveWebCurrentPosition({
+            ...DEFAULT_LOCATION_PRIME_OPTIONS,
+            ...options,
+        })
+    } catch {
+        return null
+    }
+}
+
 export async function primeLocationAccess(options = {}) {
     const cached = getCachedPosition(resolveRequestedMaximumAge(options))
     if (cached) return cached

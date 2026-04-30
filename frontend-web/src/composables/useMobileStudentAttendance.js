@@ -8,6 +8,7 @@ import {
   formatCompactDuration,
   getMillisecondsUntilSignOutOpen,
   isOpenAttendanceRecord,
+  parseAttendanceDateTime,
   parseEventDateTime,
   resolveAttendanceActionState,
   resolveAttendanceCompletionState,
@@ -60,17 +61,7 @@ const successTimeFormatter = new Intl.DateTimeFormat('en-PH', {
   minute: '2-digit',
 })
 const faceScanTimeoutMs = Number(import.meta.env.VITE_FACE_SCAN_TIMEOUT_MS ?? 3000)
-const faceVerificationFailureCodes = new Set([
-  'face_frame_required',
-  'face_mismatch',
-  'face_not_recognized',
-  'face_not_registered',
-  'face_reenrollment_required',
-  'liveness_failed',
-  'no_face_detected',
-  'single_face_required',
-  'spoof_detected',
-])
+const faceScanGateEnabled = import.meta.env.VITE_FACE_SCAN_GATE !== 'false'
 
 function resolvePreviewFlag(source) {
   return Boolean(unref(typeof source === 'function' ? source() : source))
@@ -78,70 +69,6 @@ function resolvePreviewFlag(source) {
 
 function normalizeAction(action) {
   return String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
-}
-
-function createFaceVerificationError(message, code = 'face_verification_failed') {
-  const error = new Error(message || 'Face verification failed. Please scan your own face again.')
-  error.isFaceVerificationFailure = true
-  error.code = code
-  return error
-}
-
-function getErrorDetail(source) {
-  return source?.details?.detail ?? source?.detail ?? source?.details ?? null
-}
-
-function getErrorCode(source) {
-  const detail = getErrorDetail(source)
-  if (detail && typeof detail === 'object') {
-    return String(detail.code || detail.reason_code || '').trim()
-  }
-  return String(source?.code || source?.reason_code || '').trim()
-}
-
-function isBypassedLiveness(liveness = null) {
-  const label = String(liveness?.label || '').trim().toLowerCase()
-  const reason = String(liveness?.reason || '').trim().toLowerCase()
-  return label === 'bypassed' || reason === 'face_scan_bypass'
-}
-
-function isFaceVerificationFailure(source) {
-  if (source?.isFaceVerificationFailure) return true
-  const code = getErrorCode(source).toLowerCase()
-  if (faceVerificationFailureCodes.has(code)) return true
-
-  const message = String(source?.message || '').toLowerCase()
-  return (
-    message.includes('face') ||
-    message.includes('liveness') ||
-    message.includes('spoof') ||
-    message.includes('matching student')
-  )
-}
-
-function resolveFaceVerificationFailureMessage(source) {
-  if (isBypassedLiveness(source?.liveness)) {
-    return 'The backend reported that face verification was bypassed. Attendance was not accepted by this app.'
-  }
-
-  const detail = getErrorDetail(source)
-  if (detail && typeof detail === 'object') {
-    const detailMessage = String(detail.message || detail.detail || detail.reason || '').trim()
-    if (detailMessage) return detailMessage
-  }
-
-  const message = String(source?.message || '').trim()
-  if (message) return message
-  return 'We could not match the live scan to your student account. Please scan your own face again.'
-}
-
-function assertFaceVerificationAccepted(result) {
-  if (isBypassedLiveness(result?.liveness)) {
-    throw createFaceVerificationError(
-      resolveFaceVerificationFailureMessage(result),
-      'face_scan_bypass',
-    )
-  }
 }
 
 function isSignOutAction(action) {
@@ -181,8 +108,7 @@ function resolveEventGeo(event = null) {
 }
 
 function formatAttendanceTimestamp(value) {
-  if (!value) return '--, --'
-  const parsed = parseEventDateTime(value)
+  const parsed = parseAttendanceDateTime(value)
   return Number.isFinite(parsed.getTime()) ? timestampFormatter.format(parsed) : '--, --'
 }
 
@@ -403,7 +329,6 @@ export function useMobileStudentAttendance(previewSource = false) {
   const latestError = ref(null)
   const latestSuccess = ref(null)
   const latestNotice = ref(null)
-  const attendanceFailure = ref(null)
   const successFeedback = ref({
     visible: false,
     title: '',
@@ -614,7 +539,6 @@ export function useMobileStudentAttendance(previewSource = false) {
     latestError.value = null
     latestSuccess.value = null
     latestNotice.value = null
-    attendanceFailure.value = null
     dismissSuccessFeedback()
   }
 
@@ -878,7 +802,7 @@ export function useMobileStudentAttendance(previewSource = false) {
 
   function waitForFaceOrTimeout(timeoutMs = faceScanTimeoutMs) {
     return new Promise((resolve) => {
-      if (faceDetected.value) {
+      if (!faceScanGateEnabled || faceDetected.value) {
         resolve('detected')
         return
       }
@@ -913,25 +837,16 @@ export function useMobileStudentAttendance(previewSource = false) {
   }
 
   async function waitForFaceDetection() {
-    if (faceDetected.value) return true
+    if (!faceScanGateEnabled || faceDetected.value) return true
 
     const detectorReady = await ensureFaceDetector()
     if (!detectorReady) {
-      throw createFaceVerificationError(
-        'Face detection is not ready. Please keep the camera open and try scanning again.',
-        'face_detector_unavailable',
-      )
+      faceDetected.value = true
+      return true
     }
 
     await startFaceDetection()
-    const result = await waitForFaceOrTimeout()
-    if (result !== 'detected') {
-      throw createFaceVerificationError(
-        'No face was detected. Center your face in the frame and scan again.',
-        result === 'timeout' ? 'no_face_detected' : 'camera_not_ready',
-      )
-    }
-    return true
+    return (await waitForFaceOrTimeout()) === 'detected'
   }
 
   async function loadEventTimeStatus() {
@@ -1255,8 +1170,6 @@ export function useMobileStudentAttendance(previewSource = false) {
       throw new Error(result.message || 'Cannot verify face right now.')
     }
 
-    assertFaceVerificationAccepted(result)
-
     if (result?.geo?.time_status) {
       eventTimeStatus.value = result.geo.time_status
     }
@@ -1398,16 +1311,6 @@ export function useMobileStudentAttendance(previewSource = false) {
       showSuccessFeedback(buildSuccessFeedback(attendanceResult, submittedActionKind))
       currentLocationError.value = ''
     } catch (error) {
-      if (isFaceVerificationFailure(error)) {
-        const message = resolveFaceVerificationFailureMessage(error)
-        attendanceFailure.value = {
-          message,
-          code: getErrorCode(error) || 'face_verification_failed',
-        }
-        latestError.value = { message }
-        return
-      }
-
       latestError.value = {
         message: resolveLocationErrorMessage(
           error,
@@ -1418,13 +1321,6 @@ export function useMobileStudentAttendance(previewSource = false) {
       loadingMessage.value = ''
       isSubmitting.value = false
     }
-  }
-
-  function retryAttendanceFailure() {
-    attendanceFailure.value = null
-    latestError.value = null
-    faceDetected.value = false
-    void handleSubmit()
   }
 
   async function initialize() {
@@ -1496,7 +1392,6 @@ export function useMobileStudentAttendance(previewSource = false) {
     actionLabel,
     actionState,
     actionTone,
-    attendanceFailure,
     cameraReady,
     canSubmit,
     checkedInLabel,
@@ -1516,7 +1411,6 @@ export function useMobileStudentAttendance(previewSource = false) {
     locationReady,
     setBackgroundVideoRef,
     setFocusVideoRef,
-    retryAttendanceFailure,
     statusModel,
     successFeedback,
     dismissSuccessFeedback,

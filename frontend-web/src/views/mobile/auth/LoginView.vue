@@ -73,6 +73,16 @@
               </button>
             </label>
 
+            <div class="mobile-login__forgot-password">
+              <a
+                href="#"
+                class="mobile-login__forgot-link"
+                @click.prevent="goToForgotPassword"
+              >
+                Forgot password?
+              </a>
+            </div>
+
             <Transition name="login-message">
               <p v-if="visibleMessage" class="mobile-login__message">
                 {{ visibleMessage }}
@@ -96,24 +106,24 @@
             <div class="mobile-login__google">
               <GoogleSignInButton @credential="handleGoogleCredential" />
             </div>
-
-            <div class="mobile-login__forgot-password">
-              <a
-                href="#"
-                class="mobile-login__forgot-link"
-                @click.prevent="goToForgotPassword"
-              >
-                Forgot password?
-              </a>
-            </div>
           </form>
         </div>
 
         <footer class="mobile-login__footer">
+          <div class="mobile-login__footer-branding">
+            <img
+              src="/logos/aura_logo_black.png"
+              alt="Aura"
+              class="mobile-login__footer-logo"
+            >
+            <span class="mobile-login__footer-powered">Powered by Aura Ai</span>
+          </div>
+          
           <a
-            href="#"
+            href="https://aura-landing-page-iota.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
             class="mobile-login__footer-link"
-            @click.prevent
           >
             Learn more about Aura Project
           </a>
@@ -125,13 +135,12 @@
 
 <script setup>
 import { ref } from 'vue'
-import logBackground from '@/assets/images/login_bg.jpg'
-import { withBase } from '@/services/appPath.js'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton.vue'
+import logBackground from '@/assets/images/login_bg.jpg'
 import { useLoginViewModel } from '@/composables/useLoginViewModel.js'
 
 const passwordVisible = ref(false)
-const auraLogoWhite = withBase('logos/aura_logo_white.png')
+const auraLogoWhite = '/logos/aura_logo_white.png'
 const heroBackgroundStyle = {
   backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.32) 100%), url(${logBackground})`,
 }
@@ -405,8 +414,21 @@ function togglePasswordVisibility() {
 
 .mobile-login__forgot-password {
   display: flex;
-  justify-content: center;
-  margin-top: 8px;
+  justify-content: flex-end;
+  margin-top: -10px;
+}
+
+.mobile-login__forgot-link {
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: rgba(16, 16, 16, 0.72);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.mobile-login__forgot-link:active {
+  color: #0c0c0c;
 }
 
 .mobile-login__divider {
@@ -434,27 +456,34 @@ function togglePasswordVisibility() {
   min-height: 44px;
 }
 
-.mobile-login__forgot-link {
-  font-size: 0.88rem;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  color: rgba(16, 16, 16, 0.72);
-  text-decoration: none;
-  transition: color 0.18s ease;
-}
-
-.mobile-login__forgot-link:active {
-  color: #0c0c0c;
-}
-
 .mobile-login__footer {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   margin-top: auto;
   padding-top: 52px;
-  flex-wrap: wrap;
+}
+
+.mobile-login__footer-branding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mobile-login__footer-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.mobile-login__footer-powered {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: rgba(16, 16, 16, 0.82);
 }
 
 .mobile-login__footer-link {
@@ -464,12 +493,6 @@ function togglePasswordVisibility() {
   color: rgba(16, 16, 16, 0.72);
   text-decoration: none;
   transition: color 0.18s ease;
-}
-
-.mobile-login__footer-link--button {
-  border: 0;
-  background: transparent;
-  padding: 0;
 }
 
 .mobile-login__footer-link:active {

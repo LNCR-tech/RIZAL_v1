@@ -125,6 +125,29 @@ export function resolveGovernanceWorkspaceLocation(routeOrPath = null) {
     : { name: 'SgDashboard' }
 }
 
+export function resolveChatLocation(routeOrPath = null) {
+  switch (resolveWorkspaceContext(routeOrPath)) {
+    case 'admin':
+      return { name: 'AdminAuraChat' }
+    case 'admin_preview':
+      return { name: 'PreviewAdminAuraChat' }
+    case 'workspace':
+      return { name: 'SchoolItAuraChat' }
+    case 'workspace_preview':
+      return { name: 'PreviewSchoolItAuraChat' }
+    case 'governance':
+    case 'sg':
+      return { name: 'SgAuraChat' }
+    case 'governance_preview':
+    case 'sg_preview':
+      return withPreservedGovernancePreviewQuery(routeOrPath, { name: 'PreviewSgAuraChat' })
+    case 'dashboard_preview':
+      return { name: 'PreviewDashboardAuraChat' }
+    default:
+      return { name: 'DashboardAuraChat' }
+  }
+}
+
 export function isGatherWelcomePath(routeOrPath = null) {
   const path = getRoutePath(routeOrPath)
   return path.includes('/gather') && !path.includes('/gather/attendance')

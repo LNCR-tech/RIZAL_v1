@@ -1338,6 +1338,7 @@ import {
   getEvents as getCampusEvents,
   updateEvent as updateBackendEvent,
 } from '@/services/backendApi.js'
+import { createIdempotencyKey } from '@/services/idempotency.js'
 import { useGovernanceWorkspace } from '@/composables/useGovernanceWorkspace.js'
 import { useAiDemo } from '@/services/aiDemoHandler.js'
 import { normalizeGovernanceContext } from '@/services/governanceScope.js'
@@ -1448,6 +1449,7 @@ const announcementDraft = ref(createAnnouncementDraft())
 const isEventEditorOpen = ref(false)
 const isEventEditorSaving = ref(false)
 const eventEditorError = ref('')
+const pendingEventCreateRequestKey = ref('')
 const editingEvent = ref(null)
 const eventListFilter = ref('all')
 const expandedEventId = ref(null)
@@ -1985,12 +1987,19 @@ function resolveAttendanceDirectoryStatusCategory(attendance = null, event = nul
     return resolveEventFeedState(event) === 'done' ? 'absent' : 'neutral'
   }
 
+  const eventIsFinal = resolveEventFeedState(event) === 'done'
+  const signedInWithoutSignOut = Boolean(attendance?.time_in && !attendance?.time_out)
+
+  if (eventIsFinal && signedInWithoutSignOut) {
+    return 'absent'
+  }
+
   if (
     completionState === 'incomplete'
     || normalizedDisplayStatus === 'incomplete'
     || normalizedDisplayStatus === 'waiting'
     || normalizedDisplayStatus === 'waiting_for_sign_out'
-    || (attendance?.time_in && !attendance?.time_out)
+    || signedInWithoutSignOut
   ) {
     return 'waiting'
   }
@@ -2782,10 +2791,11 @@ function openEventEditor() {
   isEventEditorOpen.value = true
 }
 
-function closeEventEditor() {
-  if (isEventEditorSaving.value) return
+function closeEventEditor(force = false) {
+  if (isEventEditorSaving.value && !force) return
   isEventEditorOpen.value = false
   eventEditorError.value = ''
+  pendingEventCreateRequestKey.value = ''
   editingEvent.value = null
 }
 
@@ -3013,6 +3023,8 @@ function buildScopedEventParams() {
 }
 
 async function handleEventEditorSave(payload) {
+  if (isEventEditorSaving.value) return
+
   const isEditingExistingEvent = Boolean(editingEvent.value?.id)
 
   if (props.preview) {
@@ -3057,13 +3069,24 @@ async function handleEventEditorSave(payload) {
         ...payload,
       })
     } else {
+      if (!pendingEventCreateRequestKey.value) {
+        pendingEventCreateRequestKey.value = createIdempotencyKey('governance-event')
+      }
+
       const scopedPayload = buildScopedEventPayload(payload)
       const createdEvent = await createGovernanceEvent(
         apiBaseUrl.value,
         token.value,
         scopedPayload.payload,
         scopedPayload.params,
+        {
+          headers: {
+            'X-Idempotency-Key': pendingEventCreateRequestKey.value,
+          },
+        }
       )
+
+      closeEventEditor(true)
 
       events.value = sortEventFeed([
         createdEvent || {
@@ -3072,10 +3095,13 @@ async function handleEventEditorSave(payload) {
         },
         ...events.value,
       ])
+      pendingEventCreateRequestKey.value = ''
+      return
     }
 
-    closeEventEditor()
+    closeEventEditor(true)
   } catch (error) {
+    pendingEventCreateRequestKey.value = ''
     eventEditorError.value = error?.message || (
       isEditingExistingEvent
         ? 'Unable to save the event changes.'
@@ -3218,7 +3244,10 @@ const governanceHierarchyCards = computed(() => {
  */
 function navigateToChildUnitMembers(unit) {
   const unitId = unit?.id || unit?.governance_unit_id
-  if (!unitId) return
+  if (!unitId) {
+    console.warn('[GovernanceWorkspaceView] navigateToChildUnitMembers: unit has no id', unit)
+    return
+  }
   const baseRoute = props.preview ? '/exposed/governance/members' : '/governance/members'
   router.push(`${baseRoute}?unit_id=${unitId}`)
 }
