@@ -35,6 +35,29 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # Hashed assets — cache aggressively (1 year, immutable)
+    location ~* ^/assets/.+\.(js|css|woff2?|ttf|eot|png|jpg|jpeg|gif|svg|ico|webp)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # index.html and runtime-config.js must never be cached so browsers
+    # always fetch the latest chunk manifest after every deploy
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+        try_files $uri =404;
+    }
+
+    location = /runtime-config.js {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+        try_files $uri =404;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
