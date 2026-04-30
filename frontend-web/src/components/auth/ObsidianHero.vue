@@ -250,6 +250,10 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   padding: 52px 40px;
+  /* Logo shadow to match the 3D lighting environment */
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.9));
+  /* Ensure logo looks like it's "Floating" high */
+  transform: translate3d(0, -10px, 0);
 }
 
 @keyframes obsidian-shimmer {
