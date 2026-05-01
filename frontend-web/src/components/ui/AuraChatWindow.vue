@@ -201,6 +201,9 @@ watch(isFullOpen, (val) => {
   if (val) {
     refreshConversations()
     setTimeout(() => inputEl.value?.focus(), 350)
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
   }
 })
 </script>
@@ -386,11 +389,25 @@ watch(isFullOpen, (val) => {
   flex-direction: column;
   gap: 12px;
   padding: 4px 16px 16px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .chat-messages::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* TransitionGroup wrapper — must be flex col for align-self to work */
@@ -647,11 +664,21 @@ details[open] .bubble-thought__toggle::after {
   flex-direction: column;
   gap: 8px;
   padding-right: 4px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 .chat-sidebar-list::-webkit-scrollbar {
-  display: none;
+  width: 3px;
+}
+
+.chat-sidebar-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-sidebar-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
 }
 
 .chat-sidebar-item {
