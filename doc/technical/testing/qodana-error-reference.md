@@ -1,7 +1,7 @@
 # Qodana Error Reference
 
 > **Status:** ACTIVE
-> **Last Updated:** 2026-05-01
+> **Last Updated:** 2026-04-18
 > **Author Role:** QA Tester / Documentation Specialist
 
 See also: [tool-usage-guide.md](./tool-usage-guide.md) · [qa-toolchain-workflow.md](./qa-toolchain-workflow.md) · [bug-reports.md](./bug-reports.md)
@@ -70,7 +70,6 @@ To make bug reports and QA reports easier to read, use this format:
 - Severity: High
 - File: Backend/app/services/example.py
 - Summary: Wrong type passed into service helper
-- Visible Error: N/A — no user-facing screen affected (Qodana CI only)
 ```
 
 ### What each field means
@@ -81,7 +80,6 @@ To make bug reports and QA reports easier to read, use this format:
 | `Finding Code` | Your internal QA shortcut code |
 | `Inspection ID` | The real JetBrains inspection identifier |
 | `Severity` | Your QA triage severity |
-| `Visible Error` | The exact text or UI message the user sees on screen when this bug occurs in the running app. Use `N/A` for findings that only appear in Qodana/CI output with no user-facing symptom. This makes bugs searchable by what users actually report, e.g. `"This page could not render."` or `"Error in Face Scan"`. |
 
 ---
 
@@ -222,7 +220,7 @@ Use this rule:
 
 When a Qodana finding becomes a real tracked defect, copy these fields into:
 
-- [bug-reports.md](./bug-reports.md)
+- [bug-reports.md](C:/Users/gabri/OneDrive/Desktop/MOBILE/AURAV3/doc/technical/testing/bug-reports.md)
 - GitHub Issues
 
 Recommended fields:
@@ -234,7 +232,6 @@ Recommended fields:
 - File:
 - Severity:
 - Summary:
-- Visible Error:
 - Reproduction or evidence:
 ```
 

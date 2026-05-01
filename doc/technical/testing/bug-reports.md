@@ -1,7 +1,7 @@
 # Bug Reports — VALID8 Attendance Recognition System
 
 > **Status:** ACTIVE — IN PROGRESS
-> **Last Updated:** 2026-05-01
+> **Last Updated:** 2026-04-18
 > **Author Role:** QA Engineer / Documentation Specialist
 >
 > See also: [test-cases.md](./test-cases.md) · [test-plan.md](./test-plan.md)
@@ -22,7 +22,6 @@ Every confirmed bug must live here with a unique ID before a release can be appr
 - Keep status current — do **not** leave resolved bugs as `Open`.
 - Link each bug to impacted requirement IDs to preserve traceability.
 - When a Qodana finding is confirmed as a real defect, record the Qodana fields using the dedicated template below.
-- **Visible Error** — always record the exact text a user sees on screen. Use the real on-screen message (e.g. `"This page could not render."`) so that anyone can search this file using the words they saw, without knowing any internal function name or endpoint.
 
 ---
 
@@ -66,7 +65,6 @@ Every confirmed bug must live here with a unique ID before a release can be appr
 | Requirement Impact | FR-XX.X |
 | Linked Test Case | TC-XXXX or N/A |
 | Endpoint / Area | e.g. POST /api/attendance/manual |
-| Visible Error | Exact on-screen text or UI label the user sees, e.g. `"This page could not render."` or `"Error in Face Scan"`. Write N/A if the error is invisible to end users (e.g. server log only). |
 | Description | What happened |
 | Steps to Reproduce | 1) ... 2) ... 3) ... |
 | Expected Result | What should happen |
@@ -100,7 +98,6 @@ Use this template when the issue was first identified by Qodana static analysis.
 | Qodana Finding Code | e.g. `QD-PY-001` |
 | Qodana Inspection ID | e.g. `PyTypeChecker` |
 | File | e.g. `Backend/app/services/example.py` |
-| Visible Error | Exact on-screen text or UI label the user sees, e.g. `"This page could not render."` or `"Error in Face Scan"`. Write N/A if this finding only appears in Qodana/CI output with no user-facing message. |
 | Description | What Qodana detected |
 | Runtime Risk | Why this can matter in actual app behavior |
 | Steps to Reproduce | 1) Run Qodana 2) Open the flagged file 3) inspect the reported line or code block |
@@ -148,7 +145,6 @@ Reference:
 | Requirement Impact | FR-07.2 |
 | Linked Test Case | TC-FR07-01 |
 | Endpoint / Area | Alembic `env.py` |
-| Visible Error | N/A — error appears only in the terminal/container logs, not on any user-facing screen |
 | Description | Running `alembic upgrade head` without an exported `DATABASE_URL` failed to connect. |
 | Steps to Reproduce | 1) Start local setup without exporting `DATABASE_URL` 2) Run `alembic upgrade head` |
 | Expected Result | Migration command resolves database URL from standard project configuration. |
@@ -172,7 +168,6 @@ Reference:
 | Requirement Impact | FR-01.1, FR-01.6 |
 | Linked Test Case | TC-FR01-01, TC-FR01-02 |
 | Endpoint / Area | `POST /login` |
-| Visible Error | Login hangs or fails with no response — user sees a frozen login button or a generic network error toast |
 | Description | Concurrent login traffic exhausted default SQLAlchemy pool limits, causing request failures. |
 | Steps to Reproduce | 1) Start backend with default pool settings 2) Send 50+ concurrent login requests via load test |
 | Expected Result | Login remains stable within expected concurrency baseline. |
@@ -196,7 +191,6 @@ Reference:
 | Requirement Impact | FR-04.2 |
 | Linked Test Case | TC-FR04-04 |
 | Endpoint / Area | `POST /api/face/register`, `POST /api/face/register-upload` |
-| Visible Error | `"Error in Face Scan"` — red error text shown on the Face Registration screen after tapping the register button |
 | Description | Student accounts with `student_profile.student_id = null` caused Pydantic validation failure, returning a 500. |
 | Steps to Reproduce | 1) Create student account without assigning a student ID 2) Call `/api/face/register` |
 | Expected Result | Registration succeeds and response includes `student_id: null`. |
@@ -220,7 +214,6 @@ Reference:
 | Requirement Impact | FR-04.3, FR-07.1 |
 | Linked Test Case | TC-FR07-02 |
 | Endpoint / Area | `GET /api/attendance/me/records` |
-| Visible Error | Attendance history page shows blank/empty list or a red error banner — browser console shows `"Failed to fetch"` |
 | Description | Students with `student_profile.student_id = null` caused response-model validation failures surfacing as CORS-style browser fetch errors. |
 | Steps to Reproduce | 1) Log in as student with null student ID 2) Open attendance history page |
 | Expected Result | `200` with `student_id: null` — no crash. |
@@ -244,7 +237,6 @@ Reference:
 | Requirement Impact | FR-02.3 |
 | Linked Test Case | TC-FR02-01, TC-FR02-02 |
 | Endpoint / Area | `Backend/app/services/student_import_service.py` |
-| Visible Error | App is completely unreachable — all pages show a connection refused / site can't be reached error in the browser |
 | Description | Accidentally committed Git conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) caused an `IndentationError` on backend startup. |
 | Steps to Reproduce | 1) Run `docker compose up -d --build` on the affected commit |
 | Expected Result | Backend starts normally at `http://localhost:8000`. |
@@ -268,7 +260,6 @@ Reference:
 | Requirement Impact | FR-07.2 |
 | Linked Test Case | TC-FR07-01 |
 | Endpoint / Area | `Backend/scripts/run-service.sh` |
-| Visible Error | App is completely unreachable — all pages show a connection refused / site can't be reached error in the browser (same symptom as BUG-005, different root cause) |
 | Description | Windows CRLF line endings in bind-mounted shell scripts caused `/bin/sh` parsing failures inside Linux containers. |
 | Steps to Reproduce | 1) Clone repository on Windows 2) Run `docker compose up -d --build` |
 | Expected Result | Backend and migrate services start successfully. |
@@ -292,7 +283,6 @@ Reference:
 | Requirement Impact | N/A |
 | Linked Test Case | N/A |
 | Endpoint / Area | `Backend/docs/BACKEND_CHANGELOG.md` (lines ~301–359) |
-| Visible Error | N/A — internal documentation file only; no user-facing screen is affected |
 | Description | The `BACKEND_CHANGELOG.md` file contains live Git conflict markers (`>>>>>>>`, `<<<<<<<`, `=======`) left from a past merge. Two overlapping "How to Test" sections exist for the same change entry. |
 | Steps to Reproduce | 1) Open `Backend/docs/BACKEND_CHANGELOG.md` 2) Search for `<<<<<<<` |
 | Expected Result | Clean changelog with no conflict markers. |
@@ -316,7 +306,6 @@ Reference:
 | Requirement Impact | FR-01.1, FR-01.2 |
 | Linked Test Case | TC-FR01-01 |
 | Endpoint / Area | `docs/requirements/functional-requirements.md` |
-| Visible Error | N/A — internal documentation file only; no user-facing screen is affected |
 | Description | FR-01.1 and FR-01.2 are listed with identical text: "Users must log in with email and password." FR-01.2 likely intended to describe a different requirement (e.g., MFA or token refresh). |
 | Steps to Reproduce | 1) Open `functional-requirements.md` 2) Compare FR-01.1 and FR-01.2 |
 | Expected Result | Each requirement has a unique, distinct description. |
