@@ -1,0 +1,116 @@
+GET http://localhost:8080/api/item?id=99
+Accept: application/json
+
+###
+### IntelliJ HTTP Client smoke file for local Aura/VALID8 API checks
+### Replace the credentials below with values from your seed logs or local test accounts.
+
+@baseUrl = http://localhost:8000
+@json = application/json
+@adminEmail = admin@example.com
+@adminPassword = AdminPass123!
+@studentEmail = student@example.com
+@studentPassword = change-me
+@accessToken =
+
+### Health check
+GET {{baseUrl}}/health
+Accept: {{json}}
+
+> {%
+client.test("Health returns 200", function () {
+  client.assert(response.status === 200, "Expected HTTP 200 from /health");
+});
+%}
+
+###
+
+### Login with JSON body
+POST {{baseUrl}}/login
+Content-Type: {{json}}
+Accept: {{json}}
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}",
+  "remember_me": true
+}
+
+> {%
+client.test("Login returns success", function () {
+  client.assert(response.status === 200, "Expected login to succeed");
+});
+
+if (response.body && response.body.access_token) {
+  client.global.set("accessToken", response.body.access_token);
+}
+%}
+
+###
+
+### Current user preferences - authenticated smoke
+GET {{baseUrl}}/api/users/preferences/me
+Accept: {{json}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Preferences request is authenticated", function () {
+  client.assert(response.status === 200, "Expected HTTP 200 from preferences endpoint");
+});
+%}
+
+###
+
+### Update user preferences - authenticated smoke
+PUT {{baseUrl}}/api/users/preferences/me
+Content-Type: {{json}}
+Accept: {{json}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "dark_mode_enabled": true,
+  "font_size_percent": 110
+}
+
+> {%
+client.test("Preferences update succeeds", function () {
+  client.assert(response.status === 200, "Expected HTTP 200 from preferences update");
+});
+%}
+
+###
+
+### Unauthorized preferences request - negative test
+GET {{baseUrl}}/api/users/preferences/me
+Accept: {{json}}
+
+> {%
+client.test("Unauthorized request is blocked", function () {
+  client.assert(
+    response.status === 401 || response.status === 403,
+    "Expected HTTP 401 or 403 when token is missing"
+  );
+});
+%}
+
+###
+
+### Student login smoke
+POST {{baseUrl}}/login
+Content-Type: {{json}}
+Accept: {{json}}
+
+{
+  "email": "{{studentEmail}}",
+  "password": "{{studentPassword}}",
+  "remember_me": false
+}
+
+> {%
+client.test("Student login returns success or face-pending response", function () {
+  client.assert(
+    response.status === 200,
+    "Expected HTTP 200 from student login"
+  );
+});
+%}
