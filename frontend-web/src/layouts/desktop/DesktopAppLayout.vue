@@ -22,9 +22,9 @@ useProtectedShellSession()
 <style scoped>
 .desktop-app-layout {
   min-height: 100vh;
-  background: var(--color-bg);
+  background: transparent;
   font-family: 'Manrope', sans-serif;
-  color: var(--color-text-primary);
+  color: #ffffff;
 }
 
 .desktop-app-layout__main {

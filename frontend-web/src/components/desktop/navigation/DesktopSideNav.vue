@@ -25,7 +25,7 @@
               :is="item.icon"
               :size="19"
               :stroke-width="isActive(item) ? 2.2 : 1.6"
-              :color="isActive(item) ? 'var(--color-primary)' : '#000000'"
+              :color="isActive(item) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
               class="nav-rail__icon"
             />
 
@@ -247,11 +247,11 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   width: 100%;
   height: 100%;
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .nav-rail__shell::before,
@@ -306,22 +306,20 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   align-items: center;
   justify-content: center;
   gap: 4px;
-  color: #000000;
   transition: opacity 200ms ease, transform 220ms ease;
 }
 
 .nav-rail__button--idle {
-  opacity: 0.55;
+  opacity: 0.35;
 }
 
 .nav-rail__button--idle:hover {
-  opacity: 1;
+  opacity: 0.65;
   transform: translateY(-1px);
 }
 
 .nav-rail__button--active {
   opacity: 1;
-  color: var(--color-primary);
 }
 
 .nav-rail__glow {
