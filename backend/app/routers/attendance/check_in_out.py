@@ -218,7 +218,7 @@ def record_manual_attendance(
         .first()
     )
     if existing and existing.time_out is not None:
-        raise HTTPException(400, f"Attendance already exists for student {student.student_id}")
+        raise HTTPException(409, "Student already checked in for this event")
 
     recorded_at = utc_now()
     status_value = attendance_decision["attendance_status"] or "absent"

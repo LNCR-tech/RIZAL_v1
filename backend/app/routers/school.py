@@ -432,6 +432,27 @@ def admin_list_schools(
     ]
 
 
+@router.get("/", response_model=list[SchoolSummaryResponse])
+def list_schools(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """List all schools - admin only endpoint for RBAC testing."""
+    schools = db.query(School).order_by(School.created_at.desc()).all()
+    return [
+        SchoolSummaryResponse(
+            school_id=school.id,
+            school_name=school.school_name or school.name or school.display_name or school.legal_name or "",
+            school_code=school.school_code,
+            subscription_status=school.subscription_status or "trial",
+            active_status=school.active_status,
+            created_at=school.created_at,
+            updated_at=school.updated_at,
+        )
+        for school in schools
+    ]
+
+
 @router.patch("/admin/{school_id}/status", response_model=SchoolBrandingResponse)
 def admin_update_school_status(
     school_id: int,
@@ -735,6 +756,28 @@ def get_my_school_branding(
     db: Session = Depends(get_db),
 ):
     school = _get_school_for_current_user_or_404(db, current_user)
+    if school.settings is None:
+        school.settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
+    return _school_to_response(school)
+
+
+@router.get("/{school_id}", response_model=SchoolBrandingResponse)
+def get_school_by_id(
+    school_id: int,
+    current_user: User = Depends(get_current_application_user),
+    db: Session = Depends(get_db),
+):
+    """Get school by ID with cross-school access control."""
+    school = db.query(School).filter(School.id == school_id).first()
+    if school is None:
+        raise HTTPException(status_code=404, detail="School not found.")
+    
+    # Check cross-school access for campus_admin
+    if has_any_role(current_user, ["campus_admin"]) and not has_any_role(current_user, ["admin"]):
+        user_school_id = getattr(current_user, "school_id", None)
+        if user_school_id is not None and user_school_id != school.id:
+            raise HTTPException(status_code=403, detail="Access denied to this school.")
+    
     if school.settings is None:
         school.settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
     return _school_to_response(school)

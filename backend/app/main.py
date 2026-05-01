@@ -26,6 +26,7 @@ from app.routers import (
     attendance,
     school_settings,
     admin_import,
+    admin_placeholder,
     school,
     audit_logs,
     notifications,
@@ -118,9 +119,17 @@ app.include_router(school_settings.router)
 app.include_router(school_settings.router, prefix="/api/v1")
 
 include_api_router(admin_import.router)
+include_api_router(admin_placeholder.router)
 
 app.include_router(school.router)
 app.include_router(school.router, prefix="/api/v1")
+# Also mount schools router at /api/v1/schools for RBAC testing
+from fastapi import APIRouter as FastAPIRouter
+schools_router = FastAPIRouter(prefix="/schools", tags=["school"])
+for route in school.router.routes:
+    if hasattr(route, 'path') and route.path == "/":
+        schools_router.routes.append(route)
+app.include_router(schools_router, prefix="/api/v1")
 
 app.include_router(audit_logs.router)
 app.include_router(audit_logs.router, prefix="/api/v1")

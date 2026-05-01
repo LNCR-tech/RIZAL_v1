@@ -42,7 +42,12 @@ def _find_existing_idempotent_event(
     )
 
 
-@router.post("/", response_model=EventWithRelations, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=EventWithRelations,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(lambda db=Depends(get_db), user=Depends(get_current_user): _ensure_event_manager(db, user))]
+)
 def create_event(
     event: EventCreate,
     governance_context: GovernanceUnitType | None = Query(default=None),
