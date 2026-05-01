@@ -103,10 +103,16 @@ function getAuthToken() {
   return String(localStorage.getItem('aura_token') || '').trim()
 }
 
+const _THOUGHT_TAG_RE = /<thought>.*?<\/thought>/gis
+
+function stripThoughtTags(text) {
+  return String(text || '').replace(_THOUGHT_TAG_RE, '').trim()
+}
+
 function normalizeConversationTitle(convo) {
-  const raw = String(convo?.title || '').trim()
+  const raw = stripThoughtTags(convo?.title || '')
   if (raw) return raw
-  const fallback = String(convo?.last_message || '').trim()
+  const fallback = stripThoughtTags(convo?.last_message || '')
   return fallback ? fallback.slice(0, 44) : 'New chat'
 }
 
