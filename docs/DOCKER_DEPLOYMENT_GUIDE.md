@@ -30,7 +30,7 @@ Copy-Item .\database\.env.example .\database\.env -Force
 Copy-Item .\assistant\.env.example .\assistant\.env -Force
 
 # Frontend
-Copy-Item .\frontend-web\.env.example .\frontend\.env -Force
+Copy-Item .\frontend-web\.env.example .\frontend-web\.env -Force
 
 # Seeder
 Copy-Item .\seeder\.env.example .\seeder\.env -Force

@@ -15,7 +15,7 @@ Select option 1 for development mode.
 Copy-Item .\backend\.env.example .\backend\.env
 Copy-Item .\database\.env.example .\database\.env
 Copy-Item .\assistant\.env.example .\assistant\.env
-Copy-Item .\frontend-web\.env.example .\frontend\.env
+Copy-Item .\frontend-web\.env.example .\frontend-web\.env
 Copy-Item .\seeder\.env.example .\seeder\.env
 
 # Start development stack

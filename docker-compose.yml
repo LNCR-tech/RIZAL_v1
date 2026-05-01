@@ -86,6 +86,8 @@ services:
   # ---------------------------------------------------------------------------
 
   backend:
+    build:
+      context: ./backend
     image: aura-backend:${APP_ENV:-dev}
     ports:
       - "8001:8000"
@@ -120,6 +122,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      bootstrap:
+        condition: service_completed_successfully
     profiles: ["dev", "prod"]
 
   beat:
@@ -133,6 +137,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      bootstrap:
+        condition: service_completed_successfully
     profiles: ["dev", "prod"]
 
   assistant:
@@ -155,7 +161,7 @@ services:
     ports:
       - "5173:80"
     env_file:
-      - ./frontend/.env
+      - ./frontend-web/.env
     depends_on:
       backend:
         condition: service_healthy

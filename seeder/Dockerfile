@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt /app/backend-requirements.txt
+COPY [Bb]ackend/requirements.txt /app/backend-requirements.txt
 RUN pip install --default-timeout=100 --no-cache-dir -r /app/backend-requirements.txt
 
 COPY backend /backend
