@@ -1036,10 +1036,10 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
@@ -1067,16 +1067,16 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   min-width: 0;
   min-height: 92px;
   padding: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
   text-align: left;
   cursor: pointer;
 }
 
 .admin-view__summary-item--primary {
-  background: #0f766e;
+  background: var(--color-primary);
   color: #ffffff;
 }
 
@@ -1102,9 +1102,9 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   gap: 6px;
   margin-top: 14px;
   padding: 6px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -1120,7 +1120,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
   font: inherit;
   font-size: 0.7rem;
   font-weight: 700;
@@ -1135,8 +1135,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__tab--active {
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--color-surface-text);
+  color: var(--color-surface);
 }
 
 .admin-view__tools {
@@ -1154,10 +1154,10 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   min-width: 0;
   min-height: 48px;
   padding: 0 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
 }
 
 .admin-view__search input,
@@ -1168,7 +1168,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
   font: inherit;
 }
 
@@ -1234,7 +1234,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__card,
 .admin-view__row,
 .admin-view__function {
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
 }
@@ -1246,8 +1246,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__panel--accent {
-  background: #ecfeff;
-  color: #164e63;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
 }
 
 .admin-view__panel-head,
@@ -1264,7 +1264,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__section-title h2,
 .admin-view__card h3 {
   margin: 2px 0 0;
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
   font-size: 1rem;
   font-weight: 800;
   line-height: 1.2;
@@ -1272,7 +1272,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__panel--accent .admin-view__panel-head h2 {
-  color: #164e63;
+  color: var(--color-text-primary);
 }
 
 .admin-view__section-title {
@@ -1289,7 +1289,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   padding: 0 8px;
   border-radius: 8px;
   background: var(--color-field-surface);
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -1322,15 +1322,15 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 
 .admin-view__action {
   padding: 0 10px;
-  background: #ffffff;
-  color: #164e63;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: 0 1px 0 var(--color-border);
 }
 
 .admin-view__primary-action {
   width: 100%;
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--color-text-primary);
+  color: var(--color-bg);
 }
 
 .admin-view__primary-action:disabled {
@@ -1341,11 +1341,11 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__secondary-action {
   padding: 0 10px;
   background: var(--color-field-surface);
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
 }
 
 .admin-view__secondary-action--strong {
-  background: #0f766e;
+  background: var(--color-primary);
   color: #ffffff;
 }
 
@@ -1373,14 +1373,14 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 
 .admin-view__function svg {
   margin-top: 2px;
-  color: #0f766e;
+  color: var(--color-primary);
 }
 
 .admin-view__function strong,
 .admin-view__row-main strong {
   display: block;
   overflow-wrap: anywhere;
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
   font-size: 0.86rem;
   line-height: 1.25;
 }
@@ -1393,7 +1393,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__empty {
   margin: 3px 0 0;
   overflow-wrap: anywhere;
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
   font-size: 0.78rem;
   line-height: 1.4;
 }
@@ -1424,8 +1424,8 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--color-text-primary);
+  color: var(--color-bg);
   font-size: 0.78rem;
   font-weight: 900;
 }
@@ -1445,14 +1445,14 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   padding: 10px;
   border-radius: 8px;
   background: var(--color-field-surface);
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
   font-size: 0.74rem;
   font-weight: 700;
 }
 
 .admin-view__meta-grid strong {
   overflow-wrap: anywhere;
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
   font-size: 0.82rem;
   line-height: 1.3;
 }
@@ -1470,13 +1470,13 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__segment {
   min-height: 38px;
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
   font-size: 0.78rem;
 }
 
 .admin-view__segment--active {
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--color-surface-text);
+  color: var(--color-surface);
 }
 
 .admin-view__button-row {
@@ -1516,7 +1516,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   width: 100%;
   padding: 0 12px;
   background: var(--color-field-surface);
-  color: var(--color-text-primary);
+  color: var(--color-surface-text);
 }
 
 .admin-view__switch {
@@ -1530,7 +1530,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 .admin-view__switch input {
   width: 20px;
   height: 20px;
-  accent-color: #0f766e;
+  accent-color: var(--color-primary);
 }
 
 .admin-view__preference {
@@ -1563,7 +1563,7 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__toggle--on {
-  background: #0f766e;
+  background: var(--color-primary);
 }
 
 .admin-view__toggle--on span {
@@ -1586,23 +1586,23 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
 }
 
 .admin-view__status--ready {
-  background: #dcfce7;
-  color: #166534;
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
 }
 
 .admin-view__status--warn {
-  background: #fef3c7;
-  color: #92400e;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
 }
 
 .admin-view__status--blocked {
-  background: #fee2e2;
-  color: #991b1b;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 .admin-view__status--muted {
   background: var(--color-field-surface);
-  color: var(--color-text-secondary);
+  color: var(--color-surface-text-secondary);
 }
 
 .admin-view__spin {
