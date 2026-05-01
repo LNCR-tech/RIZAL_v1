@@ -247,9 +247,11 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   width: 100%;
   height: 100%;
   border-radius: 32px;
-  background: var(--color-nav-glass-bg);
-  border: 1px solid var(--color-nav-glass-border);
-  box-shadow: var(--color-nav-glass-shadow);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 .nav-rail__shell::before,
@@ -304,20 +306,22 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   align-items: center;
   justify-content: center;
   gap: 4px;
+  color: var(--color-text-primary);
   transition: opacity 200ms ease, transform 220ms ease;
 }
 
 .nav-rail__button--idle {
-  opacity: 0.35;
+  opacity: 0.45;
 }
 
 .nav-rail__button--idle:hover {
-  opacity: 0.65;
+  opacity: 0.85;
   transform: translateY(-1px);
 }
 
 .nav-rail__button--active {
   opacity: 1;
+  color: var(--color-primary);
 }
 
 .nav-rail__glow {

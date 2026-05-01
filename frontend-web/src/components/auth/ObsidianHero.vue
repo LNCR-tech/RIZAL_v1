@@ -56,11 +56,6 @@ let rafId = null
 // Virtual 3D Light Source
 const LIGHT = { x: 0, y: -400, z: 500 }
 
-// Logo Shadow State
-const logoImg = new Image()
-logoImg.src = '/logos/aura_logo_white.png'
-const logoPos = { x: 0, y: 80, size: 80 } 
-
 class Dot {
   constructor(x, y) {
     this.baseX = x
@@ -147,7 +142,6 @@ function resize() {
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
   
   LIGHT.x = width / 2
-  logoPos.x = width / 2
   
   initGrid()
 }
@@ -156,32 +150,9 @@ function animate() {
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
   
-  // First Pass: Draw all Dots and Pillars
   for (let i = 0; i < dots.length; i++) {
     dots[i].update(mouseX.value, mouseY.value, isHovering.value)
     dots[i].draw(ctx, LIGHT.x, LIGHT.y)
-  }
-
-  // Second Pass: Draw Logo Shadow using MULTIPLY compositing
-  // This darkens the dots and floor ONLY within the logo shape
-  if (logoImg.complete) {
-    ctx.save()
-    const shadowY = logoPos.y + 45
-    const shadowWidth = logoPos.size * 1.1
-    const shadowHeight = logoPos.size * 0.8
-    
-    // Switch to MULTIPLY to occlude everything underneath organically
-    ctx.globalCompositeOperation = 'multiply'
-    ctx.filter = 'brightness(0) blur(16px)'
-    ctx.globalAlpha = 0.85
-    ctx.drawImage(
-      logoImg, 
-      logoPos.x - shadowWidth / 2, 
-      shadowY - shadowHeight / 2, 
-      shadowWidth, 
-      shadowHeight
-    )
-    ctx.restore()
   }
 
   rafId = requestAnimationFrame(animate)

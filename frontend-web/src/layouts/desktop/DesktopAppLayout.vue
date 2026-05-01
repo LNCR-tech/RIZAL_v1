@@ -1,5 +1,6 @@
 <template>
   <div class="desktop-app-layout">
+    <ObsidianBackground />
     <DesktopSideNav />
     <main class="desktop-app-layout__main">
       <div class="desktop-app-layout__content">
@@ -11,6 +12,7 @@
 
 <script setup>
 import DesktopSideNav from '@/components/desktop/navigation/DesktopSideNav.vue'
+import ObsidianBackground from '@/components/ui/ObsidianBackground.vue'
 import AppLayoutOutlet from '@/layouts/shared/AppLayoutOutlet.vue'
 import { useProtectedShellSession } from '@/layouts/shared/useProtectedShellSession.js'
 
@@ -22,6 +24,7 @@ useProtectedShellSession()
   min-height: 100vh;
   background: var(--color-bg);
   font-family: 'Manrope', sans-serif;
+  color: var(--color-text-primary);
 }
 
 .desktop-app-layout__main {
