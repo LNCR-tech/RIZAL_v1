@@ -1,5 +1,5 @@
 import pytest
-from app.schemas.user import UserResponse
+from app.schemas.user import User
 from app.schemas.events import EventResponse
 
 def test_token_response_shape(client, admin_token):
