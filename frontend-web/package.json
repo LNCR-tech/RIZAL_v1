@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings=0",
-    "format:check": "prettier --check \"*.{js,json,md}\" \"scripts/**/*.mjs\" \"e2e/**/*.js\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"*.{js,json,md}\" \"scripts/**/*.mjs\" \"e2e/**/*.{js,ts}\" \"tests/**/*.js\"",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "validate:env": "node ./scripts/validate-env.mjs",
     "test:unit": "vitest run --coverage",
@@ -23,7 +23,7 @@
     "android:build:debug": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleDebug",
     "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease",
     "test:e2e": "playwright test",
-    "test:e2e:preview": "playwright test e2e/preview-smoke.spec.js",
+    "test:e2e:preview": "playwright test e2e/preview-smoke.spec.ts",
     "playwright:install": "playwright install chromium",
     "playwright:install:ci": "playwright install --with-deps chromium"
   },

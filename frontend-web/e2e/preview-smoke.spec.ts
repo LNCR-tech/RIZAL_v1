@@ -1,5 +1,4 @@
-// @ts-check
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const APP_ORIGIN = new URL(
   process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:4173",
@@ -8,11 +7,24 @@ const APP_ORIGIN = new URL(
 const CHUNK_FAILURE_PATTERN =
   /(Loading chunk [\w-]+ failed|Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|dynamically imported module)/i;
 
-const IMPORTANT_ROUTES = [
+type RuntimeDiagnostics = {
+  consoleErrors: string[];
+  pageErrors: string[];
+  asset404s: string[];
+  chunkLoadFailures: string[];
+};
+
+type ImportantRoute = {
+  path: string;
+  name: string;
+  assertReady: (page: Page) => Promise<void>;
+};
+
+const IMPORTANT_ROUTES: ImportantRoute[] = [
   {
     path: "/",
     name: "login",
-    assertReady: async (page) => {
+    assertReady: async (page: Page) => {
       await expect(page.locator("#email")).toBeVisible({ timeout: 15_000 });
       await expect(page.locator("#password")).toBeVisible();
       await expect(page.getByRole("button", { name: "Log In" })).toBeVisible();
@@ -21,7 +33,7 @@ const IMPORTANT_ROUTES = [
   {
     path: "/exposed/dashboard/gather",
     name: "gather",
-    assertReady: async (page) => {
+    assertReady: async (page: Page) => {
       await expect(page.locator(".gather-welcome")).toBeVisible({
         timeout: 15_000,
       });
@@ -30,7 +42,7 @@ const IMPORTANT_ROUTES = [
   {
     path: "/exposed/dashboard/analytics",
     name: "analytics",
-    assertReady: async (page) => {
+    assertReady: async (page: Page) => {
       await expect(page.locator(".analytics-page")).toBeVisible({
         timeout: 15_000,
       });
@@ -39,7 +51,7 @@ const IMPORTANT_ROUTES = [
   {
     path: "/exposed/governance/events",
     name: "events",
-    assertReady: async (page) => {
+    assertReady: async (page: Page) => {
       await expect(page.locator(".governance-workspace")).toBeVisible({
         timeout: 20_000,
       });
@@ -48,7 +60,7 @@ const IMPORTANT_ROUTES = [
   {
     path: "/exposed/dashboard/profile",
     name: "profile",
-    assertReady: async (page) => {
+    assertReady: async (page: Page) => {
       await expect(page.locator(".profile-page")).toBeVisible({
         timeout: 15_000,
       });
@@ -56,9 +68,7 @@ const IMPORTANT_ROUTES = [
   },
 ];
 
-/**
- */
-function collectRuntimeDiagnostics() {
+function collectRuntimeDiagnostics(): RuntimeDiagnostics {
   return {
     consoleErrors: [],
     pageErrors: [],
@@ -71,7 +81,7 @@ function collectRuntimeDiagnostics() {
  * @param {import("@playwright/test").Page} page
  * @param {{consoleErrors: string[], pageErrors: string[], asset404s: string[], chunkLoadFailures: string[]}} diagnostics
  */
-function attachDiagnostics(page, diagnostics) {
+function attachDiagnostics(page: Page, diagnostics: RuntimeDiagnostics): void {
   page.on("console", (message) => {
     if (message.type() !== "error") return;
     const text = message.text();
@@ -125,7 +135,10 @@ function attachDiagnostics(page, diagnostics) {
  * @param {import("@playwright/test").Page} page
  * @param {{ path: string, name: string, assertReady: (page: import("@playwright/test").Page) => Promise<void> }} route
  */
-async function assertRouteRenders(page, route) {
+async function assertRouteRenders(
+  page: Page,
+  route: ImportantRoute,
+): Promise<void> {
   const response = await page.goto(route.path, {
     waitUntil: "domcontentloaded",
   });
@@ -145,7 +158,7 @@ async function assertRouteRenders(page, route) {
 /**
  * @param {import("@playwright/test").Page} page
  */
-async function assertMobileViewportStable(page) {
+async function assertMobileViewportStable(page: Page): Promise<void> {
   const viewport = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
     scrollWidth: document.documentElement.scrollWidth,

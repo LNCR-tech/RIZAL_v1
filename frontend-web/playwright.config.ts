@@ -31,7 +31,10 @@ export default defineConfig({
         ["html", { open: "never", outputFolder: "playwright-report" }],
         ["junit", { outputFile: "test-results/playwright-junit.xml" }],
       ]
-    : [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
+    : [
+        ["list"],
+        ["html", { open: "never", outputFolder: "playwright-report" }],
+      ],
 
   use: {
     baseURL,
@@ -59,7 +62,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chromium",
-      testMatch: /preview-smoke\.spec\.js$/,
+      testMatch: /preview-smoke\.spec\.ts$/,
       use: { ...devices["Pixel 7"] },
     },
   ],

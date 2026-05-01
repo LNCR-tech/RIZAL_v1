@@ -17,10 +17,9 @@
   "include": [
     "src/**/*.js",
     "src/**/*.vue",
-    "e2e/**/*.js",
     "tests/**/*.js",
     "scripts/**/*.mjs",
-    "playwright.config.js",
+    "playwright.config.ts",
     "vite.config.js",
     "vitest.config.js"
   ],
