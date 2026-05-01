@@ -14,20 +14,6 @@
             Automate, monitor, and scale your institution with Aura AI.
           </p>
         </div>
-
-        <!-- Glassmorphic Pulse Card -->
-        <div class="desktop-login__pulse-card">
-          <div class="desktop-login__pulse-header">
-            <span class="desktop-login__pulse-dot"></span>
-            <span class="desktop-login__pulse-status">System Operational</span>
-          </div>
-          <div class="desktop-login__pulse-stats">
-            <div class="desktop-login__pulse-stat">
-              <span class="desktop-login__pulse-label">Active Governance</span>
-              <span class="desktop-login__pulse-value">124 Sessions</span>
-            </div>
-          </div>
-        </div>
       </div>
     </ObsidianHero>
 
@@ -152,7 +138,7 @@ const {
 .desktop-login {
   display: flex;
   min-height: 100dvh;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -241,68 +227,9 @@ const {
   transform: translateY(0);
 }
 
-/* Glassmorphic Pulse Card */
-.desktop-login__pulse-card {
-  width: 280px;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 24px;
-  margin-bottom: 40px;
-  opacity: 0;
-  transform: translateX(-40px);
-  transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.6s;
-  pointer-events: auto;
-}
-
-.desktop-login--mounted .desktop-login__pulse-card {
+.desktop-login--mounted .desktop-login__hero-tagline {
   opacity: 1;
-  transform: translateX(0);
-}
-
-.desktop-login__pulse-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.desktop-login__pulse-dot {
-  width: 8px;
-  height: 8px;
-  background: #10b981;
-  border-radius: 50%;
-  box-shadow: 0 0 12px #10b981;
-  animation: pulse-glow 2s infinite;
-}
-
-.desktop-login__pulse-status {
-  font-size: 13px;
-  font-weight: 600;
-  color: #10b981;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.desktop-login__pulse-label {
-  display: block;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 4px;
-}
-
-.desktop-login__pulse-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-@keyframes pulse-glow {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.6; }
-  100% { transform: scale(1); opacity: 1; }
+  transform: translateY(0);
 }
 
 /* Sheet — right half */
