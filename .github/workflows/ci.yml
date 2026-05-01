@@ -1,8 +1,10 @@
-name: Production CI
+name: Continuous Integration
 
 on:
   push:
+    branches: [ "main", "develop", "feature/*" ]
   pull_request:
+    branches: [ "main", "develop" ]
   workflow_dispatch:
 
 concurrency:
@@ -15,8 +17,27 @@ env:
   PYTHON_VERSION: '3.12'
 
 jobs:
-  production-pipeline:
-    name: Full Stack Production Pipeline
+  security-audit:
+    name: Security & Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Frontend Dependency Audit
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm audit --audit-level=high
+      - name: Secret Scanning
+        run: |
+          if grep -rE "(api_key|password|secret)\s*=\s*['\"][^'\"]+['\"]" backend/app/; then
+            echo "ERROR: Possible hardcoded secrets found in application code."
+            exit 1
+          fi
+
+  backend-tests:
+    name: Backend Lint & Tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -41,175 +62,184 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
     steps:
-      # 1. Checkout
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install flake8 pytest pytest-cov
+      - name: Lint with flake8
+        working-directory: backend
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Database Setup & Migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
+          alembic upgrade head
+      - name: Run Backend Tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+          FACE_SCAN_BYPASS_ALL: 'true'
+        run: pytest tests/ --cov=app --cov-report=xml
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
 
+  frontend-tests:
+    name: Frontend Lint & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: frontend-web/package-lock.json
+      - name: Install dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+      - name: Lint Frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run lint
+      - name: Typecheck Frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run typecheck
+      - name: Unit Tests
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          if npm run test:unit --if-present; then
+            echo "Unit tests passed."
+          else
+            exit $?
+          fi
 
+  e2e-tests:
+    name: E2E Playwright
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      # Docker tests (F)
-      - name: Validate Docker Compose Config
-        run: docker compose config --quiet
-        
-      - name: Check Env Secrets
+      
+      - name: Install Backend & Seeder
         run: |
-          if grep -q "production-secret" backend/.env.example; then
-            echo "Hardcoded production secret found!"
-            exit 1
-          fi
-
-      # 2. Install backend dependencies
-      - name: Install backend dependencies
-        working-directory: backend
-        run: pip install -r requirements.txt
-        
-      - name: Install seeder dependencies
-        run: pip install -r seeder/requirements.txt || true
-
-      # 3. Install frontend dependencies
-      - name: Install frontend dependencies
-        working-directory: frontend-web
+          pip install -r backend/requirements.txt
+          pip install -r seeder/requirements.txt
+          
+      - name: Install Frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
         run: npm ci
-        
-      - name: Install Playwright browsers
-        working-directory: frontend-web
-        run: npm run playwright:install:ci || npx playwright install --with-deps
 
-      # 4. Lint frontend
-      - name: Lint frontend
-        working-directory: frontend-web
-        run: npm run lint
+      - name: Install Playwright
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npx playwright install --with-deps chromium
 
-      # 5. Typecheck frontend
-      - name: Typecheck frontend
-        working-directory: frontend-web
-        run: npm run typecheck
-
-      # 6. Unit test frontend
-      - name: Unit test frontend
-        working-directory: frontend-web
-        run: npm run test:unit || true # allow true if no tests configured yet
-
-      # 7. Lint backend
-      - name: Lint backend
-        working-directory: backend
-        run: pip install flake8 && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
-
-      # 8. Backend unit tests
-      - name: Backend unit tests
+      - name: Start Database & Migrate
         working-directory: backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
-          SECRET_KEY: test-secret-key
-          FACE_SCAN_BYPASS_ALL: 'true'
+          PGPASSWORD: postgres
         run: |
           psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
-          export PGPASSWORD=postgres
-          pytest tests/test_health.py tests/test_production.py || true
+          alembic upgrade head
 
-      # 9. Start database service (already started by services, but check health)
-      - name: Start database service
-        run: |
-          echo "Database is ready"
-          psql -h 127.0.0.1 -U postgres -c "\l"
-
-      # 10. Run migrations
-      - name: Run migrations
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
-        run: |
-          alembic upgrade heads
-
-      # 11. Seed deterministic CI users
-      - name: Seed deterministic CI users
+      - name: Seed DB
         working-directory: seeder
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
-        run: |
-          python seed.py --ci-mode || true
+        run: python seed.py --ci-mode
 
-      # 12. Start backend server
-      - name: Start backend server
+      - name: Start Backend
         working-directory: backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
-          RATE_LIMIT_ENABLED: 'false'
           FACE_SCAN_BYPASS_ALL: 'true'
         run: |
           uvicorn app.main:app --host 127.0.0.1 --port 8000 > backend.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:8000/health && break || sleep 2; done
 
-      # 13. Wait for backend health
-      - name: Wait for backend health
-        run: |
-          for i in $(seq 1 20); do
-            curl -sf http://127.0.0.1:8000/health && break || sleep 2
-          done
-
-      # 14. Build frontend
-      - name: Build frontend
-        working-directory: frontend-web
+      - name: Build & Start Frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
         env:
           VITE_API_BASE_URL: http://127.0.0.1:8000
-        run: npm run build
-
-      # 15. Start frontend preview
-      - name: Start frontend preview
-        working-directory: frontend-web
-        run: npm run preview -- --host 127.0.0.1 --port 4173 > preview.log 2>&1 &
-
-      # 16. Wait for frontend preview
-      - name: Wait for frontend preview
         run: |
-          for i in $(seq 1 20); do
-            curl -sf http://127.0.0.1:4173 && break || sleep 2
-          done
+          npm run build
+          npm run preview -- --host 127.0.0.1 --port 4173 > preview.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:4173 && break || sleep 2; done
 
-      # 17. Run Playwright E2E tests
-      - name: Run Playwright E2E tests
-        working-directory: frontend-web
+      - name: Run E2E Tests (Fail on Console Errors)
+        working-directory: ${{ env.FRONTEND_DIR }}
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
           E2E_ADMIN_EMAIL: campus_admin@test.com
           E2E_ADMIN_PASSWORD: TestPass123!
-        run: npm run test:e2e:ci || npx playwright test e2e/frontend-backend.spec.js
+          FAIL_ON_CONSOLE_ERROR: 'true'
+        run: npx playwright test
 
-      # 18. Run production smoke tests
-      - name: Run production smoke tests
-        working-directory: frontend-web
-        env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
-        run: npm run test:e2e:smoke || npx playwright test e2e/preview-smoke.spec.ts
-
-      # 19. Upload test reports, screenshots, videos, traces
-      - name: Upload test artifacts
+      - name: Upload Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-artifacts
+          name: playwright-results
           path: |
-            frontend-web/playwright-report/
-            frontend-web/test-results/
+            ${{ env.FRONTEND_DIR }}/playwright-report/
+            ${{ env.FRONTEND_DIR }}/test-results/
             backend/backend.log
-            frontend-web/preview.log
+            ${{ env.FRONTEND_DIR }}/preview.log
           retention-days: 7
 
-      # 20. Fail deployment if any critical test fails
-      - name: Fail deployment if any critical test fails
-        if: failure()
-        run: |
-          echo "Critical tests failed! Halting deployment."
-          exit 1
+  docker-build-test:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose Config
+        run: docker compose config --quiet
+      - name: Build Docker Images
+        run: docker compose build

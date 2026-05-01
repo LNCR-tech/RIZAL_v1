@@ -380,13 +380,13 @@ export async function loginForAccessToken(baseUrl, { username, password }) {
 }
 
 export async function loginWithGoogle(baseUrl, idToken) {
-    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/auth/google', '/api/auth/google'], {
+    return normalizeTokenPayload(await request(baseUrl, '/auth/google', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ id_token: String(idToken ?? '') }),
-    }, [404, 405]))
+    }))
 }
 
 export async function verifyPasswordForUser(baseUrl, {
