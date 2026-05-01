@@ -97,7 +97,9 @@ function attachDiagnostics(page, diagnostics) {
     const errorText = request.failure()?.errorText || "Request failed";
     diagnostics.asset404s.push(`requestfailed ${url} :: ${errorText}`);
     if (/\.(js|mjs)(?:\?|$)/i.test(url)) {
-      diagnostics.chunkLoadFailures.push(`requestfailed ${url} :: ${errorText}`);
+      diagnostics.chunkLoadFailures.push(
+        `requestfailed ${url} :: ${errorText}`,
+      );
     }
   });
 
@@ -124,9 +126,13 @@ function attachDiagnostics(page, diagnostics) {
  * @param {{ path: string, name: string, assertReady: (page: import("@playwright/test").Page) => Promise<void> }} route
  */
 async function assertRouteRenders(page, route) {
-  const response = await page.goto(route.path, { waitUntil: "domcontentloaded" });
+  const response = await page.goto(route.path, {
+    waitUntil: "domcontentloaded",
+  });
   const status = response?.status() ?? 0;
-  expect(status, `Route ${route.path} failed to load`).toBeGreaterThanOrEqual(200);
+  expect(status, `Route ${route.path} failed to load`).toBeGreaterThanOrEqual(
+    200,
+  );
   expect(status, `Route ${route.path} failed to load`).toBeLessThan(400);
 
   await route.assertReady(page);
@@ -170,7 +176,8 @@ test("production smoke routes load with no chunk, asset, or runtime failures", a
 
   expect(
     diagnostics.chunkLoadFailures,
-    diagnostics.chunkLoadFailures.join("\n") || "No chunk load failures expected.",
+    diagnostics.chunkLoadFailures.join("\n") ||
+      "No chunk load failures expected.",
   ).toEqual([]);
   expect(
     diagnostics.asset404s,
@@ -186,16 +193,19 @@ test("production smoke routes load with no chunk, asset, or runtime failures", a
   ).toEqual([]);
 });
 
-test("mobile viewport renders critical routes without layout breakage", async (
-  { page },
-  testInfo,
-) => {
+test("mobile viewport renders critical routes without layout breakage", async ({
+  page,
+}, testInfo) => {
   test.skip(
     !testInfo.project.use?.isMobile,
     "This smoke check only applies to the mobile project.",
   );
 
-  const routesToCheck = ["/", "/exposed/dashboard/analytics", "/exposed/dashboard/profile"];
+  const routesToCheck = [
+    "/",
+    "/exposed/dashboard/analytics",
+    "/exposed/dashboard/profile",
+  ];
   for (const route of routesToCheck) {
     await test.step(`mobile render ${route}`, async () => {
       await page.goto(route, { waitUntil: "domcontentloaded" });
