@@ -19,6 +19,7 @@
         role="dialog"
         aria-label="Aura AI Chat"
         @click.stop
+        @wheel.stop
       >
         <!-- ── Header ─────────────────────────────────────────────── -->
         <div class="chat-header">
@@ -201,9 +202,9 @@ watch(isFullOpen, (val) => {
   if (val) {
     refreshConversations()
     setTimeout(() => inputEl.value?.focus(), 350)
-    document.body.style.overflow = 'hidden'
+    document.documentElement.classList.add('chat-open')
   } else {
-    document.body.style.overflow = ''
+    document.documentElement.classList.remove('chat-open')
   }
 })
 </script>

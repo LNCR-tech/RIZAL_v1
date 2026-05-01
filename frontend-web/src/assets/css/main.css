@@ -28,6 +28,12 @@ body {
   -webkit-text-size-adjust: var(--aura-text-size-adjust, 100%);
 }
 
+html.chat-open,
+html.chat-open body {
+  overflow: hidden !important;
+  scrollbar-gutter: auto;
+}
+
 html {
   font-size: var(--aura-font-base, 16px);
   min-height: 100%;
