@@ -12,11 +12,11 @@ RBAC_MATRIX = [
     ("/health", "GET", "unauthenticated", 200),
     ("/api/v1/auth/login", "POST", "unauthenticated", 422), # 422 because missing payload, but route is accessible
     
-    # Admin routes
-    ("/api/v1/schools/", "GET", "admin", 200),
-    ("/api/v1/schools/", "GET", "campus_admin", 403),
-    ("/api/v1/schools/", "GET", "student", 403),
-    ("/api/v1/schools/", "GET", "unauthenticated", 401),
+    # Admin routes — actual path is /api/school/admin/list
+    ("/api/school/admin/list", "GET", "admin", 200),
+    ("/api/school/admin/list", "GET", "campus_admin", 403),
+    ("/api/school/admin/list", "GET", "student", 403),
+    ("/api/school/admin/list", "GET", "unauthenticated", 401),
     
     # Campus Admin routes
     ("/api/v1/users/", "GET", "admin", 200),

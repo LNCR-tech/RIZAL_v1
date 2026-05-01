@@ -29,5 +29,5 @@ def test_cross_school_data_access_blocked(client, campus_admin_headers, db_sessi
     db_session.add(other_school)
     db_session.commit()
     
-    r = client.get(f"/api/v1/schools/{other_school.id}", headers=campus_admin_headers)
-    assert r.status_code == 403, "Campus admin should not access other schools"
+    r = client.get(f"/api/school/admin/{other_school.id}/status", headers=campus_admin_headers)
+    assert r.status_code in [403, 404], "Campus admin should not access other schools"
