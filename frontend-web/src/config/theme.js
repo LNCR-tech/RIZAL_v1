@@ -99,7 +99,7 @@ export const unbrandedTheme = {
     primaryText: '#FFFFFF',
     secondaryColor: '#0A0A0A',
     secondaryText: '#FFFFFF',
-    navActiveColor: '#0A0A0A',
+    navActiveColor: '#FFFFFF',
 }
 
 function normalizeHexColor(hex, fallback = '#0A0A0A') {

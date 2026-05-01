@@ -18,21 +18,21 @@
             <span
               v-if="isActive(item)"
               class="nav-rail__glow"
-              style="background: radial-gradient(circle, var(--color-primary) 0%, transparent 65%); opacity: 0.15; top: 50%; transform: translateY(-50%);"
+              style="background: radial-gradient(circle, var(--color-nav-active) 0%, transparent 65%); opacity: 0.15; top: 50%; transform: translateY(-50%);"
             />
 
             <component
               :is="item.icon"
               :size="19"
               :stroke-width="isActive(item) ? 2.2 : 1.6"
-              :color="isActive(item) ? 'var(--color-primary)' : 'var(--color-text-secondary)'"
+              :color="isActive(item) ? 'var(--color-nav-active)' : 'var(--color-nav-text-secondary)'"
               class="nav-rail__icon"
             />
 
             <span
               class="nav-rail__dot"
               :style="isActive(item)
-                ? 'background: var(--color-primary); opacity: 1;'
+                ? 'background: var(--color-nav-active); opacity: 1;'
                 : 'background: transparent; opacity: 0;'"
             />
           </button>
@@ -247,11 +247,11 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   width: 100%;
   height: 100%;
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: var(--color-nav-glass-bg);
+  backdrop-filter: blur(var(--nav-glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--nav-glass-blur)) saturate(160%);
+  border: 1px solid var(--color-nav-glass-border);
+  box-shadow: var(--color-nav-glass-shadow);
 }
 
 .nav-rail__shell::before,
