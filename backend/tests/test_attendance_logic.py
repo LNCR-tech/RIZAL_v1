@@ -30,8 +30,9 @@ def test_attendance_before_open_blocked(client, student_headers, test_event):
     db = SessionLocal()
     from app.models.user import User, StudentProfile
     student = db.query(User).filter_by(email="student@test.com").first()
-    profile = db_session.query(StudentProfile).filter_by(user_id=student.id).first() if student else None
+    profile = db.query(StudentProfile).filter_by(user_id=student.id).first() if student else None
     student_id = profile.student_id if profile else "STU-001"
+    db.close()
 
     payload = {
         "event_id": event.id,
