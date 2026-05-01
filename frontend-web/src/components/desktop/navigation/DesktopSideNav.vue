@@ -40,104 +40,18 @@
 
         <div ref="pillRef" class="relative w-[40px] h-[74px] mx-2 mb-1.5 z-50">
           <div
-            class="absolute top-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-left"
-            :class="isMiniOpen
-              ? 'w-[300px] h-[190px] rounded-[32px] cursor-default'
-              : 'w-[40px] h-[74px] rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95'"
+            class="absolute top-0 left-0 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-lg origin-left w-[40px] h-[74px] rounded-[26px] cursor-pointer hover:brightness-110 hover:scale-105 active:scale-95"
             style="background: var(--color-primary);"
-            @click="!isMiniOpen ? openPill() : null"
+            @click="expandToFull"
           >
-            <div
-              class="absolute inset-0 flex flex-col items-center justify-center gap-1 transition-opacity duration-300"
-              :class="isMiniOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'"
-            >
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-1">
               <img :src="activeAuraLogo" alt="Aura" class="w-6 h-6 object-contain opacity-90" />
               <span
-                class="text-[8px] font-extrabold text-center leading-snug transition-colors duration-200"
+                class="text-[8px] font-extrabold text-center leading-snug"
                 style="color: var(--color-banner-text);"
               >
                 Talk to<br>Aura Ai
               </span>
-            </div>
-
-            <div
-              class="absolute inset-0 flex flex-col p-3 transition-opacity duration-300 delay-100"
-              :class="isMiniOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'"
-            >
-              <div class="flex items-center justify-between mb-2">
-                <img
-                  :src="activeAuraLogo"
-                  alt="Aura"
-                  class="w-7 h-7 object-contain opacity-90 cursor-pointer transition-transform hover:scale-110"
-                  title="Collapse chat"
-                  @click.stop="closeMini"
-                />
-
-                <button
-                  class="p-1.5 hover:bg-black/10 rounded-full transition-colors"
-                  aria-label="Expand chat to full window"
-                  title="Open full chat"
-                  @click.stop="expandToFull"
-                >
-                  <Maximize2 :size="15" :color="'var(--color-banner-text)'" />
-                </button>
-              </div>
-
-              <div class="mini-messages flex-1 overflow-y-auto scrollbar-hide pb-1">
-                <TransitionGroup name="mini-bubble" tag="div" class="mini-messages-inner">
-                  <div
-                    v-for="msg in messages"
-                    :key="msg.id"
-                    :class="msg.sender === 'ai' ? 'mini-bubble mini-bubble--ai' : 'mini-bubble mini-bubble--user'"
-                  >
-                    <div v-if="msg.html" v-html="msg.html" class="mini-chat-html-content" />
-                    <template v-else>{{ msg.text }}</template>
-
-                    <div v-if="msg.actions && msg.actions.length" class="mini-chat-actions">
-                      <button
-                        v-for="(action, i) in msg.actions"
-                        :key="i"
-                        class="mini-chat-action-btn"
-                        @click="handleAction(action)"
-                      >
-                        <component v-if="action.icon" :is="action.icon" :size="12" class="mini-action-icon" />
-                        <span>{{ action.label }}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div v-if="isTyping" key="typing" class="mini-bubble mini-bubble--ai mini-bubble--typing">
-                    <div class="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style="animation-delay:0ms" />
-                    <div class="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style="animation-delay:150ms" />
-                    <div class="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style="animation-delay:300ms" />
-                  </div>
-                </TransitionGroup>
-              </div>
-
-              <div class="mt-1">
-                <div
-                  class="h-[36px] rounded-full border border-black/20 flex items-center px-3 gap-2 bg-black/5"
-                  :style="{ borderColor: 'var(--color-banner-text)' }"
-                >
-                  <input
-                    v-model="inputText"
-                    type="text"
-                    class="bg-transparent outline-none text-[11px] w-full placeholder-black/40 font-medium"
-                    :style="{ color: 'var(--color-banner-text)' }"
-                    placeholder="Ask Aura..."
-                    :disabled="isTyping"
-                    @keyup.enter="sendMessage"
-                  />
-                  <button
-                    class="cursor-pointer transition-opacity hover:opacity-100 disabled:opacity-40 flex-shrink-0"
-                    :class="inputText.trim() ? 'opacity-100' : 'opacity-60'"
-                    :disabled="!inputText.trim() || isTyping"
-                    @click="sendMessage"
-                  >
-                    <Send :size="14" :color="'var(--color-banner-text)'" />
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -149,28 +63,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Maximize2, Send, Download, ExternalLink } from 'lucide-vue-next'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 import AuraChatWindow from '@/components/ui/AuraChatWindow.vue'
 import { getNavigationItemsForRoute } from '@/components/navigation/navigationItems.js'
-import { downloadDemoReport } from '@/services/demoReportDownload.js'
 import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
 
 const {
-  messages,
-  inputText,
-  isTyping,
-  isMiniOpen,
-  sendMessage,
-  openPill,
-  closeMini,
   expandToFull,
 } = useChat()
 
-const pillRef = ref(null)
 const router = useRouter()
 const route = useRoute()
 const navItems = computed(() => getNavigationItemsForRoute(route))
@@ -180,12 +84,6 @@ const navRailStyle = computed(() => ({
   height: `${railHeight.value}px`,
   top: `calc(50vh - ${railHeight.value / 2}px)`,
 }))
-
-function handleOutsideClick(event) {
-  if (isMiniOpen.value && pillRef.value && !pillRef.value.contains(event.target)) {
-    closeMini()
-  }
-}
 
 function isActive(item) {
   const path = item?.route
@@ -215,17 +113,7 @@ function navigate(path) {
   router.push(target)
 }
 
-async function handleAction(action) {
-  if (action.route) {
-    navigate(action.route)
-  }
-  if (action.actionId === 'download-pdf' || action.actionId === 'download-csv') {
-    await downloadDemoReport(action.actionId.split('-')[1])
-  }
-}
 
-onMounted(() => document.addEventListener('mousedown', handleOutsideClick))
-onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
 </script>
 
 <style scoped>
@@ -364,141 +252,4 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   }
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.mini-messages {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.mini-messages-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mini-bubble {
-  max-width: 90%;
-  padding: 10px 14px;
-  border-radius: 25px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.6;
-  word-break: break-word;
-  font-family: 'Manrope', sans-serif;
-}
-
-.mini-bubble--ai {
-  align-self: flex-start;
-  background: var(--color-surface);
-  color: var(--color-surface-text);
-  border: 1px solid var(--color-surface-border);
-}
-
-.mini-bubble--user {
-  align-self: flex-end;
-  background: rgba(0, 0, 0, 0.1);
-  color: var(--color-primary-text);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.mini-bubble--typing {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 10px 14px;
-}
-
-.mini-bubble-enter-active {
-  animation: mini-bubble-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.mini-bubble--ai.mini-bubble-enter-active {
-  transform-origin: bottom left;
-}
-
-.mini-bubble--user.mini-bubble-enter-active {
-  transform-origin: bottom right;
-}
-
-@keyframes mini-bubble-pop {
-  0% { opacity: 0; transform: scale(0.55); }
-  65% { opacity: 1; transform: scale(1.04); }
-  82% { transform: scale(0.97); }
-  100% { transform: scale(1); }
-}
-/* ── Rich Content Styles for Mini Chat ─────────────────── */
-::v-deep(.mini-chat-html-content p) { margin: 0 0 6px; }
-::v-deep(.mini-chat-html-content p:last-child) { margin: 0; }
-::v-deep(.mini-chat-html-content .mock-graph) {
-  margin-top: 8px;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 60px;
-  padding: 6px 0;
-  border-bottom: 2px solid rgba(0,0,0,0.1);
-}
-::v-deep(.mini-chat-html-content .mock-graph-bar) {
-  flex: 1;
-  background: var(--color-primary);
-  border-radius: 2px 2px 0 0;
-  position: relative;
-  min-height: 4px;
-}
-::v-deep(.mini-chat-html-content .mock-graph-bar span) {
-  position: absolute;
-  top: -14px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 8px;
-  font-weight: 700;
-  color: rgba(0,0,0,0.8);
-}
-::v-deep(.mini-chat-html-content .mock-graph-label) {
-  text-align: center;
-  font-size: 8px;
-  font-weight: 700;
-  margin-top: 4px;
-  color: rgba(0,0,0,0.6);
-  text-transform: uppercase;
-  display: flex;
-  justify-content: space-around;
-}
-::v-deep(.mini-chat-html-content .mock-graph-label span) {
-  flex: 1;
-}
-
-.mini-chat-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.mini-chat-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.1);
-  background: rgba(0,0,0,0.05);
-  color: #0A0A0A;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.mini-chat-action-btn:hover { background: rgba(0,0,0,0.08); }
-.mini-action-icon { opacity: 0.7; }
 </style>
