@@ -733,7 +733,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist-node-${{ env.FRONTEND_PRIMARY_NODE_VERSION }}
-          path: frontend-web
+          path: frontend-web/dist
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
