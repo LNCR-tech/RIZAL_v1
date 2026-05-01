@@ -2,7 +2,33 @@
   <div class="desktop-login" :class="{ 'desktop-login--mounted': isMounted }">
     <!-- Left: Dynamic Obsidian Hero -->
     <ObsidianHero class="desktop-login__hero">
-      <img :src="auraLogoWhite" alt="Aura" class="desktop-login__logo" />
+      <div class="desktop-login__hero-content">
+        <img :src="auraLogoWhite" alt="Aura" class="desktop-login__logo" />
+        
+        <div class="desktop-login__hero-text">
+          <h2 class="desktop-login__hero-headline">
+            The Intelligence <br />
+            <span>of your Campus.</span>
+          </h2>
+          <p class="desktop-login__hero-tagline">
+            Automate, monitor, and scale your institution with Aura AI.
+          </p>
+        </div>
+
+        <!-- Glassmorphic Pulse Card -->
+        <div class="desktop-login__pulse-card">
+          <div class="desktop-login__pulse-header">
+            <span class="desktop-login__pulse-dot"></span>
+            <span class="desktop-login__pulse-status">System Operational</span>
+          </div>
+          <div class="desktop-login__pulse-stats">
+            <div class="desktop-login__pulse-stat">
+              <span class="desktop-login__pulse-label">Active Governance</span>
+              <span class="desktop-login__pulse-value">124 Sessions</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </ObsidianHero>
 
     <!-- Right: Form sheet -->
@@ -145,18 +171,139 @@ const {
 }
 
 .desktop-login--mounted .desktop-login__hero {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.desktop-login__hero-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  padding: 60px 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none; /* Let clicks pass through to the mesh */
+}
+
+.desktop-login__logo {
+  width: 48px;
+  height: auto;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.desktop-login--mounted .desktop-login__logo {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.desktop-login__hero-text {
+  margin-top: auto;
+  margin-bottom: 40px;
+}
+
+.desktop-login__hero-headline {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #ffffff;
+  letter-spacing: -0.04em;
+  margin-bottom: 24px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s;
+}
+
+.desktop-login__hero-headline span {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.desktop-login--mounted .desktop-login__hero-headline {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.desktop-login__hero-tagline {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.5);
+  max-width: 400px;
+  line-height: 1.6;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.4s;
+}
+
+.desktop-login--mounted .desktop-login__hero-tagline {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Glassmorphic Pulse Card */
+.desktop-login__pulse-card {
+  width: 280px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 40px;
+  opacity: 0;
+  transform: translateX(-40px);
+  transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.6s;
+  pointer-events: auto;
+}
+
+.desktop-login--mounted .desktop-login__pulse-card {
   opacity: 1;
   transform: translateX(0);
 }
 
+.desktop-login__pulse-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
 
-.desktop-login__logo {
-  position: relative;
-  z-index: 1;
-  width: 80px;
-  height: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 10px 30px rgba(255,255,255,0.08));
+.desktop-login__pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 12px #10b981;
+  animation: pulse-glow 2s infinite;
+}
+
+.desktop-login__pulse-status {
+  font-size: 13px;
+  font-weight: 600;
+  color: #10b981;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.desktop-login__pulse-label {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 4px;
+}
+
+.desktop-login__pulse-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+@keyframes pulse-glow {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* Sheet — right half */
