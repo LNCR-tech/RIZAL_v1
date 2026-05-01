@@ -2,9 +2,9 @@ name: Continuous Integration
 
 on:
   push:
-    branches: [ "main", "develop", "feature/*" ]
+    branches: [ "main", "develop", "feature/*", "integrate/pilot-merge" ]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "integrate/pilot-merge" ]
   workflow_dispatch:
 
 concurrency:
