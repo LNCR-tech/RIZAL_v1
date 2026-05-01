@@ -34,6 +34,18 @@ def get_my_attendance(
     return [_serialize_attendance_model(attendance) for attendance in attendances]
 
 
+@router.post("/scan", response_model=AttendanceActionResponse)
+def record_attendance_scan(
+    data: FaceScanAttendanceRequest | None = Body(default=None),
+    event_id: int | None = Query(default=None),
+    student_id: str | None = Query(default=None),
+    current_user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Alias for face-scan attendance endpoint."""
+    return record_face_scan_attendance(data, event_id, student_id, current_user, db)
+
+
 @router.post("/face-scan", response_model=AttendanceActionResponse)
 def record_face_scan_attendance(
     data: FaceScanAttendanceRequest | None = Body(default=None),

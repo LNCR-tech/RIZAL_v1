@@ -117,7 +117,11 @@ class EventLocationVerificationResponse(BaseModel):
 
 class EventBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    location: str = Field(..., min_length=1, max_length=200)
+    location: Optional[str] = Field(default=None, max_length=200)
+    description: Optional[str] = Field(default=None)
+    venue: Optional[str] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
+    banner_url: Optional[str] = Field(default=None)
     geo_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     geo_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     geo_radius_m: Optional[float] = Field(default=None, gt=0, le=5000)
@@ -162,7 +166,11 @@ class EventCreate(EventBase):
 
 class EventUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    location: Optional[str] = Field(None, min_length=1, max_length=200)
+    location: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = Field(None)
+    venue: Optional[str] = Field(None)
+    notes: Optional[str] = Field(None)
+    banner_url: Optional[str] = Field(None)
     geo_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     geo_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     geo_radius_m: Optional[float] = Field(default=None, gt=0, le=5000)

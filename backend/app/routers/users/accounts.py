@@ -135,6 +135,15 @@ def get_users_by_role(
     return _serialize_users(users)
 
 
+@router.get("/me", response_model=UserWithRelations)
+def get_current_user_profile_no_slash(
+    current_user: UserModel = Depends(get_current_application_user),
+    db: Session = Depends(get_db)
+):
+    db.refresh(current_user)
+    return _serialize_user(current_user)
+
+
 @router.get("/me/", response_model=UserWithRelations)
 def get_current_user_profile(
     current_user: UserModel = Depends(get_current_application_user),

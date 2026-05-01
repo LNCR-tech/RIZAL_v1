@@ -57,7 +57,7 @@ from app.services.import_validation_service import (
 from app.services.student_import_service import StudentImportService
 from app.workers.celery_app import celery_app
 
-router = APIRouter(prefix="/api/admin", tags=["admin-import"])
+router = APIRouter(prefix="/admin", tags=["admin-import"])
 logger = logging.getLogger(__name__)
 
 

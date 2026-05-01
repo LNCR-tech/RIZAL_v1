@@ -1,6 +1,7 @@
 import pytest
 from app.models.user import User, UserRole
 from app.models.role import Role
+from app.models.school import School
 from app.core.database import SessionLocal
 from app.utils.passwords import hash_password_bcrypt
 
@@ -37,10 +38,12 @@ RBAC_MATRIX = [
 def ssg_token(client):
     db = SessionLocal()
     try:
+        school = db.query(School).filter_by(school_code="TEST-001").first()
         ssg_user = db.query(User).filter_by(email="ssg@test.com").first()
         if not ssg_user:
             role = db.query(Role).filter_by(code="ssg").first()
-            ssg_user = User(email="ssg@test.com", first_name="Test", last_name="SSG", password_hash=hash_password_bcrypt("TestPass123!"))
+            school_id = school.id if school else None
+            ssg_user = User(email="ssg@test.com", first_name="Test", last_name="SSG", school_id=school_id, password_hash=hash_password_bcrypt("TestPass123!"))
             db.add(ssg_user)
             db.flush()
             db.add(UserRole(user_id=ssg_user.id, role_id=role.id))

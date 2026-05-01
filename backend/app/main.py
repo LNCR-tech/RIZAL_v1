@@ -98,28 +98,55 @@ app.add_middleware(
 
 def include_api_router(router: APIRouter) -> None:
     app.include_router(router, prefix="/api")
-
+    # Also mount with /api/v1 for compatibility with newer clients/tests
+    app.include_router(router, prefix="/api/v1")
 
 # Include routers
+# Auth needs to be at root for /login and /token, plus /api/v1/auth for new clients
 app.include_router(auth.router)
+app.include_router(auth.router, prefix="/api/v1/auth")
+app.include_router(auth.router, prefix="/api/auth")
+
 include_api_router(users.router)
 include_api_router(events.router)
 include_api_router(programs.router)
 include_api_router(departments.router)
 include_api_router(attendance.router)
 include_api_router(reports_router)
+
 app.include_router(school_settings.router)
-app.include_router(admin_import.router)
+app.include_router(school_settings.router, prefix="/api/v1")
+
+include_api_router(admin_import.router)
+
 app.include_router(school.router)
+app.include_router(school.router, prefix="/api/v1")
+
 app.include_router(audit_logs.router)
+app.include_router(audit_logs.router, prefix="/api/v1")
+
 app.include_router(notifications.router)
+app.include_router(notifications.router, prefix="/api/v1")
+
 include_api_router(security_center.router)
+
 app.include_router(subscription.router)
+app.include_router(subscription.router, prefix="/api/v1")
+
 app.include_router(governance.router)
+app.include_router(governance.router, prefix="/api/v1")
+
 app.include_router(governance_hierarchy.router)
+app.include_router(governance_hierarchy.router, prefix="/api/v1")
+
 include_api_router(face_recognition.router)
+
 app.include_router(public_attendance.router)
+app.include_router(public_attendance.router, prefix="/api/v1")
+
 app.include_router(health.router)
+app.include_router(health.router, prefix="/api/v1")
+
 include_api_router(sanctions.router)
 
 logo_storage_dir = Path(settings.school_logo_storage_dir)
