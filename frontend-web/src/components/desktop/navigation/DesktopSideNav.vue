@@ -306,16 +306,16 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   align-items: center;
   justify-content: center;
   gap: 4px;
-  color: var(--color-text-primary);
+  color: #000000;
   transition: opacity 200ms ease, transform 220ms ease;
 }
 
 .nav-rail__button--idle {
-  opacity: 0.45;
+  opacity: 0.55;
 }
 
 .nav-rail__button--idle:hover {
-  opacity: 0.85;
+  opacity: 1;
   transform: translateY(-1px);
 }
 

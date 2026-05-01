@@ -1243,6 +1243,66 @@ const subscriptionOptions = ['active', 'trial', 'suspended']
   color: var(--color-text-primary);
 }
 
+.admin-view__list,
+.admin-view__card-list,
+.admin-view__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-view__function {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.admin-view__function svg {
+  margin-top: 2px;
+  color: var(--color-primary);
+}
+
+.admin-view__function strong,
+.admin-view__row-main strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.admin-view__function span,
+.admin-view__row-main span,
+.admin-view__card p,
+.admin-view__compact-text,
+.admin-view__result,
+.admin-view__empty {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.admin-view__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.admin-view__row-main {
+  min-width: 0;
+}
+
 .admin-view__status {
   border-radius: 999px;
   font-weight: 700;
