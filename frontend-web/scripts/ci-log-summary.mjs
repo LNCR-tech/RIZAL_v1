@@ -21,7 +21,9 @@ const logContents = fs.existsSync(absoluteLogPath)
   ? fs.readFileSync(absoluteLogPath, "utf8")
   : "";
 const logLines = splitLines(logContents);
-const diagnostics = dedupeDiagnostics(extractDiagnostics(logLines, rootDirectory));
+const diagnostics = dedupeDiagnostics(
+  extractDiagnostics(logLines, rootDirectory),
+);
 const fallbackSignals = collectFallbackSignals(logLines, 12);
 const failureExcerpt = takeTrailingLines(logLines, excerptLines);
 const status = exitCode === 0 ? "passed" : "failed";
@@ -346,7 +348,8 @@ function emitGitHubAnnotations(stage, diagnostics, fallbackSignals, limit) {
   }
 
   const fallback =
-    fallbackSignals[0] || "Frontend gate failed. Check uploaded logs for details.";
+    fallbackSignals[0] ||
+    "Frontend gate failed. Check uploaded logs for details.";
   const props = `title=${escapeProperty(stage)}`;
   console.log(`::error ${props}::${escapeData(fallback)}`);
 }
@@ -360,7 +363,9 @@ function isLikelyFilePathLine(value) {
 }
 
 function normalizeFilePath(filePath, rootDir) {
-  const rawPath = String(filePath || "").trim().replace(/\\/g, "/");
+  const rawPath = String(filePath || "")
+    .trim()
+    .replace(/\\/g, "/");
   if (!rawPath) return rawPath;
 
   if (path.isAbsolute(rawPath)) {

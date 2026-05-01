@@ -47,7 +47,9 @@ test("preview dashboard navigation works", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
 
   await page.goto("/exposed/dashboard");
-  await expect(page.getByRole("button", { name: "Schedule" }).first()).toBeVisible({
+  await expect(
+    page.getByRole("button", { name: "Schedule" }).first(),
+  ).toBeVisible({
     timeout: 15_000,
   });
   await page.getByRole("button", { name: "Schedule" }).first().click();
@@ -63,9 +65,11 @@ test("preview workspace navigation works", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
 
   await page.goto("/exposed/workspace");
-  await expect(page.getByRole("button", { name: "Users" }).first()).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(page.getByRole("button", { name: "Users" }).first()).toBeVisible(
+    {
+      timeout: 15_000,
+    },
+  );
   await page.getByRole("button", { name: "Users" }).first().click();
   await expect(page).toHaveURL(/\/exposed\/workspace\/users$/);
 
