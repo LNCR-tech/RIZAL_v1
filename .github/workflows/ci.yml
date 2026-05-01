@@ -849,8 +849,8 @@ jobs:
         working-directory: frontend-web
         env:
           VITE_APP_BASE_PATH: /
-          VITE_API_BASE_URL: http://localhost:8000
-          VITE_ASSISTANT_BASE_URL: http://localhost:8500
+          VITE_API_BASE_URL: http://127.0.0.1:8000
+          VITE_ASSISTANT_BASE_URL: http://127.0.0.1:8500
 
       - name: Create databases
         run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;" -c "CREATE DATABASE ai_assistant;"
@@ -966,7 +966,7 @@ jobs:
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
           echo "Waiting for backend..."
           for i in $(seq 1 20); do
-            curl -sf http://localhost:8000/health && break || sleep 2
+            curl -sf http://127.0.0.1:8000/health && break || sleep 2
           done
         working-directory: backend
         env:
@@ -978,13 +978,14 @@ jobs:
           EMAIL_TRANSPORT: disabled
           CELERY_BROKER_URL: redis://127.0.0.1:6379/0
           REDIS_URL: redis://127.0.0.1:6379/0
+          CORS_ALLOWED_ORIGINS: http://127.0.0.1:4173,http://localhost:4173,http://localhost:4173/,http://127.0.0.1:4173/
 
       - name: Start assistant
         run: |
           uvicorn main:app --host 0.0.0.0 --port 8500 &
           echo "Waiting for assistant..."
           for i in $(seq 1 20); do
-            curl -sf http://localhost:8500/health && break || sleep 2
+            curl -sf http://127.0.0.1:8500/health && break || sleep 2
           done
         working-directory: assistant
         env:
@@ -994,7 +995,32 @@ jobs:
           AI_API_KEY: test-key
           AI_API_BASE: https://test.example.com/v1
           AI_MODEL: test-model
-          BACKEND_API_BASE_URL: http://localhost:8000
+          BACKEND_API_BASE_URL: http://127.0.0.1:8000
+
+      - name: Start frontend preview
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > preview-e2e.log 2>&1 &
+        working-directory: frontend-web
+
+      - name: Verify backend, assistant, and frontend readiness
+        run: |
+          set -euo pipefail
+          wait_for() {
+            local name="$1"
+            local url="$2"
+            for i in $(seq 1 40); do
+              if curl -sf "$url" >/dev/null; then
+                echo "$name is ready at $url"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "$name did not become ready at $url"
+            return 1
+          }
+          wait_for "backend" "http://127.0.0.1:8000/health"
+          wait_for "assistant" "http://127.0.0.1:8500/health"
+          wait_for "frontend preview" "http://127.0.0.1:4173"
 
       - name: Run E2E tests
         run: npm run test:e2e
@@ -1002,12 +1028,12 @@ jobs:
         env:
           CI: 'true'
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
-          PLAYWRIGHT_REUSE_SERVER: 'false'
+          PLAYWRIGHT_REUSE_SERVER: 'true'
           PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 4173
           PLAYWRIGHT_WEB_SERVER_URL: http://127.0.0.1:4173
           VITE_APP_BASE_PATH: /
-          VITE_API_BASE_URL: http://localhost:8000
-          VITE_ASSISTANT_BASE_URL: http://localhost:8500
+          VITE_API_BASE_URL: http://127.0.0.1:8000
+          VITE_ASSISTANT_BASE_URL: http://127.0.0.1:8500
           E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || vars.E2E_ADMIN_EMAIL || 'campus_admin@test.com' }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || vars.E2E_ADMIN_PASSWORD || 'TestPass123!' }}
 
@@ -1019,6 +1045,7 @@ jobs:
           path: |
             frontend-web/playwright-report/
             frontend-web/test-results/
+            frontend-web/preview-e2e.log
           retention-days: 7
 
   # ===========================================================================

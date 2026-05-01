@@ -75,9 +75,9 @@ export default defineConfig({
     env: {
       VITE_APP_BASE_PATH: "/",
       VITE_API_BASE_URL:
-        process.env.VITE_API_BASE_URL || "http://localhost:8000",
+        process.env.VITE_API_BASE_URL || "http://127.0.0.1:8000",
       VITE_ASSISTANT_BASE_URL:
-        process.env.VITE_ASSISTANT_BASE_URL || "http://localhost:8500",
+        process.env.VITE_ASSISTANT_BASE_URL || "http://127.0.0.1:8500",
     },
   },
 });
