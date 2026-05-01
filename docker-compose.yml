@@ -70,7 +70,8 @@ services:
 
   seeder:
     build:
-      context: ./seeder
+      context: .
+      dockerfile: ./seeder/Dockerfile
     image: aura-seeder:${APP_ENV:-dev}
     env_file:
       - ./seeder/.env
