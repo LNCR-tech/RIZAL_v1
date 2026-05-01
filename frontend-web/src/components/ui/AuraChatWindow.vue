@@ -15,6 +15,7 @@
         v-if="isFullOpen"
         ref="windowEl"
         class="aura-chat-window"
+        :class="{ 'aura-chat-window--fullscreen': isFullScreen }"
         role="dialog"
         aria-label="Aura AI Chat"
         @click.stop
@@ -38,6 +39,14 @@
             >
               <Copy :size="15" />
             </button>
+            <button
+              class="chat-icon-btn"
+              :aria-label="isFullScreen ? 'Exit full screen' : 'Full screen'"
+              @click="toggleFullScreen"
+            >
+              <component :is="isFullScreen ? Minimize2 : Maximize2" :size="15" />
+            </button>
+            <!-- Minimize → return to mini pill -->
             <button
               class="chat-icon-btn"
               aria-label="Minimize chat"
@@ -153,12 +162,17 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { Copy, Minus, X, Send, Plus, Trash2 } from 'lucide-vue-next'
+import { Copy, Minus, X, Send, Plus, Trash2, Maximize2, Minimize2 } from 'lucide-vue-next'
 import ChatMarkdownMessage from '@/components/ui/ChatMarkdownMessage.vue'
 import { activeAuraLogo } from '@/config/theme.js'
 import { useChat } from '@/composables/useChat.js'
 
 const windowEl = ref(null)
+const isFullScreen = ref(false)
+
+function toggleFullScreen() {
+  isFullScreen.value = !isFullScreen.value
+}
 
 const {
   messages,
@@ -223,9 +237,46 @@ watch(isFullOpen, (val) => {
   display: flex;
   flex-direction: column;
 
-  background: var(--color-primary);
+  background: var(--color-nav-glass-bg);
+  backdrop-filter: blur(var(--nav-glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--nav-glass-blur)) saturate(160%);
+  border: 1px solid var(--color-nav-glass-border);
+  box-shadow: var(--color-nav-glass-shadow);
   border-radius: 28px;
   overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  isolation: isolate;
+}
+
+.aura-chat-window::before,
+.aura-chat-window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.aura-chat-window::before {
+  z-index: -2;
+  background: var(--color-nav-glass-layer);
+  box-shadow: inset 0 1px 0 var(--color-nav-glass-inset);
+}
+
+.aura-chat-window::after {
+  z-index: -1;
+  background:
+    var(--color-nav-glass-light),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 48%, rgba(255, 255, 255, 0.08) 100%);
+}
+
+.aura-chat-window--fullscreen {
+  left: 0 !important;
+  bottom: 0 !important;
+  top: 0 !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
 }
 
 @media (max-width: 860px) {
@@ -312,19 +363,19 @@ watch(isFullOpen, (val) => {
   height: 28px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--color-banner-text);
   cursor: pointer;
   transition: background 0.18s ease, transform 0.15s ease;
 }
 
 .chat-icon-btn:hover {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.2);
   transform: scale(1.08);
 }
 
 .chat-icon-btn--close:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ── Messages ──────────────────────────────────────────── */
@@ -414,7 +465,7 @@ details[open] .bubble-thought__toggle::after {
 
 .bubble--user {
   align-self: flex-end;
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(255, 255, 255, 0.14);
   color: var(--color-banner-text);
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
@@ -467,8 +518,8 @@ details[open] .bubble-thought__toggle::after {
 .chat-input-row {
   display: flex;
   align-items: center;
-  background: rgba(0, 0, 0, 0.08);
-  border: 1.5px solid rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
   border-radius: 999px;
   padding: 0 8px 0 18px;
   height: 48px;
@@ -477,8 +528,8 @@ details[open] .bubble-thought__toggle::after {
 }
 
 .chat-input-row:focus-within {
-  background: rgba(0, 0, 0, 0.12);
-  border-color: rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .chat-input {
@@ -506,7 +557,7 @@ details[open] .bubble-thought__toggle::after {
   height: 34px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: var(--color-banner-text);
   cursor: pointer;
   flex-shrink: 0;
@@ -514,7 +565,7 @@ details[open] .bubble-thought__toggle::after {
 }
 
 .chat-send-btn:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.25);
   transform: scale(1.08);
 }
 
@@ -532,7 +583,7 @@ details[open] .bubble-thought__toggle::after {
 .chat-sidebar {
   width: 260px;
   flex: 0 0 auto;
-  border-right: 1px solid rgba(0, 0, 0, 0.12);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -553,7 +604,8 @@ details[open] .bubble-thought__toggle::after {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--color-banner-text);
+  opacity: 0.55;
 }
 
 .chat-sidebar-new {
@@ -562,28 +614,29 @@ details[open] .bubble-thought__toggle::after {
   gap: 6px;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.16);
-  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
   font-family: 'Manrope', sans-serif;
   font-size: 12px;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.72);
+  color: var(--color-banner-text);
   cursor: pointer;
 }
 
 .chat-sidebar-new:hover {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .chat-sidebar-meta {
   font-family: 'Manrope', sans-serif;
   font-size: 12px;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--color-banner-text);
+  opacity: 0.55;
 }
 
 .chat-sidebar-meta--error {
-  color: rgba(160, 0, 0, 0.7);
+  color: rgba(255, 100, 100, 0.9);
 }
 
 .chat-sidebar-list {
@@ -604,8 +657,8 @@ details[open] .bubble-thought__toggle::after {
 .chat-sidebar-item {
   width: 100%;
   text-align: left;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 14px;
   padding: 10px 10px;
   display: flex;
@@ -617,20 +670,20 @@ details[open] .bubble-thought__toggle::after {
 }
 
 .chat-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
 
 .chat-sidebar-item--active {
-  border-color: rgba(0, 0, 0, 0.28);
-  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .chat-sidebar-item-title {
   font-family: 'Manrope', sans-serif;
   font-size: 12px;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.78);
+  color: var(--color-banner-text);
   line-height: 1.25;
   overflow: hidden;
   display: -webkit-box;
@@ -642,15 +695,16 @@ details[open] .bubble-thought__toggle::after {
   flex: 0 0 auto;
   border: none;
   background: transparent;
-  color: rgba(0, 0, 0, 0.52);
+  color: var(--color-banner-text);
+  opacity: 0.5;
   border-radius: 10px;
   padding: 6px;
   cursor: pointer;
 }
 
 .chat-sidebar-item-delete:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.72);
+  background: rgba(255, 255, 255, 0.15);
+  opacity: 1;
 }
 
 .chat-main {
