@@ -370,7 +370,7 @@ export async function loginForAccessToken(baseUrl, { username, password }) {
         password: String(password ?? ''),
     })
 
-    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/api/token', '/token'], {
+    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/token', '/api/token'], {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -380,7 +380,7 @@ export async function loginForAccessToken(baseUrl, { username, password }) {
 }
 
 export async function loginWithGoogle(baseUrl, idToken) {
-    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/api/auth/google', '/auth/google'], {
+    return normalizeTokenPayload(await requestWithFallback(baseUrl, ['/auth/google', '/api/auth/google'], {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

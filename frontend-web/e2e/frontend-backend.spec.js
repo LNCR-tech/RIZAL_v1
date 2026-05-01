@@ -3,12 +3,12 @@ import { test, expect } from "@playwright/test";
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "campus_admin@test.com";
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "TestPass123!";
-const LOGIN_API_PATH_PATTERN = /\/(?:api\/)?token$/i;
+const LOGIN_API_PATH_PATTERN = /^\/token$/i;
 const AUTH_ERROR_TEXT_PATTERN = /invalid|incorrect|failed|error|credentials/i;
 const CORS_ERROR_PATTERN =
   /blocked by CORS policy|access-control-allow-origin|cors/i;
 const AUTHENTICATED_PATH_PATTERN =
-  /^\/(workspace|dashboard|admin|governance|privileged|face-registration|change-password)(?:\/|$)/i;
+  /^\/(workspace|dashboard|admin|governance|privileged-face|face-registration|change-password)(?:\/|$)/i;
 
 /**
  * @typedef {{
