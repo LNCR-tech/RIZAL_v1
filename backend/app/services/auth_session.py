@@ -30,6 +30,11 @@ BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
 PRIVILEGED_AUTH_ROLE_NAMES = {"admin", "campus_admin"}
 
 
+def _enum_value(value: object) -> str:
+    raw = getattr(value, "value", value)
+    return str(raw or "").strip()
+
+
 def get_user_role_names(user: User) -> list[str]:
     role_names = []
     seen = set()
@@ -64,7 +69,7 @@ def _get_governance_role_names(db: Session, user: User) -> list[str]:
 
     # GovernanceUnitType values are "SSG"/"SG"/"ORG".
     role_names: list[str] = []
-    for unit_type in sorted({ut.value for ut in unit_types}):
+    for unit_type in sorted({_enum_value(ut) for ut in unit_types}):
         normalized = str(unit_type).strip().lower()
         if normalized in {"ssg", "sg", "org"}:
             role_names.append(normalized)
@@ -82,7 +87,8 @@ def _get_governance_permission_codes(db: Session, user: User) -> list[str]:
         )
     except Exception:
         return []
-    return sorted({str(code.value).strip().lower() for code in permission_codes if getattr(code, "value", None)})
+    normalized_codes = {_enum_value(code).lower() for code in permission_codes}
+    return sorted({code for code in normalized_codes if code})
 
 
 def get_school_context(db: Session, user: User) -> dict[str, object | None]:

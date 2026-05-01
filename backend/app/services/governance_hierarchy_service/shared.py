@@ -214,6 +214,14 @@ def _get_payload_fields_set(payload) -> set[str]:
     return set(payload.__fields_set__)
 
 
+def _enum_value(value) -> str:
+    """Return enum `.value` when present, otherwise return a normalized string."""
+    enum_like_value = getattr(value, "value", None)
+    if enum_like_value is not None:
+        return str(enum_like_value)
+    return str(value or "")
+
+
 def _prepare_governance_member(governance_member: GovernanceMember) -> GovernanceMember:
     """Sort member permissions so responses are stable and easier to read."""
     set_committed_value(
@@ -221,7 +229,7 @@ def _prepare_governance_member(governance_member: GovernanceMember) -> Governanc
         "member_permissions",
         sorted(
             governance_member.member_permissions,
-            key=lambda item: item.permission.permission_code.value,
+            key=lambda item: _enum_value(item.permission.permission_code),
         ),
     )
     return governance_member
@@ -251,7 +259,7 @@ def _prepare_governance_unit(governance_unit: GovernanceUnit) -> GovernanceUnit:
         "unit_permissions",
         sorted(
             governance_unit.unit_permissions,
-            key=lambda item: item.permission.permission_code.value,
+            key=lambda item: _enum_value(item.permission.permission_code),
         ),
     )
     return governance_unit
@@ -749,7 +757,11 @@ def _validate_student_governance_candidate(
         ):
             raise HTTPException(
                 status_code=400,
-                detail=f"Only imported students within the {governance_unit.unit_type.value} department scope can be assigned to this unit",
+                detail=(
+                    "Only imported students within the "
+                    f"{_enum_value(governance_unit.unit_type)} department scope "
+                    "can be assigned to this unit"
+                ),
             )
         if (
             governance_unit.program_id is not None
@@ -757,7 +769,11 @@ def _validate_student_governance_candidate(
         ):
             raise HTTPException(
                 status_code=400,
-                detail=f"Only imported students within the {governance_unit.unit_type.value} program scope can be assigned to this unit",
+                detail=(
+                    "Only imported students within the "
+                    f"{_enum_value(governance_unit.unit_type)} program scope "
+                    "can be assigned to this unit"
+                ),
             )
 
     return target_user
@@ -788,7 +804,7 @@ def _get_permission_map(
         .all()
     )
     permission_map = {permission.permission_code: permission for permission in permissions}
-    missing_codes = sorted(code.value for code in unique_codes if code not in permission_map)
+    missing_codes = sorted(_enum_value(code) for code in unique_codes if code not in permission_map)
     if missing_codes:
         raise HTTPException(
             status_code=404,
@@ -810,7 +826,7 @@ def _ensure_permission_codes_allowed_for_unit(
 
     allowed_codes = UNIT_MEMBER_PERMISSION_WHITELIST.get(unit_type, set())
     invalid_codes = sorted(
-        permission_code.value
+        _enum_value(permission_code)
         for permission_code in requested_codes
         if permission_code not in allowed_codes
     )
@@ -818,7 +834,7 @@ def _ensure_permission_codes_allowed_for_unit(
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Permissions not allowed for {unit_type.value} {target_label}: "
+                f"Permissions not allowed for {_enum_value(unit_type)} {target_label}: "
                 f"{', '.join(invalid_codes)}"
             ),
         )
@@ -1228,7 +1244,7 @@ def ensure_governance_permission(
 
     raise HTTPException(
         status_code=403,
-        detail=detail or f"Missing governance permission: {permission_code.value}",
+        detail=detail or f"Missing governance permission: {_enum_value(permission_code)}",
     )
 
 
@@ -1251,7 +1267,7 @@ def get_current_governance_access(
             for membership in memberships
             for member_permission in membership.member_permissions
         },
-        key=lambda code: code.value,
+        key=_enum_value,
     )
 
     units = [
@@ -1265,7 +1281,7 @@ def get_current_governance_access(
                     member_permission.permission.permission_code
                     for member_permission in membership.member_permissions
                 },
-                key=lambda code: code.value,
+                key=_enum_value,
             ),
         )
         for membership in memberships
@@ -1681,8 +1697,8 @@ def update_governance_unit(
             status_code=403,
             detail=(
                 "Only authorized "
-                f"{governance_unit.parent_unit.unit_type.value if governance_unit.parent_unit is not None else 'parent'} "
-                f"officers can edit this {governance_unit.unit_type.value} unit"
+                f"{_enum_value(governance_unit.parent_unit.unit_type) if governance_unit.parent_unit is not None else 'parent'} "
+                f"officers can edit this {_enum_value(governance_unit.unit_type)} unit"
             ),
         )
 
@@ -1840,7 +1856,7 @@ def assign_governance_member(
     if normalized_position_title is None:
         raise HTTPException(
             status_code=400,
-            detail=f"position_title is required for {governance_unit.unit_type.value} members",
+            detail=f"position_title is required for {_enum_value(governance_unit.unit_type)} members",
         )
 
     governance_member = (
@@ -1954,7 +1970,7 @@ def update_governance_member(
         if normalized_position_title is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"position_title is required for {governance_unit.unit_type.value} members",
+                detail=f"position_title is required for {_enum_value(governance_unit.unit_type)} members",
             )
         governance_member.position_title = normalized_position_title
 

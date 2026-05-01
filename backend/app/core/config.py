@@ -84,6 +84,18 @@ def _as_csv_list(value: str | None, default: list[str]) -> list[str]:
     return parsed or default
 
 
+def _resolve_email_delivery_mode() -> str:
+    raw_value = (os.getenv("EMAIL_DELIVERY_MODE") or "").strip().lower()
+    if not raw_value:
+        return ""
+
+    allowed_modes = {"disabled", "mailjet_api", "mailpit", "smtp"}
+    if raw_value not in allowed_modes:
+        allowed_values = ", ".join(sorted(allowed_modes))
+        raise ValueError(f"EMAIL_DELIVERY_MODE must be one of: {allowed_values}")
+    return raw_value
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -177,7 +189,33 @@ class Settings:
 
 def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-    email_transport = (os.getenv("EMAIL_TRANSPORT") or "disabled").strip().lower()
+    email_delivery_mode = _resolve_email_delivery_mode()
+    configured_email_transport = (os.getenv("EMAIL_TRANSPORT") or "disabled").strip().lower()
+    if email_delivery_mode == "mailpit":
+        email_transport = "smtp"
+    elif email_delivery_mode:
+        email_transport = email_delivery_mode
+    else:
+        email_transport = configured_email_transport
+
+    smtp_host = os.getenv("SMTP_HOST", "").strip()
+    smtp_port = _as_int(os.getenv("SMTP_PORT"), 587, "SMTP_PORT")
+    smtp_username = os.getenv("SMTP_USERNAME", "").strip()
+    smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
+    smtp_use_tls = _as_bool(os.getenv("SMTP_USE_TLS"), False)
+    smtp_use_starttls = _as_bool(os.getenv("SMTP_USE_STARTTLS"), False)
+
+    if email_delivery_mode == "mailpit":
+        smtp_host = (os.getenv("MAILPIT_SMTP_HOST") or "mailpit").strip()
+        smtp_port = _as_int(
+            os.getenv("MAILPIT_SMTP_INTERNAL_PORT"),
+            1025,
+            "MAILPIT_SMTP_INTERNAL_PORT",
+        )
+        smtp_username = ""
+        smtp_password = ""
+        smtp_use_tls = False
+        smtp_use_starttls = False
 
     return Settings(
         database_url=os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/fastapi_db"),
@@ -305,12 +343,12 @@ def get_settings() -> Settings:
         email_sender_email=os.getenv("EMAIL_SENDER_EMAIL", "").strip(),
         email_sender_name=os.getenv("EMAIL_SENDER_NAME", "Aura Notifications").strip(),
         email_reply_to=os.getenv("EMAIL_REPLY_TO", "").strip(),
-        smtp_host=os.getenv("SMTP_HOST", "").strip(),
-        smtp_port=_as_int(os.getenv("SMTP_PORT"), 587, "SMTP_PORT"),
-        smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
-        smtp_password=os.getenv("SMTP_PASSWORD", "").strip(),
-        smtp_use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), False),
-        smtp_use_starttls=_as_bool(os.getenv("SMTP_USE_STARTTLS"), False),
+        smtp_host=smtp_host,
+        smtp_port=smtp_port,
+        smtp_username=smtp_username,
+        smtp_password=smtp_password,
+        smtp_use_tls=smtp_use_tls,
+        smtp_use_starttls=smtp_use_starttls,
         mailjet_api_key=os.getenv("MAILJET_API_KEY", "").strip(),
         mailjet_api_secret=os.getenv("MAILJET_API_SECRET", "").strip(),
         mailjet_api_base_url=APP_SETTINGS.mailjet_api_base_url,

@@ -3,7 +3,7 @@
 [<- Back to doc index](../README.md)
 
 > **Status:** ACTIVE
-> **Last Updated:** 2026-04-28
+> **Last Updated:** 2026-05-02
 > **Purpose:** Frontend-only filtered and finalized change summary for AURA v3.2.
 
 ---
@@ -18,6 +18,17 @@
 ---
 
 ## Finalized Frontend Entries
+
+### [2026-05-02] Governance Event Create Defaults from School Settings
+
+- Updated `SgEventsView` event creation flow to preload attendance timing fields from school settings before opening or submitting create.
+- Updated `GovernanceWorkspaceView` create-event flow (via `EventEditorSheet`) to seed attendance timing inputs from school defaults instead of hardcoded zero values.
+- Added create-time controls for `early_check_in_minutes`, `late_threshold_minutes`, `sign_out_grace_minutes`, and `sign_out_open_delay_minutes`.
+- Creation now blocks when school defaults are unavailable, instead of silently proceeding with missing defaults.
+- Event create payload now always sends the four timing values so saved behavior matches what users saw in the form.
+- Added frontend school-settings normalization for event default timing fields.
+- **Source files:** `frontend-web/src/views/dashboard/SgEventsView.vue`, `frontend-web/src/views/dashboard/GovernanceWorkspaceView.vue`, `frontend-web/src/components/events/EventEditorSheet.vue`, `frontend-web/src/services/backendNormalizers.js`
+- **Raw source:** [branch-updates.md](./branch-updates.md)
 
 ### [2026-04-28] Frontend Restructure and Responsive Layout Overhaul
 

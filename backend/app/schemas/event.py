@@ -4,10 +4,11 @@ Role: Schema layer. It keeps API payloads clear and typed.
 """
 
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 from datetime import datetime
 from enum import Enum
 
+from app.core.timezones import PHILIPPINE_TIMEZONE
 from app.core.event_defaults import (
     DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES,
     DEFAULT_EVENT_LATE_THRESHOLD_MINUTES,
@@ -164,6 +165,13 @@ class EventCreate(EventBase):
     department_ids: List[int] = Field(default_factory=list)
     program_ids: List[int] = Field(default_factory=list)
 
+    @field_validator("start_datetime", "end_datetime", mode="after")
+    @classmethod
+    def normalize_event_datetime_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=PHILIPPINE_TIMEZONE)
+        return value.astimezone(PHILIPPINE_TIMEZONE)
+
 class EventUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=200)
@@ -185,6 +193,15 @@ class EventUpdate(BaseModel):
     status: Optional[EventStatus] = None
     department_ids: Optional[List[int]] = None
     program_ids: Optional[List[int]] = None
+
+    @field_validator("start_datetime", "end_datetime", mode="after")
+    @classmethod
+    def normalize_optional_event_datetime_timezone(cls, value: Optional[datetime]) -> Optional[datetime]:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=PHILIPPINE_TIMEZONE)
+        return value.astimezone(PHILIPPINE_TIMEZONE)
 
     @model_validator(mode="after")
     def validate_sign_out_window(self) -> "EventUpdate":

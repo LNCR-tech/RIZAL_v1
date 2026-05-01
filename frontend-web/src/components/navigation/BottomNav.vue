@@ -24,7 +24,7 @@
           :is="item.icon"
           :size="20"
           :stroke-width="isActive(item) ? 2.5 : 2"
-          :color="isActive(item) ? 'var(--color-primary)' : '#ffffff'"
+          :color="'var(--color-primary)'"
           class="bottom-nav__icon"
           :class="{ 'bottom-nav__icon--active': isActive(item) }"
         />
@@ -54,7 +54,7 @@
       
       <span 
         class="bottom-nav__council-text" 
-        :style="{ color: isCouncilActive ? 'var(--color-primary)' : '#ffffff' }"
+        :style="{ color: 'var(--color-primary)' }"
         :class="{ 'bottom-nav__council-text--active': isCouncilActive }"
       >
         {{ governanceAcronym }}

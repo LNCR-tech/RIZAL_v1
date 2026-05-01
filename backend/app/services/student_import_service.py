@@ -477,15 +477,14 @@ class StudentImportService:
             )
             db.commit()
 
-        # Email sending disabled for bulk import - students use their last name as password
-        # for row in success_rows:
-        #     self._queue_account_ready_email(
-        #         job_id=job_id,
-        #         user_id=row["user_id"],
-        #         email=row["email"],
-        #         first_name=row.get("first_name"),
-        #         temporary_password=row["temporary_password"],
-        #     )
+        for row in success_rows:
+            self._queue_account_ready_email(
+                job_id=job_id,
+                user_id=row["user_id"],
+                email=row["email"],
+                first_name=row.get("first_name"),
+                temporary_password=row["temporary_password"],
+            )
 
         return len(success_rows), len(batch_errors), batch_errors
 

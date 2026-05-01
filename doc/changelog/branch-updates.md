@@ -1,7 +1,7 @@
 ﻿# Branch Updates Log
 
 > **Status:** ACTIVE
-> **Last Updated:** 2026-04-28
+> **Last Updated:** 2026-05-02
 > **Purpose:** Raw branch-level update log and changelog single source of truth (SSOT).
 
 ---
@@ -23,6 +23,14 @@
 ---
 
 ## Raw Updates
+
+### [2026-05-02] `integrate/pilot-merge`
+
+- **Status:** Recorded
+- **Raw change:** Governance event creation now initializes timing controls from school settings and keeps them user-overridable per event.
+- **Raw frontend scope:** `SgEventsView` create-event UI now loads school event defaults before create, exposes create-time timing fields (`early_check_in_minutes`, `late_threshold_minutes`, `sign_out_grace_minutes`, `sign_out_open_delay_minutes`), blocks submit when defaults are unavailable, and sends explicit timing values in create payloads. Governance Workspace create-event modal (`EventEditorSheet`) now seeds those same fields from school defaults instead of `0` when creating new events. Frontend school-settings normalization now includes event default timing fields.
+- **Source files:** `frontend-web/src/views/dashboard/SgEventsView.vue`, `frontend-web/src/views/dashboard/GovernanceWorkspaceView.vue`, `frontend-web/src/components/events/EventEditorSheet.vue`, `frontend-web/src/services/backendNormalizers.js`
+- **Reference targets:** [frontend.md](./frontend.md)
 
 ### Repository and Shared Operations History
 

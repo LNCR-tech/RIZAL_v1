@@ -92,6 +92,68 @@
                   <input v-model="form.end_time" type="datetime-local" required />
                 </label>
               </div>
+
+              <section class="sg-map-section">
+                <header class="sg-map-section-header">
+                  <div class="sg-map-section-title">
+                    <div>
+                      <h3>Attendance Timing</h3>
+                      <p>Prefilled from school settings. Adjust for this event if needed.</p>
+                    </div>
+                  </div>
+                </header>
+
+                <div class="sg-coord-grid">
+                  <label class="sg-field-label">
+                    <span>Early Check-In (min)</span>
+                    <input
+                      v-model="form.early_check_in_minutes"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="1"
+                      :disabled="isSubmitting || isLoadingCreateDefaults"
+                    />
+                  </label>
+                  <label class="sg-field-label">
+                    <span>Late Threshold (min)</span>
+                    <input
+                      v-model="form.late_threshold_minutes"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="1"
+                      :disabled="isSubmitting || isLoadingCreateDefaults"
+                    />
+                  </label>
+                  <label class="sg-field-label">
+                    <span>Sign-Out Grace (min)</span>
+                    <input
+                      v-model="form.sign_out_grace_minutes"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="1"
+                      :disabled="isSubmitting || isLoadingCreateDefaults"
+                    />
+                  </label>
+                  <label class="sg-field-label">
+                    <span>Sign-Out Open Delay (min)</span>
+                    <input
+                      v-model="form.sign_out_open_delay_minutes"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="1"
+                      :disabled="isSubmitting || isLoadingCreateDefaults"
+                    />
+                  </label>
+                </div>
+
+                <p class="sg-geofence-note">
+                  Event timing defaults are sourced from school settings when the form opens.
+                </p>
+              </section>
               
               <section class="sg-map-section" :class="{ 'is-required': form.require_geofence }">
                 <header class="sg-map-section-header">
@@ -117,6 +179,7 @@
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
                   :radius-m="form.radius_meters"
+                  :initialize-with-current-location="true"
                   :disabled="isSubmitting"
                 />
                 
@@ -153,8 +216,12 @@
                 <button class="sg-cancel-event" type="button" :disabled="isSubmitting" @click="closeCreateForm">
                   Cancel
                 </button>
-                <button type="submit" class="sg-submit-event" :disabled="isSubmitting">
-                  {{ isSubmitting ? 'Creating...' : 'Create Event' }}
+                <button
+                  type="submit"
+                  class="sg-submit-event"
+                  :disabled="isSubmitting || isLoadingCreateDefaults || !createDefaultsLoaded"
+                >
+                  {{ isLoadingCreateDefaults ? 'Loading defaults...' : isSubmitting ? 'Creating...' : 'Create Event' }}
                 </button>
               </div>
             </form>
@@ -272,7 +339,15 @@ import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.j
 
 const route = useRoute()
 const router = useRouter()
-const { apiBaseUrl, token, dashboardState, isSchoolItSession, isAdminSession } = useDashboardSession()
+const {
+  apiBaseUrl,
+  token,
+  dashboardState,
+  schoolSettings,
+  refreshSchoolSettings,
+  isSchoolItSession,
+  isAdminSession,
+} = useDashboardSession()
 const { previewBundle } = useSgPreviewBundle(() => props.preview)
 const { isLoading: sgLoading } = useSgDashboard(props.preview)
 const governanceUnitId = ref(null)
@@ -298,11 +373,23 @@ const isCreating = ref(false)
 const isSubmitting = ref(false)
 const createError = ref('')
 const pendingCreateRequestKey = ref('')
+const DEFAULT_EVENT_CREATE_SETTINGS = Object.freeze({
+  early_check_in_minutes: 30,
+  late_threshold_minutes: 10,
+  sign_out_grace_minutes: 15,
+  sign_out_open_delay_minutes: 0,
+})
+const createDefaultsLoaded = ref(Boolean(props.preview))
+const isLoadingCreateDefaults = ref(false)
 const form = ref({
   name: '',
   location_name: '',
   start_time: '',
   end_time: '',
+  early_check_in_minutes: DEFAULT_EVENT_CREATE_SETTINGS.early_check_in_minutes,
+  late_threshold_minutes: DEFAULT_EVENT_CREATE_SETTINGS.late_threshold_minutes,
+  sign_out_grace_minutes: DEFAULT_EVENT_CREATE_SETTINGS.sign_out_grace_minutes,
+  sign_out_open_delay_minutes: DEFAULT_EVENT_CREATE_SETTINGS.sign_out_open_delay_minutes,
   require_geofence: false,
   latitude: null,
   longitude: null,
@@ -514,8 +601,11 @@ async function deleteManagedEvent(event) {
   }
 }
 
-function openCreateForm() {
+async function openCreateForm() {
   createError.value = ''
+  const defaultsLoaded = await ensureCreateEventDefaultsLoaded()
+  if (!defaultsLoaded) return
+  resetEventForm()
   isCreating.value = true
 }
 
@@ -737,6 +827,98 @@ function toOptionalFiniteNumber(value) {
   return Number.isFinite(normalized) ? normalized : null
 }
 
+function toBoundedMinuteInteger(value, fallback = 0) {
+  const normalized = Number(value)
+  if (!Number.isFinite(normalized)) return Math.max(0, Math.min(1440, Math.round(Number(fallback) || 0)))
+  return Math.max(0, Math.min(1440, Math.round(normalized)))
+}
+
+function getActiveCreateDefaultsSource() {
+  if (props.preview) {
+    return previewBundle.value?.schoolSettings || null
+  }
+  return schoolSettings.value || null
+}
+
+function hasSchoolEventDefaults(source = null) {
+  if (!source || typeof source !== 'object') return false
+  return (
+    Number.isFinite(Number(source.event_default_early_check_in_minutes))
+    && Number.isFinite(Number(source.event_default_late_threshold_minutes))
+    && Number.isFinite(Number(source.event_default_sign_out_grace_minutes))
+  )
+}
+
+function resolveCreateEventDefaults(source = null) {
+  const resolvedEarlyCheckInMinutes = toBoundedMinuteInteger(
+    source?.event_default_early_check_in_minutes,
+    DEFAULT_EVENT_CREATE_SETTINGS.early_check_in_minutes
+  )
+  const resolvedLateThresholdMinutes = toBoundedMinuteInteger(
+    source?.event_default_late_threshold_minutes,
+    DEFAULT_EVENT_CREATE_SETTINGS.late_threshold_minutes
+  )
+  const resolvedSignOutGraceMinutes = toBoundedMinuteInteger(
+    source?.event_default_sign_out_grace_minutes,
+    DEFAULT_EVENT_CREATE_SETTINGS.sign_out_grace_minutes
+  )
+  const resolvedSignOutOpenDelayMinutes = Math.min(
+    toBoundedMinuteInteger(
+      source?.event_default_sign_out_open_delay_minutes,
+      DEFAULT_EVENT_CREATE_SETTINGS.sign_out_open_delay_minutes
+    ),
+    resolvedSignOutGraceMinutes
+  )
+
+  return {
+    early_check_in_minutes: resolvedEarlyCheckInMinutes,
+    late_threshold_minutes: resolvedLateThresholdMinutes,
+    sign_out_grace_minutes: resolvedSignOutGraceMinutes,
+    sign_out_open_delay_minutes: resolvedSignOutOpenDelayMinutes,
+  }
+}
+
+function applyCreateEventDefaults(source = null) {
+  const defaults = resolveCreateEventDefaults(source)
+  form.value.early_check_in_minutes = defaults.early_check_in_minutes
+  form.value.late_threshold_minutes = defaults.late_threshold_minutes
+  form.value.sign_out_grace_minutes = defaults.sign_out_grace_minutes
+  form.value.sign_out_open_delay_minutes = defaults.sign_out_open_delay_minutes
+}
+
+async function ensureCreateEventDefaultsLoaded(forceRefresh = false) {
+  if (props.preview) {
+    applyCreateEventDefaults(getActiveCreateDefaultsSource())
+    createDefaultsLoaded.value = true
+    return true
+  }
+
+  if (createDefaultsLoaded.value && !forceRefresh) {
+    return true
+  }
+
+  isLoadingCreateDefaults.value = true
+  try {
+    let settingsSnapshot = schoolSettings.value
+    if (!settingsSnapshot || !hasSchoolEventDefaults(settingsSnapshot) || forceRefresh) {
+      settingsSnapshot = await refreshSchoolSettings()
+    }
+    if (!hasSchoolEventDefaults(settingsSnapshot)) {
+      throw new Error('School settings are unavailable.')
+    }
+
+    applyCreateEventDefaults(settingsSnapshot)
+    createDefaultsLoaded.value = true
+    return true
+  } catch (error) {
+    createDefaultsLoaded.value = false
+    createError.value = error?.message || 'Unable to load school event defaults.'
+    return false
+  } finally {
+    isLoadingCreateDefaults.value = false
+  }
+}
+
 function isValidLatitude(value) {
   return Number.isFinite(value) && value >= -90 && value <= 90
 }
@@ -766,7 +948,12 @@ function getFormGeofenceValues() {
 }
 
 function toBackendDateTimeValue(value) {
-  return String(value || '').trim()
+  const normalized = String(value || '').trim()
+  if (!normalized) return normalized
+
+  const parsed = new Date(normalized)
+  if (!Number.isFinite(parsed.getTime())) return normalized
+  return parsed.toISOString()
 }
 
 function hasExplicitGovernanceEventPreference() {
@@ -849,9 +1036,21 @@ function buildEventQueryParams() {
 }
 
 function validateEventForm() {
+  if (!props.preview && !createDefaultsLoaded.value) {
+    throw new Error('School event defaults are still loading. Please try again.')
+  }
+
   const startTime = new Date(form.value.start_time)
   const endTime = new Date(form.value.end_time)
   const geofence = getFormGeofenceValues()
+  const signOutGraceMinutes = toBoundedMinuteInteger(
+    form.value.sign_out_grace_minutes,
+    DEFAULT_EVENT_CREATE_SETTINGS.sign_out_grace_minutes
+  )
+  const signOutOpenDelayMinutes = toBoundedMinuteInteger(
+    form.value.sign_out_open_delay_minutes,
+    DEFAULT_EVENT_CREATE_SETTINGS.sign_out_open_delay_minutes
+  )
 
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
     throw new Error('Please provide valid start and end dates.')
@@ -883,11 +1082,26 @@ function validateEventForm() {
   if (form.value.require_geofence && !geofence.complete) {
     throw new Error('Select a map location before requiring geofence attendance.')
   }
+  if (signOutOpenDelayMinutes > signOutGraceMinutes) {
+    throw new Error('Sign-out open delay cannot be greater than sign-out grace minutes.')
+  }
 }
 
 function buildCreateEventPayload() {
   const geofence = getFormGeofenceValues()
   const shouldSendGeofence = geofence.complete
+  const sourceDefaults = resolveCreateEventDefaults(getActiveCreateDefaultsSource())
+  const signOutGraceMinutes = toBoundedMinuteInteger(
+    form.value.sign_out_grace_minutes,
+    sourceDefaults.sign_out_grace_minutes
+  )
+  const signOutOpenDelayMinutes = Math.min(
+    toBoundedMinuteInteger(
+      form.value.sign_out_open_delay_minutes,
+      sourceDefaults.sign_out_open_delay_minutes
+    ),
+    signOutGraceMinutes
+  )
   const payload = {
     name: String(form.value.name || '').trim(),
     location: String(form.value.location_name || '').trim(),
@@ -899,6 +1113,16 @@ function buildCreateEventPayload() {
     geo_longitude: shouldSendGeofence ? geofence.longitude : null,
     geo_radius_m: shouldSendGeofence ? geofence.radius : null,
     geo_max_accuracy_m: shouldSendGeofence ? geofence.maxAccuracy : null,
+    early_check_in_minutes: toBoundedMinuteInteger(
+      form.value.early_check_in_minutes,
+      sourceDefaults.early_check_in_minutes
+    ),
+    late_threshold_minutes: toBoundedMinuteInteger(
+      form.value.late_threshold_minutes,
+      sourceDefaults.late_threshold_minutes
+    ),
+    sign_out_grace_minutes: signOutGraceMinutes,
+    sign_out_open_delay_minutes: signOutOpenDelayMinutes,
     department_ids: [],
     program_ids: [],
   }
@@ -1055,6 +1279,13 @@ async function submitEvent() {
   isSubmitting.value = true
   createError.value = ''
   try {
+    if (!props.preview && !createDefaultsLoaded.value) {
+      const defaultsLoaded = await ensureCreateEventDefaultsLoaded()
+      if (!defaultsLoaded) {
+        throw new Error(createError.value || 'Unable to load school event defaults.')
+      }
+    }
+
     validateEventForm()
 
     if (props.preview) {
@@ -1183,11 +1414,16 @@ async function reload() { if (apiBaseUrl.value) await loadEvents(apiBaseUrl.valu
 
 function resetEventForm() {
   pendingCreateRequestKey.value = ''
+  const createDefaults = resolveCreateEventDefaults(getActiveCreateDefaultsSource())
   form.value = {
     name: '',
     location_name: '',
     start_time: '',
     end_time: '',
+    early_check_in_minutes: createDefaults.early_check_in_minutes,
+    late_threshold_minutes: createDefaults.late_threshold_minutes,
+    sign_out_grace_minutes: createDefaults.sign_out_grace_minutes,
+    sign_out_open_delay_minutes: createDefaults.sign_out_open_delay_minutes,
     require_geofence: false,
     latitude: null,
     longitude: null,

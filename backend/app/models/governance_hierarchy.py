@@ -140,6 +140,12 @@ class GovernanceUnitPermission(Base):
 
     # Compatibility alias
     @property
+    def id(self):
+        # Compatibility for API schemas that expect an `id` field on relation rows.
+        return self.permission_id
+
+    # Compatibility alias
+    @property
     def created_at(self):
         return self.granted_at
 
@@ -155,6 +161,11 @@ class GovernanceMemberPermission(Base):
     governance_member = relationship("GovernanceMember", back_populates="member_permissions")
     permission = relationship("GovernancePermission", back_populates="member_permissions")
     granted_by_user = relationship("User", foreign_keys=[granted_by_user_id])
+
+    @property
+    def id(self):
+        # Compatibility for API schemas that expect an `id` field on relation rows.
+        return self.permission_id
 
     @property
     def created_at(self):

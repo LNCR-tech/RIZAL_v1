@@ -180,6 +180,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  initializeWithCurrentLocation: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['update:locationLabel', 'update:latitude', 'update:longitude'])
@@ -195,6 +199,7 @@ const DEFAULT_MAP_CENTER = Object.freeze({
 const DEFAULT_MAP_ZOOM = 14
 const DEFAULT_MAP_MIN_ZOOM = 6
 const DEFAULT_AUTO_LOCATE_ZOOM = 15
+const DEFAULT_AUTO_INITIALIZE_TIMEOUT_MS = 18000
 const LOCATION_SEARCH_DEBOUNCE_MS = 220
 const SHORT_QUERY_SEARCH_RADIUS_M = 6000
 const MEDIUM_QUERY_SEARCH_RADIUS_M = 12000
@@ -866,6 +871,67 @@ function focusNearestAvailableLocation(latitude, longitude, { animate = true } =
   })
 }
 
+function isAutoLocateContextActive(sequence) {
+  return (
+    !isComponentUnmounted
+    && sequence === autoLocateSequence
+    && Boolean(mapInstance)
+  )
+}
+
+function buildLocationInitErrorMessage(error) {
+  const baseMessage = String(error?.message || '').trim()
+  if (baseMessage) {
+    return `${baseMessage} Turn on location, then tap Current.`
+  }
+  return 'Turn on location, then tap Current.'
+}
+
+async function initializeWithCurrentDeviceLocation(sequence) {
+  locating.value = true
+  setStatus('', 'info')
+
+  try {
+    const position = await getCurrentPositionOrThrow({
+      enableHighAccuracy: true,
+      timeout: DEFAULT_AUTO_INITIALIZE_TIMEOUT_MS,
+      maximumAge: 0,
+    })
+
+    if (!isAutoLocateContextActive(sequence) || hasCoordinates.value) return true
+
+    const accuracy = Number(position?.accuracy)
+    const accuracyLabel = Number.isFinite(accuracy) && accuracy > 0
+      ? ` (accuracy ${Math.round(accuracy)} m)`
+      : ''
+
+    lastKnownUserCoordinates = {
+      latitude: position.latitude,
+      longitude: position.longitude,
+    }
+
+    await applyCoordinates(
+      position.latitude,
+      position.longitude,
+      `Current location selected${accuracyLabel}.`,
+      {
+        resolveLabel: true,
+        focus: true,
+      }
+    )
+    return true
+  } catch (error) {
+    if (isAutoLocateContextActive(sequence)) {
+      setStatus(buildLocationInitErrorMessage(error), 'error')
+    }
+    return false
+  } finally {
+    if (isAutoLocateContextActive(sequence)) {
+      locating.value = false
+    }
+  }
+}
+
 function startAutoLocateIfIdle() {
   if (autoLocateAttempted || hasCoordinates.value || !mapInstance) return
 
@@ -873,6 +939,13 @@ function startAutoLocateIfIdle() {
   const locateSequence = ++autoLocateSequence
 
   void (async () => {
+    if (props.initializeWithCurrentLocation && !props.disabled) {
+      const initialized = await initializeWithCurrentDeviceLocation(locateSequence)
+      if (initialized || !isAutoLocateContextActive(locateSequence) || hasCoordinates.value) {
+        return
+      }
+    }
+
     const position = await getCurrentPositionIfAvailable({
       enableHighAccuracy: false,
       timeout: 3500,

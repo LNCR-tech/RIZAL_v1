@@ -18,21 +18,21 @@
             <span
               v-if="isActive(item)"
               class="nav-rail__glow"
-              style="background: radial-gradient(circle, var(--color-nav-active) 0%, transparent 65%); opacity: 0.15; top: 50%; transform: translateY(-50%);"
+              style="background: radial-gradient(circle, var(--color-primary) 0%, transparent 65%); opacity: 0.15; top: 50%; transform: translateY(-50%);"
             />
 
             <component
               :is="item.icon"
               :size="19"
               :stroke-width="isActive(item) ? 2.2 : 1.6"
-              :color="isActive(item) ? 'var(--color-nav-active)' : 'var(--color-nav-text-secondary)'"
+              :color="'var(--color-primary)'"
               class="nav-rail__icon"
             />
 
             <span
               class="nav-rail__dot"
               :style="isActive(item)
-                ? 'background: var(--color-nav-active); opacity: 1;'
+                ? 'background: var(--color-primary); opacity: 1;'
                 : 'background: transparent; opacity: 0;'"
             />
           </button>

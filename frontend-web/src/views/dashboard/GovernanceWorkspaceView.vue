@@ -1115,6 +1115,7 @@
     <EventEditorSheet
       :is-open="isEventEditorOpen"
       :event="editingEvent"
+      :create-defaults="eventEditorCreateDefaults"
       :title="editingEvent ? 'Edit Event' : 'Create Event'"
       :description="editingEvent
         ? 'Update the selected governance event using the live backend event fields.'
@@ -1483,6 +1484,51 @@ const eventSwipeDidDrag = ref(false)
 const EVENT_SWIPE_ACTION_WIDTH = 110
 const EVENT_SWIPE_OPEN_THRESHOLD = 42
 const EVENT_SWIPE_GESTURE_THRESHOLD = 8
+const EVENT_EDITOR_FALLBACK_CREATE_DEFAULTS = Object.freeze({
+  early_check_in_minutes: 30,
+  late_threshold_minutes: 10,
+  sign_out_grace_minutes: 15,
+  sign_out_open_delay_minutes: 0,
+})
+
+function toBoundedMinuteInteger(value, fallback = 0) {
+  const normalized = Number(value)
+  if (!Number.isFinite(normalized)) {
+    return Math.max(0, Math.min(1440, Math.round(Number(fallback) || 0)))
+  }
+  return Math.max(0, Math.min(1440, Math.round(normalized)))
+}
+
+function resolveEventEditorCreateDefaults(source = null) {
+  const signOutGraceMinutes = toBoundedMinuteInteger(
+    source?.event_default_sign_out_grace_minutes,
+    EVENT_EDITOR_FALLBACK_CREATE_DEFAULTS.sign_out_grace_minutes
+  )
+  const signOutOpenDelayMinutes = Math.min(
+    toBoundedMinuteInteger(
+      source?.event_default_sign_out_open_delay_minutes,
+      EVENT_EDITOR_FALLBACK_CREATE_DEFAULTS.sign_out_open_delay_minutes
+    ),
+    signOutGraceMinutes
+  )
+
+  return {
+    early_check_in_minutes: toBoundedMinuteInteger(
+      source?.event_default_early_check_in_minutes,
+      EVENT_EDITOR_FALLBACK_CREATE_DEFAULTS.early_check_in_minutes
+    ),
+    late_threshold_minutes: toBoundedMinuteInteger(
+      source?.event_default_late_threshold_minutes,
+      EVENT_EDITOR_FALLBACK_CREATE_DEFAULTS.late_threshold_minutes
+    ),
+    sign_out_grace_minutes: signOutGraceMinutes,
+    sign_out_open_delay_minutes: signOutOpenDelayMinutes,
+  }
+}
+
+const eventEditorCreateDefaults = computed(() => (
+  resolveEventEditorCreateDefaults(schoolSettings.value)
+))
 
 function createAnnouncementDraft() {
   return {
@@ -5734,7 +5780,7 @@ function closeOfficerSheet() {
   border-radius: 20px;
   background-color: color-mix(in srgb, var(--color-surface) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-secondary, #4b5563);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -5794,7 +5840,7 @@ function closeOfficerSheet() {
 .governance-directory__name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-text-always-dark, #111827);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5802,7 +5848,7 @@ function closeOfficerSheet() {
 
 .governance-directory__meta {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-secondary, #4b5563);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5866,7 +5912,7 @@ function closeOfficerSheet() {
   padding: 0 16px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-bg) 48%, var(--color-surface));
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted, #6b7280);
   box-shadow: var(--governance-shadow-soft-compact);
 }
 
@@ -5876,14 +5922,14 @@ function closeOfficerSheet() {
   border: none;
   outline: none;
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--color-text-always-dark, #111827);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
 }
 
 .governance-student-directory__search-input::placeholder {
-  color: var(--color-text-muted);
+  color: var(--color-surface-text-muted, #6b7280);
 }
 
 .governance-student-directory__list {

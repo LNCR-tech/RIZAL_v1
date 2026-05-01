@@ -35,7 +35,12 @@ export function toOptionalNonNegativeInteger(value, fallback = 0) {
 }
 
 export function toBackendDateTimeValue(value) {
-    return String(value || '').trim()
+    const normalized = String(value || '').trim()
+    if (!normalized) return normalized
+
+    const parsed = new Date(normalized)
+    if (!Number.isFinite(parsed.getTime())) return normalized
+    return parsed.toISOString()
 }
 
 export function toLocalDateTimeInputValue(value) {

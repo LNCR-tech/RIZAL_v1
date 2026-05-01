@@ -26,6 +26,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./database/.env
+    ports:
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -39,6 +41,17 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     profiles: ["dev", "prod"]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    command: ["--database", "/data/mailpit.db"]
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    volumes:
+      - mailpit_data:/data
+    profiles: ["dev"]
 
   # ---------------------------------------------------------------------------
   # Init jobs — run once in order, then exit
@@ -202,3 +215,4 @@ volumes:
   branding_storage:
   insightface_storage:
   pgadmin_data:
+  mailpit_data:

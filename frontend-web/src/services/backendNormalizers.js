@@ -149,6 +149,10 @@ export function normalizeSchoolSettings(settings = null) {
         accent_color: toOptionalString(settings.accent_color, DEFAULT_ACCENT_COLOR),
         subscription_status: toOptionalString(settings.subscription_status, 'trial'),
         active_status: typeof settings.active_status === 'boolean' ? settings.active_status : true,
+        event_default_early_check_in_minutes: toOptionalNumber(settings.event_default_early_check_in_minutes, 30),
+        event_default_late_threshold_minutes: toOptionalNumber(settings.event_default_late_threshold_minutes, 10),
+        event_default_sign_out_grace_minutes: toOptionalNumber(settings.event_default_sign_out_grace_minutes, 15),
+        event_default_sign_out_open_delay_minutes: toOptionalNumber(settings.event_default_sign_out_open_delay_minutes, 0),
     }
 }
 

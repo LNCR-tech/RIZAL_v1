@@ -216,6 +216,7 @@
               v-model:latitude="draft.latitude"
               v-model:longitude="draft.longitude"
               :radius-m="draft.radiusM"
+              :initialize-with-current-location="shouldInitializeLocationFromCurrent"
               :disabled="saving"
             />
           </section>
@@ -296,15 +297,26 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  createDefaults: {
+    type: Object,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['close', 'save'])
 
 const draft = ref(createEventEditorDraft())
 const localError = ref('')
+const FALLBACK_CREATE_DEFAULTS = Object.freeze({
+  early_check_in_minutes: 30,
+  late_threshold_minutes: 10,
+  sign_out_grace_minutes: 15,
+  sign_out_open_delay_minutes: 0,
+})
 
 const feedbackMessage = computed(() => localError.value || props.errorMessage)
 const feedbackTone = computed(() => (localError.value || props.errorMessage ? 'error' : 'info'))
+const shouldInitializeLocationFromCurrent = computed(() => !props.event)
 const hasGeofencePoint = computed(() => {
   const latitude = Number(draft.value?.latitude)
   const longitude = Number(draft.value?.longitude)
@@ -319,11 +331,48 @@ const geofenceSummary = computed(() => {
   return hasGeofencePoint.value ? 'Location saved as optional.' : 'Optional.'
 })
 
+function toBoundedMinuteInteger(value, fallback = 0) {
+  const normalized = Number(value)
+  if (!Number.isFinite(normalized)) {
+    return Math.max(0, Math.min(1440, Math.round(Number(fallback) || 0)))
+  }
+  return Math.max(0, Math.min(1440, Math.round(normalized)))
+}
+
+function buildCreateSeedEvent(defaults = null) {
+  const source = defaults || FALLBACK_CREATE_DEFAULTS
+  const signOutGraceMinutes = toBoundedMinuteInteger(
+    source?.sign_out_grace_minutes,
+    FALLBACK_CREATE_DEFAULTS.sign_out_grace_minutes
+  )
+  const signOutOpenDelayMinutes = Math.min(
+    toBoundedMinuteInteger(
+      source?.sign_out_open_delay_minutes,
+      FALLBACK_CREATE_DEFAULTS.sign_out_open_delay_minutes
+    ),
+    signOutGraceMinutes
+  )
+
+  return {
+    early_check_in_minutes: toBoundedMinuteInteger(
+      source?.early_check_in_minutes,
+      FALLBACK_CREATE_DEFAULTS.early_check_in_minutes
+    ),
+    late_threshold_minutes: toBoundedMinuteInteger(
+      source?.late_threshold_minutes,
+      FALLBACK_CREATE_DEFAULTS.late_threshold_minutes
+    ),
+    sign_out_grace_minutes: signOutGraceMinutes,
+    sign_out_open_delay_minutes: signOutOpenDelayMinutes,
+  }
+}
+
 watch(
-  () => [props.isOpen, props.event],
+  () => [props.isOpen, props.event, props.createDefaults],
   ([isOpen]) => {
     if (!isOpen) return
-    draft.value = createEventEditorDraft(props.event)
+    const seedEvent = props.event || buildCreateSeedEvent(props.createDefaults)
+    draft.value = createEventEditorDraft(seedEvent)
     localError.value = ''
   },
   { immediate: true }
