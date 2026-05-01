@@ -891,6 +891,76 @@ jobs:
           FACE_SCAN_BYPASS_ALL: 'true'
           EMAIL_TRANSPORT: disabled
 
+      - name: Align E2E admin credentials with CI environment
+        run: |
+          python -c "
+          import os, sys
+          sys.path.insert(0, '.')
+          from app.core.database import SessionLocal
+          from app.models.role import Role
+          from app.models.school import School
+          from app.models.user import User, UserRole
+
+          email = (os.getenv('E2E_ADMIN_EMAIL') or 'campus_admin@test.com').strip().lower()
+          password = os.getenv('E2E_ADMIN_PASSWORD') or 'TestPass123!'
+          if len(password) < 8:
+              raise RuntimeError('E2E_ADMIN_PASSWORD must be at least 8 characters.')
+
+          db = SessionLocal()
+          try:
+              school = db.query(School).filter(School.school_code == 'TEST-001').first()
+              if school is None:
+                  raise RuntimeError('Expected seeded school TEST-001 to exist.')
+
+              role = db.query(Role).filter(Role.code == 'campus_admin').first()
+              if role is None:
+                  raise RuntimeError('Expected seeded campus_admin role to exist.')
+
+              user = db.query(User).filter(User.email == email).first()
+              if user is None:
+                  user = User(
+                      email=email,
+                      school_id=school.id,
+                      first_name='E2E',
+                      last_name='Admin',
+                      is_active=True,
+                      must_change_password=False,
+                      should_prompt_password_change=False,
+                  )
+                  user.set_password(password)
+                  db.add(user)
+                  db.flush()
+              else:
+                  user.school_id = school.id
+                  user.is_active = True
+                  user.must_change_password = False
+                  user.should_prompt_password_change = False
+                  user.set_password(password)
+                  db.flush()
+
+              assignment = (
+                  db.query(UserRole)
+                  .filter(UserRole.user_id == user.id, UserRole.role_id == role.id)
+                  .first()
+              )
+              if assignment is None:
+                  db.add(UserRole(user_id=user.id, role_id=role.id))
+
+              db.commit()
+              print(f'Aligned E2E admin account for {email}')
+          except Exception:
+              db.rollback()
+              raise
+          finally:
+              db.close()
+          "
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || vars.E2E_ADMIN_EMAIL || 'campus_admin@test.com' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || vars.E2E_ADMIN_PASSWORD || 'TestPass123!' }}
+
       - name: Start backend
         run: |
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
@@ -938,8 +1008,8 @@ jobs:
           VITE_APP_BASE_PATH: /
           VITE_API_BASE_URL: http://localhost:8000
           VITE_ASSISTANT_BASE_URL: http://localhost:8500
-          E2E_ADMIN_EMAIL: campus_admin@test.com
-          E2E_ADMIN_PASSWORD: TestPass123!
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || vars.E2E_ADMIN_EMAIL || 'campus_admin@test.com' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || vars.E2E_ADMIN_PASSWORD || 'TestPass123!' }}
 
       - name: Upload Playwright report
         if: failure()

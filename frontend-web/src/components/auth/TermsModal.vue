@@ -136,7 +136,7 @@
             <BaseButton
               variant="primary"
               size="md"
-              @click="close"
+              @click="agree"
             >
               I Understand
             </BaseButton>
@@ -158,10 +158,15 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['agree', 'close', 'decline'])
 
 function close() {
+  emit('decline')
   emit('close')
+}
+
+function agree() {
+  emit('agree')
 }
 </script>
 
