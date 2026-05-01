@@ -1,0 +1,11 @@
+# Disabled temporarily - CI only mode
+name: Production CD (Disabled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deployment disabled. CI-only mode."
