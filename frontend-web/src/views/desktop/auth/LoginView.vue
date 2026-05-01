@@ -171,9 +171,8 @@ const {
 }
 
 .desktop-login--mounted .desktop-login__hero {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .desktop-login__hero-content {
