@@ -23,7 +23,9 @@
     "android:build:debug": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleDebug",
     "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease",
     "test:e2e": "playwright test",
-    "test:e2e:preview": "playwright test e2e/preview-smoke.spec.js"
+    "test:e2e:preview": "playwright test e2e/preview-smoke.spec.js",
+    "playwright:install": "playwright install chromium",
+    "playwright:install:ci": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",

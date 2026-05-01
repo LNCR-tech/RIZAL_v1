@@ -736,7 +736,7 @@ jobs:
           path: frontend-web/dist
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npm run playwright:install:ci
 
       - name: Run production preview smoke tests
         shell: bash
@@ -841,8 +841,16 @@ jobs:
         working-directory: frontend-web
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npm run playwright:install:ci
         working-directory: frontend-web
+
+      - name: Build frontend production bundle for E2E
+        run: npm run build
+        working-directory: frontend-web
+        env:
+          VITE_APP_BASE_PATH: /
+          VITE_API_BASE_URL: http://localhost:8000
+          VITE_ASSISTANT_BASE_URL: http://localhost:8500
 
       - name: Create databases
         run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;" -c "CREATE DATABASE ai_assistant;"
@@ -923,6 +931,10 @@ jobs:
         working-directory: frontend-web
         env:
           CI: 'true'
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+          PLAYWRIGHT_REUSE_SERVER: 'false'
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 4173
+          PLAYWRIGHT_WEB_SERVER_URL: http://127.0.0.1:4173
           VITE_APP_BASE_PATH: /
           VITE_API_BASE_URL: http://localhost:8000
           VITE_ASSISTANT_BASE_URL: http://localhost:8500
