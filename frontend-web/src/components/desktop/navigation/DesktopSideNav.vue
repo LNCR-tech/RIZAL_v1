@@ -25,7 +25,7 @@
               :is="item.icon"
               :size="19"
               :stroke-width="isActive(item) ? 2.2 : 1.6"
-              :color="isActive(item) ? 'var(--color-primary)' : 'var(--color-nav-text)'"
+              :color="isActive(item) ? 'var(--color-primary)' : '#000000'"
               class="nav-rail__icon"
             />
 
