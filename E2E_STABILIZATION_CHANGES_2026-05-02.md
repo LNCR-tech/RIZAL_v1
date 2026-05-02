@@ -151,3 +151,67 @@ This document summarizes the changes made so far to address the 3 Playwright E2E
 - `npx playwright test --list` (passed; config/spec discovery OK)
 
 Note: full browser execution was not completed on this machine because Playwright browser binaries were missing (`npx playwright install` required).
+
+---
+
+## 429 Remediation Update (TESTING=true)
+
+### Problem Observed
+- E2E still intermittently failed with `429 Too Many Requests` on `/token` even with reduced Playwright workers.
+- Limiter state could still be hit across auth-heavy flows and retries.
+
+### Definitive Fix Applied
+
+#### 1) Backend now supports `TESTING=true` as a hard test switch
+**File:** `backend/app/core/config.py`
+- Extended test-mode detection to also read `TESTING=true`.
+- In `get_settings()`, when test mode is active:
+  - `rate_limit_enabled` is force-set to `False`.
+- Result: all request rate limiting is disabled in CI/integration test mode.
+
+#### 2) Rate limiter now exits early in test mode
+**File:** `backend/app/core/rate_limit.py`
+- `enforce_rate_limit(...)` now returns immediately when `settings.test_mode` is true.
+- This prevents `/token` and any other limited endpoint from returning 429 during test runs.
+
+#### 3) Env documentation updated
+**File:** `backend/.env.example`
+- Updated comment to clarify that test mode disables request rate limiting.
+- Added:
+  - `TESTING=false` as an alias used by CI/CD pipelines.
+
+#### 4) CI now explicitly passes `TESTING=true` to backend startup
+**File:** `.github/workflows/ci.yml`
+- Backend process env now includes:
+  - `TEST_MODE: 'true'`
+  - `TESTING: 'true'`
+  - `ENV: test`
+
+### Optional Fallback Added: Mock auth in Playwright
+
+#### 5) Playwright route-interception auth mock (opt-in)
+**File:** `frontend-web/e2e/base.ts`
+- Added toggle:
+  - `PLAYWRIGHT_MOCK_AUTH=true`
+- When enabled, test pages intercept and fulfill:
+  - `/token` and `/api/token` (login token issuance)
+  - `/api/users/me`
+  - `/api/school/me` and `/api/school-settings/me`
+  - `/api/events`
+  - `/api/attendance/me/records` and `/api/attendance/students/me`
+  - `/api/auth/security/face-status`
+- This allows UI/RBAC tests to run without touching live backend auth.
+
+#### 6) CI toggle made explicit
+**File:** `.github/workflows/ci.yml`
+- Added:
+  - `PLAYWRIGHT_MOCK_AUTH: 'false'`
+- Default behavior remains real backend auth unless intentionally switched on.
+
+### Additional Check: `globalSetup`
+- `frontend-web/e2e/global-setup.ts` only performs health checks.
+- It does **not** submit login credentials and is not a source of repeated `/token` calls.
+
+### Validation After Update
+- `python -m compileall backend/app/core/config.py backend/app/core/rate_limit.py` (passed)
+- `npx playwright test --list` (passed)
