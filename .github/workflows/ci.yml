@@ -166,10 +166,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
-      - name: Install Backend & Seeder
+      - name: Install Backend Dependencies
         run: |
           pip install -r backend/requirements.txt
-          pip install -r seeder/requirements.txt
           
       - name: Install Frontend
         working-directory: ${{ env.FRONTEND_DIR }}
