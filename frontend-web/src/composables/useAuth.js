@@ -59,7 +59,7 @@ export function useAuth() {
             }
 
             const initializedSession = await initializeDashboardSession(true)
-            if (!initializedSession?.user || sessionUsesLimitedMode()) {
+            if (!initializedSession?.user) {
                 throw new Error('The backend did not return a complete user session. Please try again once the backend is stable.')
             }
             
