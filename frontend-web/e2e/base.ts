@@ -55,7 +55,7 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
 
     page.on("response", res => {
       const status = res.status();
-      if (status >= 400 && status !== 401) { // we expect 401 on bad login
+      if (status >= 400 && status !== 401 && status !== 429) { // we expect 401 on bad login, 429 from rate limiting
         const url = res.url();
         if (!isHarmless(url)) {
           badResponses.push(`Bad response ${status}: ${url}`);
