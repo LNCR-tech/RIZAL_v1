@@ -216,6 +216,7 @@ jobs:
         working-directory: ${{ env.FRONTEND_DIR }}
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+          PLAYWRIGHT_REUSE_SERVER: 'true'
           E2E_ADMIN_EMAIL: campus_admin@test.com
           E2E_ADMIN_PASSWORD: TestPass123!
           FAIL_ON_CONSOLE_ERROR: 'true'

@@ -12,6 +12,8 @@ const storageOrigin = new URL(baseURL).origin;
 
 const reuseExistingServer =
   process.env.PLAYWRIGHT_REUSE_SERVER === "true" ||
+  (!!process.env.PLAYWRIGHT_BASE_URL &&
+    process.env.PLAYWRIGHT_REUSE_SERVER !== "false") ||
   (!process.env.CI && process.env.PLAYWRIGHT_REUSE_SERVER !== "false");
 
 export default defineConfig({
