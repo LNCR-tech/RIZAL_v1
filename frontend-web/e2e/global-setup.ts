@@ -37,7 +37,12 @@ async function waitForHealthyUrl(
         method: "GET",
         headers: { Accept: "application/json,text/html;q=0.9,*/*;q=0.8" },
       });
-      if (response.status >= 200 && response.status < 400) {
+      // Backend health endpoints may be rate-limited (429) even when the service is up.
+      // Treat that as "reachable" so E2E bootstrap does not fail on limiter behavior.
+      if (
+        (response.status >= 200 && response.status < 400) ||
+        (label === "backend" && response.status === 429)
+      ) {
         return;
       }
       lastError = `status ${response.status}`;
@@ -67,7 +72,7 @@ export default async function globalSetup(config: FullConfig) {
 
   const frontendHealthUrl = process.env.PLAYWRIGHT_FRONTEND_HEALTH_URL || `${baseUrl}/`;
   const backendHealthUrl =
-    process.env.PLAYWRIGHT_BACKEND_HEALTH_URL || `${backendBaseUrl}/health`;
+    process.env.PLAYWRIGHT_BACKEND_HEALTH_URL || `${backendBaseUrl}/`;
 
   await waitForHealthyUrl("frontend", frontendHealthUrl, FRONTEND_WAIT_TIMEOUT_MS);
   if (REQUIRE_BACKEND) {
