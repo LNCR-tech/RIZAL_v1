@@ -54,6 +54,7 @@ seeder/storage/seeder_outputs/
 backend/face_encodings.pkl
 backend/.alembic.ini.swp
 backend/.venv/
+seeder/venv/
 GITHUB/
 
 # SSH keys
