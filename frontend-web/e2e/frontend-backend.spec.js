@@ -6,6 +6,18 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "TestPass123!";
 const AUTHENTICATED_PATH_PATTERN =
   /^\/(workspace|dashboard|admin|governance|privileged-face|face-registration|change-password)(?:\/|$)/i;
 
+async function expectPathnameToMatch(page, pattern, timeout = 20_000) {
+  await expect(page).toHaveURL((url) => pattern.test(url.pathname), { timeout });
+}
+
+async function waitForBootOverlayToClear(page, timeout = 15_000) {
+  await page
+    .locator(".app-boot-screen")
+    .first()
+    .waitFor({ state: "hidden", timeout })
+    .catch(() => null);
+}
+
 async function readAuthStorageSnapshot(page) {
   return page.evaluate(() => {
     const localStorageToken = localStorage.getItem("aura_token");
@@ -42,9 +54,11 @@ async function readStoredToken(page) {
 
 async function submitLogin(page, email, password) {
   await page.goto("/");
+  await waitForBootOverlayToClear(page);
   await expect(page.locator("#email")).toBeVisible({ timeout: 15_000 });
   await page.fill("#email", email);
   await page.fill("#password", password);
+  await waitForBootOverlayToClear(page);
   await page.getByRole("button", { name: /log in|login|sign in/i }).click();
 }
 
@@ -95,7 +109,7 @@ test("valid login redirects to an authenticated route", async ({ page }) => {
     await termsAcknowledgeButton.click();
   }
 
-  await expect(page).toHaveURL(AUTHENTICATED_PATH_PATTERN, { timeout: 20_000 });
+  await expectPathnameToMatch(page, AUTHENTICATED_PATH_PATTERN);
   await expect(page.locator("#email")).toHaveCount(0);
 });
 

@@ -12,6 +12,25 @@ const STUDENT_ALLOWED_PATH_PATTERN =
 const CAMPUS_ADMIN_ALLOWED_PATH_PATTERN =
   /^\/(workspace|face-registration|change-password|privileged-face)(?:\/|$)/i;
 
+async function expectPathnameToMatch(
+  page: import("@playwright/test").Page,
+  pattern: RegExp,
+  timeout = 20_000,
+) {
+  await expect(page).toHaveURL((url) => pattern.test(url.pathname), { timeout });
+}
+
+async function waitForBootOverlayToClear(
+  page: import("@playwright/test").Page,
+  timeout = 15_000,
+) {
+  await page
+    .locator(".app-boot-screen")
+    .first()
+    .waitFor({ state: "hidden", timeout })
+    .catch(() => null);
+}
+
 async function readStoredToken(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const localToken = localStorage.getItem("aura_token");
@@ -34,6 +53,7 @@ async function gotoLoginAndWait(page: import("@playwright/test").Page) {
   expect(status).toBeLessThan(400);
 
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => null);
+  await waitForBootOverlayToClear(page);
   await expect(page.locator("#email")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator("#password")).toBeVisible();
 }
@@ -52,32 +72,33 @@ async function loginAs(
   await gotoLoginAndWait(page);
   await page.fill("#email", credentials.email);
   await page.fill("#password", credentials.password);
+  await waitForBootOverlayToClear(page);
   await page.getByRole("button", { name: /log in|login|sign in/i }).click();
   await settleTermsModalIfShown(page);
 
   await expect
     .poll(async () => Boolean(await readStoredToken(page)), { timeout: 20_000 })
     .toBe(true);
-  await expect(page).toHaveURL(AUTHENTICATED_PATH_PATTERN, { timeout: 20_000 });
+  await expectPathnameToMatch(page, AUTHENTICATED_PATH_PATTERN);
 }
 
 test.describe("RBAC Frontend Tests", () => {
   test("student login lands on student dashboard route", async ({ page }) => {
     await loginAs(page, USERS.student);
-    await expect(page).toHaveURL(STUDENT_ALLOWED_PATH_PATTERN, { timeout: 20_000 });
+    await expectPathnameToMatch(page, STUDENT_ALLOWED_PATH_PATTERN);
   });
 
   test("campus admin login lands on workspace route", async ({ page }) => {
     await loginAs(page, USERS.campus_admin);
-    await expect(page).toHaveURL(CAMPUS_ADMIN_ALLOWED_PATH_PATTERN, { timeout: 20_000 });
+    await expectPathnameToMatch(page, CAMPUS_ADMIN_ALLOWED_PATH_PATTERN);
   });
 
   test("student cannot access admin routes directly", async ({ page }) => {
     await loginAs(page, USERS.student);
-    await expect(page).toHaveURL(STUDENT_ALLOWED_PATH_PATTERN, { timeout: 20_000 });
+    await expectPathnameToMatch(page, STUDENT_ALLOWED_PATH_PATTERN);
 
     await page.goto("/admin/schools", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => null);
-    await expect(page).not.toHaveURL(/^\/admin(?:\/|$)/i);
+    await expect(page).not.toHaveURL((url) => /^\/admin(?:\/|$)/i.test(url.pathname));
   });
 });

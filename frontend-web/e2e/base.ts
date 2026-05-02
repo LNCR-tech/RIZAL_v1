@@ -11,6 +11,10 @@ const testDelayMs =
 const mockAuthEnabled =
   (process.env.PLAYWRIGHT_MOCK_AUTH || "").trim().toLowerCase() === "true";
 const mockAuthPassword = process.env.PLAYWRIGHT_MOCK_AUTH_PASSWORD || "TestPass123!";
+const mockBackendBaseUrl =
+  process.env.PLAYWRIGHT_BACKEND_BASE_URL ||
+  process.env.VITE_API_BASE_URL ||
+  "http://127.0.0.1:8000";
 
 type MockSession = {
   email: string;
@@ -45,8 +49,17 @@ function createTokenForEmail(email: string): string {
   return `mock-e2e-${tokenSeed || "token"}`;
 }
 
+function normalizeOrigin(value: string): string {
+  try {
+    return new URL(String(value || "").trim()).origin.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
 async function installMockAuthRoutes(page: import("@playwright/test").Page): Promise<void> {
   const sessions = new Map<string, MockSession>();
+  const backendOrigin = normalizeOrigin(mockBackendBaseUrl);
 
   const readSessionFromRequest = (request: import("@playwright/test").Request): MockSession | null => {
     const authorization = request.headers()["authorization"] || request.headers()["Authorization"] || "";
@@ -55,6 +68,87 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
     if (!token) return null;
     return sessions.get(token) || null;
   };
+
+  const fulfillJson = async (
+    route: import("@playwright/test").Route,
+    payload: unknown,
+    status = 200,
+  ) => {
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(payload),
+    });
+  };
+
+  await page.route("**/*", async (route) => {
+    if (route.request().method().toUpperCase() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    let url: URL;
+    try {
+      url = new URL(route.request().url());
+    } catch {
+      await route.fallback();
+      return;
+    }
+
+    if (backendOrigin && url.origin.toLowerCase() !== backendOrigin) {
+      await route.fallback();
+      return;
+    }
+
+    const path = (url.pathname.replace(/\/+$/, "").toLowerCase() || "/");
+
+    if (path === "/" || path === "") {
+      await fulfillJson(route, { ok: true });
+      return;
+    }
+
+    if (path === "/api/notifications/inbox/me") {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (path === "/api/governance/access/me") {
+      await fulfillJson(route, { units: [], memberships: [] });
+      return;
+    }
+
+    if (
+      path === "/api/departments" ||
+      path === "/departments" ||
+      path === "/api/programs" ||
+      path === "/programs" ||
+      path === "/api/users" ||
+      path === "/users" ||
+      path === "/api/governance/units" ||
+      path === "/attendance/summary"
+    ) {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (path === "/api/governance/ssg/setup") {
+      await fulfillJson(route, {
+        unit: null,
+        members: [],
+        candidates: [],
+        elections: [],
+        settings: null,
+      });
+      return;
+    }
+
+    if (path === "/api/governance/announcements/monitor") {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    await route.fallback();
+  });
 
   await page.route(/\/(?:api\/)?token(?:\?.*)?$/i, async (route) => {
     if (route.request().method().toUpperCase() !== "POST") {
