@@ -5,7 +5,6 @@ import {
     clearDashboardSession,
     getDefaultAuthenticatedRoute,
     initializeDashboardSession,
-    sessionUsesLimitedMode,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
 import { hasPrivilegedPendingFace, sanitizeToken, storeAuthMeta } from '@/services/localAuth.js'
