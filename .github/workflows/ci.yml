@@ -201,6 +201,7 @@ jobs:
           TEST_MODE: 'true'
           ENV: test
           FACE_SCAN_BYPASS_ALL: 'true'
+          RATE_LIMIT_ENABLED: 'false'
         run: |
           uvicorn app.main:app --host 127.0.0.1 --port 8000 > backend.log 2>&1 &
           for i in $(seq 1 20); do curl -sf http://127.0.0.1:8000/health && break || sleep 2; done
