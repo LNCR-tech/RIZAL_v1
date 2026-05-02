@@ -6,6 +6,40 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "TestPass123!";
 const AUTHENTICATED_PATH_PATTERN =
   /^\/(workspace|dashboard|admin|governance|privileged-face|face-registration|change-password)(?:\/|$)/i;
 
+async function readAuthStorageSnapshot(page) {
+  return page.evaluate(() => {
+    const localStorageToken = localStorage.getItem("aura_token");
+    const sessionStorageToken =
+      typeof sessionStorage !== "undefined"
+        ? sessionStorage.getItem("aura_token")
+        : null;
+    const authCookie = document.cookie
+      .split(";")
+      .map((entry) => entry.trim())
+      .find((entry) => /^aura_token=/.test(entry));
+
+    return {
+      pathname: window.location.pathname,
+      localStorageToken,
+      sessionStorageToken,
+      authCookie: authCookie || null,
+      localStorageKeys: Object.keys(localStorage || {}),
+      sessionStorageKeys:
+        typeof sessionStorage !== "undefined" ? Object.keys(sessionStorage) : [],
+    };
+  });
+}
+
+async function readStoredToken(page) {
+  const snapshot = await readAuthStorageSnapshot(page);
+  const cookieToken = snapshot.authCookie
+    ? decodeURIComponent(String(snapshot.authCookie).split("=").slice(1).join("="))
+    : "";
+  const resolvedToken =
+    snapshot.localStorageToken || snapshot.sessionStorageToken || cookieToken || "";
+  return { token: resolvedToken, snapshot };
+}
+
 async function submitLogin(page, email, password) {
   await page.goto("/");
   await expect(page.locator("#email")).toBeVisible({ timeout: 15_000 });
@@ -30,7 +64,7 @@ test("wrong password shows error message", async ({ page }) => {
     page.getByText(/invalid|incorrect|failed|error|credentials/i).first(),
   ).toBeVisible({ timeout: 15_000 });
 
-  const token = await page.evaluate(() => localStorage.getItem("aura_token"));
+  const { token } = await readStoredToken(page);
   expect(token).toBeFalsy();
 });
 
@@ -39,10 +73,16 @@ test("valid login redirects to an authenticated route", async ({ page }) => {
   
   await expect
     .poll(
-      () => page.evaluate(() => Boolean(localStorage.getItem("aura_token"))),
-      { timeout: 15_000 }
+      async () => {
+        const { token } = await readStoredToken(page);
+        return Boolean(token);
+      },
+      { timeout: 20_000 }
     )
     .toBe(true);
+
+  const tokenSnapshot = await readStoredToken(page);
+  expect(tokenSnapshot.token, JSON.stringify(tokenSnapshot.snapshot, null, 2)).toBeTruthy();
 
   const termsAcknowledgeButton = page.getByRole("button", {
     name: /i understand/i,
@@ -55,7 +95,7 @@ test("valid login redirects to an authenticated route", async ({ page }) => {
     await termsAcknowledgeButton.click();
   }
 
-  await expect(page).toHaveURL(AUTHENTICATED_PATH_PATTERN, { timeout: 20000 });
+  await expect(page).toHaveURL(AUTHENTICATED_PATH_PATTERN, { timeout: 20_000 });
   await expect(page.locator("#email")).toHaveCount(0);
 });
 

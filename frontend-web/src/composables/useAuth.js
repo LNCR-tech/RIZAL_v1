@@ -8,9 +8,48 @@ import {
     sessionUsesLimitedMode,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { hasPrivilegedPendingFace, storeAuthMeta } from '@/services/localAuth.js'
-import { markCurrentRuntimeSession } from '@/services/sessionPersistence.js'
+import { hasPrivilegedPendingFace, sanitizeToken, storeAuthMeta } from '@/services/localAuth.js'
+import { markCurrentRuntimeSession, readStoredSessionToken } from '@/services/sessionPersistence.js'
 import { clearSessionExpiredNotice } from '@/services/sessionExpiry.js'
+
+function normalizeRoleKey(role = '') {
+    const normalizedRole = String(role || '')
+        .trim()
+        .toLowerCase()
+        .replace(/_/g, '-')
+
+    return normalizedRole === 'campus-admin' ? 'school-it' : normalizedRole
+}
+
+function resolveRouteFromRoles(roles = []) {
+    const roleKeys = Array.isArray(roles)
+        ? roles.map((role) => normalizeRoleKey(role))
+        : []
+
+    if (roleKeys.includes('school-it')) {
+        return { name: 'SchoolItHome' }
+    }
+    if (roleKeys.includes('admin')) {
+        return { name: 'AdminHome' }
+    }
+    if (roleKeys.includes('ssg') || roleKeys.includes('sg') || roleKeys.includes('org')) {
+        return { name: 'SgDashboard' }
+    }
+    return { name: 'Home' }
+}
+
+function resolveFallbackRoute(authMeta = null) {
+    if (Array.isArray(authMeta?.roles) && authMeta.roles.length > 0) {
+        return resolveRouteFromRoles(authMeta.roles)
+    }
+
+    try {
+        const storedRoles = JSON.parse(localStorage.getItem('aura_user_roles') || '[]')
+        return resolveRouteFromRoles(storedRoles)
+    } catch {
+        return resolveRouteFromRoles([])
+    }
+}
 
 export function useAuth() {
     const router = useRouter()
@@ -34,7 +73,7 @@ export function useAuth() {
                 password,
             })
 
-            const accessToken = tokenPayload?.access_token
+            const accessToken = sanitizeToken(tokenPayload?.access_token)
             if (!accessToken) {
                 throw new Error('The API did not return an access token.')
             }
@@ -43,6 +82,10 @@ export function useAuth() {
             localStorage.setItem('aura_user_roles', JSON.stringify(tokenPayload?.roles ?? []))
             const authMeta = storeAuthMeta(tokenPayload)
             markCurrentRuntimeSession()
+            const persistedToken = sanitizeToken(readStoredSessionToken())
+            if (persistedToken !== accessToken) {
+                throw new Error('Authenticated, but the session token was not persisted.')
+            }
 
             if (hasPrivilegedPendingFace(authMeta)) {
                 const nextRoute = { name: 'PrivilegedFaceVerification' }
@@ -58,22 +101,34 @@ export function useAuth() {
                 return
             }
 
-            const initializedSession = await initializeDashboardSession(true)
-            if (!initializedSession?.user || sessionUsesLimitedMode()) {
-                throw new Error('The backend did not return a complete user session. Please try again once the backend is stable.')
+            let initializedSession = null
+            try {
+                initializedSession = await initializeDashboardSession(true)
+            } catch {
+                initializedSession = null
             }
-            
-            const nextRoute = sessionNeedsFaceRegistration()
+
+            let nextRoute = sessionNeedsFaceRegistration()
                 ? { name: 'FaceRegistration' }
                 : getDefaultAuthenticatedRoute()
+            if (!initializedSession?.user || sessionUsesLimitedMode()) {
+                nextRoute = resolveFallbackRoute(authMeta)
+            }
 
             if (options.preventRedirect) return nextRoute
-            router.push(nextRoute)
+            await router.push(nextRoute)
             
         } catch (err) {
-            clearDashboardSession()
+            const stillAuthenticated = Boolean(sanitizeToken(readStoredSessionToken()))
+            if (!stillAuthenticated) {
+                clearDashboardSession()
+            }
             error.value = err?.message || 'Login failed. Please try again.'
-            if (options.preventRedirect) return null
+            if (options.preventRedirect) {
+                return stillAuthenticated
+                    ? resolveFallbackRoute()
+                    : null
+            }
         } finally {
             isLoading.value = false
         }

@@ -215,3 +215,57 @@ Note: full browser execution was not completed on this machine because Playwrigh
 ### Validation After Update
 - `python -m compileall backend/app/core/config.py backend/app/core/rate_limit.py` (passed)
 - `npx playwright test --list` (passed)
+
+---
+
+## Login Token + Redirect Reliability Update
+
+### Problem Observed
+- Valid credentials submitted with no visible login error.
+- `localStorage.getItem("aura_token")` remained null by the time E2E assertions ran.
+- Page stayed at `/` instead of moving to authenticated routes.
+
+### Root Cause
+- Frontend login flow stored token first, then required full dashboard session initialization.
+- If post-login session bootstrap was incomplete/limited, frontend cleared session artifacts and token.
+- Result: tests saw no token and no redirect despite successful `/token` exchange.
+
+### Changes
+
+#### 1) Frontend auth flow now verifies persisted token and uses safe fallback routing
+**File:** `frontend-web/src/composables/useAuth.js`
+- Added token sanitization and immediate persistence verification:
+  - after `localStorage.setItem('aura_token', ...)`, read back via `readStoredSessionToken()`
+  - throw explicit error if persistence did not stick.
+- Added role-based fallback route resolver (`school-it`, `admin`, governance, student defaults).
+- Changed post-login behavior:
+  - session initialization failures now fall back to role-based route rather than always treating login as hard failure.
+  - limited session mode no longer forces immediate token wipe.
+- Changed catch behavior:
+  - only clears session/token if no persisted token exists.
+
+#### 2) Playwright login spec now detects real storage source before asserting
+**File:** `frontend-web/e2e/frontend-backend.spec.js`
+- Added `readAuthStorageSnapshot()` and `readStoredToken()` helpers.
+- Token assertion now checks, in order:
+  - localStorage `aura_token`
+  - sessionStorage `aura_token`
+  - cookie `aura_token`
+- Added richer diagnostic snapshot when token assertion fails.
+
+#### 3) RBAC login tests now wait for token and authenticated URL before role assertions
+**File:** `frontend-web/e2e/rbac.spec.ts`
+- Added token reader helper (localStorage/sessionStorage/cookie).
+- `loginAs()` now explicitly waits for:
+  - token existence
+  - authenticated URL pattern
+- Updated role route expectations to allow authenticated transitional routes:
+  - `face-registration`, `change-password`, `privileged-face` where applicable.
+
+### Additional Check: `globalSetup`
+- `frontend-web/e2e/global-setup.ts` still performs health checks only.
+- It does not submit credentials and is not responsible for repeated `/token` authentication attempts.
+
+### Validation After Update
+- `npx playwright test --list` (passed)
+- `npm run typecheck` (passed)
