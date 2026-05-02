@@ -96,6 +96,8 @@ def _with_unique_appends(values: list[str], extras: list[str]) -> list[str]:
 def _is_test_mode_enabled() -> bool:
     if _as_bool(os.getenv("TEST_MODE"), False):
         return True
+    if _as_bool(os.getenv("TESTING"), False):
+        return True
 
     for env_name in ("ENV", "APP_ENV", "ENVIRONMENT"):
         env_value = (os.getenv(env_name) or "").strip().lower()
@@ -254,6 +256,15 @@ def get_settings() -> Settings:
         smtp_use_tls = False
         smtp_use_starttls = False
 
+    rate_limit_enabled = _as_bool(
+        os.getenv("RATE_LIMIT_ENABLED"),
+        APP_SETTINGS.rate_limit_enabled,
+    )
+    if test_mode:
+        # In CI/integration test mode we disable all request rate limiting so
+        # deterministic E2E auth flows do not flap on shared limiter state.
+        rate_limit_enabled = False
+
     return Settings(
         database_url=os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/fastapi_db"),
         db_pool_size=APP_SETTINGS.db_pool_size,
@@ -300,10 +311,7 @@ def get_settings() -> Settings:
         celery_result_backend=os.getenv("CELERY_RESULT_BACKEND", redis_url),
         redis_url=redis_url,
         celery_task_time_limit_seconds=APP_SETTINGS.celery_task_time_limit_seconds,
-        rate_limit_enabled=_as_bool(
-            os.getenv("RATE_LIMIT_ENABLED"),
-            APP_SETTINGS.rate_limit_enabled,
-        ),
+        rate_limit_enabled=rate_limit_enabled,
         rate_limit_fail_open=_as_bool(
             os.getenv("RATE_LIMIT_FAIL_OPEN"),
             APP_SETTINGS.rate_limit_fail_open,

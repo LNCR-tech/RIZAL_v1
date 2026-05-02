@@ -199,6 +199,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
           SECRET_KEY: test-secret-key
           TEST_MODE: 'true'
+          TESTING: 'true'
           ENV: test
           FACE_SCAN_BYPASS_ALL: 'true'
           RATE_LIMIT_ENABLED: 'false'
@@ -223,6 +224,7 @@ jobs:
           PLAYWRIGHT_WORKERS: '1'
           PLAYWRIGHT_TEST_DELAY_MS: '400'
           PLAYWRIGHT_SLOW_MO_MS: '75'
+          PLAYWRIGHT_MOCK_AUTH: 'false'
           PLAYWRIGHT_REQUIRE_BACKEND: 'true'
           PLAYWRIGHT_BACKEND_BASE_URL: http://127.0.0.1:8000
           PLAYWRIGHT_BACKEND_HEALTH_URL: http://127.0.0.1:8000/
