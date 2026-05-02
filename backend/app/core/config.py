@@ -84,6 +84,15 @@ def _as_csv_list(value: str | None, default: list[str]) -> list[str]:
     return parsed or default
 
 
+def _with_unique_appends(values: list[str], extras: list[str]) -> list[str]:
+    combined: list[str] = []
+    for item in [*values, *extras]:
+        normalized = str(item or "").strip()
+        if normalized and normalized not in combined:
+            combined.append(normalized)
+    return combined
+
+
 def _resolve_email_delivery_mode() -> str:
     raw_value = (os.getenv("EMAIL_DELIVERY_MODE") or "").strip().lower()
     if not raw_value:
@@ -191,6 +200,20 @@ def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
     email_delivery_mode = _resolve_email_delivery_mode()
     configured_email_transport = (os.getenv("EMAIL_TRANSPORT") or "disabled").strip().lower()
+    local_dev_cors_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ]
+    configured_cors_origins = _as_csv_list(
+        os.getenv("CORS_ALLOWED_ORIGINS"),
+        list(local_dev_cors_origins),
+    )
+    cors_allowed_origins = _with_unique_appends(
+        configured_cors_origins,
+        local_dev_cors_origins,
+    )
     if email_delivery_mode == "mailpit":
         email_transport = "smtp"
     elif email_delivery_mode:
@@ -360,10 +383,7 @@ def get_settings() -> Settings:
         ),
         school_logo_max_file_size_mb=APP_SETTINGS.school_logo_max_file_size_mb,
         school_logo_public_prefix=APP_SETTINGS.school_logo_public_prefix,
-        cors_allowed_origins=_as_csv_list(
-            os.getenv("CORS_ALLOWED_ORIGINS"),
-            ["http://localhost:5173", "http://127.0.0.1:5173"],
-        ),
+        cors_allowed_origins=cors_allowed_origins,
         default_admin_email=os.getenv("DEFAULT_ADMIN_EMAIL", APP_SETTINGS.default_admin_email).strip(),
         default_admin_password=os.getenv("DEFAULT_ADMIN_PASSWORD", APP_SETTINGS.default_admin_password),
         google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),

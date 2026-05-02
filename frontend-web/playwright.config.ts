@@ -5,6 +5,10 @@ const previewPort = Number.isFinite(parsedPort) ? parsedPort : 4173;
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${previewPort}`;
 const serverUrl = process.env.PLAYWRIGHT_WEB_SERVER_URL || baseURL;
+const backendBaseUrl =
+  process.env.PLAYWRIGHT_BACKEND_BASE_URL ||
+  process.env.VITE_API_BASE_URL ||
+  "http://127.0.0.1:8000";
 const serverCommand =
   process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ||
   `npm run build && npm run preview -- --host 127.0.0.1 --port ${previewPort}`;
@@ -18,6 +22,7 @@ const reuseExistingServer =
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   timeout: 45_000,
   expect: {
     timeout: 10_000,
@@ -76,8 +81,7 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       VITE_APP_BASE_PATH: "/",
-      VITE_API_BASE_URL:
-        process.env.VITE_API_BASE_URL || "http://127.0.0.1:8000",
+      VITE_API_BASE_URL: backendBaseUrl,
       VITE_ASSISTANT_BASE_URL:
         process.env.VITE_ASSISTANT_BASE_URL || "http://127.0.0.1:8500",
     },

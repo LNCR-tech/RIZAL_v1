@@ -217,6 +217,8 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
           PLAYWRIGHT_REUSE_SERVER: 'true'
+          PLAYWRIGHT_REQUIRE_BACKEND: 'true'
+          PLAYWRIGHT_BACKEND_BASE_URL: http://127.0.0.1:8000
           E2E_ADMIN_EMAIL: campus_admin@test.com
           E2E_ADMIN_PASSWORD: TestPass123!
           FAIL_ON_CONSOLE_ERROR: 'true'

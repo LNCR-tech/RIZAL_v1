@@ -53,15 +53,21 @@ const IMPORTANT_ROUTES: ImportantRoute[] = [
   },
 ];
 
+async function navigateAndSettle(page: any, route: string) {
+  const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+  const status = response?.status() ?? 0;
+  expect(status).toBeGreaterThanOrEqual(200);
+  expect(status).toBeLessThan(400);
+  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => null);
+}
+
 test("production smoke routes load with no chunk, asset, or runtime failures", async ({ page }) => {
   for (const route of IMPORTANT_ROUTES) {
     await test.step(`route ${route.name}: ${route.path}`, async () => {
-      const response = await page.goto(route.path, { waitUntil: "domcontentloaded" });
-      const status = response?.status() ?? 0;
-      expect(status).toBeGreaterThanOrEqual(200);
-      expect(status).toBeLessThan(400);
+      await navigateAndSettle(page, route.path);
       await route.assertReady(page);
       await expect(page.locator(".not-found-view__title")).toHaveCount(0);
+      await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => null);
     });
   }
 });
@@ -72,7 +78,7 @@ test("mobile viewport renders critical routes without layout breakage", async ({
   const routesToCheck = ["/", "/exposed/dashboard/analytics", "/exposed/dashboard/profile"];
   for (const route of routesToCheck) {
     await test.step(`mobile render ${route}`, async () => {
-      await page.goto(route, { waitUntil: "domcontentloaded" });
+      await navigateAndSettle(page, route);
       
       const viewport = await page.evaluate(() => ({
         innerWidth: window.innerWidth,

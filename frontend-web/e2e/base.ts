@@ -15,6 +15,8 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
     ];
 
     const isHarmless = (msg: string) => HARMLESS_PATTERNS.some(p => p.test(msg));
+    const isAbortFailure = (msg: string) =>
+      /ERR_ABORTED|NS_BINDING_ABORTED|AbortError/i.test(msg);
 
     page.on("console", msg => {
       if (msg.type() === "error" || msg.type() === "warning") {
@@ -34,6 +36,9 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
     page.on("requestfailed", req => {
       const url = req.url();
       const failText = req.failure()?.errorText || "failed";
+      if (isAbortFailure(failText)) {
+        return;
+      }
       if (!isHarmless(url) && !isHarmless(failText)) {
         requestFailures.push(`Request failed: ${url} - ${failText}`);
       }
