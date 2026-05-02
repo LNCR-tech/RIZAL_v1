@@ -12,6 +12,10 @@ const POLL_INTERVAL_MS = Number.parseInt(
   process.env.PLAYWRIGHT_HEALTH_POLL_INTERVAL_MS || "2000",
   10,
 );
+const BACKEND_AUTO_DETECT_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAYWRIGHT_BACKEND_AUTO_DETECT_TIMEOUT_MS || "6000",
+  10,
+);
 const REQUIRE_BACKEND =
   (process.env.PLAYWRIGHT_REQUIRE_BACKEND || "").trim().toLowerCase() === "true";
 
@@ -73,9 +77,25 @@ export default async function globalSetup(config: FullConfig) {
   const frontendHealthUrl = process.env.PLAYWRIGHT_FRONTEND_HEALTH_URL || `${baseUrl}/`;
   const backendHealthUrl =
     process.env.PLAYWRIGHT_BACKEND_HEALTH_URL || `${backendBaseUrl}/`;
+  const rawMockAuth = String(process.env.PLAYWRIGHT_MOCK_AUTH || "").trim().toLowerCase();
+  const mockAuthExplicitlyConfigured =
+    rawMockAuth === "true" || rawMockAuth === "false";
 
   await waitForHealthyUrl("frontend", frontendHealthUrl, FRONTEND_WAIT_TIMEOUT_MS);
   if (REQUIRE_BACKEND) {
     await waitForHealthyUrl("backend", backendHealthUrl, BACKEND_WAIT_TIMEOUT_MS);
+    process.env.PLAYWRIGHT_MOCK_AUTH = "false";
+    return;
+  }
+
+  if (mockAuthExplicitlyConfigured) {
+    return;
+  }
+
+  try {
+    await waitForHealthyUrl("backend", backendHealthUrl, BACKEND_AUTO_DETECT_TIMEOUT_MS);
+    process.env.PLAYWRIGHT_MOCK_AUTH = "false";
+  } catch {
+    process.env.PLAYWRIGHT_MOCK_AUTH = "true";
   }
 }

@@ -27,11 +27,13 @@ import splashAnimationUrl from '@/assets/animations/splash.lottie?url'
 import { markBootSplashPlaybackReady } from '@/services/bootSplash.js'
 
 const playerRef = ref(null)
+const PLAYBACK_READY_FALLBACK_MS = 2500
 
 let dotLottieInstance = null
 let attachAttempts = 0
 let attachTimer = null
 let playbackReadyNotified = false
+let playbackReadyTimer = null
 
 function notifyPlaybackReady() {
   if (playbackReadyNotified) {
@@ -39,6 +41,10 @@ function notifyPlaybackReady() {
   }
 
   playbackReadyNotified = true
+  if (playbackReadyTimer) {
+    window.clearTimeout(playbackReadyTimer)
+    playbackReadyTimer = null
+  }
   markBootSplashPlaybackReady()
 }
 
@@ -73,6 +79,10 @@ function attachPlayerListeners() {
 }
 
 onMounted(() => {
+  playbackReadyTimer = window.setTimeout(() => {
+    notifyPlaybackReady()
+  }, PLAYBACK_READY_FALLBACK_MS)
+
   nextTick(() => {
     attachPlayerListeners()
   })
@@ -82,6 +92,10 @@ onBeforeUnmount(() => {
   if (attachTimer) {
     window.clearTimeout(attachTimer)
     attachTimer = null
+  }
+  if (playbackReadyTimer) {
+    window.clearTimeout(playbackReadyTimer)
+    playbackReadyTimer = null
   }
 
   if (!dotLottieInstance) {
