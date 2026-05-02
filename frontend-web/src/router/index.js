@@ -9,7 +9,7 @@ import {
     isSchoolItSession,
     sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
-import { hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
+import { getStoredAuthMeta, hasPrivilegedPendingFace, needsStoredPasswordChange } from '@/services/localAuth.js'
 import { setNavigationPending } from '@/services/navigationState.js'
 import { createPlatformView, preloadPlatformViews } from '@/router/platformView.js'
 
@@ -79,6 +79,59 @@ function preloadRouteContextViews(path = '') {
     if (normalizedPath.startsWith('/admin') || normalizedPath.startsWith('/exposed/admin')) {
         void preloadPlatformViews(adminRoutePreloads).catch(() => null)
     }
+}
+
+function normalizeRoleKey(role = '') {
+    const normalizedRole = String(role || '')
+        .trim()
+        .toLowerCase()
+        .replace(/_/g, '-')
+
+    return normalizedRole === 'campus-admin' ? 'school-it' : normalizedRole
+}
+
+function getStoredRoleKeys() {
+    const authMeta = getStoredAuthMeta()
+    const storedRoles = Array.isArray(authMeta?.roles)
+        ? authMeta.roles
+        : []
+    return storedRoles
+        .map((role) => normalizeRoleKey(role))
+        .filter(Boolean)
+}
+
+function getStoredDefaultAuthenticatedRoute() {
+    const roleKeys = getStoredRoleKeys()
+    if (roleKeys.includes('school-it')) return { name: 'SchoolItHome' }
+    if (roleKeys.includes('admin')) return { name: 'AdminHome' }
+    if (roleKeys.includes('ssg') || roleKeys.includes('sg') || roleKeys.includes('org')) {
+        return { name: 'SgDashboard' }
+    }
+    return { name: 'Home' }
+}
+
+function resolveGuardFallback(to) {
+    const roleKeys = getStoredRoleKeys()
+    if (roleKeys.length === 0) {
+        clearDashboardSession()
+        return { name: 'Login' }
+    }
+
+    const defaultRoute = getStoredDefaultAuthenticatedRoute()
+    const isAdmin = roleKeys.includes('admin')
+    const isSchoolIt = roleKeys.includes('school-it')
+    const isPrivileged = isAdmin || isSchoolIt
+
+    if (isSchoolIt && to.path.startsWith('/dashboard')) return defaultRoute
+    if (isAdmin && (to.path.startsWith('/dashboard') || to.path.startsWith('/workspace') || to.name === 'PrivilegedDashboard')) {
+        return defaultRoute
+    }
+    if (!isAdmin && to.path.startsWith('/admin')) return defaultRoute
+    if (!isSchoolIt && to.path.startsWith('/workspace')) return defaultRoute
+    if (isPrivileged && to.path.startsWith('/dashboard')) return defaultRoute
+    if (!isPrivileged && to.name === 'PrivilegedDashboard') return defaultRoute
+
+    return true
 }
 
 const routes = [
@@ -819,8 +872,7 @@ router.beforeEach(async (to) => {
                 ? { name: 'FaceRegistration' }
                 : getDefaultAuthenticatedRoute()
         } catch {
-            clearDashboardSession()
-            return { name: 'Login' }
+            return resolveGuardFallback(to)
         }
     }
 
@@ -847,8 +899,7 @@ router.beforeEach(async (to) => {
                     ? { name: 'FaceRegistration' }
                     : getDefaultAuthenticatedRoute()
             } catch {
-                clearDashboardSession()
-                return { name: 'Login' }
+                return resolveGuardFallback(to)
             }
         }
 
@@ -862,8 +913,7 @@ router.beforeEach(async (to) => {
                 ? { name: 'FaceRegistration' }
                 : getDefaultAuthenticatedRoute()
         } catch {
-            clearDashboardSession()
-            return { name: 'Login' }
+            return getStoredDefaultAuthenticatedRoute()
         }
     }
 
@@ -903,8 +953,7 @@ router.beforeEach(async (to) => {
                 return defaultRoute
             }
         } catch {
-            clearDashboardSession()
-            return { name: 'Login' }
+            return resolveGuardFallback(to)
         }
     }
 

@@ -269,3 +269,42 @@ Note: full browser execution was not completed on this machine because Playwrigh
 ### Validation After Update
 - `npx playwright test --list` (passed)
 - `npm run typecheck` (passed)
+
+---
+
+## Router Guard Fallback Update (Post-Login Redirect Reliability)
+
+### Problem Observed
+- Even after token write improvements, some login/RBAC tests still stayed at `/`.
+- Cause: route guards still called `initializeDashboardSession()` and on any failure they cleared session and redirected back to `Login`.
+
+### Root Cause
+- Successful `/token` auth could still be followed by partial dashboard bootstrap failure.
+- Existing guard behavior treated this as full auth failure and forced logout/navigation to `/`.
+- This created a redirect loop where:
+  - token existed momentarily
+  - guard catch branch cleared auth
+  - user remained on login page
+
+### Changes
+
+#### `frontend-web/src/router/index.js`
+- Added stored-role fallback helpers:
+  - `normalizeRoleKey()`
+  - `getStoredRoleKeys()`
+  - `getStoredDefaultAuthenticatedRoute()`
+  - `resolveGuardFallback(to)`
+- Updated catch branches in guard flows (`PrivilegedFaceVerification`, `ChangePassword` transitional branch, `requiresAuth`, and `requiresGuest`) to:
+  - avoid unconditional session clear/logout
+  - route based on stored auth roles when possible
+  - still enforce role boundaries (e.g., non-admin cannot stay in `/admin`, non-school-it cannot stay in `/workspace`)
+- Only clears session and forces `Login` when no usable stored role context exists.
+
+### Effect
+- Post-login redirect is no longer lost when bootstrap endpoints are flaky.
+- Token persistence and authenticated navigation remain stable.
+- RBAC protections continue to apply via stored-role fallback even when full session init fails.
+
+### Validation After Update
+- `npm run typecheck` (passed)
+- `npx playwright test --list` (passed)
