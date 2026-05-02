@@ -21,6 +21,8 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
       /favicon\.ico/i, // missing favicon
       /Third-party cookie will be blocked/i, // browser warning
       /AuraChatWindow/i, // some ai demo component warning
+      /Failed to load resource.*401/i, // expected during auth failure paths
+      /Failed to load resource.*429/i, // expected if hitting rate limits
     ];
 
     const isHarmless = (msg: string) => HARMLESS_PATTERNS.some(p => p.test(msg));
