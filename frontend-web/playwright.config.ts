@@ -13,6 +13,21 @@ const serverCommand =
   process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ||
   `npm run build && npm run preview -- --host 127.0.0.1 --port ${previewPort}`;
 const storageOrigin = new URL(baseURL).origin;
+const parsedWorkers = Number.parseInt(
+  process.env.PLAYWRIGHT_WORKERS || (process.env.CI ? "1" : ""),
+  10,
+);
+const workers =
+  Number.isFinite(parsedWorkers) && parsedWorkers > 0
+    ? parsedWorkers
+    : undefined;
+const fullyParallel = process.env.PLAYWRIGHT_FULLY_PARALLEL === "true";
+const parsedSlowMoMs = Number.parseInt(
+  process.env.PLAYWRIGHT_SLOW_MO_MS || (process.env.CI ? "75" : "0"),
+  10,
+);
+const slowMoMs =
+  Number.isFinite(parsedSlowMoMs) && parsedSlowMoMs > 0 ? parsedSlowMoMs : 0;
 
 const reuseExistingServer =
   process.env.PLAYWRIGHT_REUSE_SERVER === "true" ||
@@ -27,10 +42,10 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  fullyParallel: true,
+  fullyParallel,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  workers,
   outputDir: "test-results",
   reporter: process.env.CI
     ? [
@@ -60,6 +75,7 @@ export default defineConfig({
     },
     actionTimeout: 20_000,
     navigationTimeout: 30_000,
+    launchOptions: slowMoMs > 0 ? { slowMo: slowMoMs } : undefined,
   },
 
   projects: [

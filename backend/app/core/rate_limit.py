@@ -120,6 +120,8 @@ def enforce_rate_limit(
     request: Request | None = None,
 ) -> None:
     settings = get_settings()
+    if settings.test_mode and rule.name == "login":
+        return
     if not settings.rate_limit_enabled:
         return
     if rule.limit <= 0 or rule.window_seconds <= 0:

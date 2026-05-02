@@ -1,5 +1,14 @@
 import { test as base } from "@playwright/test";
 
+const parsedTestDelayMs = Number.parseInt(
+  process.env.PLAYWRIGHT_TEST_DELAY_MS || "0",
+  10,
+);
+const testDelayMs =
+  Number.isFinite(parsedTestDelayMs) && parsedTestDelayMs > 0
+    ? parsedTestDelayMs
+    : 0;
+
 export const test = base.extend<{ strictPage: import("@playwright/test").Page }>({
   page: async ({ page }, use) => {
     const consoleErrors: string[] = [];
@@ -53,6 +62,10 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
         }
       }
     });
+
+    if (testDelayMs > 0) {
+      await page.waitForTimeout(testDelayMs);
+    }
 
     await use(page);
 

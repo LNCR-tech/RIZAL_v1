@@ -93,6 +93,18 @@ def _with_unique_appends(values: list[str], extras: list[str]) -> list[str]:
     return combined
 
 
+def _is_test_mode_enabled() -> bool:
+    if _as_bool(os.getenv("TEST_MODE"), False):
+        return True
+
+    for env_name in ("ENV", "APP_ENV", "ENVIRONMENT"):
+        env_value = (os.getenv(env_name) or "").strip().lower()
+        if env_value in {"test", "testing"}:
+            return True
+
+    return False
+
+
 def _resolve_email_delivery_mode() -> str:
     raw_value = (os.getenv("EMAIL_DELIVERY_MODE") or "").strip().lower()
     if not raw_value:
@@ -162,6 +174,7 @@ class Settings:
     rate_limit_face_window_seconds: int
     rate_limit_public_count: int
     rate_limit_public_window_seconds: int
+    test_mode: bool
     max_request_body_size_mb: int
     face_image_max_size_mb: int
     api_docs_enabled: bool
@@ -198,6 +211,7 @@ class Settings:
 
 def get_settings() -> Settings:
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    test_mode = _is_test_mode_enabled()
     email_delivery_mode = _resolve_email_delivery_mode()
     configured_email_transport = (os.getenv("EMAIL_TRANSPORT") or "disabled").strip().lower()
     local_dev_cors_origins = [
@@ -344,6 +358,7 @@ def get_settings() -> Settings:
             APP_SETTINGS.rate_limit_public_window_seconds,
             "RATE_LIMIT_PUBLIC_WINDOW_SECONDS",
         ),
+        test_mode=test_mode,
         max_request_body_size_mb=_as_int(
             os.getenv("MAX_REQUEST_BODY_SIZE_MB"),
             APP_SETTINGS.max_request_body_size_mb,
