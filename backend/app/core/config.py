@@ -55,7 +55,7 @@ def _load_env_files() -> None:
         resolved_env_path = env_path.resolve()
         if resolved_env_path in seen_paths or not resolved_env_path.exists():
             continue
-        load_dotenv(resolved_env_path, override=False)
+        load_dotenv(resolved_env_path, override=True)
         seen_paths.add(resolved_env_path)
 
 

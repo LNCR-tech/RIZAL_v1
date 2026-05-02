@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.event_defaults import resolve_school_event_default_values
 from app.core.security import (
     get_current_admin,
+    get_current_admin_or_campus_admin,
     get_current_application_user,
     get_current_school_it,
     get_role_lookup_names,
@@ -451,6 +452,35 @@ def list_schools(
         )
         for school in schools
     ]
+
+
+@router.get("/admin/{school_id}/status", response_model=SchoolBrandingResponse)
+def get_school_status(
+    school_id: int,
+    current_user: User = Depends(get_current_admin_or_campus_admin),
+    db: Session = Depends(get_db),
+):
+    """Get school status by ID. Accessible by platform admins or the school's own campus admin."""
+    school = db.query(School).filter(School.id == school_id).first()
+    if school is None:
+        raise HTTPException(status_code=404, detail="School not found.")
+
+    # Check cross-school access for campus_admin
+    # Platform admins (admin role and no school_id) can access any school.
+    is_platform_admin = has_any_role(current_user, ["admin"]) and getattr(current_user, "school_id", None) is None
+
+    if not is_platform_admin:
+        # If not platform admin, must be assigned to this school
+        user_school_id = getattr(current_user, "school_id", None)
+        if user_school_id != school.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this school status."
+            )
+
+    if school.settings is None:
+        school.settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
+    return _school_to_response(school)
 
 
 @router.patch("/admin/{school_id}/status", response_model=SchoolBrandingResponse)

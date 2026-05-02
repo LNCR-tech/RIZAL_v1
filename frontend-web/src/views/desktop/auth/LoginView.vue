@@ -11,8 +11,15 @@
             <span>of your Campus.</span>
           </h2>
           <p class="desktop-login__hero-tagline">
-            Automate, monitor, and scale your institution with Aura AI.
+            The premier Institutional Operating System. <br />
+            Built for enterprise scale, secured with biometric precision.
           </p>
+
+          <ul class="desktop-login__hero-features">
+            <li><span>✦</span> <strong>High-Availability:</strong> 99.9% uptime infrastructure.</li>
+            <li><span>✦</span> <strong>Global Governance:</strong> Manage complex hierarchies.</li>
+            <li><span>✦</span> <strong>Advanced Security:</strong> Biometric & encrypted.</li>
+          </ul>
         </div>
       </div>
     </ObsidianHero>
@@ -230,6 +237,41 @@ const {
 .desktop-login--mounted .desktop-login__hero-tagline {
   opacity: 1;
   transform: translateY(0);
+}
+
+.desktop-login__hero-features {
+  margin-top: 32px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.6s;
+}
+
+.desktop-login--mounted .desktop-login__hero-features {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.desktop-login__hero-features li {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.desktop-login__hero-features li span {
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.desktop-login__hero-features li strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
 }
 
 /* Sheet — right half */
