@@ -169,6 +169,7 @@ jobs:
       - name: Install Backend Dependencies
         run: |
           pip install -r backend/requirements.txt
+          pip install -r assistant/requirements.txt
           
       - name: Install Frontend
         working-directory: ${{ env.FRONTEND_DIR }}
@@ -211,10 +212,23 @@ jobs:
           uvicorn app.main:app --host 127.0.0.1 --port 8000 > backend.log 2>&1 &
           for i in $(seq 1 20); do curl -sf http://127.0.0.1:8000/health && break || sleep 2; done
 
+      - name: Start Assistant
+        working-directory: assistant
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+          TEST_MODE: 'true'
+          TESTING: 'true'
+          OPENAI_API_KEY: 'sk-dummy-key'
+        run: |
+          uvicorn main:app --host 127.0.0.1 --port 8500 > assistant.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:8500/health && break || sleep 2; done
+
       - name: Build & Start Frontend
         working-directory: ${{ env.FRONTEND_DIR }}
         env:
           VITE_API_BASE_URL: http://127.0.0.1:8000
+          VITE_ASSISTANT_BASE_URL: http://127.0.0.1:8500
         run: |
           npm run build
           npm run preview -- --host 127.0.0.1 --port 4173 > preview.log 2>&1 &
@@ -246,6 +260,7 @@ jobs:
             ${{ env.FRONTEND_DIR }}/playwright-report/
             ${{ env.FRONTEND_DIR }}/test-results/
             backend/backend.log
+            assistant/assistant.log
             ${{ env.FRONTEND_DIR }}/preview.log
           retention-days: 7
 
