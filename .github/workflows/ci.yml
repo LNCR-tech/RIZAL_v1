@@ -191,7 +191,11 @@ jobs:
         working-directory: seeder
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
-        run: python seed.py --ci-mode
+          SEED_DATABASE: 'true'
+          SEED_CONFIRM: 'yes'
+          E2E_ADMIN_EMAIL: campus_admin@test.com
+          E2E_ADMIN_PASSWORD: TestPass123!
+        run: python seed.py --ci-mode demo --schools 1
 
       - name: Start Backend
         working-directory: backend
@@ -221,7 +225,7 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
           PLAYWRIGHT_REUSE_SERVER: 'true'
-          PLAYWRIGHT_WORKERS: '1'
+          PLAYWRIGHT_WORKERS: '2'
           PLAYWRIGHT_TEST_DELAY_MS: '400'
           PLAYWRIGHT_SLOW_MO_MS: '75'
           PLAYWRIGHT_MOCK_AUTH: 'false'

@@ -93,6 +93,7 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Aura Database Seeder")
+    parser.add_argument("--ci-mode", action="store_true", help="Seed specific users for CI/E2E testing")
     subparsers = parser.add_subparsers(dest="command", help="Seeder commands")
 
     demo_p = subparsers.add_parser("demo", help="Generate stochastic dummy schools and records")
@@ -110,7 +111,7 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.command:
+    if not args.command and not args.ci_mode:
         parser.print_help()
         sys.exit(1)
 
@@ -129,9 +130,45 @@ def main():
         seed_event_types(db)
         seed_permission_catalog(db)
 
+        from app.models.user import User, StudentProfile
+        from app.models.department import Department
+        from modules.core import assign_role, create_user, create_student_profile, get_or_create_school, get_or_create_department
         from modules.helpers import hash_passwords_parallel
+
+        # Default platform admin
         admin_hash = hash_passwords_parallel([cfg.SEED_ADMIN_PASSWORD], rounds=12, workers=1)[0]
         seed_platform_admin(db, email=cfg.SEED_ADMIN_EMAIL, password_hash=admin_hash)
+
+        # CI Mode: Seed specific E2E users
+        if args.ci_mode:
+            logger.info("CI Mode detected: Seeding specific E2E test users...")
+            
+            # 1. Campus Admin
+            ci_admin_email = os.environ.get("E2E_ADMIN_EMAIL", "campus_admin@test.com")
+            ci_admin_pass = os.environ.get("E2E_ADMIN_PASSWORD", "TestPass123!")
+            ci_admin_hash = hash_passwords_parallel([ci_admin_pass], rounds=6, workers=1)[0]
+            
+            # Need a school for the campus admin
+            school = get_or_create_school(db, name="CI Test School", school_name="CI Test School", school_code="CITU")
+            
+            if not db.query(User).filter_by(email=ci_admin_email).first():
+                ci_admin = create_user(db, email=ci_admin_email, school_id=school.id, password_hash=ci_admin_hash, first_name="CI", last_name="Admin")
+                assign_role(db, ci_admin, "campus_admin")
+                logger.info(f"Seeded CI Admin: {ci_admin_email}")
+
+            # 2. Student
+            ci_student_email = "student@test.com"
+            ci_student_pass = "TestPass123!"
+            ci_student_hash = hash_passwords_parallel([ci_student_pass], rounds=6, workers=1)[0]
+            
+            if not db.query(User).filter_by(email=ci_student_email).first():
+                dept = get_or_create_department(db, school_id=school.id, name="CI Department")
+                ci_student = create_user(db, email=ci_student_email, school_id=school.id, password_hash=ci_student_hash, first_name="CI", last_name="Student")
+                assign_role(db, ci_student, "student")
+                create_student_profile(db, user_id=ci_student.id, school_id=school.id, student_id="CI-0001", department_id=dept.id, year_level=1)
+                logger.info(f"Seeded CI Student: {ci_student_email}")
+            
+            db.commit()
 
         if args.command == "demo":
             start = _parse_mmddyy(args.start_mmddyy)
