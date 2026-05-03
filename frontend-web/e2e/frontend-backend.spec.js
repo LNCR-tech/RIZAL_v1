@@ -10,6 +10,7 @@ const AUTHENTICATED_PATH_PATTERN =
  * @param {import("@playwright/test").Page} page
  * @param {RegExp} pattern
  * @param {number} [timeout]
+ * @returns {Promise<void>}
  */
 async function expectPathnameToMatch(page, pattern, timeout = 20_000) {
   await expect(page).toHaveURL((url) => pattern.test(url.pathname), { timeout });
@@ -18,6 +19,7 @@ async function expectPathnameToMatch(page, pattern, timeout = 20_000) {
 /**
  * @param {import("@playwright/test").Page} page
  * @param {number} [timeout]
+ * @returns {Promise<void>}
  */
 async function waitForBootOverlayToClear(page, timeout = 15_000) {
   const locator = page.locator(".app-boot-screen").first();
@@ -30,6 +32,7 @@ async function waitForBootOverlayToClear(page, timeout = 15_000) {
 
 /**
  * @param {import("@playwright/test").Page} page
+ * @returns {Promise<Object>}
  */
 async function readAuthStorageSnapshot(page) {
   return page.evaluate(() => {
@@ -57,6 +60,7 @@ async function readAuthStorageSnapshot(page) {
 
 /**
  * @param {import("@playwright/test").Page} page
+ * @returns {Promise<{token: string, snapshot: Object}>}
  */
 async function readStoredToken(page) {
   const snapshot = await readAuthStorageSnapshot(page);
@@ -72,6 +76,7 @@ async function readStoredToken(page) {
  * @param {import("@playwright/test").Page} page
  * @param {string} email
  * @param {string} password
+ * @returns {Promise<void>}
  */
 async function submitLogin(page, email, password) {
   await page.goto("/");
