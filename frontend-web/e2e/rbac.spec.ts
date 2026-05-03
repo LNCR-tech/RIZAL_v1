@@ -24,11 +24,12 @@ async function waitForBootOverlayToClear(
   page: import("@playwright/test").Page,
   timeout = 15_000,
 ) {
-  await page
-    .locator(".app-boot-screen")
-    .first()
-    .waitFor({ state: "hidden", timeout })
-    .catch(() => null);
+  const locator = page.locator(".app-boot-screen").first();
+  // Wait a tiny bit for it to potentially mount
+  await page.waitForTimeout(100);
+  if (await locator.isVisible()) {
+    await locator.waitFor({ state: "hidden", timeout }).catch(() => null);
+  }
 }
 
 async function readStoredToken(page: import("@playwright/test").Page) {
@@ -74,11 +75,13 @@ async function loginAs(
   await page.fill("#password", credentials.password);
   await waitForBootOverlayToClear(page);
   await page.getByRole("button", { name: /log in|login|sign in/i }).click();
-  await settleTermsModalIfShown(page);
 
+  // Wait for token BEFORE handling modal, as the token is set prior to showing the modal
   await expect
     .poll(async () => Boolean(await readStoredToken(page)), { timeout: 20_000 })
     .toBe(true);
+
+  await settleTermsModalIfShown(page);
   await expectPathnameToMatch(page, AUTHENTICATED_PATH_PATTERN);
 }
 

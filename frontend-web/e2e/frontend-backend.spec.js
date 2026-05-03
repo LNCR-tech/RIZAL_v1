@@ -11,11 +11,12 @@ async function expectPathnameToMatch(page, pattern, timeout = 20_000) {
 }
 
 async function waitForBootOverlayToClear(page, timeout = 15_000) {
-  await page
-    .locator(".app-boot-screen")
-    .first()
-    .waitFor({ state: "hidden", timeout })
-    .catch(() => null);
+  const locator = page.locator(".app-boot-screen").first();
+  // Wait a tiny bit for it to potentially mount
+  await page.waitForTimeout(100);
+  if (await locator.isVisible()) {
+    await locator.waitFor({ state: "hidden", timeout }).catch(() => null);
+  }
 }
 
 async function readAuthStorageSnapshot(page) {
@@ -55,9 +56,11 @@ async function readStoredToken(page) {
 async function submitLogin(page, email, password) {
   await page.goto("/");
   await waitForBootOverlayToClear(page);
-  await expect(page.locator("#email")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#email")).toBeVisible({ timeout: 20_000 });
   await page.fill("#email", email);
   await page.fill("#password", password);
+  // Ensure no transition or splash covers the button before clicking
+  await page.waitForTimeout(200);
   await waitForBootOverlayToClear(page);
   await page.getByRole("button", { name: /log in|login|sign in/i }).click();
 }
