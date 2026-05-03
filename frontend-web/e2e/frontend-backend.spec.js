@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference types="node" />
 import { test, expect } from "./base";
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "campus_admin@test.com";
@@ -31,8 +32,18 @@ async function waitForBootOverlayToClear(page, timeout = 15_000) {
 }
 
 /**
+ * @typedef {Object} AuthSnapshot
+ * @property {string} pathname
+ * @property {string|null} localStorageToken
+ * @property {string|null} sessionStorageToken
+ * @property {string|null} authCookie
+ * @property {string[]} localStorageKeys
+ * @property {string[]} sessionStorageKeys
+ */
+
+/**
  * @param {import("@playwright/test").Page} page
- * @returns {Promise<Object>}
+ * @returns {Promise<AuthSnapshot>}
  */
 async function readAuthStorageSnapshot(page) {
   return page.evaluate(() => {
@@ -60,7 +71,7 @@ async function readAuthStorageSnapshot(page) {
 
 /**
  * @param {import("@playwright/test").Page} page
- * @returns {Promise<{token: string, snapshot: Object}>}
+ * @returns {Promise<{token: string, snapshot: AuthSnapshot}>}
  */
 async function readStoredToken(page) {
   const snapshot = await readAuthStorageSnapshot(page);
