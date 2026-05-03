@@ -6,10 +6,19 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "TestPass123!";
 const AUTHENTICATED_PATH_PATTERN =
   /^\/(workspace|dashboard|admin|governance|privileged-face|face-registration|change-password)(?:\/|$)/i;
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {RegExp} pattern
+ * @param {number} [timeout]
+ */
 async function expectPathnameToMatch(page, pattern, timeout = 20_000) {
   await expect(page).toHaveURL((url) => pattern.test(url.pathname), { timeout });
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {number} [timeout]
+ */
 async function waitForBootOverlayToClear(page, timeout = 15_000) {
   const locator = page.locator(".app-boot-screen").first();
   // Wait a tiny bit for it to potentially mount
@@ -19,6 +28,9 @@ async function waitForBootOverlayToClear(page, timeout = 15_000) {
   }
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ */
 async function readAuthStorageSnapshot(page) {
   return page.evaluate(() => {
     const localStorageToken = localStorage.getItem("aura_token");
@@ -43,6 +55,9 @@ async function readAuthStorageSnapshot(page) {
   });
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ */
 async function readStoredToken(page) {
   const snapshot = await readAuthStorageSnapshot(page);
   const cookieToken = snapshot.authCookie
@@ -53,6 +68,11 @@ async function readStoredToken(page) {
   return { token: resolvedToken, snapshot };
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} email
+ * @param {string} password
+ */
 async function submitLogin(page, email, password) {
   await page.goto("/");
   await waitForBootOverlayToClear(page);
