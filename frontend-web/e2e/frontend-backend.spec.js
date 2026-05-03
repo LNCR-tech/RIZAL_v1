@@ -98,7 +98,10 @@ async function submitLogin(page, email, password) {
   // Ensure no transition or splash covers the button before clicking
   await page.waitForTimeout(200);
   await waitForBootOverlayToClear(page);
+  // Wait for the login request to complete
+  const tokenPromise = page.waitForResponse(r => r.url().includes("/token") && r.request().method() === "POST", { timeout: 15_000 }).catch(() => null);
   await page.getByRole("button", { name: /log in|login|sign in/i }).click();
+  await tokenPromise;
 }
 
 test("login page renders", async ({ page }) => {

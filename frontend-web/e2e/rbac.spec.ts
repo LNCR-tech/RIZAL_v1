@@ -74,7 +74,9 @@ async function loginAs(
   await page.fill("#email", credentials.email);
   await page.fill("#password", credentials.password);
   await waitForBootOverlayToClear(page);
+  const tokenPromise = page.waitForResponse(r => r.url().includes("/token") && r.request().method() === "POST", { timeout: 15_000 }).catch(() => null);
   await page.getByRole("button", { name: /log in|login|sign in/i }).click();
+  await tokenPromise;
 
   // Wait for token BEFORE handling modal, as the token is set prior to showing the modal
   await expect

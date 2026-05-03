@@ -14,7 +14,7 @@ const serverCommand =
   `npm run build && npm run preview -- --host 127.0.0.1 --port ${previewPort}`;
 const storageOrigin = new URL(baseURL).origin;
 const parsedWorkers = Number.parseInt(
-  process.env.PLAYWRIGHT_WORKERS || (process.env.CI ? "1" : ""),
+  process.env.PLAYWRIGHT_WORKERS || (process.env.CI ? "2" : ""),
   10,
 );
 const workers =
