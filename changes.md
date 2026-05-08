@@ -1,5 +1,152 @@
 # Changes
 
+## 2026-05-09 (Phase 12: Rejected Scan Audit Logging)
+
+### Architecture Decision
+Used the existing `SchoolAuditLog` table (`school_audit_logs`) rather than creating a new `attendance_scan_attempts` table. Rationale:
+- No new table, no Alembic migration, zero schema risk.
+- `SchoolAuditLog` already stores structured JSON in its `details` column and is already queryable via `GET /api/audit-logs`.
+- Rejected scans are a security/audit concern, not an operational data concern — the general audit log is the correct home.
+- A new table would require a migration, a new model, new schema, and new router endpoints, all for data that is already well-served by the existing infrastructure.
+
+### Backend Changes
+
+**`backend/app/routers/attendance/shared.py`**
+- Added `from app.models.school import SchoolAuditLog` and `import json as _json`.
+- Added `_log_rejected_scan_attempt(db, *, school_id, scanner_user_id, event_id, student_profile_id, attempt_type, reason_code, reason_message)` — writes a `SchoolAuditLog` row with `action="attendance_scan_rejected"`, `status="rejected"`, and a JSON `details` blob. All exceptions are caught and logged as warnings so audit logging never breaks the main request path.
+- Added `_ensure_student_is_event_participant_with_audit(db, *, student, event, school_id, scanner_user_id, attempt_type)` — calls `is_student_eligible_for_event`, logs on rejection via `_log_rejected_scan_attempt`, then re-raises HTTP 403 unchanged. Accepted scans are not logged.
+- Kept the original `_ensure_student_is_event_participant` unchanged for callers that do not need auditing (bulk endpoint, face-scan-timeout, etc.).
+
+**`backend/app/routers/attendance/check_in_out.py`**
+- `record_face_scan_attendance`: replaced `_ensure_student_is_event_participant(student, event)` with `_ensure_student_is_event_participant_with_audit(db, student=student, event=event, school_id=school_id, scanner_user_id=current_user.id, attempt_type="SIGN_IN")`.
+- `record_manual_attendance`: same replacement with `attempt_type="MANUAL"`.
+
+### Tests
+- Created `backend/tests/test_scan_audit_log.py` — 10 test cases:
+  - `_log_rejected_scan_attempt` writes a row to `school_audit_logs`.
+  - Written row has correct `action`, `status`, and `details` JSON fields.
+  - DB error in `_log_rejected_scan_attempt` does not propagate.
+  - `_ensure_student_is_event_participant_with_audit` does not raise for eligible student.
+  - `_ensure_student_is_event_participant_with_audit` raises 403 for ineligible student.
+  - `_ensure_student_is_event_participant_with_audit` creates audit log on rejection.
+  - HTTP: rejected face-scan does not create `AttendanceRecord`.
+  - HTTP: rejected face-scan creates `SchoolAuditLog` row.
+  - HTTP: rejected scan not in attendance report.
+  - HTTP: accepted scan creates attendance record and no rejection audit row.
+
+### Documentation
+- Updated `docs/attendance-eligibility.md` — added Phase 12 Rejected Scan Audit Logging section with field reference, `attempt_type` values, `reason_code` values, guarantees, and query example.
+- Updated `docs/year-level-events-plan.md` — Phase 12 marked complete.
+
+
+### Backend Changes
+
+**`backend/app/services/event_target_permissions.py`** (new file)
+- `validate_event_targets_for_actor(db, *, current_user, event_targets)` — enforces which `EventTargetScope` values each actor may use:
+  - Campus Admin / Admin: unrestricted (early return).
+  - SSG member with `MANAGE_EVENTS`: `ALL` and `YEAR_LEVEL` only.
+  - SG member with `MANAGE_EVENTS`: `DEPARTMENT` and `DEPARTMENT_YEAR` restricted to the unit's own `department_id`.
+  - ORG member with `MANAGE_EVENTS`: `COURSE` and `COURSE_YEAR` restricted to the unit's own `program_id`.
+  - Raises HTTP 403 with a descriptive message on any violation.
+- Uses existing `governance_hierarchy_service.get_governance_units_with_permission` — no new DB tables or migrations required.
+
+**`backend/app/routers/events/shared.py`**
+- Added `from app.services.event_target_permissions import validate_event_targets_for_actor` import.
+
+**`backend/app/routers/events/crud.py`**
+- `create_event`: calls `validate_event_targets_for_actor` immediately after `_ensure_event_manager` passes, before any DB writes. Passes `event.event_targets or []`.
+- `update_event`: calls `validate_event_targets_for_actor` when `event_update.event_targets is not None` (i.e., only when the caller is explicitly replacing targets).
+
+### Tests
+- Created `backend/tests/test_event_target_permissions.py` — 28 test cases:
+  - **Unit tests** (mocked DB + governance service): campus_admin unrestricted for all 6 scopes; SSG allows ALL/YEAR_LEVEL, forbids DEPARTMENT/COURSE; SG allows own dept/dept+year, forbids other dept/ALL/YEAR_LEVEL/COURSE; ORG allows own course/course+year, forbids other course/ALL/DEPARTMENT/YEAR_LEVEL; empty targets always passes; no governance units passes.
+  - **HTTP integration tests**: campus_admin creates ALL-scope event (200); campus_admin creates YEAR_LEVEL event (200); student blocked (403); unauthenticated blocked (401); campus_admin updates event targets (200).
+
+### Documentation
+- Updated `docs/event-targeting.md` — added Phase 11 Target Scope Permissions section with role table and enforcement point description.
+- Updated `docs/year-level-events-plan.md` — Phase 11 marked complete, Phase 12 placeholder added.
+
+
+### Frontend Changes
+
+**`frontend-web/src/services/eventEditor.js`**
+- Added `AUDIENCE_SCOPE_OPTIONS` — six scope entries (ALL, YEAR_LEVEL, DEPARTMENT, COURSE, DEPARTMENT_YEAR, COURSE_YEAR) with display labels.
+- Added `YEAR_LEVEL_OPTIONS` — 1st–5th Year entries.
+- Added `scopeNeedsYearLevel(scope)`, `scopeNeedsDepartment(scope)`, `scopeNeedsCourse(scope)` — pure predicate helpers used by both the service and the component.
+- Added `buildEventTargetsFromDraft(draft)` — builds the `event_targets` array from audience draft fields. Throws descriptive errors for missing required sub-fields (year level out of range, no department selected, no course selected).
+- Added `audienceDraftFromEventTargets(eventTargets)` (internal) — reads the first target from an existing event's `event_targets` array and returns the four audience draft fields.
+- Updated `createEventEditorDraft(event)` — spreads audience fields from `audienceDraftFromEventTargets(event?.event_targets)` so edit mode pre-populates correctly.
+- Updated `buildEventUpdatePayloadFromDraft(draft)` — adds `event_targets: buildEventTargetsFromDraft(draft)` to the returned payload.
+
+**`frontend-web/src/components/events/EventEditorSheet.vue`**
+- Added `departments` and `programs` props (Array, default `[]`).
+- Imported `Users` icon from `lucide-vue-next`.
+- Imported `AUDIENCE_SCOPE_OPTIONS`, `YEAR_LEVEL_OPTIONS`, `scopeNeedsYearLevel`, `scopeNeedsDepartment`, `scopeNeedsCourse` from `eventEditor.js`.
+- Added computed `showYearLevel`, `showDepartment`, `showCourse` driven by `draft.audienceScope`.
+- Added Audience section between the Attendance section and the Location section: scope `<select>`, conditional year-level `<select>`, conditional department `<select>`, conditional course `<select>`. All fields carry `data-testid` attributes.
+
+**`frontend-web/src/views/dashboard/SgEventsView.vue`**
+- Added `getDepartments` and `getPrograms` to the `backendApi.js` import.
+- Added `buildEventTargetsFromDraft` to the `eventEditor.js` import.
+- Added `cachedDepartments` and `cachedPrograms` refs.
+- `loadEvents` now fires `getDepartments` and `getPrograms` as best-effort background fetches when the view loads.
+- Passes `:departments="cachedDepartments"` and `:programs="cachedPrograms"` to `EventEditorSheet`.
+- Added `audienceScope`, `audienceYearLevel`, `audienceDepartmentId`, `audienceCourseId` to the `form` ref initial state and `resetEventForm`.
+- `buildCreateEventPayload` now includes `event_targets: buildEventTargetsFromDraft(form.value)`.
+- Added Audience section to the inline create form with the same six scope options and conditional year/dept/course dropdowns.
+
+### Tests
+- Created `frontend-web/tests/unit/services/eventEditor.spec.js` — 30 test cases:
+  - Scope predicate helpers (`scopeNeedsYearLevel`, `scopeNeedsDepartment`, `scopeNeedsCourse`).
+  - `AUDIENCE_SCOPE_OPTIONS` shape and completeness.
+  - `YEAR_LEVEL_OPTIONS` shape.
+  - `buildEventTargetsFromDraft` for all six scopes — valid payloads and error cases for missing required fields.
+  - `createEventEditorDraft` audience hydration from `event_targets` for all six scopes and null/empty cases.
+
+### Documentation
+- Updated `docs/year-level-events-plan.md` — Phase 10 marked complete.
+
+
+### Backend Changes
+- **`notification_center_service.py`**:
+  - Added `dispatch_event_announcement_notifications(db, *, event)` — sends in-app + email notifications only to eligible ACTIVE students matching the event's `event_targets` scope. Delegates recipient resolution entirely to `get_event_participant_student_ids`, which enforces school boundary, ACTIVE status, and all six scope types.
+  - Fixed `dispatch_event_reminder_notifications` — added `joinedload(Event.event_targets, Event.programs, Event.departments)` to the event query. Previously the relationship was lazy-loaded per event (N+1); now it is eagerly loaded in a single query, and scope resolution is guaranteed to have the full target data.
+  - Added `joinedload` to the top-level imports (was previously imported inline).
+- **`routers/notifications.py`**:
+  - Added `POST /api/notifications/dispatch/event-announcement/{event_id}` endpoint. Requires `campus_admin` or `admin`. Enforces school boundary: returns 404 if the event belongs to a different school than the actor.
+  - Added `Event` model import.
+  - Added `dispatch_event_announcement_notifications` to the service import block.
+
+### Tests
+- Created `backend/tests/test_event_announcement_notifications.py` with 11 test cases:
+  - `test_year_level_target_notifies_only_matching_year` — YEAR_LEVEL scope sends to year 2, not year 3.
+  - `test_course_year_target_notifies_only_matching_course_and_year` — COURSE_YEAR scope sends to prog+year1, not prog+year2.
+  - `test_graduated_student_does_not_receive_notification` — GRADUATED excluded from ALL scope.
+  - `test_inactive_student_does_not_receive_notification` — INACTIVE excluded from ALL scope.
+  - `test_out_of_scope_student_does_not_receive_notification` — year 5 student excluded from YEAR_LEVEL=1 event.
+  - `test_all_scope_notifies_active_students_only` — ACTIVE notified, TRANSFERRED not notified.
+  - `test_empty_participant_list_returns_zero_counts` — no participants → all counts zero.
+  - `test_dispatch_announcement_endpoint_enforces_school_boundary` — campus_admin gets 404 for other school's event.
+  - `test_dispatch_announcement_endpoint_returns_summary` — HTTP 200 with correct summary fields.
+  - `test_dispatch_announcement_requires_admin` — student gets 403.
+  - `test_dispatch_announcement_requires_auth` — unauthenticated gets 401.
+
+### Documentation
+- Updated `docs/event-targeting.md` — added Phase 9 Notifications section with endpoint reference and eligibility rules.
+- Updated `docs/year-level-events-plan.md` — marked Phase 9 complete, added Phase 10 placeholder.
+
+
+### Documentation
+- Rewrote `docs/year-level-events-plan.md` with full codebase analysis:
+  - Mapped all relevant backend and frontend files.
+  - Documented `Event` / `EventTarget` / `StudentProfile` model structures.
+  - Traced the complete attendance sign-in/sign-out flow.
+  - Traced the attendance report flow through `build_participant_subquery`.
+  - Documented the frontend event form flow and the missing `event_targets` gap in `eventEditor.js` and `EventEditorSheet.vue`.
+  - Listed recommended Phase 9 implementation order.
+  - Flagged high-risk files that must be edited carefully.
+
+
 ## 2026-05-08 (Phase 8: Attendance Reports Update)
 
 ### Backend Changes

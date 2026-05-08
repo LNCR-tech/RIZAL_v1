@@ -39,9 +39,41 @@ The centralized checker is implemented in `backend/app/services/event_eligibilit
 - Event routers (to filter visible events on the student dashboard).
 - Reporting routers (to calculate expected and absent students).
 
-## Reporting Logic
+## Rejected Scan Audit Logging (Phase 12)
 
-The attendance reporting system uses the targeting infrastructure to calculate metrics:
+When a scan attempt is rejected due to eligibility failure, the system writes a row to the existing `school_audit_logs` table. No new table or migration is required.
+
+### Audit log fields
+
+| Field | Value |
+|---|---|
+| `action` | `attendance_scan_rejected` |
+| `status` | `rejected` |
+| `actor_user_id` | The scanner/operator user ID |
+| `school_id` | The event's school |
+| `details` (JSON) | `attempt_type`, `result`, `event_id`, `student_profile_id`, `reason_code`, `reason_message` |
+
+### `attempt_type` values
+- `SIGN_IN` — face-scan endpoint
+- `MANUAL` — manual attendance endpoint
+
+### `reason_code` values
+- `STUDENT_SCHOOL_MISMATCH`
+- `STUDENT_NOT_ACTIVE`
+- `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`
+
+### Guarantees
+- Rejected scans **never** create `attendance_records` rows.
+- Rejected scans **never** appear in attendance reports or counts.
+- Audit logging failures are caught and logged as warnings — they never break the main request path.
+- Accepted scans are not logged here; only rejections are recorded.
+
+### Query
+Admins can query rejected scans via the existing audit log endpoint:
+```
+GET /api/audit-logs?action=attendance_scan_rejected
+```
+
 
 1.  **Expected Attendees**: Calculated as the count of `ACTIVE` students who match the event's `event_targets`.
 2.  **Absentees**: Calculated as `Expected Attendees - (Actual Attendees who were Expected)`. Students outside the event scope or with non-active status are never marked as absent.

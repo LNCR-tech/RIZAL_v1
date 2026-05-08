@@ -1,5 +1,3 @@
-import { afterEach, beforeEach } from "vitest";
-
 beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();

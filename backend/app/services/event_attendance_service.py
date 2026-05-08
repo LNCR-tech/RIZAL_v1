@@ -7,36 +7,82 @@ from __future__ import annotations
 
 from datetime import timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.attendance import Attendance as AttendanceModel
-from app.models.event import Event as EventModel
+from app.models.event import Event as EventModel, EventTarget, EventTargetScope
 from app.models.user import StudentProfile, User as UserModel
+from app.schemas.user import StudentStatus
 from app.services.attendance_status import (
     finalize_completed_attendance_status,
     normalize_attendance_status,
 )
-from app.services.event_time_status import get_effective_sign_out_close_time
-from app.services.event_time_status import normalize_event_datetime
+from app.services.event_time_status import (
+    get_effective_sign_out_close_time,
+    normalize_event_datetime,
+)
 
 
 def get_event_participant_student_ids(db: Session, event: EventModel) -> list[int]:
-    """Return the student IDs that fall inside the event's academic scope."""
-    query = (
+    """Return the student IDs that fall inside the event's academic scope.
+    
+    Rules:
+    1. Only ACTIVE students are included.
+    2. Must match event_targets if present.
+    3. Fallback to legacy programs/departments if no targets exist.
+    """
+    base_query = (
         db.query(StudentProfile.id)
         .join(UserModel, StudentProfile.user_id == UserModel.id)
         .filter(UserModel.school_id == event.school_id)
+        .filter(StudentProfile.student_status == StudentStatus.ACTIVE)
     )
 
-    program_ids = [program.id for program in event.programs]
-    department_ids = [department.id for department in event.departments]
+    targets = getattr(event, "event_targets", [])
+    if not targets:
+        # Fallback to legacy logic
+        program_ids = [program.id for program in event.programs]
+        department_ids = [department.id for department in event.departments]
 
-    if program_ids:
-        query = query.filter(StudentProfile.program_id.in_(program_ids))
-    if department_ids:
-        query = query.filter(StudentProfile.department_id.in_(department_ids))
+        if program_ids:
+            base_query = base_query.filter(StudentProfile.program_id.in_(program_ids))
+        if department_ids:
+            base_query = base_query.filter(StudentProfile.department_id.in_(department_ids))
+        
+        return [student_id for (student_id,) in base_query.all()]
 
-    return [student_id for (student_id,) in query.all()]
+    # Use Phase 4+ targeting logic
+    target_filters = []
+    for target in targets:
+        if target.scope_type == EventTargetScope.ALL:
+            # ALL means all ACTIVE students in the school
+            return [student_id for (student_id,) in base_query.all()]
+
+        if target.scope_type == EventTargetScope.YEAR_LEVEL:
+            target_filters.append(StudentProfile.year_level == target.year_level)
+        elif target.scope_type == EventTargetScope.DEPARTMENT:
+            target_filters.append(StudentProfile.department_id == target.department_id)
+        elif target.scope_type == EventTargetScope.COURSE:
+            target_filters.append(StudentProfile.program_id == target.course_id)
+        elif target.scope_type == EventTargetScope.DEPARTMENT_YEAR:
+            target_filters.append(
+                (StudentProfile.department_id == target.department_id) &
+                (StudentProfile.year_level == target.year_level)
+            )
+        elif target.scope_type == EventTargetScope.COURSE_YEAR:
+            target_filters.append(
+                (StudentProfile.program_id == target.course_id) &
+                (StudentProfile.year_level == target.year_level)
+            )
+
+    if target_filters:
+        base_query = base_query.filter(or_(*target_filters))
+    else:
+        # If targets exist but none match (should not happen with valid data), return empty
+        return []
+
+    return [student_id for (student_id,) in base_query.all()]
 
 
 def finalize_completed_event_attendance(db: Session, event: EventModel) -> dict[str, int]:

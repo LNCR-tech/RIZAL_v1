@@ -79,7 +79,14 @@ def record_face_scan_attendance(
         identifier = data.student_id if data.student_id is not None else data.student_profile_id
         raise HTTPException(404, f"Student {identifier} not found")
 
-    _ensure_student_is_event_participant(student, event)
+    _ensure_student_is_event_participant_with_audit(
+        db,
+        student=student,
+        event=event,
+        school_id=school_id,
+        scanner_user_id=current_user.id,
+        attempt_type="SIGN_IN",
+    )
 
     active_attendance = _active_attendance_for_student_event(
         db,
@@ -181,7 +188,14 @@ def record_manual_attendance(
         identifier = data.student_id if data.student_id is not None else data.student_profile_id
         raise HTTPException(404, f"Student {identifier} not found")
     _ensure_student_in_attendance_scope(student, governance_units)
-    _ensure_student_is_event_participant(student, event)
+    _ensure_student_is_event_participant_with_audit(
+        db,
+        student=student,
+        event=event,
+        school_id=school_id,
+        scanner_user_id=current_user.id,
+        attempt_type="MANUAL",
+    )
 
     active_attendance = _active_attendance_for_student_event(
         db,

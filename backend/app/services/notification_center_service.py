@@ -10,7 +10,7 @@ from typing import Iterable
 import json
 
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.timezones import utc_now
 from app.models.attendance import Attendance
@@ -20,6 +20,7 @@ from app.models.notifications import NotificationLog, NotificationLogAttribute
 from app.models.user import StudentProfile, User
 from app.services.attendance_status import ATTENDED_STATUS_VALUES
 from app.services.email_service import EmailDeliveryError, send_plain_email
+from app.schemas.user import StudentStatus
 from app.services.event_attendance_service import get_event_participant_student_ids
 
 
@@ -352,6 +353,7 @@ def dispatch_missed_event_notifications(
             Event.school_id == school_id,
             Attendance.status == "absent",
             Event.end_at >= cutoff,
+            StudentProfile.student_status == StudentStatus.ACTIVE,
         )
         .group_by(User.id)
         .all()
@@ -411,7 +413,11 @@ def dispatch_low_attendance_notifications(
         .join(StudentProfile, StudentProfile.user_id == User.id)
         .join(Attendance, Attendance.student_id == StudentProfile.id)
         .join(Event, Event.id == Attendance.event_id)
-        .filter(User.school_id == school_id, Event.school_id == school_id)
+        .filter(
+            User.school_id == school_id, 
+            Event.school_id == school_id,
+            StudentProfile.student_status == StudentStatus.ACTIVE,
+        )
         .group_by(User.id)
         .having(func.count(Attendance.id) >= max(1, min_records))
         .all()
@@ -469,6 +475,69 @@ def dispatch_low_attendance_notifications(
     }
 
 
+def dispatch_event_announcement_notifications(
+    db: Session,
+    *,
+    event: Event,
+) -> dict[str, int]:
+    """Notify only eligible ACTIVE students when an event is announced.
+
+    Eligibility is determined by the event's ``event_targets`` (Phase 4+) with
+    automatic fallback to legacy ``departments``/``programs`` associations.
+    Only students whose ``student_status`` is ACTIVE and whose school matches
+    the event school are included.  All other statuses (GRADUATED, INACTIVE,
+    TRANSFERRED, ARCHIVED) are excluded by ``get_event_participant_student_ids``.
+    """
+    participant_ids = get_event_participant_student_ids(db, event)
+    if not participant_ids:
+        return {"processed_users": 0, "sent": 0, "failed": 0, "skipped": 0}
+
+    recipients = (
+        db.query(User)
+        .join(StudentProfile, StudentProfile.user_id == User.id)
+        .filter(
+            User.school_id == event.school_id,
+            StudentProfile.id.in_(participant_ids),
+        )
+        .all()
+    )
+
+    statuses: list[str] = []
+    for user in recipients:
+        subject = f"New Event: {event.name}"
+        message = (
+            f"Hi {user.first_name or 'Student'},\n\n"
+            f"A new event has been announced: {event.name}.\n"
+            f"It is scheduled to start at {event.start_at}.\n"
+            "Open the Aura app to view details and sign in when the attendance window opens.\n\n"
+            "Aura"
+        )
+        statuses.append(
+            send_notification_to_user(
+                db,
+                user=user,
+                school_id=event.school_id,
+                category="event_announcement",
+                subject=subject,
+                message=message,
+                deliver_in_app=True,
+                metadata_json={
+                    "event_id": event.id,
+                    "event_name": event.name,
+                    "event_start": event.start_at.isoformat(),
+                },
+            )
+        )
+
+    sent, failed, skipped = _summarize_statuses(statuses)
+    return {
+        "processed_users": len(recipients),
+        "sent": sent,
+        "failed": failed,
+        "skipped": skipped,
+    }
+
+
 def dispatch_event_reminder_notifications(
     db: Session,
     *,
@@ -479,6 +548,11 @@ def dispatch_event_reminder_notifications(
     reminder_cutoff = now + timedelta(hours=max(1, lead_hours))
     events = (
         db.query(Event)
+        .options(
+            joinedload(Event.event_targets),
+            joinedload(Event.programs),
+            joinedload(Event.departments),
+        )
         .filter(
             Event.school_id == school_id,
             Event.start_at >= now,
@@ -527,7 +601,7 @@ def dispatch_event_reminder_notifications(
             subject = f"Event Reminder: {event.name}"
             message = (
                 f"Hi {user.first_name or 'Student'},\n\n"
-                f"This is a reminder that {event.name} starts at {Event.start_at}.\n"
+                f"This is a reminder that {event.name} starts at {event.start_at}.\n"
                 "Open the attendance page when the event window is active to complete both sign-in and sign-out.\n\n"
                 "Aura"
             )
@@ -543,7 +617,7 @@ def dispatch_event_reminder_notifications(
                     metadata_json={
                         "event_id": event.id,
                         "event_name": event.name,
-                        "event_start": Event.start_at.isoformat(),
+                        "event_start": event.start_at.isoformat(),
                         "lead_hours": int(lead_hours),
                     },
                 )

@@ -53,6 +53,7 @@ from app.services.event_workflow_status import (
     sync_scope_event_workflow_statuses,
 )
 from app.services.event_eligibility_service import is_student_eligible_for_event
+from app.services.event_target_permissions import validate_event_targets_for_actor
 from app.services.sanctions_service import generate_sanctions_for_completed_event
 
 logger = logging.getLogger(__name__)

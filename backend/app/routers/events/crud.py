@@ -62,6 +62,13 @@ def create_event(
         school_id = _require_school_scope(current_user)
         payload_fields_set = _get_payload_fields_set(event)
 
+        # Enforce target-scope permissions before any DB writes.
+        validate_event_targets_for_actor(
+            db,
+            current_user=current_user,
+            event_targets=event.event_targets or [],
+        )
+
         if normalized_idempotency_key is not None:
             existing_event = _find_existing_idempotent_event(
                 db,
@@ -306,6 +313,14 @@ def update_event(
             event=db_event,
             governance_context=governance_context,
         )
+
+        # Enforce target-scope permissions when the caller is replacing targets.
+        if event_update.event_targets is not None:
+            validate_event_targets_for_actor(
+                db,
+                current_user=current_user,
+                event_targets=event_update.event_targets,
+            )
 
         was_completed = db_event.status == ModelEventStatus.COMPLETED
 

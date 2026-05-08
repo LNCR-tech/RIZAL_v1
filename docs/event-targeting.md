@@ -30,6 +30,43 @@ The **Student Dashboard** automatically filters the event list based on these ru
 ## Attendance Enforcement
 During check-in (Manual, Bulk, or Scan), the system verifies the student's eligibility using the centralized `EventEligibilityService`. If a student matches no targets, they are rejected with an error code: `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`.
 
+## Notifications (Phase 9)
+Event announcement notifications are scoped to eligible students only.
+
+### Dispatch endpoint
+```
+POST /api/notifications/dispatch/event-announcement/{event_id}
+```
+Requires `campus_admin` or `admin` role. Returns a `NotificationDispatchSummary`.
+
+### Eligibility rules applied
+1. Student must belong to the **same school** as the event (`school_id` boundary).
+2. Student `student_status` must be **ACTIVE**. GRADUATED, INACTIVE, TRANSFERRED, and ARCHIVED students are excluded.
+3. Student must match **at least one** of the event's `event_targets` (OR logic across all target rules).
+4. Fallback: if no `event_targets` exist, legacy `departments`/`programs` associations are used.
+
+### Reminder notifications
+`dispatch_event_reminder_notifications` (called via `POST /api/notifications/dispatch/event-reminders`) also enforces the same eligibility rules. The event query now eagerly loads `event_targets`, `programs`, and `departments` to avoid N+1 queries and ensure correct scope resolution.
+
+## Target Scope Permissions (Phase 11)
+
+Event target scopes are enforced server-side based on the actor's governance role. Frontend may mirror these rules for UX, but the backend is the authoritative gate.
+
+### Rules
+
+| Actor | Allowed scopes |
+|---|---|
+| Campus Admin / Admin | ALL, YEAR_LEVEL, DEPARTMENT, COURSE, DEPARTMENT_YEAR, COURSE_YEAR |
+| SSG member with `manage_events` | ALL, YEAR_LEVEL |
+| SG member with `manage_events` | DEPARTMENT (own dept), DEPARTMENT_YEAR (own dept + any year) |
+| ORG member with `manage_events` | COURSE (own program), COURSE_YEAR (own program + any year) |
+
+### Enforcement point
+`validate_event_targets_for_actor` in `app/services/event_target_permissions.py` is called from both `create_event` and `update_event` in `app/routers/events/crud.py`. It raises HTTP 403 with a descriptive message when the actor's governance unit does not permit the requested scope.
+
+### Multi-school boundary
+School boundary is enforced by the existing `school_id` checks in the event CRUD layer. `validate_event_targets_for_actor` only validates the scope type and IDs against the actor's governance unit.
+
 ## Backward Compatibility
 Existing events that use the legacy `department_ids` and `program_ids` fields are still supported. The system automatically migrates these to the new target rules format.
 

@@ -14,6 +14,7 @@ from app.core.security import (
     has_any_role,
 )
 from app.core.dependencies import get_db
+from app.models.event import Event
 from app.models.notifications import NotificationLog
 from app.reports.system import router as system_reports_router
 from app.models.user import User
@@ -26,6 +27,7 @@ from app.schemas.notification import (
     SecurityNotificationRequest,
 )
 from app.services.notification_center_service import (
+    dispatch_event_announcement_notifications,
     dispatch_low_attendance_notifications,
     dispatch_event_reminder_notifications,
     dispatch_missed_event_notifications,
@@ -183,6 +185,42 @@ def dispatch_low_attendance_alerts(
     )
     db.commit()
     return NotificationDispatchSummary(category="low_attendance", **result)
+
+
+@router.post("/dispatch/event-announcement/{event_id}", response_model=NotificationDispatchSummary)
+def dispatch_event_announcement(
+    event_id: int,
+    current_user: User = Depends(get_current_admin_or_campus_admin),
+    db: Session = Depends(get_db),
+):
+    """Send an announcement notification to all eligible students for a specific event.
+
+    Only ACTIVE students matching the event's target scope receive the notification.
+    School boundary is enforced: the actor must belong to the same school as the event.
+    """
+    actor_school_id = getattr(current_user, "school_id", None)
+    is_platform_admin = has_any_role(current_user, ["admin"]) and actor_school_id is None
+
+    from sqlalchemy.orm import joinedload as _jl
+    event = (
+        db.query(Event)
+        .options(
+            _jl(Event.event_targets),
+            _jl(Event.programs),
+            _jl(Event.departments),
+        )
+        .filter(Event.id == event_id)
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not is_platform_admin and event.school_id != actor_school_id:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    result = dispatch_event_announcement_notifications(db, event=event)
+    db.commit()
+    return NotificationDispatchSummary(category="event_announcement", **result)
 
 
 @router.post("/dispatch/event-reminders", response_model=NotificationDispatchSummary)

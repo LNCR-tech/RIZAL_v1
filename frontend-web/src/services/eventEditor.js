@@ -1,3 +1,101 @@
+// ---------------------------------------------------------------------------
+// Audience / event_targets
+// ---------------------------------------------------------------------------
+
+export const AUDIENCE_SCOPE_OPTIONS = [
+    { value: 'ALL', label: 'All Students' },
+    { value: 'YEAR_LEVEL', label: 'Specific Year Level' },
+    { value: 'DEPARTMENT', label: 'Specific Department' },
+    { value: 'COURSE', label: 'Specific Course' },
+    { value: 'DEPARTMENT_YEAR', label: 'Specific Department + Year Level' },
+    { value: 'COURSE_YEAR', label: 'Specific Course + Year Level' },
+]
+
+export const YEAR_LEVEL_OPTIONS = [
+    { value: 1, label: '1st Year' },
+    { value: 2, label: '2nd Year' },
+    { value: 3, label: '3rd Year' },
+    { value: 4, label: '4th Year' },
+    { value: 5, label: '5th Year' },
+]
+
+/** True when the chosen scope requires a year_level field. */
+export function scopeNeedsYearLevel(scope) {
+    return scope === 'YEAR_LEVEL' || scope === 'DEPARTMENT_YEAR' || scope === 'COURSE_YEAR'
+}
+
+/** True when the chosen scope requires a department_id field. */
+export function scopeNeedsDepartment(scope) {
+    return scope === 'DEPARTMENT' || scope === 'DEPARTMENT_YEAR'
+}
+
+/** True when the chosen scope requires a course_id field. */
+export function scopeNeedsCourse(scope) {
+    return scope === 'COURSE' || scope === 'COURSE_YEAR'
+}
+
+/**
+ * Build the event_targets array from the audience draft fields.
+ * Returns null when the scope is ALL (backend default — omit the field).
+ * Throws a descriptive Error when required sub-fields are missing.
+ */
+export function buildEventTargetsFromDraft(draft) {
+    const scope = String(draft?.audienceScope || 'ALL').toUpperCase()
+
+    if (scope === 'ALL') {
+        return [{ scope_type: 'ALL' }]
+    }
+
+    const target = { scope_type: scope }
+
+    if (scopeNeedsYearLevel(scope)) {
+        const yearLevel = Number(draft?.audienceYearLevel)
+        if (!Number.isFinite(yearLevel) || yearLevel < 1 || yearLevel > 5) {
+            throw new Error('Please select a valid year level (1–5).')
+        }
+        target.year_level = yearLevel
+    }
+
+    if (scopeNeedsDepartment(scope)) {
+        const deptId = Number(draft?.audienceDepartmentId)
+        if (!Number.isFinite(deptId) || deptId <= 0) {
+            throw new Error('Please select a department.')
+        }
+        target.department_id = deptId
+    }
+
+    if (scopeNeedsCourse(scope)) {
+        const courseId = Number(draft?.audienceCourseId)
+        if (!Number.isFinite(courseId) || courseId <= 0) {
+            throw new Error('Please select a course.')
+        }
+        target.course_id = courseId
+    }
+
+    return [target]
+}
+
+/**
+ * Derive audience draft fields from an existing event's event_targets array.
+ * Falls back to ALL when the array is empty or absent.
+ */
+function audienceDraftFromEventTargets(eventTargets) {
+    const targets = Array.isArray(eventTargets) ? eventTargets : []
+    const first = targets[0]
+    if (!first) return { audienceScope: 'ALL', audienceYearLevel: 1, audienceDepartmentId: null, audienceCourseId: null }
+
+    return {
+        audienceScope: String(first.scope_type || 'ALL').toUpperCase(),
+        audienceYearLevel: first.year_level ?? 1,
+        audienceDepartmentId: first.department_id ?? null,
+        audienceCourseId: first.course_id ?? null,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Status helpers
+// ---------------------------------------------------------------------------
+
 const EVENT_STATUS_VALUES = ['upcoming', 'ongoing', 'completed', 'cancelled']
 
 export const EVENT_STATUS_OPTIONS = [
@@ -64,6 +162,7 @@ export function toLocalDateTimeInputValue(value) {
 }
 
 export function createEventEditorDraft(event = null) {
+    const audienceFields = audienceDraftFromEventTargets(event?.event_targets)
     return {
         name: String(event?.name || '').trim(),
         location: String(event?.location || '').trim(),
@@ -79,6 +178,7 @@ export function createEventEditorDraft(event = null) {
         lateThresholdMinutes: event?.late_threshold_minutes ?? 0,
         signOutGraceMinutes: event?.sign_out_grace_minutes ?? 0,
         signOutOpenDelayMinutes: event?.sign_out_open_delay_minutes ?? 0,
+        ...audienceFields,
     }
 }
 
@@ -155,5 +255,6 @@ export function buildEventUpdatePayloadFromDraft(draft) {
         late_threshold_minutes: toOptionalNonNegativeInteger(draft?.lateThresholdMinutes, 0),
         sign_out_grace_minutes: toOptionalNonNegativeInteger(draft?.signOutGraceMinutes, 0),
         sign_out_open_delay_minutes: toOptionalNonNegativeInteger(draft?.signOutOpenDelayMinutes, 0),
+        event_targets: buildEventTargetsFromDraft(draft),
     }
 }

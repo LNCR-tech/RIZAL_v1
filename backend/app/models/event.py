@@ -52,7 +52,7 @@ class EventTarget(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
-    event = relationship("Event", back_populates="targets")
+    event = relationship("Event", back_populates="event_targets")
     department = relationship("Department")
     course = relationship("Program")
 

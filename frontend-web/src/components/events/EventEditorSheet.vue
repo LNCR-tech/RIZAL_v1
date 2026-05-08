@@ -154,8 +154,95 @@
             </div>
           </section>
 
+          <section class="event-editor__section" data-testid="audience-section">
+            <header class="event-editor__section-header">
+              <Users :size="17" aria-hidden="true" />
+              <h3>Audience</h3>
+            </header>
+
+            <div class="event-editor__grid event-editor__grid--single">
+              <label class="event-editor__field">
+                <span class="event-editor__field-label">Who can attend?</span>
+                <select
+                  v-model="draft.audienceScope"
+                  class="event-editor__field-input"
+                  name="event_audience_scope"
+                  data-testid="audience-scope-select"
+                >
+                  <option
+                    v-for="opt in AUDIENCE_SCOPE_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div
+              v-if="showYearLevel || showDepartment || showCourse"
+              class="event-editor__grid"
+            >
+              <label v-if="showYearLevel" class="event-editor__field" data-testid="year-level-field">
+                <span class="event-editor__field-label">Year Level</span>
+                <select
+                  v-model="draft.audienceYearLevel"
+                  class="event-editor__field-input"
+                  name="event_audience_year_level"
+                  data-testid="year-level-select"
+                >
+                  <option
+                    v-for="opt in YEAR_LEVEL_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </label>
+
+              <label v-if="showDepartment" class="event-editor__field" data-testid="department-field">
+                <span class="event-editor__field-label">Department</span>
+                <select
+                  v-model="draft.audienceDepartmentId"
+                  class="event-editor__field-input"
+                  name="event_audience_department_id"
+                  data-testid="department-select"
+                >
+                  <option :value="null" disabled>Select department</option>
+                  <option
+                    v-for="dept in departments"
+                    :key="dept.id"
+                    :value="dept.id"
+                  >
+                    {{ dept.name }}
+                  </option>
+                </select>
+              </label>
+
+              <label v-if="showCourse" class="event-editor__field" data-testid="course-field">
+                <span class="event-editor__field-label">Course</span>
+                <select
+                  v-model="draft.audienceCourseId"
+                  class="event-editor__field-input"
+                  name="event_audience_course_id"
+                  data-testid="course-select"
+                >
+                  <option :value="null" disabled>Select course</option>
+                  <option
+                    v-for="prog in programs"
+                    :key="prog.id"
+                    :value="prog.id"
+                  >
+                    {{ prog.name }}
+                  </option>
+                </select>
+              </label>
+            </div>
+          </section>
+
           <section class="event-editor__section event-editor__section--location">
-            <header class="event-editor__section-header event-editor__section-header--split">
               <div>
                 <div class="event-editor__section-title">
                   <ShieldCheck :size="17" aria-hidden="true" />
@@ -260,12 +347,18 @@ import {
   MapPin,
   ShieldCheck,
   SlidersHorizontal,
+  Users,
   X,
 } from 'lucide-vue-next'
 import EventLocationPicker from '@/components/events/EventLocationPicker.vue'
 import {
+  AUDIENCE_SCOPE_OPTIONS,
+  YEAR_LEVEL_OPTIONS,
   buildEventUpdatePayloadFromDraft,
   createEventEditorDraft,
+  scopeNeedsCourse,
+  scopeNeedsDepartment,
+  scopeNeedsYearLevel,
 } from '@/services/eventEditor.js'
 
 const props = defineProps({
@@ -301,6 +394,14 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  departments: {
+    type: Array,
+    default: () => [],
+  },
+  programs: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const emit = defineEmits(['close', 'save'])
@@ -327,9 +428,12 @@ const geofenceSummary = computed(() => {
   if (draft.value?.geoRequired) {
     return hasGeofencePoint.value ? 'Location check is required.' : 'Pick a point and radius.'
   }
-
   return hasGeofencePoint.value ? 'Location saved as optional.' : 'Optional.'
 })
+
+const showYearLevel = computed(() => scopeNeedsYearLevel(draft.value?.audienceScope))
+const showDepartment = computed(() => scopeNeedsDepartment(draft.value?.audienceScope))
+const showCourse = computed(() => scopeNeedsCourse(draft.value?.audienceScope))
 
 function toBoundedMinuteInteger(value, fallback = 0) {
   const normalized = Number(value)

@@ -55,6 +55,8 @@ from app.services.attendance_status import (
 from app.services.event_eligibility_service import is_student_eligible_for_event
 from app.services.event_time_status import get_attendance_decision, get_sign_out_decision
 from app.services.event_workflow_status import sync_event_workflow_status
+from app.models.school import SchoolAuditLog
+import json as _json
 
 logger = logging.getLogger(__name__)
 _SEEN_UNSUPPORTED_ATTENDANCE_METHODS: set[str] = set()
@@ -182,6 +184,55 @@ def _ensure_student_in_attendance_scope(student: StudentProfile, governance_unit
         raise HTTPException(404, "Student not found")
 
 
+def _log_rejected_scan_attempt(
+    db: Session,
+    *,
+    school_id: int,
+    scanner_user_id: int | None,
+    event_id: int | None,
+    student_profile_id: int | None,
+    attempt_type: str,
+    reason_code: str,
+    reason_message: str,
+) -> None:
+    """Write a rejected scan attempt to the school audit log.
+
+    Uses the existing SchoolAuditLog table — no new table or migration needed.
+    These rows are completely separate from attendance_records and never affect
+    attendance counts or reports.
+    """
+    try:
+        details = _json.dumps(
+            {
+                "attempt_type": attempt_type,
+                "result": "REJECTED",
+                "event_id": event_id,
+                "student_profile_id": student_profile_id,
+                "reason_code": reason_code,
+                "reason_message": reason_message,
+            },
+            default=str,
+        )
+        db.add(
+            SchoolAuditLog(
+                school_id=school_id,
+                actor_user_id=scanner_user_id,
+                action="attendance_scan_rejected",
+                status="rejected",
+                details=details,
+            )
+        )
+        db.flush()
+    except Exception:
+        # Audit logging must never break the main request path.
+        logger.warning(
+            "Failed to write rejected scan audit log for event_id=%s student_profile_id=%s",
+            event_id,
+            student_profile_id,
+            exc_info=True,
+        )
+
+
 def _ensure_student_is_event_participant(student: StudentProfile, event: Event) -> None:
     """Confirm the selected student actually belongs to the event's allowed audience."""
     eligible, code, message = is_student_eligible_for_event(student, event)
@@ -192,6 +243,38 @@ def _ensure_student_is_event_participant(student: StudentProfile, event: Event) 
                 "code": code,
                 "message": message
             }
+        )
+
+
+def _ensure_student_is_event_participant_with_audit(
+    db: Session,
+    *,
+    student: StudentProfile,
+    event: Event,
+    school_id: int,
+    scanner_user_id: int | None,
+    attempt_type: str = "SIGN_IN",
+) -> None:
+    """Check eligibility and write a SchoolAuditLog row on rejection.
+
+    Accepted scans are not logged here — only rejections are recorded for audit.
+    The HTTP 403 is always re-raised so the caller's response is unchanged.
+    """
+    eligible, code, message = is_student_eligible_for_event(student, event)
+    if not eligible:
+        _log_rejected_scan_attempt(
+            db,
+            school_id=school_id,
+            scanner_user_id=scanner_user_id,
+            event_id=event.id,
+            student_profile_id=student.id,
+            attempt_type=attempt_type,
+            reason_code=code or "UNKNOWN",
+            reason_message=message or "",
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={"code": code, "message": message},
         )
 
 

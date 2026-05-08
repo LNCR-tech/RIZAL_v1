@@ -155,6 +155,74 @@
                 </p>
               </section>
               
+              <section class="sg-map-section" data-testid="sg-audience-section">
+                <header class="sg-map-section-header">
+                  <div class="sg-map-section-title">
+                    <div>
+                      <h3>Audience</h3>
+                      <p>Choose which students this event targets.</p>
+                    </div>
+                  </div>
+                </header>
+
+                <div class="sg-coord-grid">
+                  <label class="sg-field-label sg-field-label--wide">
+                    <span>Who can attend?</span>
+                    <select v-model="form.audienceScope" data-testid="sg-audience-scope-select">
+                      <option value="ALL">All Students</option>
+                      <option value="YEAR_LEVEL">Specific Year Level</option>
+                      <option value="DEPARTMENT">Specific Department</option>
+                      <option value="COURSE">Specific Course</option>
+                      <option value="DEPARTMENT_YEAR">Specific Department + Year Level</option>
+                      <option value="COURSE_YEAR">Specific Course + Year Level</option>
+                    </select>
+                  </label>
+
+                  <label
+                    v-if="form.audienceScope === 'YEAR_LEVEL' || form.audienceScope === 'DEPARTMENT_YEAR' || form.audienceScope === 'COURSE_YEAR'"
+                    class="sg-field-label"
+                    data-testid="sg-year-level-field"
+                  >
+                    <span>Year Level</span>
+                    <select v-model="form.audienceYearLevel" data-testid="sg-year-level-select">
+                      <option :value="1">1st Year</option>
+                      <option :value="2">2nd Year</option>
+                      <option :value="3">3rd Year</option>
+                      <option :value="4">4th Year</option>
+                      <option :value="5">5th Year</option>
+                    </select>
+                  </label>
+
+                  <label
+                    v-if="form.audienceScope === 'DEPARTMENT' || form.audienceScope === 'DEPARTMENT_YEAR'"
+                    class="sg-field-label"
+                    data-testid="sg-department-field"
+                  >
+                    <span>Department</span>
+                    <select v-model="form.audienceDepartmentId" data-testid="sg-department-select">
+                      <option :value="null" disabled>Select department</option>
+                      <option v-for="dept in cachedDepartments" :key="dept.id" :value="dept.id">
+                        {{ dept.name }}
+                      </option>
+                    </select>
+                  </label>
+
+                  <label
+                    v-if="form.audienceScope === 'COURSE' || form.audienceScope === 'COURSE_YEAR'"
+                    class="sg-field-label"
+                    data-testid="sg-course-field"
+                  >
+                    <span>Course</span>
+                    <select v-model="form.audienceCourseId" data-testid="sg-course-select">
+                      <option :value="null" disabled>Select course</option>
+                      <option v-for="prog in cachedPrograms" :key="prog.id" :value="prog.id">
+                        {{ prog.name }}
+                      </option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
               <section class="sg-map-section" :class="{ 'is-required': form.require_geofence }">
                 <header class="sg-map-section-header">
                   <div class="sg-map-section-title">
@@ -298,6 +366,8 @@
       submit-label="Save Event"
       :saving="isMutatingEvent"
       :error-message="eventEditorError"
+      :departments="cachedDepartments"
+      :programs="cachedPrograms"
       @close="closeEventEditor"
       @save="saveEventEdits"
     />
@@ -325,9 +395,11 @@ import {
   BackendApiError,
   createGovernanceEvent,
   deleteEvent as deleteBackendEvent,
+  getDepartments,
   getEvents,
   getGovernanceAccess,
   getGovernanceUnitDetail,
+  getPrograms,
   updateEvent as updateBackendEvent,
 } from '@/services/backendApi.js'
 import { getStoredAuthMeta } from '@/services/localAuth.js'
@@ -336,6 +408,7 @@ import {
   normalizeGovernanceContext,
 } from '@/services/governanceScope.js'
 import { withPreservedGovernancePreviewQuery } from '@/services/routeWorkspace.js'
+import { buildEventTargetsFromDraft } from '@/services/eventEditor.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -363,6 +436,8 @@ const LEGACY_SSG_UNIT_ID_STORAGE_KEY = 'aura_cached_ssg_unit_id'
 const isLoading = ref(true)
 const loadError = ref('')
 const events = ref([])
+const cachedDepartments = ref([])
+const cachedPrograms = ref([])
 const searchQuery = ref('')
 const isMutatingEvent = ref(false)
 const isEventEditorOpen = ref(false)
@@ -394,7 +469,11 @@ const form = ref({
   latitude: null,
   longitude: null,
   radius_meters: 100,
-  gps_accuracy: 50
+  gps_accuracy: 50,
+  audienceScope: 'ALL',
+  audienceYearLevel: 1,
+  audienceDepartmentId: null,
+  audienceCourseId: null,
 })
 
 const eventSwipeOffsets = ref({})
@@ -1125,6 +1204,7 @@ function buildCreateEventPayload() {
     sign_out_open_delay_minutes: signOutOpenDelayMinutes,
     department_ids: [],
     program_ids: [],
+    event_targets: buildEventTargetsFromDraft(form.value),
   }
 
   if (!payload.name) {
@@ -1361,6 +1441,10 @@ async function loadEvents(url) {
   isLoading.value = true
   loadError.value = ''
   try {
+    // Load departments and programs for the audience picker (best-effort, non-blocking).
+    getDepartments(url, token.value).then((res) => { cachedDepartments.value = res }).catch(() => {})
+    getPrograms(url, token.value).then((res) => { cachedPrograms.value = res }).catch(() => {})
+
     // 1. Use the cached governance scope first so the list can render immediately.
     hydrateGovernanceEventContextFromStorage()
     const keepDefaultScope = shouldKeepDefaultGovernanceEventScope()
@@ -1429,6 +1513,10 @@ function resetEventForm() {
     longitude: null,
     radius_meters: 100,
     gps_accuracy: 50,
+    audienceScope: 'ALL',
+    audienceYearLevel: 1,
+    audienceDepartmentId: null,
+    audienceCourseId: null,
   }
 }
 
