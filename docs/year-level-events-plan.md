@@ -9,10 +9,13 @@
 - [x] **Update Serialization Helpers** to ensure API responses include new metadata.
 - [x] **Stabilize Test Suite** by disabling email delivery and fixing volume permissions in test environment.
 
-## Phase 2: Event Targeting Implementation (NEXT)
-1. **Database Schema & Models:**
-   - Create a new association table `event_year_levels` `(event_id, year_level)` in `app/models/associations.py`.
-   - Add a `year_levels` relationship to the `Event` model.
+## Phase 2: Student Bulk Import Update (IN-PROGRESS)
+- [x] **Add `Year Level` and `Status` columns** to import template.
+- [x] **Implement row-level validation** for year level (1-5) and status (ACTIVE, etc.).
+- [x] **Maintain backward compatibility** for legacy 7-column templates.
+- [x] **Update Frontend Preview** to display new fields and validation tags.
+
+## Phase 3: Event Targeting Implementation (NEXT)
 2. **Backend Schemas:**
    - Update `EventCreate` and `EventUpdate` in `app/schemas/event.py` to accept `year_levels: Optional[List[int]] = None`.
    - Update `Event` schema to include `year_levels` (or `target_year_levels`).

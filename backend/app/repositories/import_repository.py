@@ -447,7 +447,8 @@ class ImportRepository:
                 "student_number": row["student_id"],
                 "department_id": row["department_id"],
                 "program_id": row["program_id"],
-                "year_level": 1,
+                "year_level": row.get("year_level", 1),
+                "student_status": row.get("student_status", "ACTIVE"),
             }
             for row in inserted_candidates
         ]

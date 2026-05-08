@@ -131,6 +131,8 @@ export function extractStudentImportDisplayRows(summary = {}) {
         name: buildFullName(rowData),
         department: buildDepartmentName(rowData),
         program: buildProgramName(rowData),
+        yearLevel: readCaseInsensitive(rowData, ['Year Level', 'year_level']),
+        studentStatus: readCaseInsensitive(rowData, ['Status', 'status']),
         status: toOptionalString(row?.status, 'unknown'),
         errors: normalizeStringList(row?.errors),
         suggestions: normalizeStringList(row?.suggestions),
@@ -224,6 +226,7 @@ export function createMockImportPreviewSummary({
       errors: [],
       suggestions: [],
       row_data: {
+        School_ID: toOptionalString(user?.student_profile?.school_id, ''),
         Student_ID: toOptionalString(user?.student_profile?.student_id, ''),
         Email: toOptionalString(user?.email, ''),
         'Last Name': toOptionalString(user?.last_name, ''),
@@ -231,6 +234,8 @@ export function createMockImportPreviewSummary({
         'Middle Name': toOptionalString(user?.middle_name, ''),
         Department: departmentById.get(Number(user?.student_profile?.department_id)) || 'Unassigned Department',
         Course: programById.get(Number(user?.student_profile?.program_id)) || 'Unassigned Program',
+        'Year Level': toOptionalString(user?.student_profile?.year_level, '1'),
+        Status: toOptionalString(user?.student_profile?.student_status, 'ACTIVE'),
       },
     }))
 

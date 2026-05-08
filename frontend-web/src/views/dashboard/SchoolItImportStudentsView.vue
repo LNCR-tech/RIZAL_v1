@@ -332,6 +332,8 @@
                   <div class="school-it-import__row-meta">
                     <span>{{ row.department }}</span>
                     <span>{{ row.program }}</span>
+                    <span v-if="row.yearLevel" class="school-it-import__row-meta-tag">Year {{ row.yearLevel }}</span>
+                    <span v-if="row.studentStatus" class="school-it-import__row-meta-tag">{{ row.studentStatus }}</span>
                     <span>Row {{ row.row }}</span>
                   </div>
 
@@ -458,6 +460,7 @@ const POLL_INTERVAL_MS = 1200
 const IMPORT_JOB_LOOKUP_ATTEMPTS = 10
 const IMPORT_JOB_LOOKUP_INTERVAL_MS = 1200
 const EXPECTED_HEADERS = [
+  'School_ID',
   'Student_ID',
   'Email',
   'Last Name',
@@ -465,6 +468,8 @@ const EXPECTED_HEADERS = [
   'Middle Name',
   'Department',
   'Course',
+  'Year Level',
+  'Status',
 ]
 
 const fileInputEl = ref(null)
@@ -2095,6 +2100,19 @@ async function handleLogout() {
   letter-spacing: -0.01em;
   cursor: pointer;
   transition: transform 0.18s ease, filter 0.22s ease, opacity 0.2s ease;
+}
+
+.school-it-import__row-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .school-it-import__button:disabled {
