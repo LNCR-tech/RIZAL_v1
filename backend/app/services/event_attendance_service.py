@@ -36,7 +36,9 @@ def get_event_participant_student_ids(db: Session, event: EventModel) -> list[in
         db.query(StudentProfile.id)
         .join(UserModel, StudentProfile.user_id == UserModel.id)
         .filter(UserModel.school_id == event.school_id)
+        .filter(StudentProfile.school_id == event.school_id)
         .filter(StudentProfile.student_status == StudentStatus.ACTIVE)
+        .distinct()
     )
 
     targets = getattr(event, "event_targets", [])

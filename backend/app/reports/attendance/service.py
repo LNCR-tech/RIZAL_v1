@@ -17,6 +17,7 @@ from app.schemas.attendance import (
 )
 from app.services.event_workflow_status import sync_event_workflow_status
 from app.routers.attendance.shared import (
+    _attendance_completion_state_value,
     _attendance_display_status_value,
     _attendance_is_valid_value,
     _attendance_matches_status_filter,
@@ -30,6 +31,18 @@ from app.routers.attendance.shared import (
 )
 
 from . import queries
+
+
+def _attendance_is_completed(attendance) -> bool:
+    """Resolve completion safely for ORM rows that do not expose completion_state."""
+    completion_state = getattr(attendance, "completion_state", None)
+    if completion_state is not None:
+        return completion_state == AttendanceCompletionState.COMPLETED.value
+
+    return (
+        _attendance_completion_state_value(attendance)
+        == AttendanceCompletionState.COMPLETED.value
+    )
 
 
 def get_event_attendance_report(
@@ -116,7 +129,7 @@ def get_event_attendance_report(
             continue
 
         is_valid = _attendance_is_valid_value(attendance)
-        is_completed = attendance.completion_state == AttendanceCompletionState.COMPLETED.value
+        is_completed = _attendance_is_completed(attendance)
         is_expected = attendance.student_id in expected_student_ids
 
         if is_valid:

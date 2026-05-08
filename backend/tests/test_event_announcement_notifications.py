@@ -284,16 +284,23 @@ def test_empty_participant_list_returns_zero_counts(db_session, school_and_deps)
     school, dept, prog = school_and_deps
 
     event = _future_event(db_session, school_id=school.id, name="No Participants Event")
-    # YEAR_LEVEL=99 — no student will ever match
     db_session.add(EventTarget(
         event_id=event.id,
         school_id=school.id,
         scope_type=EventTargetScope.YEAR_LEVEL,
         year_level=5,
     ))
+    (
+        db_session.query(StudentProfile)
+        .filter(
+            StudentProfile.school_id == school.id,
+            StudentProfile.year_level == 5,
+            StudentProfile.student_status == "ACTIVE",
+        )
+        .update({"student_status": "INACTIVE"}, synchronize_session=False)
+    )
     db_session.flush()
 
-    # Remove any year_level=5 active students to guarantee empty result
     result = dispatch_event_announcement_notifications(db_session, event=event)
     db_session.flush()
 

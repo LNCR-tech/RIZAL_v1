@@ -41,8 +41,17 @@ The `_ensure_student_is_event_participant` helper now:
 2. If targets exist, it verifies if the student matches at least one target (OR logic).
 3. If no targets exist, it falls back to checking the legacy department/program associations.
 
+## Notification and Reporting Behavior
+- `dispatch_event_announcement_notifications` resolves recipients from the same event-target eligibility rules used by attendance.
+- Only `ACTIVE` students from the same school are eligible.
+- Eligible recipients are de-duplicated by user before notification logs are created.
+- Event announcement dispatch is idempotent per `user_id + event_id + category`; rerunning the dispatcher will not create a second announcement log for the same user and event.
+- Event attendance reports no longer assume `AttendanceRecord` exposes a `completion_state` column. Completion is derived from the existing attendance completion helper, which treats records with `time_out` as completed and open records as incomplete.
+
 ## Testing
 To test the new targeting logic:
 1. Create an event with a specific target (e.g., `scope_type: "YEAR_LEVEL", year_level: 3`).
 2. Attempt to sign in a student with `year_level: 3` (should succeed).
 3. Attempt to sign in a student with `year_level: 2` (should fail with 400).
+4. Dispatch an event announcement twice for the same event and confirm each eligible student receives only one `event_announcement` log entry.
+5. Run the attendance event report for a mix of signed-in-only and signed-out records and confirm open records count under `no_sign_out_attendees` while signed-out records count under `signed_out_attendees`.

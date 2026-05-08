@@ -9,7 +9,7 @@ from datetime import timedelta
 from typing import Iterable
 import json
 
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.timezones import utc_now
@@ -332,6 +332,38 @@ def _summarize_statuses(statuses: Iterable[str]) -> tuple[int, int, int]:
     return sent, failed, skipped
 
 
+def _get_existing_event_announcement_user_ids(
+    db: Session,
+    *,
+    event_id: int,
+    user_ids: list[int],
+) -> set[int]:
+    if not user_ids:
+        return set()
+
+    return {
+        user_id
+        for (user_id,) in (
+            db.query(NotificationLog.user_id)
+            .join(
+                NotificationLogAttribute,
+                and_(
+                    NotificationLogAttribute.notification_log_id == NotificationLog.id,
+                    NotificationLogAttribute.attribute_key == "event_id",
+                    NotificationLogAttribute.attribute_value == json.dumps(event_id),
+                ),
+            )
+            .filter(
+                NotificationLog.category == "event_announcement",
+                NotificationLog.user_id.in_(user_ids),
+            )
+            .distinct()
+            .all()
+        )
+        if user_id is not None
+    }
+
+
 def dispatch_missed_event_notifications(
     db: Session,
     *,
@@ -488,11 +520,11 @@ def dispatch_event_announcement_notifications(
     the event school are included.  All other statuses (GRADUATED, INACTIVE,
     TRANSFERRED, ARCHIVED) are excluded by ``get_event_participant_student_ids``.
     """
-    participant_ids = get_event_participant_student_ids(db, event)
+    participant_ids = sorted(set(get_event_participant_student_ids(db, event)))
     if not participant_ids:
         return {"processed_users": 0, "sent": 0, "failed": 0, "skipped": 0}
 
-    recipients = (
+    recipient_rows = (
         db.query(User)
         .join(StudentProfile, StudentProfile.user_id == User.id)
         .filter(
@@ -501,9 +533,21 @@ def dispatch_event_announcement_notifications(
         )
         .all()
     )
+    recipients_by_id = {user.id: user for user in recipient_rows}
+    if not recipients_by_id:
+        return {"processed_users": 0, "sent": 0, "failed": 0, "skipped": 0}
+
+    existing_user_ids = _get_existing_event_announcement_user_ids(
+        db,
+        event_id=event.id,
+        user_ids=list(recipients_by_id.keys()),
+    )
 
     statuses: list[str] = []
-    for user in recipients:
+    for user_id, user in recipients_by_id.items():
+        if user_id in existing_user_ids:
+            continue
+
         subject = f"New Event: {event.name}"
         message = (
             f"Hi {user.first_name or 'Student'},\n\n"
@@ -513,14 +557,13 @@ def dispatch_event_announcement_notifications(
             "Aura"
         )
         statuses.append(
-            send_notification_to_user(
+            send_in_app_notification(
                 db,
                 user=user,
                 school_id=event.school_id,
                 category="event_announcement",
                 subject=subject,
                 message=message,
-                deliver_in_app=True,
                 metadata_json={
                     "event_id": event.id,
                     "event_name": event.name,
@@ -531,7 +574,7 @@ def dispatch_event_announcement_notifications(
 
     sent, failed, skipped = _summarize_statuses(statuses)
     return {
-        "processed_users": len(recipients),
+        "processed_users": len(statuses),
         "sent": sent,
         "failed": failed,
         "skipped": skipped,
