@@ -24,7 +24,13 @@
 - [x] **Attendance Validation:** Updated participant check to enforce targeting rules (Year Level, Department, Course).
 - [x] **Documentation:** Updated backend implementation guide.
 
-## Phase 5: Frontend Integration (NEXT)
+## Phase 5: Centralized Eligibility Service (COMPLETED)
+- [x] **Service Implementation:** Created `EventEligibilityService` to centralize student validation logic.
+- [x] **Refactoring:** Updated attendance and event routers to use the centralized service.
+- [x] **Standardized Errors:** Implemented rejection codes (`STUDENT_NOT_ACTIVE`, `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`, etc.).
+- [x] **Documentation:** Created `docs/attendance-eligibility.md`.
+
+## Phase 6: Frontend Integration (NEXT)
 - [ ] **Frontend Updates:**
     - Update the API client schemas and state stores.
     - Add a UI control in the Event Creation and Edit forms to select targeted Year Levels (1-5).

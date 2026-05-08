@@ -52,6 +52,7 @@ from app.services.attendance_status import (
     normalize_attendance_status,
     resolve_attendance_display_status,
 )
+from app.services.event_eligibility_service import is_student_eligible_for_event
 from app.services.event_time_status import get_attendance_decision, get_sign_out_decision
 from app.services.event_workflow_status import sync_event_workflow_status
 
@@ -183,43 +184,15 @@ def _ensure_student_in_attendance_scope(student: StudentProfile, governance_unit
 
 def _ensure_student_is_event_participant(student: StudentProfile, event: Event) -> None:
     """Confirm the selected student actually belongs to the event's allowed audience."""
-    # Phase 4: Check dedicated targets if they exist
-    if getattr(event, "event_targets", []):
-        matched = False
-        for target in event.event_targets:
-            scope = target.scope_type
-            if scope == EventTargetScope.ALL:
-                matched = True
-            elif scope == EventTargetScope.YEAR_LEVEL:
-                if student.year_level == target.year_level:
-                    matched = True
-            elif scope == EventTargetScope.DEPARTMENT:
-                if student.department_id == target.department_id:
-                    matched = True
-            elif scope == EventTargetScope.COURSE:
-                if student.program_id == target.course_id:
-                    matched = True
-            elif scope == EventTargetScope.DEPARTMENT_YEAR:
-                if student.department_id == target.department_id and student.year_level == target.year_level:
-                    matched = True
-            elif scope == EventTargetScope.COURSE_YEAR:
-                if student.program_id == target.course_id and student.year_level == target.year_level:
-                    matched = True
-
-            if matched:
-                break
-
-        if not matched:
-            raise HTTPException(400, "Student is not in the targeted audience for this event")
-        return
-
-    # Legacy targeting (department/program associations)
-    event_program_ids = {program.id for program in event.programs}
-    event_department_ids = {department.id for department in event.departments}
-    if event_program_ids and student.program_id not in event_program_ids:
-        raise HTTPException(400, "Student is outside the event program scope")
-    if event_department_ids and student.department_id not in event_department_ids:
-        raise HTTPException(400, "Student is outside the event department scope")
+    eligible, code, message = is_student_eligible_for_event(student, event)
+    if not eligible:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": code,
+                "message": message
+            }
+        )
 
 
 def _get_event_ids_in_attendance_scope(db: Session, *, school_id: int, governance_units) -> list[int]:

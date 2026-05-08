@@ -1,5 +1,20 @@
 # Changes
 
+## 2026-05-08 (Phase 5: Centralized Eligibility Service)
+
+### Backend Changes
+- **Services:**
+    - Created `app/services/event_eligibility_service.py` to centralize student eligibility checks.
+    - Implemented rules for School matching, Student Status (must be ACTIVE), and Targeting Scopes.
+    - Added standardized rejection codes (`STUDENT_NOT_ACTIVE`, `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`, etc.).
+- **Routers:**
+    - Refactored `app/routers/attendance/shared.py` to use the new eligibility service for check-in validation.
+    - Refactored `app/routers/events/shared.py` to use the new eligibility service for filtering the student dashboard.
+
+### Documentation
+- Created `docs/attendance-eligibility.md` defining the core eligibility rules.
+- Updated `docs/year-level-events-plan.md` to reflect Phase 5 completion.
+
 ## 2026-05-08 (Phase 4: Event Targeting API Integration)
 
 ### Backend Changes
@@ -11,7 +26,7 @@
     - **CRUD:** Updated `app/routers/events/crud.py` with transaction-safe targeting logic.
     - **Backward Compatibility:** Implemented automatic migration of legacy `department_ids`/`program_ids` to `event_targets` if the new field is absent.
     - **Validation:** Added enforcement of non-empty targeting and school-scoped foreign key checks for departments/courses.
-    - **Attendance:** Updated `_ensure_student_is_event_participant` in `app/routers/attendance/shared.py` to enforce the new multi-scope targeting rules (Year Level, Department, Course, etc.).
+    - **Attendance:** Updated participant check to enforce the new multi-scope targeting rules (Year Level, Department, Course, etc.).
 - **Models:**
     - Renamed `targets` relationship to `event_targets` in `Event` model.
 

@@ -52,6 +52,7 @@ from app.services.event_workflow_status import (
     sync_event_workflow_status,
     sync_scope_event_workflow_statuses,
 )
+from app.services.event_eligibility_service import is_student_eligible_for_event
 from app.services.sanctions_service import generate_sanctions_for_completed_event
 
 logger = logging.getLogger(__name__)
@@ -295,14 +296,8 @@ def _event_is_visible_to_student_profile(
     if student_profile is None:
         return False
 
-    event_department_ids, event_program_ids = _get_event_scope_ids(event)
-    if not event_department_ids and not event_program_ids:
-        return True
-    if event_department_ids and student_profile.department_id not in event_department_ids:
-        return False
-    if event_program_ids and student_profile.program_id not in event_program_ids:
-        return False
-    return True
+    eligible, _, _ = is_student_eligible_for_event(student_profile, event)
+    return eligible
 
 
 def _filter_events_to_student_scope(
