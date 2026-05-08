@@ -70,6 +70,8 @@ class StudentProfile(Base):
     department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="RESTRICT"), index=True, nullable=True)
     program_id = Column(BigInteger, ForeignKey("programs.id", ondelete="RESTRICT"), index=True, nullable=True)
     year_level = Column(BigInteger, nullable=False, default=1)
+    student_status = Column(Text, nullable=False, default="ACTIVE")
+    promotion_locked = Column(Boolean, nullable=False, default=False)
     section = Column(Text, nullable=True, index=True)
     rfid_tag = Column(Text, unique=True, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

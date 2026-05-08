@@ -3,6 +3,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+os.environ["EMAIL_DELIVERY_MODE"] = "disabled"
+os.environ["EMAIL_TRANSPORT"] = "disabled"
 os.environ.setdefault("DATABASE_URL", "postgresql://postgres:cmpjdatabase@127.0.0.1:5432/fastapi_db")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
@@ -10,7 +12,6 @@ os.environ.setdefault("RATE_LIMIT_FAIL_OPEN", "true")
 os.environ.setdefault("FACE_SCAN_BYPASS_ALL", "true")
 os.environ.setdefault("PRIVILEGED_FACE_VERIFICATION_ENABLED", "false")
 os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
-os.environ.setdefault("EMAIL_TRANSPORT", "disabled")
 os.environ.setdefault("API_DOCS_ENABLED", "true")
 
 from app.main import app

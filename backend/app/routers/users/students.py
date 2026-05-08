@@ -30,7 +30,7 @@ def create_student_account(
         db.query(StudentProfile)
         .filter(
             StudentProfile.school_id == school_id,
-            StudentProfile.student_id == student.student_id,
+            StudentProfile.student_number == student.student_id,
         )
         .first()
     ):
@@ -66,10 +66,12 @@ def create_student_account(
             StudentProfile(
                 user_id=db_user.id,
                 school_id=school_id,
-                student_id=student.student_id,
+                student_number=student.student_id,
                 department_id=student.department_id,
                 program_id=student.program_id,
                 year_level=student.year_level,
+                student_status=student.student_status.value if hasattr(student.student_status, 'value') else student.student_status,
+                promotion_locked=student.promotion_locked,
             )
         )
         db.flush()
@@ -87,14 +89,20 @@ def create_student_account(
                 "Email transport is disabled. Student account created without sending welcome email: %s",
                 exc,
             )
-        except EmailDeliveryError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Student account was not created because the welcome email could not be delivered. "
-                    f"Email delivery error: {exc}"
-                ),
-            ) from exc
+        except Exception as exc:
+            if "EmailConfigurationError" in str(type(exc)) or "EMAIL_TRANSPORT is disabled" in str(exc):
+                 logger.warning(
+                    "Email transport is disabled (caught via generic exception). Student account created without sending welcome email: %s",
+                    exc,
+                )
+            else:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "Student account was not created because the welcome email could not be delivered. "
+                        f"Email delivery error: {exc}"
+                    ),
+                ) from exc
 
         db.commit()
         created_user = (
@@ -129,7 +137,7 @@ def create_student_profile(
     if profile.student_id is not None and (
         db.query(StudentProfile)
         .join(UserModel, StudentProfile.user_id == UserModel.id)
-        .filter(StudentProfile.student_id == profile.student_id, UserModel.school_id == target_school_id)
+        .filter(StudentProfile.student_number == profile.student_id, UserModel.school_id == target_school_id)
         .first()
     ):
         raise HTTPException(status_code=400, detail="Student ID already in use")
@@ -145,10 +153,12 @@ def create_student_profile(
         student_profile = StudentProfile(
             user_id=profile.user_id,
             school_id=target_school_id,
-            student_id=profile.student_id,
+            student_number=profile.student_id,
             department_id=profile.department_id,
             program_id=profile.program_id,
             year_level=profile.year_level or 1,
+            student_status=profile.student_status.value if profile.student_status and hasattr(profile.student_status, 'value') else (profile.student_status or "ACTIVE"),
+            promotion_locked=profile.promotion_locked or False,
         )
 
         db.add(student_profile)
@@ -195,18 +205,18 @@ def update_student_profile(
         raise HTTPException(status_code=400, detail="Target user is not assigned to a school")
 
     if profile_update.student_id is not None:
-        if profile.student_id != profile_update.student_id:
+        if profile.student_number != profile_update.student_id:
             if (
                 db.query(StudentProfile)
                 .join(UserModel, StudentProfile.user_id == UserModel.id)
                 .filter(
-                    StudentProfile.student_id == profile_update.student_id,
+                    StudentProfile.student_number == profile_update.student_id,
                     UserModel.school_id == target_school_id,
                 )
                 .first()
             ):
                 raise HTTPException(status_code=400, detail="Student ID already in use")
-        profile.student_id = profile_update.student_id
+        profile.student_number = profile_update.student_id
 
     if profile_update.department_id is not None or profile_update.program_id is not None:
         department_id = (
@@ -234,6 +244,12 @@ def update_student_profile(
 
     if profile_update.year_level is not None:
         profile.year_level = profile_update.year_level
+
+    if profile_update.student_status is not None:
+        profile.student_status = profile_update.student_status.value if hasattr(profile_update.student_status, 'value') else profile_update.student_status
+
+    if profile_update.promotion_locked is not None:
+        profile.promotion_locked = profile_update.promotion_locked
 
     db.commit()
     db.refresh(profile)

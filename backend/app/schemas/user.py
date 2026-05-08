@@ -20,6 +20,14 @@ class RoleEnum(str, Enum):
     admin = "admin"
 
 
+class StudentStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    GRADUATED = "GRADUATED"
+    INACTIVE = "INACTIVE"
+    TRANSFERRED = "TRANSFERRED"
+    ARCHIVED = "ARCHIVED"
+
+
 class UserBase(BaseModel):
     email: str
     first_name: str | None = None
@@ -73,6 +81,14 @@ class StudentProfileBase(BaseModel):
         le=5,
         description="Year level must be between 1 and 5",
     )
+    student_status: StudentStatus | None = Field(
+        None,
+        description="The current enrollment status of the student",
+    )
+    promotion_locked: bool | None = Field(
+        None,
+        description="Whether the student's year level is locked from automatic promotion",
+    )
 
 
 class StudentProfileWithAttendances(StudentProfileBase):
@@ -111,6 +127,14 @@ class StudentAccountCreate(UserBase):
         ge=1,
         le=5,
         description="Year level defaults to 1 when omitted",
+    )
+    student_status: StudentStatus = Field(
+        default=StudentStatus.ACTIVE,
+        description="The current enrollment status of the student",
+    )
+    promotion_locked: bool = Field(
+        default=False,
+        description="Whether the student's year level is locked from automatic promotion",
     )
 
     @field_validator("student_id")

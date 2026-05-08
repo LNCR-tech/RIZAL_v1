@@ -170,7 +170,7 @@ class StudentAttendanceDetail(BaseModel):
     id: int
     event_id: int
     event_name: str
-    event_location: str
+    event_location: Optional[str] = None
     event_date: datetime
     time_in: Optional[datetime] = None
     time_out: Optional[datetime] = None

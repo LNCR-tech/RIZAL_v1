@@ -90,6 +90,8 @@ def _serialize_user(user: UserModel) -> UserWithRelations:
                 "department_id": student_profile.department_id,
                 "program_id": student_profile.program_id,
                 "year_level": student_profile.year_level,
+                "student_status": student_profile.student_status,
+                "promotion_locked": student_profile.promotion_locked,
                 "is_face_registered": False,
                 "registration_complete": True,
                 "attendances": [],

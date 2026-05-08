@@ -29,6 +29,8 @@ def test_preview_import_valid(client, campus_admin_headers):
         headers=campus_admin_headers,
         files={"file": ("students.xlsx", xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
     )
+    if r.status_code != 200:
+        print(r.json())
     assert r.status_code == 200
 
 
