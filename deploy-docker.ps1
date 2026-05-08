@@ -50,7 +50,7 @@ function Copy-EnvFile {
 Copy-EnvFile ".\backend\.env.example" ".\backend\.env" "Backend"
 Copy-EnvFile ".\database\.env.example" ".\database\.env" "Database"
 Copy-EnvFile ".\assistant\.env.example" ".\assistant\.env" "Assistant"
-Copy-EnvFile ".\frontend-web\.env.example" ".\frontend\.env" "Frontend"
+Copy-EnvFile ".\frontend-web\.env.example" ".\frontend-web\.env" "Frontend"
 Copy-EnvFile ".\seeder\.env.example" ".\seeder\.env" "Seeder"
 
 Write-Host ""

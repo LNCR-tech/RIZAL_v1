@@ -57,6 +57,10 @@ export function useAuth() {
     const error = ref(null)
 
     async function login(email, password, options = {}) {
+        if (isLoading.value) {
+            return options.preventRedirect ? null : undefined
+        }
+
         isLoading.value = true
         error.value = null
 

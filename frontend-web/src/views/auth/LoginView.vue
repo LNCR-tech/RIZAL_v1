@@ -39,7 +39,6 @@
             autocomplete="current-password"
             tone="neutral"
             :disabled="isLoading || googleLoading"
-            @enter="handleLogin"
           />
 
           <!-- Forgot Password Link -->
@@ -88,6 +87,33 @@
           class="flex flex-col items-center justify-center gap-3 mt-1 transition-all duration-700 delay-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
           :class="isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
         >
+          <div
+            v-if="showPwaInstallCta"
+            class="w-full rounded-[24px] border px-4 py-4 text-center"
+            style="border-color: var(--color-border, rgba(255,255,255,0.12)); background: color-mix(in srgb, var(--color-surface) 92%, transparent);"
+          >
+            <p class="text-[12px] font-medium" style="color: var(--color-text-primary);">
+              {{ pwaInstallButtonLabel }}
+            </p>
+            <p class="mt-1 text-[11px] leading-5" style="color: var(--color-text-secondary);">
+              {{ pwaInstallHelpText }}
+            </p>
+            <BaseButton
+              v-if="canPromptPwaInstall"
+              type="button"
+              variant="secondary"
+              size="md"
+              class="mt-3 w-full"
+              :disabled="isLoading || googleLoading"
+              @click="handlePwaInstall"
+            >
+              Install Aura
+            </BaseButton>
+            <p v-else-if="pwaInstallError" class="mt-2 text-[11px] text-red-500">
+              {{ pwaInstallError }}
+            </p>
+          </div>
+
           <div class="flex items-center justify-center gap-2">
             <img
               :src="surfaceAuraLogo"
@@ -132,6 +158,15 @@ import GoogleSignInButton from '@/components/auth/GoogleSignInButton.vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { useGoogleLogin } from '@/composables/useGoogleLogin.js'
 import { applyTheme, loadUnbrandedTheme, surfaceAuraLogo } from '@/config/theme.js'
+import {
+  canPromptPwaInstall,
+  hasManualPwaInstallInstructions,
+  installPwaApp,
+  isPwaInstalled,
+  pwaInstallButtonLabel,
+  pwaInstallError,
+  pwaInstallHelpText,
+} from '@/services/pwaInstall.js'
 import { consumeSessionExpiredNotice } from '@/services/sessionExpiry.js'
 
 const email = ref('')
@@ -148,6 +183,12 @@ const {
   error: googleError,
 } = useGoogleLogin()
 const visibleMessage = computed(() => error.value || googleError.value || sessionNotice.value)
+const showPwaInstallCta = computed(() => (
+  canPromptPwaInstall.value
+  || hasManualPwaInstallInstructions.value
+  || isPwaInstalled.value
+  || Boolean(pwaInstallError.value)
+))
 
 const nextRoute = ref(null)
 
@@ -164,6 +205,8 @@ onMounted(() => {
 })
 
 async function handleLogin() {
+  if (isLoading.value || googleLoading.value) return
+
   // TEMPORARY TESTING BYPASS: If you type "test" in both fields, it will skip the backend
   if (email.value === 'test' && password.value === 'test') {
     nextRoute.value = { name: 'PreviewHome' }
@@ -179,6 +222,10 @@ async function handleLogin() {
     nextRoute.value = route
     showTermsModal.value = true
   }
+}
+
+async function handlePwaInstall() {
+  await installPwaApp()
 }
 
 async function handleGoogleCredential(credential) {

@@ -39,10 +39,10 @@ if not exist "assistant\.env" (
     )
 )
 
-if not exist "frontend\.env" (
+if not exist "frontend-web\.env" (
     if exist "frontend-web\.env.example" (
-        copy "frontend-web\.env.example" "frontend\.env" >nul
-        echo Created frontend\.env
+        copy "frontend-web\.env.example" "frontend-web\.env" >nul
+        echo Created frontend-web\.env
     )
 )
 
