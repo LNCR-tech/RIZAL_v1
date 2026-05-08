@@ -30,7 +30,12 @@
 - [x] **Standardized Errors:** Implemented rejection codes (`STUDENT_NOT_ACTIVE`, `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`, etc.).
 - [x] **Documentation:** Created `docs/attendance-eligibility.md`.
 
-## Phase 6: Frontend Integration (NEXT)
+## Phase 6: Student Dashboard Filtering (COMPLETED)
+- [x] **Backend Optimization:** Updated event queries to include `event_targets` via `joinedload`.
+- [x] **Dashboard Enforcement:** Integrated the eligibility checker into the Student Dashboard event list.
+- [x] **Frontend Polish:** Added "No upcoming events assigned to you" message in `EventsCard.vue`.
+
+## Phase 7: Frontend Form Integration (NEXT)
 - [ ] **Frontend Updates:**
     - Update the API client schemas and state stores.
     - Add a UI control in the Event Creation and Edit forms to select targeted Year Levels (1-5).

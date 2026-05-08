@@ -21,6 +21,7 @@ def read_events(
     _persist_scope_status_sync(db, school_id)
 
     query = _school_scoped_event_query(db, school_id).options(
+        joinedload(EventModel.event_targets),
         joinedload(EventModel.departments),
         joinedload(EventModel.programs),
         joinedload(EventModel.event_type),
@@ -56,6 +57,7 @@ def get_ongoing_events(
     events = (
         _school_scoped_event_query(db, school_id)
         .options(
+            joinedload(EventModel.event_targets),
             joinedload(EventModel.departments),
             joinedload(EventModel.programs),
             joinedload(EventModel.event_type),
@@ -85,6 +87,7 @@ def read_event(
     event = (
         _school_scoped_event_query(db, school_id)
         .options(
+            joinedload(EventModel.event_targets),
             joinedload(EventModel.programs).joinedload(ProgramModel.departments),
             joinedload(EventModel.departments),
             joinedload(EventModel.event_type),

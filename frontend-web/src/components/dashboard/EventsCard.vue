@@ -50,7 +50,9 @@
             </p>
           </template>
           <template v-else>
-            <p class="text-[13px]" style="color: var(--color-surface-text-muted);">No events</p>
+            <p class="text-[13px]" style="color: var(--color-surface-text-muted);">
+              No upcoming events assigned to you.
+            </p>
           </template>
         </div>
       </div>
