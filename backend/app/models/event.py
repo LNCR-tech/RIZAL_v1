@@ -22,6 +22,41 @@ class EventStatus(PyEnum):
     CANCELLED = "cancelled"
 
 
+class EventTargetScope(PyEnum):
+    ALL = "ALL"
+    YEAR_LEVEL = "YEAR_LEVEL"
+    DEPARTMENT = "DEPARTMENT"
+    COURSE = "COURSE"
+    DEPARTMENT_YEAR = "DEPARTMENT_YEAR"
+    COURSE_YEAR = "COURSE_YEAR"
+
+
+class EventTarget(Base):
+    __tablename__ = "event_targets"
+
+    id = Column(BigInteger, primary_key=True)
+    event_id = Column(BigInteger, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope_type = Column(
+        SQLEnum(
+            EventTargetScope,
+            native_enum=False,
+            length=50,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
+    year_level = Column(Integer, nullable=True)
+    department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)
+    course_id = Column(BigInteger, ForeignKey("programs.id", ondelete="CASCADE"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    event = relationship("Event", back_populates="targets")
+    department = relationship("Department")
+    course = relationship("Program")
+
+
 class Event(Base):
     __tablename__ = "events"
     __table_args__ = (
@@ -68,6 +103,7 @@ class Event(Base):
     departments = relationship("Department", secondary=event_departments, back_populates="events")
     programs = relationship("Program", secondary=event_programs, back_populates="events")
     attendance_records = relationship("AttendanceRecord", back_populates="event", cascade="all, delete-orphan")
+    targets = relationship("EventTarget", back_populates="event", cascade="all, delete-orphan")
 
     # Compatibility aliases for old field names.
     start_datetime = synonym("start_at")

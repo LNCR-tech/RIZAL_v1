@@ -43,22 +43,25 @@ if config.config_file_name is not None:
 # IMPORT YOUR BASE HERE - adjust this import to match your project structure
 # This is the most critical change needed
 from app.models.core.base import AppBase
+from app.models import (
+    associations,
+    attendance,
+    department,
+    event,
+    event_type,
+    program,
+    role,
+    school,
+    import_job,
+    password_reset_request,
+    platform_features,
+    user,
+    governance_hierarchy,
+    sanctions,
+    report,
+)
+
 target_metadata = AppBase.metadata
-from app.models import associations
-from app.models import attendance
-from app.models import department
-from app.models import event
-from app.models import event_type
-from app.models import program
-from app.models import role
-from app.models import school
-from app.models import import_job
-from app.models import password_reset_request
-from app.models import platform_features
-from app.models import user
-from app.models import governance_hierarchy
-from app.models import sanctions
-from app.models import report
 
 settings = get_settings()
 ini_database_url = config.get_main_option("sqlalchemy.url")

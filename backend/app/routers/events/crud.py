@@ -163,6 +163,41 @@ def create_event(
         db.add(db_event)
         db.flush()
 
+        # Handle Event Targets (Phase 3)
+        if event.targets:
+            for target_data in event.targets:
+                # Validation of department/program existence within the same school
+                if target_data.department_id:
+                    dept_exists = db.query(DepartmentModel).filter(
+                        DepartmentModel.id == target_data.department_id,
+                        DepartmentModel.school_id == school_id
+                    ).first()
+                    if not dept_exists:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Department ID {target_data.department_id} not found in this school."
+                        )
+                if target_data.course_id:
+                    prog_exists = db.query(ProgramModel).filter(
+                        ProgramModel.id == target_data.course_id,
+                        ProgramModel.school_id == school_id
+                    ).first()
+                    if not prog_exists:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Program ID {target_data.course_id} not found in this school."
+                        )
+
+                db_target = EventTargetModel(
+                    event_id=db_event.id,
+                    school_id=school_id,
+                    scope_type=target_data.scope_type,
+                    year_level=target_data.year_level,
+                    department_id=target_data.department_id,
+                    course_id=target_data.course_id
+                )
+                db.add(db_target)
+
         target_department_ids = list(event.department_ids or [])
         target_program_ids = list(event.program_ids or [])
         if resolved_governance_unit is not None:
@@ -409,6 +444,36 @@ def update_event(
                 missing = set(target_program_ids) - {program.id for program in programs}
                 raise HTTPException(status_code=404, detail=f"Programs not found: {missing}")
             db_event.programs = programs
+
+        # Handle Event Targets update (Phase 3)
+        if event_update.targets is not None:
+            # Remove existing targets and replace them (cascade delete-orphan would also work if using collection)
+            db.query(EventTargetModel).filter(EventTargetModel.event_id == db_event.id).delete()
+
+            for target_data in event_update.targets:
+                # Validation
+                if target_data.department_id:
+                    if not db.query(DepartmentModel).filter(
+                        DepartmentModel.id == target_data.department_id,
+                        DepartmentModel.school_id == school_id
+                    ).first():
+                        raise HTTPException(status_code=400, detail=f"Department {target_data.department_id} invalid")
+                if target_data.course_id:
+                    if not db.query(ProgramModel).filter(
+                        ProgramModel.id == target_data.course_id,
+                        ProgramModel.school_id == school_id
+                    ).first():
+                        raise HTTPException(status_code=400, detail=f"Program {target_data.course_id} invalid")
+
+                db_target = EventTargetModel(
+                    event_id=db_event.id,
+                    school_id=school_id,
+                    scope_type=target_data.scope_type,
+                    year_level=target_data.year_level,
+                    department_id=target_data.department_id,
+                    course_id=target_data.course_id
+                )
+                db.add(db_target)
 
         auto_sync_result = None
         if db_event.status not in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:

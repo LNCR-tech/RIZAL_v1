@@ -113,6 +113,14 @@ class DataGovernanceSetting(Base):
     updated_by_user = relationship("User")
 
 
+class PrivacyConsentType(Base):
+    __tablename__ = "privacy_consent_types"
+
+    code = Column(Text, primary_key=True)
+    description = Column(Text, nullable=False)
+    current_version = Column(Text, nullable=False)
+
+
 class UserPrivacyConsent(Base):
     __tablename__ = "user_privacy_consents"
 

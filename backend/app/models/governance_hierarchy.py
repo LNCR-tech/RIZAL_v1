@@ -215,7 +215,7 @@ class GovernanceAnnouncement(Base):
 class GovernanceStudentNote(Base):
     __tablename__ = "governance_student_notes"
     __table_args__ = (
-        UniqueConstraint("governance_unit_id", "student_profile_id", name="governance_student_notes_governance_unit_id_student_profile_id_key"),
+        UniqueConstraint("governance_unit_id", "student_profile_id", name="gov_student_notes_unit_student_key"),
     )
 
     id = Column(BigInteger, primary_key=True)

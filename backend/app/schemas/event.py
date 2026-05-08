@@ -26,6 +26,15 @@ class EventStatus(str, Enum):
     cancelled = "cancelled"
 
 
+class EventTargetScope(str, Enum):
+    ALL = "ALL"
+    YEAR_LEVEL = "YEAR_LEVEL"
+    DEPARTMENT = "DEPARTMENT"
+    COURSE = "COURSE"
+    DEPARTMENT_YEAR = "DEPARTMENT_YEAR"
+    COURSE_YEAR = "COURSE_YEAR"
+
+
 class EventTimeStatus(str, Enum):
     before_check_in = "before_check_in"
     early_check_in = "early_check_in"
@@ -116,6 +125,57 @@ class EventLocationVerificationResponse(BaseModel):
     time_status: Optional[EventTimeStatusInfo] = None
     attendance_decision: Optional[EventAttendanceDecisionInfo] = None
 
+
+class EventTargetBase(BaseModel):
+    scope_type: EventTargetScope
+    year_level: Optional[int] = Field(None, ge=1, le=5)
+    department_id: Optional[int] = None
+    course_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_scope_combinations(self) -> "EventTargetBase":
+        scope = self.scope_type
+        if scope == EventTargetScope.ALL:
+            if any([self.year_level, self.department_id, self.course_id]):
+                raise ValueError("ALL scope cannot have year_level, department_id, or course_id")
+        elif scope == EventTargetScope.YEAR_LEVEL:
+            if self.year_level is None:
+                raise ValueError("YEAR_LEVEL scope requires year_level")
+            if any([self.department_id, self.course_id]):
+                raise ValueError("YEAR_LEVEL scope cannot have department_id or course_id")
+        elif scope == EventTargetScope.DEPARTMENT:
+            if self.department_id is None:
+                raise ValueError("DEPARTMENT scope requires department_id")
+            if any([self.year_level, self.course_id]):
+                raise ValueError("DEPARTMENT scope cannot have year_level or course_id")
+        elif scope == EventTargetScope.COURSE:
+            if self.course_id is None:
+                raise ValueError("COURSE scope requires course_id")
+            if any([self.year_level, self.department_id]):
+                raise ValueError("COURSE scope cannot have year_level or department_id")
+        elif scope == EventTargetScope.DEPARTMENT_YEAR:
+            if not all([self.department_id, self.year_level]):
+                raise ValueError("DEPARTMENT_YEAR scope requires both department_id and year_level")
+            if self.course_id:
+                raise ValueError("DEPARTMENT_YEAR scope cannot have course_id")
+        elif scope == EventTargetScope.COURSE_YEAR:
+            if not all([self.course_id, self.year_level]):
+                raise ValueError("COURSE_YEAR scope requires both course_id and year_level")
+            if self.department_id:
+                raise ValueError("COURSE_YEAR scope cannot have department_id")
+        return self
+
+
+class EventTargetCreate(EventTargetBase):
+    pass
+
+
+class EventTarget(EventTargetBase):
+    id: int
+    event_id: int
+    school_id: int
+    model_config = ConfigDict(from_attributes=True)
+
 class EventBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     location: Optional[str] = Field(default=None, max_length=200)
@@ -164,6 +224,7 @@ class EventBase(BaseModel):
 class EventCreate(EventBase):
     department_ids: List[int] = Field(default_factory=list)
     program_ids: List[int] = Field(default_factory=list)
+    targets: List[EventTargetCreate] = Field(default_factory=list)
 
     @field_validator("start_datetime", "end_datetime", mode="after")
     @classmethod
@@ -193,6 +254,7 @@ class EventUpdate(BaseModel):
     status: Optional[EventStatus] = None
     department_ids: Optional[List[int]] = None
     program_ids: Optional[List[int]] = None
+    targets: Optional[List[EventTargetCreate]] = None
 
     @field_validator("start_datetime", "end_datetime", mode="after")
     @classmethod
@@ -223,6 +285,7 @@ class Event(EventBase):
     sign_out_override_until: Optional[datetime] = None
     departments: List[Department] = Field(default_factory=list)
     programs: List[Program] = Field(default_factory=list)
+    targets: List[EventTarget] = Field(default_factory=list)
     event_type: Optional[EventTypeSummary] = None
     
     # Computed fields for IDs

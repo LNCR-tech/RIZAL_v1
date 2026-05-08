@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.dependencies import get_db
 from app.core.security import get_current_user, get_school_id_or_403, has_any_role
 from app.models.attendance import Attendance as AttendanceModel
-from app.models.event import Event, EventStatus
+from app.models.event import Event, EventStatus, EventTargetScope
 from app.models.governance_hierarchy import GovernanceUnitType, PermissionCode
 from app.models.program import Program
 from app.models.user import StudentProfile, User, User as UserModel
@@ -183,6 +183,37 @@ def _ensure_student_in_attendance_scope(student: StudentProfile, governance_unit
 
 def _ensure_student_is_event_participant(student: StudentProfile, event: Event) -> None:
     """Confirm the selected student actually belongs to the event's allowed audience."""
+    # Phase 3: Check dedicated targets if they exist
+    if getattr(event, "targets", []):
+        matched = False
+        for target in event.targets:
+            scope = target.scope_type
+            if scope == EventTargetScope.ALL:
+                matched = True
+            elif scope == EventTargetScope.YEAR_LEVEL:
+                if student.year_level == target.year_level:
+                    matched = True
+            elif scope == EventTargetScope.DEPARTMENT:
+                if student.department_id == target.department_id:
+                    matched = True
+            elif scope == EventTargetScope.COURSE:
+                if student.program_id == target.course_id:
+                    matched = True
+            elif scope == EventTargetScope.DEPARTMENT_YEAR:
+                if student.department_id == target.department_id and student.year_level == target.year_level:
+                    matched = True
+            elif scope == EventTargetScope.COURSE_YEAR:
+                if student.program_id == target.course_id and student.year_level == target.year_level:
+                    matched = True
+
+            if matched:
+                break
+
+        if not matched:
+            raise HTTPException(400, "Student is not in the targeted audience for this event")
+        return
+
+    # Legacy targeting (department/program associations)
     event_program_ids = {program.id for program in event.programs}
     event_department_ids = {department.id for department in event.departments}
     if event_program_ids and student.program_id not in event_program_ids:
@@ -213,7 +244,16 @@ def _get_event_ids_in_attendance_scope(db: Session, *, school_id: int, governanc
 
 def _get_event_in_school_or_404(db: Session, event_id: int, school_id: int) -> Event:
     """Load one event in the school and refresh its computed workflow status."""
-    event = db.query(Event).filter(Event.id == event_id, Event.school_id == school_id).first()
+    event = (
+        db.query(Event)
+        .options(
+            joinedload(Event.targets),
+            joinedload(Event.departments),
+            joinedload(Event.programs),
+        )
+        .filter(Event.id == event_id, Event.school_id == school_id)
+        .first()
+    )
     if not event:
         raise HTTPException(404, "Event not found")
     result = sync_event_workflow_status(db, event)

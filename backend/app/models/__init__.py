@@ -31,6 +31,7 @@ from app.models.platform_features import (
     LoginHistory,
     DataGovernanceSetting,
     UserPrivacyConsent,
+    PrivacyConsentType,
     DataRequest,
     DataRequestItem,
     DataRetentionRunLog,

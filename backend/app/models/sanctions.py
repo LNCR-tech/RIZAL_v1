@@ -162,7 +162,7 @@ SanctionItem = SanctionRecordItem
 class SanctionDelegation(Base):
     __tablename__ = "sanction_delegations"
     __table_args__ = (
-        UniqueConstraint("event_id", "delegated_to_governance_unit_id", name="sanction_delegations_event_id_delegated_to_governance_unit_id_key"),
+        UniqueConstraint("event_id", "delegated_to_governance_unit_id", name="sanction_delegations_event_unit_key"),
     )
 
     id = Column(BigInteger, primary_key=True)
