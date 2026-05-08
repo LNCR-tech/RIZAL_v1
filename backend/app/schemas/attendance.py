@@ -143,6 +143,8 @@ class AttendanceReportResponse(BaseModel):
     attendees: int
     late_attendees: int = 0
     incomplete_attendees: int = 0
+    signed_out_attendees: int = 0
+    no_sign_out_attendees: int = 0
     absentees: int
     attendance_rate: float
     programs: List[ProgramFilterItem]  # For program filter dropdown

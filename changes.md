@@ -1,21 +1,34 @@
 # Changes
 
+## 2026-05-08 (Phase 8: Attendance Reports Update)
+
+### Backend Changes
+- **Report Logic:** Re-implemented `build_participant_subquery` in `app/reports/attendance/queries.py` to use the `event_targets` system for calculating expected attendees.
+- **ACTIVE Status Enforcement:** Expected attendees and absentees are now strictly filtered by `student_status == ACTIVE`, as per Rule 4.
+- **Sign-out Tracking:** Added `signed_out_attendees` and `no_sign_out_attendees` metrics to the `AttendanceReportResponse` schema and service logic.
+- **Dynamic Filters:** Updated attendance report endpoints (`/events/{event_id}/report`, `/events/{event_id}/attendees`, etc.) to support filtering by `year_level`, `department_id`, `program_id`, and `status`.
+- **Historical Support:** Implemented `list_event_attendance_rows_for_event_report` to ensure historical attendance records for graduated or inactive students remain visible in reports while being correctly excluded from "expected" counts.
+
+### Documentation
+- Updated `docs/attendance-eligibility.md` with the new reporting logic definitions.
+- Updated `docs/event-targeting.md` highlighting the targeting-to-reporting integration.
+- Updated `docs/year-level-events-plan.md` to reflect Phase 8 completion.
+
 ## 2026-05-08 (Phase 7: Attendance Enforcement)
-4: 
-5: ### Backend Changes
-6: - **Attendance Routers:** Hardened `record_face_scan_attendance` in `app/routers/attendance/check_in_out.py` to enforce event eligibility using the centralized service.
-7: - **Status Codes:** Updated `_ensure_student_is_event_participant` in `app/routers/attendance/shared.py` to return HTTP 403 (Forbidden) instead of 400, specifically for student targeting violations.
-8: - **Standardized Messaging:** Standardized the rejection message to "Student is not included in this event scope." in `EventEligibilityService`.
-9: 
-10: ### Frontend Changes
-11: - **Public Attendance Service:** Updated `describePublicAttendanceError` and `normalizeOutcome` in `src/services/publicAttendance.js` to translate the backend error code into user-friendly messages:
-12:     - Top-level: "You are not included in this event."
-13:     - Scan outcomes: "Not included in this event."
-14: 
-15: ### Documentation
-16: - Updated `docs/year-level-events-plan.md` to reflect Phase 7 completion.
-17: - Updated `docs/attendance-eligibility.md` to reflect the 403 status code change.
-18: 
+
+### Backend Changes
+- **Attendance Routers:** Hardened `record_face_scan_attendance` in `app/routers/attendance/check_in_out.py` to enforce event eligibility using the centralized service.
+- **Status Codes:** Updated `_ensure_student_is_event_participant` in `app/routers/attendance/shared.py` to return HTTP 403 (Forbidden) instead of 400, specifically for student targeting violations.
+- **Standardized Messaging:** Standardized the rejection message to "Student is not included in this event scope." in `EventEligibilityService`.
+
+### Frontend Changes
+- **Public Attendance Service:** Updated `describePublicAttendanceError` and `normalizeOutcome` in `src/services/publicAttendance.js` to translate the backend error code into user-friendly messages:
+    - Top-level: "You are not included in this event."
+    - Scan outcomes: "Not included in this event."
+
+### Documentation
+- Updated `docs/year-level-events-plan.md` to reflect Phase 7 completion.
+- Updated `docs/attendance-eligibility.md` to reflect the 403 status code change.
 
 ## 2026-05-08 (Phase 6: Student Dashboard Filtering)
 

@@ -40,7 +40,13 @@
 - [x] **Strict Rejection:** Enforced HTTP 403 responses with code `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`.
 - [x] **Frontend Polish:** Updated scanner and kiosk UI to display user-friendly "Not included in this event" messages.
 
-## Phase 8: Event Creation UI Controls (NEXT)
+## Phase 8: Attendance Reports Update (COMPLETED)
+- [x] **Logic Update:** Re-implemented expected/absent calculations based on `event_targets` and `ACTIVE` status.
+- [x] **New Metrics:** Added "Signed-out" and "No sign-out" student tracking to event reports.
+- [x] **Dynamic Filtering:** Added Year Level, Department, Course, and Status filters to all attendance report endpoints.
+- [x] **Historical Integrity:** Ensured graduated/inactive students are excluded from expected lists but remain visible in actual attendance records.
+
+## Phase 9: Event Creation UI Controls (NEXT)
 - [ ] **Frontend Updates:**
     - Add UI controls to the Event Creation/Edit forms to select targeted Year Levels, Departments, and Courses.
     - Implement validation to ensure at least one target is selected (or default to ALL).

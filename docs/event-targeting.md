@@ -32,3 +32,9 @@ During check-in (Manual, Bulk, or Scan), the system verifies the student's eligi
 
 ## Backward Compatibility
 Existing events that use the legacy `department_ids` and `program_ids` fields are still supported. The system automatically migrates these to the new target rules format.
+
+## Reporting & Analytics
+The targeting system directly influences attendance reports:
+- **Automatic "Expected" Calculation**: The system automatically calculates the number of expected students by counting `ACTIVE` students who fall within the event's targeted scope.
+- **Precise Absentees**: Students who fall outside the scope are excluded from absentee counts, ensuring that report accuracy is maintained even for events with very narrow targets (e.g., a specific section or year level).
+- **Targeted Filters**: Reports can be dynamically filtered by Year Level, Department, or Course to drill down into the attendance performance of specific sub-groups.

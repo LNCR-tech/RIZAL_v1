@@ -37,3 +37,20 @@ When eligibility is denied, the system returns specific error codes:
 The centralized checker is implemented in `backend/app/services/event_eligibility_service.py` and is used by:
 - Attendance routers (to block check-ins).
 - Event routers (to filter visible events on the student dashboard).
+- Reporting routers (to calculate expected and absent students).
+
+## Reporting Logic
+
+The attendance reporting system uses the targeting infrastructure to calculate metrics:
+
+1.  **Expected Attendees**: Calculated as the count of `ACTIVE` students who match the event's `event_targets`.
+2.  **Absentees**: Calculated as `Expected Attendees - (Actual Attendees who were Expected)`. Students outside the event scope or with non-active status are never marked as absent.
+3.  **Actual Attendees**: Includes all students who have a valid attendance record, regardless of their current status (ensuring historical records remain visible).
+4.  **Completion Metrics**: Tracks "Signed-out" vs "No sign-out" students based on the presence of a sign-out timestamp.
+
+### Report Filters
+All attendance reports support the following dynamic filters:
+- **Year Level**: Filter by 1-5.
+- **Department**: Filter by specific department ID.
+- **Course**: Filter by specific program/course ID.
+- **Attendance Status**: Filter by PRESENT, LATE, ABSENT, etc.

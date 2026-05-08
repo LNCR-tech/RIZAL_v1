@@ -10,6 +10,7 @@ from app.models.governance_hierarchy import GovernanceUnitType
 from app.models.user import User as UserModel
 from app.schemas.attendance import (
     Attendance,
+    AttendanceCompletionState,
     AttendanceReportResponse,
     AttendanceStatus,
     AttendanceWithStudent,
@@ -35,6 +36,10 @@ def get_event_attendance_report(
     db: Session,
     *,
     event_id: int,
+    year_level: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
+    status_filter: AttendanceStatus | None = None,
     governance_context: GovernanceUnitType | None,
     current_user: UserModel,
 ) -> AttendanceReportResponse:
@@ -66,72 +71,103 @@ def get_event_attendance_report(
     if school_id is None:
         raise HTTPException(400, "Event is not linked to a school")
 
-    program_ids = [program.id for program in event.programs]
-    department_ids = [department.id for department in event.departments]
-
     participant_subquery = queries.build_participant_subquery(
         db,
         school_id=school_id,
-        program_ids=program_ids,
-        department_ids=department_ids,
+        event=event,
+        year_level=year_level,
+        department_id=department_id,
+        program_id=program_id,
     )
     total_participants = queries.count_participants_from_subquery(db, participant_subquery)
     totals_by_program = queries.count_participants_by_program_from_subquery(db, participant_subquery)
-    attendance_rows = queries.list_event_attendance_rows_for_report(
+    
+    # Get expected student IDs for absent calculation
+    expected_student_ids = {
+        row[0] for row in db.query(participant_subquery.c.student_id).all()
+    }
+
+    attendance_rows = queries.list_event_attendance_rows_for_event_report(
         db,
         event_id=event.id,
-        participant_subquery=participant_subquery,
+        year_level=year_level,
+        department_id=department_id,
+        program_id=program_id,
     )
 
     latest_attendance_by_student: dict[int, tuple] = {}
-    for attendance, program_id in attendance_rows:
-        latest_attendance_by_student.setdefault(attendance.student_id, (attendance, program_id))
+    for attendance, p_id in attendance_rows:
+        latest_attendance_by_student.setdefault(attendance.student_id, (attendance, p_id))
 
     attendees = 0
     late_attendees = 0
     incomplete_attendees = 0
+    signed_out_attendees = 0
+    no_sign_out_attendees = 0
+    expected_attendees_who_showed_up = 0
     present_by_program: dict[int | None, int] = {}
     late_by_program: dict[int | None, int] = {}
     incomplete_by_program: dict[int | None, int] = {}
 
-    for attendance, program_id in latest_attendance_by_student.values():
+    for attendance, p_id in latest_attendance_by_student.values():
         display_status = _attendance_display_status_value(attendance)
+        
+        if status_filter and display_status != status_filter.value:
+            continue
+
         is_valid = _attendance_is_valid_value(attendance)
+        is_completed = attendance.completion_state == AttendanceCompletionState.COMPLETED.value
+        is_expected = attendance.student_id in expected_student_ids
 
         if is_valid:
             attendees += 1
+            if is_expected:
+                expected_attendees_who_showed_up += 1
+
+            if is_completed:
+                signed_out_attendees += 1
+            else:
+                no_sign_out_attendees += 1
+
             if display_status == AttendanceStatus.PRESENT.value:
-                present_by_program[program_id] = present_by_program.get(program_id, 0) + 1
+                present_by_program[p_id] = present_by_program.get(p_id, 0) + 1
             elif display_status == AttendanceStatus.LATE.value:
                 late_attendees += 1
-                late_by_program[program_id] = late_by_program.get(program_id, 0) + 1
+                late_by_program[p_id] = late_by_program.get(p_id, 0) + 1
         elif display_status == AttendanceStatus.INCOMPLETE.value:
             incomplete_attendees += 1
-            incomplete_by_program[program_id] = incomplete_by_program.get(program_id, 0) + 1
+            no_sign_out_attendees += 1
+            if is_expected:
+                expected_attendees_who_showed_up += 1
+            incomplete_by_program[p_id] = incomplete_by_program.get(p_id, 0) + 1
 
     program_ids_from_participants = {
-        program_id
-        for program_id in totals_by_program.keys()
-        if program_id is not None
+        p_id
+        for p_id in totals_by_program.keys()
+        if p_id is not None
     }
-    program_ids_for_response = program_ids_from_participants | set(program_ids)
+    
+    target_program_ids = [t.course_id for t in event.event_targets if t.course_id]
+    legacy_program_ids = [p.id for p in event.programs]
+    program_ids_for_response = program_ids_from_participants | set(target_program_ids) | set(legacy_program_ids)
+    
     program_models = queries.list_program_models(
         db,
         school_id=school_id,
         program_ids=program_ids_for_response,
     )
 
-    programs_payload = [{"id": program.id, "name": program.name} for program in program_models]
+    programs_payload = [{"id": p.id, "name": p.name} for p in program_models]
     breakdown_payload = []
-    for program in program_models:
-        total = int(totals_by_program.get(program.id, 0) or 0)
-        present = int(present_by_program.get(program.id, 0) or 0)
-        late = int(late_by_program.get(program.id, 0) or 0)
-        incomplete = int(incomplete_by_program.get(program.id, 0) or 0)
+    for p in program_models:
+        total = int(totals_by_program.get(p.id, 0) or 0)
+        present = int(present_by_program.get(p.id, 0) or 0)
+        late = int(late_by_program.get(p.id, 0) or 0)
+        incomplete = int(incomplete_by_program.get(p.id, 0) or 0)
         absent = max(total - present - late - incomplete, 0)
         breakdown_payload.append(
             {
-                "program": program.name,
+                "program": p.name,
                 "total": total,
                 "present": present,
                 "late": late,
@@ -159,8 +195,8 @@ def get_event_attendance_report(
             }
         )
 
-    absentees = max(int(total_participants) - int(attendees) - int(incomplete_attendees), 0)
-    attendance_rate = round((attendees / total_participants) * 100, 2) if total_participants else 0.0
+    absentees = max(int(total_participants) - int(expected_attendees_who_showed_up), 0)
+    attendance_rate = round((expected_attendees_who_showed_up / total_participants) * 100, 2) if total_participants else 0.0
 
     return AttendanceReportResponse(
         event_name=event.name,
@@ -170,6 +206,8 @@ def get_event_attendance_report(
         attendees=int(attendees),
         late_attendees=int(late_attendees),
         incomplete_attendees=int(incomplete_attendees),
+        signed_out_attendees=signed_out_attendees,
+        no_sign_out_attendees=no_sign_out_attendees,
         absentees=absentees,
         attendance_rate=attendance_rate,
         programs=programs_payload,
@@ -181,6 +219,9 @@ def get_event_attendees(
     db: Session,
     *,
     event_id: int,
+    year_level: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
     status: AttendanceStatus | None,
     skip: int,
     limit: int,
@@ -199,8 +240,25 @@ def get_event_attendees(
         ),
     )
 
-    attendances = queries.list_event_attendance_rows_for_attendees(db, event_id=event_id)
-    filtered = [attendance for attendance in attendances if _attendance_matches_status_filter(attendance, status)]
+    participant_subquery = queries.build_participant_subquery(
+        db,
+        school_id=school_id,
+        event=event,
+        year_level=year_level,
+        department_id=department_id,
+        program_id=program_id,
+    )
+    
+    attendances = queries.list_event_attendance_rows_for_report(
+        db,
+        event_id=event_id,
+        participant_subquery=participant_subquery,
+    )
+    
+    # Extract only the attendance models from the tuples
+    attendance_models = [row[0] for row in attendances]
+    
+    filtered = [attendance for attendance in attendance_models if _attendance_matches_status_filter(attendance, status)]
     return [
         _serialize_attendance_model(attendance)
         for attendance in filtered[skip : skip + limit]
@@ -212,6 +270,9 @@ def get_attendances_by_event(
     *,
     event_id: int,
     active_only: bool,
+    year_level: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
     skip: int,
     limit: int,
     governance_context: GovernanceUnitType | None,
@@ -232,6 +293,9 @@ def get_attendances_by_event(
         event_id=event_id,
         school_id=school_id,
         active_only=active_only,
+        year_level=year_level,
+        department_id=department_id,
+        program_id=program_id,
         skip=skip,
         limit=limit,
     )

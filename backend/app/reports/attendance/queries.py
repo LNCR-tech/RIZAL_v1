@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.attendance import Attendance as AttendanceModel
-from app.models.event import Event
+from app.models.event import Event, EventTarget, EventTargetScope
 from app.models.program import Program
 from app.models.user import StudentProfile, User
 
@@ -24,6 +24,7 @@ def get_event_for_report(
         .options(
             joinedload(Event.programs),
             joinedload(Event.departments),
+            joinedload(Event.event_targets),
         )
         .filter(Event.id == event_id)
     )
@@ -36,8 +37,10 @@ def build_participant_subquery(
     db: Session,
     *,
     school_id: int,
-    program_ids: list[int],
-    department_ids: list[int],
+    event: Event,
+    year_level: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
 ) -> Any:
     participant_query = (
         db.query(
@@ -46,11 +49,51 @@ def build_participant_subquery(
         )
         .join(User, StudentProfile.user_id == User.id)
         .filter(User.school_id == school_id)
+        .filter(StudentProfile.student_status == "ACTIVE")
     )
-    if program_ids:
-        participant_query = participant_query.filter(StudentProfile.program_id.in_(program_ids))
-    if department_ids:
-        participant_query = participant_query.filter(StudentProfile.department_id.in_(department_ids))
+
+    if year_level is not None:
+        participant_query = participant_query.filter(StudentProfile.year_level == year_level)
+    if department_id is not None:
+        participant_query = participant_query.filter(StudentProfile.department_id == department_id)
+    if program_id is not None:
+        participant_query = participant_query.filter(StudentProfile.program_id == program_id)
+
+    targets = event.event_targets
+    if not targets:
+        program_ids = [p.id for p in event.programs]
+        department_ids = [d.id for d in event.departments]
+        if program_ids:
+            participant_query = participant_query.filter(StudentProfile.program_id.in_(program_ids))
+        if department_ids:
+            participant_query = participant_query.filter(StudentProfile.department_id.in_(department_ids))
+        return participant_query.subquery()
+
+    target_filters = []
+    for target in targets:
+        if target.scope_type == EventTargetScope.ALL:
+            return participant_query.subquery()
+
+        if target.scope_type == EventTargetScope.YEAR_LEVEL:
+            target_filters.append(StudentProfile.year_level == target.year_level)
+        elif target.scope_type == EventTargetScope.DEPARTMENT:
+            target_filters.append(StudentProfile.department_id == target.department_id)
+        elif target.scope_type == EventTargetScope.COURSE:
+            target_filters.append(StudentProfile.program_id == target.course_id)
+        elif target.scope_type == EventTargetScope.DEPARTMENT_YEAR:
+            target_filters.append(
+                (StudentProfile.department_id == target.department_id) &
+                (StudentProfile.year_level == target.year_level)
+            )
+        elif target.scope_type == EventTargetScope.COURSE_YEAR:
+            target_filters.append(
+                (StudentProfile.program_id == target.course_id) &
+                (StudentProfile.year_level == target.year_level)
+            )
+
+    if target_filters:
+        participant_query = participant_query.filter(or_(*target_filters))
+
     return participant_query.subquery()
 
 
@@ -154,6 +197,9 @@ def list_event_attendance_with_students(
     event_id: int,
     school_id: int,
     active_only: bool | None = None,
+    year_level: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
     skip: int | None = None,
     limit: int | None = None,
 ) -> list[tuple[AttendanceModel, str, str, str]]:
@@ -176,10 +222,51 @@ def list_event_attendance_with_students(
     if active_only is True:
         query = query.filter(AttendanceModel.time_out.is_(None))
 
+    if year_level is not None:
+        query = query.filter(StudentProfile.year_level == year_level)
+    if department_id is not None:
+        query = query.filter(StudentProfile.department_id == department_id)
+    if program_id is not None:
+        query = query.filter(StudentProfile.program_id == program_id)
+
     query = query.order_by(AttendanceModel.time_in.desc())
     if skip is not None:
         query = query.offset(skip)
     if limit is not None:
         query = query.limit(limit)
     return query.all()
+
+
+def list_event_attendance_rows_for_event_report(
+    db: Session,
+    *,
+    event_id: int,
+    year_level: int | None = None,
+    department_id: int | None = None,
+    program_id: int | None = None,
+) -> list[tuple[AttendanceModel, int | None]]:
+    query = (
+        db.query(
+            AttendanceModel,
+            StudentProfile.program_id,
+        )
+        .join(StudentProfile, AttendanceModel.student_id == StudentProfile.id)
+        .filter(AttendanceModel.event_id == event_id)
+    )
+
+    if year_level is not None:
+        query = query.filter(StudentProfile.year_level == year_level)
+    if department_id is not None:
+        query = query.filter(StudentProfile.department_id == department_id)
+    if program_id is not None:
+        query = query.filter(StudentProfile.program_id == program_id)
+
+    return (
+        query.order_by(
+            AttendanceModel.student_id.asc(),
+            AttendanceModel.time_in.desc(),
+            AttendanceModel.id.desc(),
+        )
+        .all()
+    )
 
