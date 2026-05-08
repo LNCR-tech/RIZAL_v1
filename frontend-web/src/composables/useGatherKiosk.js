@@ -445,9 +445,15 @@ export function useGatherKiosk(previewSource = false) {
 
     if (!cameraOn.value) {
       await startCamera()
-    } else {
-      syncStatusMessage()
     }
+
+    if (isAutomaticMode.value && selectedEvent.value && location.value) {
+      stopScanLoop()
+      void runAutomaticScanCycle()
+      return
+    }
+
+    syncStatusMessage()
   }
 
   function getActiveVideoTrack() {
@@ -935,7 +941,7 @@ export function useGatherKiosk(previewSource = false) {
     if (!isAutomaticMode.value) return
 
     if (result?.ok) {
-      scheduleNextScan(Math.max(900, Math.round(scanCooldownSeconds.value * 250)))
+      scheduleNextScan(Math.max(700, Math.round(scanCooldownSeconds.value * 200)))
       return
     }
 

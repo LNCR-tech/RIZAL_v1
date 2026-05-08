@@ -150,6 +150,7 @@ class Settings:
     public_attendance_enabled: bool
     public_attendance_max_faces_per_frame: int
     public_attendance_scan_cooldown_seconds: int
+    public_attendance_request_min_interval_seconds: float
     public_attendance_event_lookahead_hours: int
     tenant_database_prefix: str
 
@@ -298,6 +299,7 @@ def get_settings() -> Settings:
         public_attendance_enabled=APP_SETTINGS.public_attendance_enabled,
         public_attendance_max_faces_per_frame=APP_SETTINGS.public_attendance_max_faces_per_frame,
         public_attendance_scan_cooldown_seconds=APP_SETTINGS.public_attendance_scan_cooldown_seconds,
+        public_attendance_request_min_interval_seconds=APP_SETTINGS.public_attendance_request_min_interval_seconds,
         public_attendance_event_lookahead_hours=APP_SETTINGS.public_attendance_event_lookahead_hours,
         tenant_database_prefix=APP_SETTINGS.tenant_database_prefix,
         import_max_file_size_mb=APP_SETTINGS.import_max_file_size_mb,

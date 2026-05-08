@@ -44,7 +44,6 @@ from app.services.event_workflow_status import sync_event_workflow_status
 router = APIRouter(prefix="/public-attendance", tags=["public-attendance"])
 face_service = FaceRecognitionService()
 settings = get_settings()
-PUBLIC_SCAN_REQUEST_MIN_INTERVAL_SECONDS = 0.75
 # Keep a tiny in-memory throttle so one kiosk/browser cannot hammer the same
 # event scan endpoint multiple times per second inside a single app process.
 _PUBLIC_SCAN_REQUEST_TIMESTAMPS: dict[str, float] = {}
@@ -138,12 +137,13 @@ def _enforce_public_scan_throttle(request: Request, event_id: int) -> None:
     now = time.monotonic()
     key = _request_throttle_key(request, event_id)
     last_timestamp = _PUBLIC_SCAN_REQUEST_TIMESTAMPS.get(key)
+    min_interval_seconds = max(0.0, float(settings.public_attendance_request_min_interval_seconds or 0.0))
     if (
         last_timestamp is not None
-        and PUBLIC_SCAN_REQUEST_MIN_INTERVAL_SECONDS > 0
-        and now - last_timestamp < PUBLIC_SCAN_REQUEST_MIN_INTERVAL_SECONDS
+        and min_interval_seconds > 0
+        and now - last_timestamp < min_interval_seconds
     ):
-        retry_after = max(0.0, PUBLIC_SCAN_REQUEST_MIN_INTERVAL_SECONDS - (now - last_timestamp))
+        retry_after = max(0.0, min_interval_seconds - (now - last_timestamp))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={

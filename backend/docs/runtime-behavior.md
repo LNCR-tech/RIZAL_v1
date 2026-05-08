@@ -58,6 +58,15 @@ Relevant configuration:
 - `API_DOCS_ENABLED`
 - `TRUSTED_HOSTS`
 
+Current non-secret defaults in `backend/app/core/app_settings.py`:
+
+- face-protected routes allow `80` requests per `60` seconds per actor
+- public attendance allows `120` requests per `60` seconds per client IP
+- public attendance enforces a same-client per-event minimum interval of `0.45` seconds
+- public attendance cooldown after a recognized student scan is `3` seconds
+- privileged/security liveness threshold is `0.75`
+- public attendance liveness threshold is `0.82`
+
 How to test:
 
 1. Set `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_LOGIN_COUNT=1`, and `RATE_LIMIT_LOGIN_WINDOW_SECONDS=60`.
@@ -65,6 +74,14 @@ How to test:
 3. Confirm the first response is the normal auth failure and the second response is `429` with `detail.code=rate_limit_exceeded` and a `Retry-After` header.
 4. Upload a `text/plain` file to `POST /api/face/register-upload` while authenticated as a student and confirm `415`.
 5. Send a request with `Content-Length` above `MAX_REQUEST_BODY_SIZE_MB` and confirm `413`.
+
+Face and public-attendance tuning checks:
+
+1. Open Gather/public attendance and start one event.
+2. Confirm the first scan is submitted immediately after the camera becomes live, without waiting for a visible idle delay.
+3. Present the same student twice in quick succession and confirm the second response reports the shorter cooldown window.
+4. Submit repeated public attendance scans faster than the configured throttle and confirm the API still returns `429` with `detail.code=public_scan_throttled`.
+5. Retry normal scans at roughly `1` second intervals and confirm they no longer trip the route limiter during regular kiosk usage.
 
 ## Email Startup Validation
 

@@ -27,8 +27,8 @@ class BackendAppSettings:
     face_warmup_on_startup: bool = True
     face_embedding_dim: int = 512
     face_embedding_dtype: str = "float32"
-    liveness_threshold: float = 0.85
-    public_attendance_liveness_threshold: float = 0.92
+    liveness_threshold: float = 0.75
+    public_attendance_liveness_threshold: float = 0.82
     allow_liveness_bypass_when_model_missing: bool = False
     anti_spoof_scale: float = 2.7
     anti_spoof_model_path: str = ""
@@ -39,7 +39,8 @@ class BackendAppSettings:
     event_status_sync_interval_seconds: int = 60
     public_attendance_enabled: bool = True
     public_attendance_max_faces_per_frame: int = 10
-    public_attendance_scan_cooldown_seconds: int = 8
+    public_attendance_scan_cooldown_seconds: int = 3
+    public_attendance_request_min_interval_seconds: float = 0.45
     public_attendance_event_lookahead_hours: int = 12
     tenant_database_prefix: str = "school"
 
@@ -58,9 +59,9 @@ class BackendAppSettings:
     rate_limit_forgot_password_window_seconds: int = 300
     rate_limit_authenticated_mutation_count: int = 120
     rate_limit_authenticated_mutation_window_seconds: int = 60
-    rate_limit_face_count: int = 20
+    rate_limit_face_count: int = 80
     rate_limit_face_window_seconds: int = 60
-    rate_limit_public_count: int = 30
+    rate_limit_public_count: int = 120
     rate_limit_public_window_seconds: int = 60
     max_request_body_size_mb: int = 8
     face_image_max_size_mb: int = 5

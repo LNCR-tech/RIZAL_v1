@@ -624,7 +624,8 @@ async function activateEvent(event) {
     scanArmed.value = true
     scanStatus.value = 'Ambient scanning is live. Keep faces visible inside the frame.'
     scanStatusTone.value = 'info'
-    scheduleNextScan(220, sessionId)
+    stopScanLoop()
+    void runScanCycle(sessionId)
   } catch (error) {
     if (sessionId !== activeScanSessionId) return
 
@@ -868,7 +869,7 @@ async function runScanCycle(sessionId = activeScanSessionId) {
       }))
     )
 
-    scheduleNextScan(1100, sessionId)
+    scheduleNextScan(800, sessionId)
   } catch (error) {
     if (sessionId !== activeScanSessionId) return
 
