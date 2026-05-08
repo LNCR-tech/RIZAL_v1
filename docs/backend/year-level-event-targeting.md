@@ -25,9 +25,10 @@ A new dedicated table for flexible event targeting:
 ## API Changes
 
 ### Event CRUD (`/v1/events`)
-- `EventCreate` and `EventUpdate` schemas now accept a `targets` list.
-- If `targets` is provided, the system enforces the new targeting logic during attendance.
-- Legacy `department_ids` and `program_ids` are still supported for backward compatibility.
+- `EventCreate` and `EventUpdate` schemas now accept an `event_targets` list.
+- If `event_targets` is provided, the system enforces the new targeting logic during attendance.
+- **Backward Compatibility:** Legacy `department_ids` and `program_ids` are still supported. If `event_targets` is missing but legacy IDs are provided, the system automatically generates corresponding `event_targets`.
+- **Default Behavior:** If no targeting info is provided at all, the event defaults to an `ALL` scope.
 
 ### Student Import (`/v1/admin-import/students`)
 - Supports `Year Level` and `Status` columns.
@@ -36,7 +37,7 @@ A new dedicated table for flexible event targeting:
 
 ## Attendance Validation
 The `_ensure_student_is_event_participant` helper now:
-1. Checks `event.targets`.
+1. Checks `event.event_targets`.
 2. If targets exist, it verifies if the student matches at least one target (OR logic).
 3. If no targets exist, it falls back to checking the legacy department/program associations.
 

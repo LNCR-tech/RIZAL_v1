@@ -7,28 +7,26 @@
 - [x] **Update API Schemas** to include new fields.
 - [x] **Update Student Management Routers** to handle persistence and validation.
 - [x] **Update Serialization Helpers** to ensure API responses include new metadata.
-- [x] **Stabilize Test Suite** by disabling email delivery and fixing volume permissions in test environment.
 
-## Phase 2: Student Bulk Import Update (IN-PROGRESS)
+## Phase 2: Student Bulk Import Update (COMPLETED)
 - [x] **Add `Year Level` and `Status` columns** to import template.
 - [x] **Implement row-level validation** for year level (1-5) and status (ACTIVE, etc.).
 - [x] **Maintain backward compatibility** for legacy 7-column templates.
 - [x] **Update Frontend Preview** to display new fields and validation tags.
 
-## Phase 3: Event Targeting Implementation (NEXT)
-2. **Backend Schemas:**
-   - Update `EventCreate` and `EventUpdate` in `app/schemas/event.py` to accept `year_levels: Optional[List[int]] = None`.
-   - Update `Event` schema to include `year_levels` (or `target_year_levels`).
-3. **Backend CRUD:**
-   - Update `app/routers/events/crud.py` to handle inserting and updating `event_year_levels` when an event is created or edited.
-4. **Attendance Validation Logic:**
-   - Update `_ensure_student_is_event_participant` in `app/routers/attendance/shared.py`. If the event has specific `year_levels` configured, assert that `student.year_level` is in that list. If empty, assume all year levels are allowed.
-5. **Database Migration:**
-   - Generate an Alembic migration for `event_year_levels`.
+## Phase 3: Event Targeting Infrastructure (COMPLETED)
+- [x] **Database Migration:** Created `event_targets` table with scope-based targeting.
+- [x] **Backend Models:** Implemented `EventTarget` and `EventTargetScope`.
 
-## Phase 3: Frontend Integration
-1. **Frontend Updates:**
-   - Update the API client schemas and state stores.
-   - Add a UI control in the Event Creation and Edit forms to select targeted Year Levels (1-5).
-2. **Testing & Validation:**
-   - Verify that students from non-targeted year levels are rejected during check-in.
+## Phase 4: Event Targeting API Integration (COMPLETED)
+- [x] **Backend Schemas:** Updated `EventCreate`, `EventUpdate`, and `Event` response to use `event_targets`.
+- [x] **Backend CRUD:** Implemented transaction-safe create/update with backward compatibility for legacy IDs.
+- [x] **Attendance Validation:** Updated participant check to enforce targeting rules (Year Level, Department, Course).
+- [x] **Documentation:** Updated backend implementation guide.
+
+## Phase 5: Frontend Integration (NEXT)
+- [ ] **Frontend Updates:**
+    - Update the API client schemas and state stores.
+    - Add a UI control in the Event Creation and Edit forms to select targeted Year Levels (1-5).
+- [ ] **Testing & Validation:**
+    - Verify that students from non-targeted year levels are rejected during check-in.

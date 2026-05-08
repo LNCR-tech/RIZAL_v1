@@ -163,40 +163,55 @@ def create_event(
         db.add(db_event)
         db.flush()
 
-        # Handle Event Targets (Phase 3)
-        if event.targets:
-            for target_data in event.targets:
-                # Validation of department/program existence within the same school
-                if target_data.department_id:
-                    dept_exists = db.query(DepartmentModel).filter(
-                        DepartmentModel.id == target_data.department_id,
-                        DepartmentModel.school_id == school_id
-                    ).first()
-                    if not dept_exists:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Department ID {target_data.department_id} not found in this school."
-                        )
-                if target_data.course_id:
-                    prog_exists = db.query(ProgramModel).filter(
-                        ProgramModel.id == target_data.course_id,
-                        ProgramModel.school_id == school_id
-                    ).first()
-                    if not prog_exists:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Program ID {target_data.course_id} not found in this school."
-                        )
+        # Handle Event Targets (Phase 4)
+        targets_to_create = []
+        if event.event_targets:
+            targets_to_create = event.event_targets
+        elif event.department_ids or event.program_ids:
+            # Backward compatibility: migrate legacy ids to targets
+            for dept_id in event.department_ids:
+                targets_to_create.append(EventTargetCreate(scope_type=EventTargetScope.DEPARTMENT, department_id=dept_id))
+            for prog_id in event.program_ids:
+                targets_to_create.append(EventTargetCreate(scope_type=EventTargetScope.COURSE, course_id=prog_id))
+        else:
+            # Default to ALL if nothing specified (preserves old behavior)
+            targets_to_create.append(EventTargetCreate(scope_type=EventTargetScope.ALL))
 
-                db_target = EventTargetModel(
-                    event_id=db_event.id,
-                    school_id=school_id,
-                    scope_type=target_data.scope_type,
-                    year_level=target_data.year_level,
-                    department_id=target_data.department_id,
-                    course_id=target_data.course_id
-                )
-                db.add(db_target)
+        if not targets_to_create:
+            raise HTTPException(status_code=400, detail="Event must have at least one target audience.")
+
+        for target_data in targets_to_create:
+            # Validation of department/program existence within the same school
+            if target_data.department_id:
+                dept_exists = db.query(DepartmentModel).filter(
+                    DepartmentModel.id == target_data.department_id,
+                    DepartmentModel.school_id == school_id
+                ).first()
+                if not dept_exists:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Department ID {target_data.department_id} not found in this school."
+                    )
+            if target_data.course_id:
+                prog_exists = db.query(ProgramModel).filter(
+                    ProgramModel.id == target_data.course_id,
+                    ProgramModel.school_id == school_id
+                ).first()
+                if not prog_exists:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Program ID {target_data.course_id} not found in this school."
+                    )
+
+            db_target = EventTargetModel(
+                event_id=db_event.id,
+                school_id=school_id,
+                scope_type=target_data.scope_type,
+                year_level=target_data.year_level,
+                department_id=target_data.department_id,
+                course_id=target_data.course_id
+            )
+            db.add(db_target)
 
         target_department_ids = list(event.department_ids or [])
         target_program_ids = list(event.program_ids or [])
@@ -445,12 +460,33 @@ def update_event(
                 raise HTTPException(status_code=404, detail=f"Programs not found: {missing}")
             db_event.programs = programs
 
-        # Handle Event Targets update (Phase 3)
-        if event_update.targets is not None:
-            # Remove existing targets and replace them (cascade delete-orphan would also work if using collection)
-            db.query(EventTargetModel).filter(EventTargetModel.event_id == db_event.id).delete()
+        # Handle Event Targets update (Phase 4)
+        explicit_targets = event_update.event_targets
 
-            for target_data in event_update.targets:
+        # If legacy fields are explicitly updated but event_targets is not, migrate them
+        if explicit_targets is None and (event_update.department_ids is not None or event_update.program_ids is not None):
+            explicit_targets = []
+            # Use provided lists or existing associations
+            dept_ids = event_update.department_ids if event_update.department_ids is not None else [d.id for d in db_event.departments]
+            prog_ids = event_update.program_ids if event_update.program_ids is not None else [p.id for p in db_event.programs]
+
+            for dept_id in dept_ids:
+                explicit_targets.append(EventTargetCreate(scope_type=EventTargetScope.DEPARTMENT, department_id=dept_id))
+            for prog_id in prog_ids:
+                explicit_targets.append(EventTargetCreate(scope_type=EventTargetScope.COURSE, course_id=prog_id))
+
+            if not explicit_targets:
+                explicit_targets.append(EventTargetCreate(scope_type=EventTargetScope.ALL))
+
+        if explicit_targets is not None:
+            if not explicit_targets:
+                raise HTTPException(status_code=400, detail="Event must have at least one target audience.")
+
+            # Remove existing targets and replace them
+            db.query(EventTargetModel).filter(EventTargetModel.event_id == db_event.id).delete()
+            db.flush()
+
+            for target_data in explicit_targets:
                 # Validation
                 if target_data.department_id:
                     if not db.query(DepartmentModel).filter(

@@ -183,10 +183,10 @@ def _ensure_student_in_attendance_scope(student: StudentProfile, governance_unit
 
 def _ensure_student_is_event_participant(student: StudentProfile, event: Event) -> None:
     """Confirm the selected student actually belongs to the event's allowed audience."""
-    # Phase 3: Check dedicated targets if they exist
-    if getattr(event, "targets", []):
+    # Phase 4: Check dedicated targets if they exist
+    if getattr(event, "event_targets", []):
         matched = False
-        for target in event.targets:
+        for target in event.event_targets:
             scope = target.scope_type
             if scope == EventTargetScope.ALL:
                 matched = True
@@ -247,7 +247,7 @@ def _get_event_in_school_or_404(db: Session, event_id: int, school_id: int) -> E
     event = (
         db.query(Event)
         .options(
-            joinedload(Event.targets),
+            joinedload(Event.event_targets),
             joinedload(Event.departments),
             joinedload(Event.programs),
         )

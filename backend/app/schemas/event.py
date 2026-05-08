@@ -224,7 +224,7 @@ class EventBase(BaseModel):
 class EventCreate(EventBase):
     department_ids: List[int] = Field(default_factory=list)
     program_ids: List[int] = Field(default_factory=list)
-    targets: List[EventTargetCreate] = Field(default_factory=list)
+    event_targets: List[EventTargetCreate] = Field(default_factory=list)
 
     @field_validator("start_datetime", "end_datetime", mode="after")
     @classmethod
@@ -254,7 +254,7 @@ class EventUpdate(BaseModel):
     status: Optional[EventStatus] = None
     department_ids: Optional[List[int]] = None
     program_ids: Optional[List[int]] = None
-    targets: Optional[List[EventTargetCreate]] = None
+    event_targets: Optional[List[EventTargetCreate]] = None
 
     @field_validator("start_datetime", "end_datetime", mode="after")
     @classmethod
@@ -285,7 +285,7 @@ class Event(EventBase):
     sign_out_override_until: Optional[datetime] = None
     departments: List[Department] = Field(default_factory=list)
     programs: List[Program] = Field(default_factory=list)
-    targets: List[EventTarget] = Field(default_factory=list)
+    event_targets: List[EventTarget] = Field(default_factory=list)
     event_type: Optional[EventTypeSummary] = None
     
     # Computed fields for IDs

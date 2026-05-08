@@ -103,7 +103,7 @@ class Event(Base):
     departments = relationship("Department", secondary=event_departments, back_populates="events")
     programs = relationship("Program", secondary=event_programs, back_populates="events")
     attendance_records = relationship("AttendanceRecord", back_populates="event", cascade="all, delete-orphan")
-    targets = relationship("EventTarget", back_populates="event", cascade="all, delete-orphan")
+    event_targets = relationship("EventTarget", back_populates="event", cascade="all, delete-orphan")
 
     # Compatibility aliases for old field names.
     start_datetime = synonym("start_at")

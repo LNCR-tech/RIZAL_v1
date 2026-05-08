@@ -14,7 +14,7 @@ from app.core.event_defaults import resolve_governance_event_default_values
 from app.core.security import get_current_user, get_school_id_or_403, has_any_role
 from app.models.attendance import Attendance as AttendanceModel
 from app.models.department import Department as DepartmentModel
-from app.models.event import Event as EventModel, EventStatus as ModelEventStatus, EventTarget as EventTargetModel
+from app.models.event import Event as EventModel, EventStatus as ModelEventStatus, EventTarget as EventTargetModel, EventTargetScope
 from app.models.event_type import EventType as EventTypeModel
 from app.models.governance_hierarchy import GovernanceUnit, GovernanceUnitType, PermissionCode
 from app.models.program import Program as ProgramModel
@@ -27,6 +27,8 @@ from app.schemas.event import (
     EventLocationVerificationResponse,
     EventStatus,
     EventStatusUpdateRequest,
+    EventTargetCreate,
+    EventTargetScope as EventTargetScopeSchema,
     EventTimeStatusInfo,
     EventUpdate,
     EventWithRelations,
