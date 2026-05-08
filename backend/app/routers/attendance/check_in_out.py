@@ -65,19 +65,30 @@ def record_face_scan_attendance(
     _ensure_attendance_operator_access(db, current_user)
     school_id = get_school_id_or_403(current_user)
     event = _get_event_in_school_or_404(db, data.event_id, school_id)
+    student_profile_id = getattr(data, "student_profile_id", None)
+    student_identifier = getattr(data, "student_id", None)
 
     student_query = db.query(StudentProfile).join(
         User, StudentProfile.user_id == User.id
     ).filter(User.school_id == school_id)
-    if data.student_profile_id is not None:
-        student_query = student_query.filter(StudentProfile.id == data.student_profile_id)
+
+    if student_profile_id is not None:
+        student_query = student_query.filter(StudentProfile.id == student_profile_id)
+    elif student_identifier is not None:
+        student_query = student_query.filter(StudentProfile.student_number == student_identifier)
     else:
-        student_query = student_query.filter(StudentProfile.student_id == data.student_id)
+        raise HTTPException(
+            status_code=400,
+            detail="student_id or student_profile_id is required",
+        )
+
     student = student_query.first()
 
     if not student:
-        identifier = data.student_id if data.student_id is not None else data.student_profile_id
+        identifier = student_identifier if student_identifier is not None else student_profile_id
         raise HTTPException(404, f"Student {identifier} not found")
+
+    response_student_id = student_identifier or student.student_number
 
     _ensure_student_is_event_participant_with_audit(
         db,
@@ -105,9 +116,9 @@ def record_face_scan_attendance(
         db.commit()
         db.refresh(active_attendance)
         return {
-            "message": f"Time out recorded successfully for {data.student_id}",
+            "message": f"Time out recorded successfully for {response_student_id}",
             "attendance_id": active_attendance.id,
-            "student_id": data.student_id,
+            "student_id": response_student_id,
             "time_in": _as_utc_datetime(active_attendance.time_in),
             "time_out": _as_utc_datetime(active_attendance.time_out),
             "duration_minutes": duration_minutes,
@@ -127,7 +138,7 @@ def record_face_scan_attendance(
         .first()
     )
     if existing and existing.time_out is not None:
-        raise HTTPException(400, f"Attendance already exists for student {data.student_id}")
+        raise HTTPException(400, f"Attendance already exists for student {response_student_id}")
 
     scanned_at = utc_now()
     status_value = attendance_decision["attendance_status"] or "absent"
@@ -150,7 +161,7 @@ def record_face_scan_attendance(
     return {
         "message": "Attendance recorded successfully",
         "attendance_id": attendance.id,
-        "student_id": data.student_id,
+        "student_id": response_student_id,
         "time_in": _as_utc_datetime(attendance.time_in),
     }
 

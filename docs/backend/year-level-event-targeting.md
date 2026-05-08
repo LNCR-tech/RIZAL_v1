@@ -40,6 +40,7 @@ The `_ensure_student_is_event_participant` helper now:
 1. Checks `event.event_targets`.
 2. If targets exist, it verifies if the student matches at least one target (OR logic).
 3. If no targets exist, it falls back to checking the legacy department/program associations.
+- The face-scan attendance route keeps backward-compatible student lookup: it accepts the existing `student_id`/student number flow and can also resolve an optional `student_profile_id` when that attribute is present on the request object. Rejected out-of-scope scans still return HTTP 403 and do not create attendance rows.
 
 ## Notification and Reporting Behavior
 - `dispatch_event_announcement_notifications` resolves recipients from the same event-target eligibility rules used by attendance.
