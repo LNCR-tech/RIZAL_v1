@@ -1,5 +1,22 @@
 # Changes
 
+## 2026-05-08 (Phase 7: Attendance Enforcement)
+4: 
+5: ### Backend Changes
+6: - **Attendance Routers:** Hardened `record_face_scan_attendance` in `app/routers/attendance/check_in_out.py` to enforce event eligibility using the centralized service.
+7: - **Status Codes:** Updated `_ensure_student_is_event_participant` in `app/routers/attendance/shared.py` to return HTTP 403 (Forbidden) instead of 400, specifically for student targeting violations.
+8: - **Standardized Messaging:** Standardized the rejection message to "Student is not included in this event scope." in `EventEligibilityService`.
+9: 
+10: ### Frontend Changes
+11: - **Public Attendance Service:** Updated `describePublicAttendanceError` and `normalizeOutcome` in `src/services/publicAttendance.js` to translate the backend error code into user-friendly messages:
+12:     - Top-level: "You are not included in this event."
+13:     - Scan outcomes: "Not included in this event."
+14: 
+15: ### Documentation
+16: - Updated `docs/year-level-events-plan.md` to reflect Phase 7 completion.
+17: - Updated `docs/attendance-eligibility.md` to reflect the 403 status code change.
+18: 
+
 ## 2026-05-08 (Phase 6: Student Dashboard Filtering)
 
 ### Backend Changes

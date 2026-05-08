@@ -79,6 +79,8 @@ def record_face_scan_attendance(
         identifier = data.student_id if data.student_id is not None else data.student_profile_id
         raise HTTPException(404, f"Student {identifier} not found")
 
+    _ensure_student_is_event_participant(student, event)
+
     active_attendance = _active_attendance_for_student_event(
         db,
         student_profile_id=student.id,

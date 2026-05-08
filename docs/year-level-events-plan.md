@@ -35,9 +35,14 @@
 - [x] **Dashboard Enforcement:** Integrated the eligibility checker into the Student Dashboard event list.
 - [x] **Frontend Polish:** Added "No upcoming events assigned to you" message in `EventsCard.vue`.
 
-## Phase 7: Frontend Form Integration (NEXT)
+## Phase 7: Attendance Enforcement (COMPLETED)
+- [x] **Backend Hardening:** Integrated `EventEligibilityService` into Face Scan, Manual Attendance, and Bulk Import routers.
+- [x] **Strict Rejection:** Enforced HTTP 403 responses with code `STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE`.
+- [x] **Frontend Polish:** Updated scanner and kiosk UI to display user-friendly "Not included in this event" messages.
+
+## Phase 8: Event Creation UI Controls (NEXT)
 - [ ] **Frontend Updates:**
-    - Update the API client schemas and state stores.
-    - Add a UI control in the Event Creation and Edit forms to select targeted Year Levels (1-5).
+    - Add UI controls to the Event Creation/Edit forms to select targeted Year Levels, Departments, and Courses.
+    - Implement validation to ensure at least one target is selected (or default to ALL).
 - [ ] **Testing & Validation:**
-    - Verify that students from non-targeted year levels are rejected during check-in.
+    - Verify the end-to-end flow from event creation with specific targets to student rejection at the scanner.

@@ -187,7 +187,7 @@ def _ensure_student_is_event_participant(student: StudentProfile, event: Event) 
     eligible, code, message = is_student_eligible_for_event(student, event)
     if not eligible:
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail={
                 "code": code,
                 "message": message

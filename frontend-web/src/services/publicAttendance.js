@@ -116,7 +116,12 @@ function normalizeOutcome(payload = {}) {
         ...payload,
         action: toOptionalString(payload.action, 'rejected'),
         reason_code: toOptionalString(payload.reason_code, null),
-        message: toOptionalString(payload.message, 'Public attendance scan finished.'),
+        message: toOptionalString(
+            payload.message, 
+            payload.reason_code === 'STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE' 
+                ? 'Not included in this event.' 
+                : 'Public attendance scan finished.'
+        ),
         student_id: toOptionalString(payload.student_id, null),
         student_name: toOptionalString(payload.student_name, null),
         attendance_id: toOptionalNumber(payload.attendance_id, null),
@@ -322,6 +327,11 @@ export function describePublicAttendanceError(error) {
         }
 
         if (detail && typeof detail === 'object') {
+            const code = toOptionalString(detail.code, '')
+            if (code === 'STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE') {
+                return 'You are not included in this event.'
+            }
+
             const message = toOptionalString(detail.message, '')
             if (message) return message
 

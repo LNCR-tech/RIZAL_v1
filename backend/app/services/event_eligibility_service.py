@@ -66,7 +66,7 @@ def is_student_eligible_for_event(
             return (
                 False, 
                 "STUDENT_NOT_INCLUDED_IN_EVENT_SCOPE", 
-                "Student is not in the targeted audience for this event."
+                "Student is not included in this event scope."
             )
         
         return True, None, None
