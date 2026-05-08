@@ -243,6 +243,7 @@
           </section>
 
           <section class="event-editor__section event-editor__section--location">
+            <header class="event-editor__section-header event-editor__section-header--split">
               <div>
                 <div class="event-editor__section-title">
                   <ShieldCheck :size="17" aria-hidden="true" />
