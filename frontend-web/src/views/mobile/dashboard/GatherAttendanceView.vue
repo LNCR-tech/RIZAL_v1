@@ -1,5 +1,14 @@
 <template>
   <section class="gather-kiosk">
+    <AttendancePermissionGate
+      v-if="permissionState !== 'permissions_granted'"
+      :permission-state="permissionState"
+      :error-message="errorMessage"
+      :is-requesting="isRequesting"
+      @request="requestPermissions"
+      @retry="retryPermissions"
+    />
+
     <header class="gather-kiosk__header">
       <button
         type="button"
@@ -484,7 +493,10 @@ import {
 } from 'lucide-vue-next'
 import GatherScanDiscoveryArt from '@/components/gather/GatherScanDiscoveryArt.vue'
 import GatherBrandMark from '@/components/mobile/navigation/GatherBrandMark.vue'
+import AttendancePermissionGate from '@/components/attendance/AttendancePermissionGate.vue'
 import { useGatherKiosk } from '@/composables/useGatherKiosk.js'
+import { useAttendancePermissions } from '@/composables/useAttendancePermissions.js'
+import { onMounted } from 'vue'
 
 const props = defineProps({
   preview: {
@@ -542,6 +554,19 @@ const {
   canvasEl,
   nearbyEvents,
 } = useGatherKiosk(() => props.preview)
+
+const {
+  permissionState,
+  errorMessage,
+  isRequesting,
+  checkExistingPermissions,
+  requestPermissions,
+  retryPermissions,
+} = useAttendancePermissions()
+
+onMounted(() => {
+  checkExistingPermissions()
+})
 
 const discoveryTitle = computed(() => {
   if (isDiscoveringNearbyEvents.value) {

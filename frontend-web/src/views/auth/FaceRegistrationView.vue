@@ -1,5 +1,15 @@
 <template>
   <div class="face-gate-page">
+    <AttendancePermissionGate
+      v-if="permissionState !== 'permissions_granted'"
+      :permission-state="permissionState"
+      :error-message="permissionError"
+      :is-requesting="isPermissionRequesting"
+      :camera-only="true"
+      @request="requestPermissions"
+      @retry="retryPermissions"
+    />
+
     <div v-if="step === 'intro'" class="face-gate-shell face-gate-shell--intro">
       <section class="intro-card">
         <span class="intro-chip">{{ schoolName }}</span>
@@ -65,6 +75,8 @@ import { registerStudentFace } from '@/services/backendApi.js'
 import { initFaceScanDetector, resetFaceScanDetector } from '@/composables/useFaceScanDetector.js'
 import { getStoredAuthMeta, patchStoredAuthMeta } from '@/services/localAuth.js'
 import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
+import AttendancePermissionGate from '@/components/attendance/AttendancePermissionGate.vue'
+import { useAttendancePermissions } from '@/composables/useAttendancePermissions.js'
 
 const router = useRouter()
 const { logout } = useAuth()
@@ -180,6 +192,15 @@ const setVideoEl = (el) => {
   videoEl.value = el
 }
 
+const {
+  permissionState,
+  errorMessage: permissionError,
+  isRequesting: isPermissionRequesting,
+  checkExistingPermissions,
+  requestPermissions,
+  retryPermissions,
+} = useAttendancePermissions({ cameraOnly: true })
+
 function applyRegistrationTheme() {
   const authMeta = getStoredAuthMeta()
   const fallbackSettings = {
@@ -222,7 +243,9 @@ onMounted(() => {
   applyRegistrationTheme()
   if (!needsFaceRegistration.value) {
     router.replace({ name: 'Home' })
+    return
   }
+  checkExistingPermissions()
 })
 
 onBeforeUnmount(() => {

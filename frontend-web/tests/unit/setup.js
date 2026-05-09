@@ -1,11 +1,2 @@
-import { beforeEach, afterEach } from "vitest";
-
-beforeEach(() => {
-  window.localStorage.clear();
-  window.sessionStorage.clear();
-});
-
-afterEach(() => {
-  window.localStorage.clear();
-  window.sessionStorage.clear();
-});
+// Global test setup — runs in the jsdom environment before each test file.
+// Do NOT import from 'vitest' here; setupFiles runs before the runner is ready.

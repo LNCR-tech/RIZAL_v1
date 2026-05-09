@@ -1,5 +1,14 @@
 <template>
   <section class="mobile-student-attendance">
+    <AttendancePermissionGate
+      v-if="permissionState !== 'permissions_granted'"
+      :permission-state="permissionState"
+      :error-message="errorMessage"
+      :is-requesting="isRequesting"
+      @request="requestPermissions"
+      @retry="retryPermissions"
+    />
+
     <template v-if="event || isInitializing">
       <!-- Camera fills the ENTIRE viewport as a background layer -->
       <MobileAttendanceScannerStage
@@ -166,7 +175,10 @@ import {
   ShieldX,
 } from 'lucide-vue-next'
 import MobileAttendanceScannerStage from '@/components/mobile/attendance/MobileAttendanceScannerStage.vue'
+import AttendancePermissionGate from '@/components/attendance/AttendancePermissionGate.vue'
 import { useMobileStudentAttendance } from '@/composables/useMobileStudentAttendance.js'
+import { useAttendancePermissions } from '@/composables/useAttendancePermissions.js'
+import { onMounted } from 'vue'
 
 const props = defineProps({
   preview: {
@@ -197,6 +209,19 @@ const {
   successFeedback,
   submitButtonLabel,
 } = useMobileStudentAttendance(() => props.preview)
+
+const {
+  permissionState,
+  errorMessage,
+  isRequesting,
+  checkExistingPermissions,
+  requestPermissions,
+  retryPermissions,
+} = useAttendancePermissions()
+
+onMounted(() => {
+  checkExistingPermissions()
+})
 </script>
 
 <style scoped>

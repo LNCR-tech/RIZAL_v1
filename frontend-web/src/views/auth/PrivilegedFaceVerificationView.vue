@@ -1,5 +1,15 @@
 <template>
   <div class="face-gate-page">
+    <AttendancePermissionGate
+      v-if="permissionState !== 'permissions_granted'"
+      :permission-state="permissionState"
+      :error-message="permissionError"
+      :is-requesting="isPermissionRequesting"
+      :camera-only="true"
+      @request="requestPermissions"
+      @retry="retryPermissions"
+    />
+
     <div v-if="step === 'intro'" class="face-gate-shell face-gate-shell--intro">
       <section class="intro-card">
         <span class="intro-chip">{{ schoolName }}</span>
@@ -90,6 +100,8 @@ import {
 } from '@/services/localAuth.js'
 import { markCurrentRuntimeSession } from '@/services/sessionPersistence.js'
 import FaceScanPanel from '@/components/attendance/FaceScanPanel.vue'
+import AttendancePermissionGate from '@/components/attendance/AttendancePermissionGate.vue'
+import { useAttendancePermissions } from '@/composables/useAttendancePermissions.js'
 
 const router = useRouter()
 const { logout } = useAuth()
@@ -231,6 +243,15 @@ const setVideoEl = (el) => {
   videoEl.value = el
 }
 
+const {
+  permissionState,
+  errorMessage: permissionError,
+  isRequesting: isPermissionRequesting,
+  checkExistingPermissions,
+  requestPermissions,
+  retryPermissions,
+} = useAttendancePermissions({ cameraOnly: true })
+
 function refreshAuthMeta() {
   authMeta.value = getStoredAuthMeta()
 }
@@ -263,6 +284,7 @@ function describeAntiSpoofReason(reason) {
 
 onMounted(async () => {
   applyPrivilegedTheme()
+  checkExistingPermissions()
   await ensurePendingPrivilegedFace()
 })
 
