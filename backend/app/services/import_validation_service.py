@@ -12,7 +12,6 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from email_validator import EmailNotValidError, validate_email
 
 EXPECTED_HEADERS = [
-    "School_ID",
     "Student_ID",
     "Email",
     "Last Name",
@@ -22,16 +21,6 @@ EXPECTED_HEADERS = [
     "Course",
     "Year Level",
     "Status",
-]
-
-OLD_EXPECTED_HEADERS = [
-    "Student_ID",
-    "Email",
-    "Last Name",
-    "First Name",
-    "Middle Name",
-    "Department",
-    "Course",
 ]
 
 REQUIRED_HEADERS = [
@@ -73,29 +62,20 @@ def normalize_cell(value: object) -> str:
 
 def validate_headers(header_row: Iterable[object]) -> None:
     received = [normalize_header(cell) for cell in header_row]
-    
+
     # Some Excel files keep extra formatted-but-empty columns in the header row.
     while received and received[-1] == "":
         received.pop()
 
-    expected_new = [normalize_header(h) for h in EXPECTED_HEADERS]
-    expected_old = [normalize_header(h) for h in OLD_EXPECTED_HEADERS]
+    expected = [normalize_header(h) for h in EXPECTED_HEADERS]
 
     if not any(received):
         raise HeaderValidationError("Missing header row")
 
-    if received != expected_new and received != expected_old:
-        if len(received) == len(expected_old):
-             # Help user if they have the right count but wrong names
-             raise HeaderValidationError(
-                "Invalid header structure. Expected: "
-                + " | ".join(OLD_EXPECTED_HEADERS)
-            )
+    if received != expected:
         raise HeaderValidationError(
-            "Invalid header structure or order. Expected current format: "
+            "Invalid header structure or order. Expected format: "
             + " | ".join(EXPECTED_HEADERS)
-            + " OR legacy format: "
-            + " | ".join(OLD_EXPECTED_HEADERS)
         )
 
 
@@ -110,21 +90,14 @@ def validate_and_transform_row(
     context: ValidationContext,
 ) -> tuple[Optional[dict], List[str], dict]:
     normalized_values = [normalize_cell(value) for value in row_values]
-    
-    # Determine which header set to use based on column count
-    # Default to new headers if it looks like the new format
-    if len(normalized_values) >= len(EXPECTED_HEADERS) or (len(normalized_values) > len(OLD_EXPECTED_HEADERS)):
-        headers_to_use = EXPECTED_HEADERS
-    else:
-        headers_to_use = OLD_EXPECTED_HEADERS
 
     # Ensure expected column count for predictable validation.
-    if len(normalized_values) < len(headers_to_use):
-        normalized_values.extend([""] * (len(headers_to_use) - len(normalized_values)))
-    elif len(normalized_values) > len(headers_to_use):
-        normalized_values = normalized_values[: len(headers_to_use)]
+    if len(normalized_values) < len(EXPECTED_HEADERS):
+        normalized_values.extend([""] * (len(EXPECTED_HEADERS) - len(normalized_values)))
+    elif len(normalized_values) > len(EXPECTED_HEADERS):
+        normalized_values = normalized_values[: len(EXPECTED_HEADERS)]
 
-    row_data = dict(zip(headers_to_use, normalized_values))
+    row_data = dict(zip(EXPECTED_HEADERS, normalized_values))
     errors: List[str] = []
 
     if not any(normalized_values):
@@ -146,15 +119,6 @@ def validate_and_transform_row(
         context.seen_rows.add(fingerprint)
 
     school_id: Optional[int] = context.target_school_id
-    
-    # Validate School_ID if provided in new format
-    if "School_ID" in row_data and row_data["School_ID"]:
-        try:
-            row_school_id = int(row_data["School_ID"])
-            if row_school_id != school_id:
-                errors.append(f"School_ID {row_school_id} does not match target school {school_id}")
-        except ValueError:
-            errors.append("School_ID must be a number")
 
     student_id = row_data["Student_ID"].upper()
     email = row_data["Email"].lower()
@@ -203,13 +167,7 @@ def validate_and_transform_row(
         except ValueError:
             errors.append("Year Level must be a number (1-5)")
     elif status == "ACTIVE":
-        # Year Level is required for ACTIVE students according to requirement 1
-        # But for backward compatibility, if the column is missing entirely (OLD format), 
-        # we default to 1. If the column is PRESENT but empty (NEW format), we should error.
-        if "Year Level" in row_data:
-            errors.append("Year Level is required for ACTIVE students")
-        else:
-            year_level = 1
+        errors.append("Year Level is required for ACTIVE students")
 
     if errors:
         return None, errors, row_data

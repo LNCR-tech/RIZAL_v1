@@ -449,6 +449,8 @@ def download_import_students_template(
             "A",
             "Computer Science",
             "BS Computer Science",
+            "1",
+            "ACTIVE",
         ]
     )
 

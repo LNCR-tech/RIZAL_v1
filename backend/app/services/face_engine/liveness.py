@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     ort = None
 
+logger = logging.getLogger(__name__)
+
 
 class LivenessChecker:
     """Evaluate one face crop with the MiniFASNet anti-spoof model."""
@@ -30,12 +33,20 @@ class LivenessChecker:
         self._output_name: str | None = None
         self._input_size: tuple[int, int] | None = None
         self._initialized = False
+        self._session_error_reason: str | None = None
+        self._session_error_detail: str | None = None
+
+    def _backend_root(self) -> Path:
+        return Path(__file__).resolve().parents[3]
 
     def _default_model_path(self) -> Path:
         configured = self.settings.anti_spoof_model_path.strip()
         if configured:
-            return Path(configured)
-        return Path(__file__).resolve().parents[3] / "models" / "MiniFASNetV2.onnx"
+            configured_path = Path(configured).expanduser()
+            if configured_path.is_absolute():
+                return configured_path
+            return (self._backend_root() / configured_path).resolve()
+        return self._backend_root() / "models" / "MiniFASNetV2.onnx"
 
     def _expand_crop_with_context(self, face_crop_rgb: np.ndarray) -> np.ndarray:
         """Fallback context expansion for crops that do not have the original frame."""
@@ -132,8 +143,17 @@ class LivenessChecker:
             return
 
         self._initialized = True
+        self._session_error_reason = None
+        self._session_error_detail = None
         model_path = self._default_model_path()
-        if ort is None or cv2 is None or not model_path.exists():
+        if ort is None:
+            self._session_error_reason = "onnxruntime_unavailable"
+            return
+        if cv2 is None:
+            self._session_error_reason = "opencv_unavailable"
+            return
+        if not model_path.exists():
+            self._session_error_reason = "model_missing"
             return
 
         providers = ["CPUExecutionProvider"]
@@ -144,7 +164,22 @@ class LivenessChecker:
         except Exception:
             pass
 
-        session = ort.InferenceSession(str(model_path), providers=providers)
+        try:
+            session = ort.InferenceSession(str(model_path), providers=providers)
+        except Exception as exc:
+            detail = str(exc)
+            normalized_detail = detail.lower()
+            self._session_error_reason = (
+                "invalid_model"
+                if "protobuf" in normalized_detail
+                or "parse" in normalized_detail
+                or "invalid" in normalized_detail
+                else "session_unavailable"
+            )
+            self._session_error_detail = detail
+            logger.exception("Unable to initialize liveness model at %s", model_path)
+            return
+
         input_meta = session.get_inputs()[0]
         output_meta = session.get_outputs()[0]
         self._session = session
@@ -157,14 +192,7 @@ class LivenessChecker:
         if self._session is not None:
             return True, None
 
-        model_path = self._default_model_path()
-        if ort is None:
-            return False, "onnxruntime_unavailable"
-        if cv2 is None:
-            return False, "opencv_unavailable"
-        if not model_path.exists():
-            return False, "model_missing"
-        return False, "session_unavailable"
+        return False, self._session_error_reason or "session_unavailable"
 
     def is_real(self, score: float) -> bool:
         return float(score) >= self.settings.liveness_threshold
@@ -208,7 +236,7 @@ class LivenessChecker:
         input_height, input_width = self._input_size or (80, 80)
         crop_bgr = crop[:, :, ::-1].copy()
         resized = cv2.resize(crop_bgr, (input_width, input_height))
-        model_input = resized.astype(np.float32)
+        model_input = resized.astype(np.float32) / 255.0
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
 
@@ -217,4 +245,8 @@ class LivenessChecker:
             {self._input_name: model_input},
         )[0]
         probabilities = self._softmax(logits)
-        return float(probabilities[0, 1])
+        if probabilities.shape[1] >= 3:
+            return float(1.0 - probabilities[0, 1:].sum())
+        if probabilities.shape[1] >= 2:
+            return float(probabilities[0, 1])
+        return float(probabilities[0, 0])

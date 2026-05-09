@@ -9,6 +9,7 @@ from datetime import timedelta
 import uuid
 
 from fastapi import Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -25,6 +26,9 @@ from app.services import governance_hierarchy_service
 from app.services.security_service import create_user_session
 from app.services.user_preference_service import get_or_create_user_security_setting
 from app.services.face_recognition import is_face_scan_bypass_enabled_for_user
+from app.services.school_feature_flags import (
+    privileged_face_verification_enabled_for_school,
+)
 
 BASE_AUTH_ROLE_NAMES = {"admin", "campus_admin", "student"}
 PRIVILEGED_AUTH_ROLE_NAMES = {"admin", "campus_admin"}
@@ -131,11 +135,27 @@ def get_school_context(db: Session, user: User) -> dict[str, object | None]:
 
 
 def has_face_reference_enrolled(db: Session, user_id: int) -> bool:
-    # user_face_profiles table has been dropped — face enrollment is now
-    # tracked via student_face_embeddings. Always return False here;
-    # the caller also checks getattr(user, 'face_profile', None) which
-    # covers the new path.
-    return False
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM student_profiles AS sp
+                    JOIN student_face_embeddings AS sfe
+                      ON sfe.student_profile_id = sp.id
+                    WHERE sp.user_id = :user_id
+                      AND COALESCE(sfe.is_active, TRUE) IS TRUE
+                ) AS enrolled
+                """
+            ),
+            {"user_id": int(user_id)},
+        ).first()
+        if row is None:
+            return False
+        return bool(row[0])
+    except Exception:
+        return False
 
 
 def should_recommend_password_change(user: User) -> bool:
@@ -161,6 +181,11 @@ def _resolve_session_duration_minutes(
 
 def _should_require_face_scan_mfa(db: Session, user: User, role_names: list[str]) -> bool:
     if not get_settings().privileged_face_verification_enabled:
+        return False
+    if not privileged_face_verification_enabled_for_school(
+        db,
+        school_id=getattr(user, "school_id", None),
+    ):
         return False
     if is_face_scan_bypass_enabled_for_user(user):
         return False

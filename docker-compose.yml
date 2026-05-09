@@ -48,11 +48,11 @@ services:
 
   migrate:
     build:
-      context: ./backend
+      context: ./Backend
     image: aura-backend:${APP_ENV:-dev}
     command: alembic upgrade heads
     env_file:
-      - ./backend/.env
+      - ./Backend/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,10 +60,12 @@ services:
     profiles: ["dev", "prod"]
 
   bootstrap:
+    build:
+      context: ./Backend
     image: aura-backend:${APP_ENV:-dev}
     command: python bootstrap.py
     env_file:
-      - ./backend/.env
+      - ./Backend/.env
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -89,12 +91,12 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./Backend
     image: aura-backend:${APP_ENV:-dev}
     ports:
       - "8001:8000"
     env_file:
-      - ./backend/.env
+      - ./Backend/.env
     volumes: *backend-volumes
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
@@ -113,10 +115,12 @@ services:
     profiles: ["dev", "prod"]
 
   worker:
+    build:
+      context: ./Backend
     image: aura-backend:${APP_ENV:-dev}
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=4
     env_file:
-      - ./backend/.env
+      - ./Backend/.env
     volumes: *backend-volumes
     restart: unless-stopped
     depends_on:
@@ -129,10 +133,12 @@ services:
     profiles: ["dev", "prod"]
 
   beat:
+    build:
+      context: ./Backend
     image: aura-backend:${APP_ENV:-dev}
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info
     env_file:
-      - ./backend/.env
+      - ./Backend/.env
     restart: unless-stopped
     depends_on:
       postgres:
@@ -204,4 +210,4 @@ volumes:
   branding_storage:
   insightface_storage:
   pgadmin_data:
-  mailpit_data:
+
