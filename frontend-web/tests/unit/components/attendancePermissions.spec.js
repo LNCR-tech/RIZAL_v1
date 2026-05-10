@@ -37,10 +37,6 @@ function mockPermissionsApi(cameraState, locationState) {
   })
 }
 
-function setSecureContext(secure) {
-  vi.stubGlobal('isSecureContext', secure)
-}
-
 // ── Composable tests ──────────────────────────────────────────────────────────
 
 describe('useAttendancePermissions', () => {
