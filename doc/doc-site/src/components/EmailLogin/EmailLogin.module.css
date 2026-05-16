@@ -1,0 +1,158 @@
+.loginContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--ifm-navbar-height));
+  width: 100%;
+  padding: 2rem;
+  background:
+    linear-gradient(180deg, rgba(250, 250, 250, 0.92), rgba(255, 255, 255, 1)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.035) 0,
+      rgba(0, 0, 0, 0.035) 1px,
+      transparent 1px,
+      transparent 84px
+    );
+}
+
+[data-theme='dark'] .loginContainer {
+  background:
+    linear-gradient(180deg, rgba(16, 16, 16, 0.95), rgba(10, 10, 10, 1)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.06) 0,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px,
+      transparent 84px
+    );
+}
+
+.loginPanel {
+  width: min(100%, 440px);
+  padding: 2rem;
+  border: 1px solid var(--aura-border);
+  border-radius: 8px;
+  background: var(--ifm-background-color);
+  box-shadow: var(--aura-shadow);
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--aura-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.loginPanel h1 {
+  margin: 0;
+  color: var(--aura-text);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 0.75rem 0 1.5rem;
+  color: var(--aura-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.label {
+  color: var(--aura-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.emailInput {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--aura-border);
+  border-radius: 6px;
+  background: var(--ifm-background-color);
+  color: var(--aura-text);
+  font: inherit;
+}
+
+.emailInput:focus {
+  border-color: var(--aura-text);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+  outline: none;
+}
+
+[data-theme='dark'] .emailInput:focus {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.loginButton {
+  height: 2.75rem;
+  border: 1px solid var(--aura-text);
+  border-radius: 6px;
+  background: var(--aura-text);
+  color: var(--aura-inverted-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.loginButton:hover {
+  opacity: 0.88;
+}
+
+.loginButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.error {
+  padding: 0.75rem;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+[data-theme='dark'] .error {
+  color: #fca5a5;
+}
+
+.accessNotes {
+  display: grid;
+  gap: 0.625rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--aura-border);
+}
+
+.accessNotes p {
+  margin: 0;
+  color: var(--aura-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.accessNotes strong {
+  color: var(--aura-text);
+}
+
+@media (max-width: 480px) {
+  .loginContainer {
+    padding: 1rem;
+  }
+
+  .loginPanel {
+    padding: 1.25rem;
+  }
+}

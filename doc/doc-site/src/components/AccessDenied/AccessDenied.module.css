@@ -1,0 +1,55 @@
+.container {
+  width: min(100%, 720px);
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid var(--aura-border);
+  border-radius: 8px;
+  background: var(--ifm-background-color);
+  box-shadow: var(--aura-shadow);
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--aura-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--aura-text);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.message {
+  margin: 1rem 0 1.5rem;
+  color: var(--aura-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.message strong {
+  color: var(--aura-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .container {
+    margin: 2rem 1rem;
+    padding: 1.25rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+}

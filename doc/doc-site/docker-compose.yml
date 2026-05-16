@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  doc-site:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aura-doc-site
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_BACKEND_URL=${BACKEND_URL:-http://localhost:8001}
+      - REACT_APP_AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - REACT_APP_DEFAULT_ROLE=${DEFAULT_ROLE:-student}
+    restart: unless-stopped
+    networks:
+      - aura-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  aura-network:
+    driver: bridge

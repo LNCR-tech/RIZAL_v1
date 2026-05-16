@@ -1,0 +1,56 @@
+.userInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--aura-border);
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--aura-border);
+  border-radius: 999px;
+  background: var(--aura-surface);
+  color: var(--aura-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.userName {
+  max-width: 13rem;
+  overflow: hidden;
+  color: var(--aura-text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logoutButton {
+  height: 1.9rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--aura-border);
+  border-radius: 6px;
+  background: var(--ifm-background-color);
+  color: var(--aura-muted);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.logoutButton:hover {
+  border-color: var(--aura-text);
+  color: var(--aura-text);
+}
+
+@media (max-width: 996px) {
+  .userInfo {
+    display: none;
+  }
+}
