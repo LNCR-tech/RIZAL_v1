@@ -1,11 +1,183 @@
-# Disabled temporarily - CI only mode
-name: Production CD (Disabled)
+name: Production CD
 
 on:
+  push:
+    branches: ["main"]
   workflow_dispatch:
 
+concurrency:
+  group: production-cd
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  FRONTEND_DIR: frontend-web
+  HEALTHCHECK_URL: http://18.142.190.113:8001/health
+
 jobs:
-  disabled:
+  # Gate production deployments behind the same core checks used by CI.
+  # This keeps CD self-contained even if it is manually dispatched.
+  test:
+    name: Production Quality Gates
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
-      - run: echo "Deployment disabled. CI-only mode."
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Backend gates: install dependencies, catch syntax-level lint failures,
+      # apply migrations against a disposable Postgres service, then run tests.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pytest pytest-cov
+
+      - name: Lint backend syntax-critical rules
+        working-directory: backend
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Run backend migrations in CI database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
+          alembic upgrade head
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+          SECRET_KEY: test-secret-key
+          FACE_SCAN_BYPASS_ALL: "true"
+          EMAIL_TRANSPORT: disabled
+        run: pytest tests/
+
+      # Frontend gates: install from lockfile, lint, typecheck, and run unit tests.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run lint
+
+      - name: Typecheck frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run typecheck
+
+      - name: Run frontend unit tests
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run test:unit --if-present
+
+  # Build every production image from the production compose file before SSH
+  # deployment so broken Dockerfiles never reach the VPS.
+  build:
+    name: Build Production Containers
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # docker-compose.prod.yml intentionally references .env.production at
+      # runtime. In CI, create a throwaway copy from the sanitized example.
+      - name: Prepare example environment for compose validation
+        run: cp .env.production.example .env.production
+
+      - name: Validate production compose file
+        run: docker compose --env-file .env.production.example -f docker-compose.prod.yml config --quiet
+
+      - name: Build production images
+        run: docker compose --env-file .env.production.example -f docker-compose.prod.yml build
+
+  # Deploy by SSHing into the VPS and running the repository-owned deploy.sh.
+  # The script performs git pull, compose build/up, health checks, and rollback.
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Use a dedicated deploy key stored in GitHub Secrets.
+      - name: Start SSH agent with deployment key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      # Pin the current VPS host key into known_hosts to avoid interactive SSH.
+      - name: Trust VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      # Run the same idempotent deployment script operators can run manually.
+      - name: Deploy over SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_DIR: ${{ secrets.VPS_DEPLOY_DIR }}
+          DEPLOY_BRANCH: main
+          HEALTHCHECK_URL: ${{ env.HEALTHCHECK_URL }}
+        run: |
+          ssh "${VPS_USER}@${VPS_HOST}" \
+            "DEPLOY_DIR='${DEPLOY_DIR:-/opt/aura}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" \
+            < ./deploy.sh
+
+      # Final public verification from GitHub's runner catches firewall, routing,
+      # and reverse-proxy issues that container-local health checks cannot see.
+      - name: Verify public backend health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS "${HEALTHCHECK_URL}"; then
+              echo "Production backend is healthy."
+              exit 0
+            fi
+            echo "Waiting for backend health check (${attempt}/30)..."
+            sleep 5
+          done
+          echo "Backend health check failed after deployment."
+          exit 1
