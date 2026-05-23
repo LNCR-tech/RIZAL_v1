@@ -10,6 +10,8 @@ DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
+DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
+DB_SERVICE="${DB_SERVICE:-db}"
 
 log() {
   printf '[rollback] %s\n' "$*"
@@ -22,6 +24,34 @@ fail() {
 
 compose() {
   docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+}
+
+env_file_value() {
+  local key="$1"
+  grep -E "^${key}=" "${ENV_FILE}" | tail -n 1 | cut -d= -f2- || true
+}
+
+apply_legacy_env_defaults() {
+  local db_user_value
+  local db_password_value
+  local db_name_value
+  local postgres_user_value
+  local postgres_password_value
+  local postgres_db_value
+  local database_url_value
+
+  db_user_value="$(env_file_value DB_USER)"
+  db_password_value="$(env_file_value DB_PASSWORD)"
+  db_name_value="$(env_file_value DB_NAME)"
+  postgres_user_value="$(env_file_value POSTGRES_USER)"
+  postgres_password_value="$(env_file_value POSTGRES_PASSWORD)"
+  postgres_db_value="$(env_file_value POSTGRES_DB)"
+  database_url_value="$(env_file_value DATABASE_URL)"
+
+  export POSTGRES_USER="${POSTGRES_USER:-${postgres_user_value:-${db_user_value:-postgres}}}"
+  export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-${postgres_password_value:-${db_password_value:-postgres}}}"
+  export POSTGRES_DB="${POSTGRES_DB:-${postgres_db_value:-${db_name_value:-fastapi_db}}}"
+  export DATABASE_URL="${DATABASE_URL:-${database_url_value:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_SERVICE}:5432/${POSTGRES_DB}}}"
 }
 
 wait_for_health() {
@@ -45,6 +75,7 @@ fi
 
 [ -n "${TARGET_REVISION}" ] || fail "target revision is required"
 [ -f "${ENV_FILE}" ] || fail "${ENV_FILE} is missing"
+apply_legacy_env_defaults
 
 log "rolling back to ${TARGET_REVISION}"
 git fetch --all --prune
@@ -54,7 +85,17 @@ log "validating compose configuration"
 compose config --quiet
 
 log "rebuilding images for rollback revision"
-compose build
+case "${DEPLOY_SCOPE}" in
+  backend)
+    compose build migrate
+    ;;
+  full)
+    compose build
+    ;;
+  *)
+    fail "unsupported DEPLOY_SCOPE: ${DEPLOY_SCOPE}. Use 'backend' or 'full'."
+    ;;
+esac
 
 log "restarting application services"
 SERVICES=$(compose config --services)
@@ -79,9 +120,16 @@ run_svc() {
   done
 }
 
-start_svc postgres redis
+start_svc "${DB_SERVICE}" redis
 run_svc migrate bootstrap
-start_svc backend worker beat assistant frontend
+case "${DEPLOY_SCOPE}" in
+  backend)
+    start_svc backend worker beat
+    ;;
+  full)
+    start_svc backend worker beat assistant frontend
+    ;;
+esac
 
 wait_for_health "${HEALTHCHECK_URL}"
 log "rollback complete: ${TARGET_REVISION}"
