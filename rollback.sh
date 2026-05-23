@@ -11,6 +11,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
 ASSISTANT_HEALTHCHECK_URL="${ASSISTANT_HEALTHCHECK_URL:-http://18.142.190.113:8500/health}"
+LOCAL_LLM_HEALTHCHECK_URL="${LOCAL_LLM_HEALTHCHECK_URL:-http://127.0.0.1:8091/v1/models}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
 DB_SERVICE="${DB_SERVICE:-db}"
 
@@ -131,9 +132,13 @@ case "${DEPLOY_SCOPE}" in
     start_svc backend worker beat
     ;;
   backend-assistant)
+    start_svc local-llm
+    wait_for_health "${LOCAL_LLM_HEALTHCHECK_URL}"
     start_svc backend worker beat assistant
     ;;
   full)
+    start_svc local-llm
+    wait_for_health "${LOCAL_LLM_HEALTHCHECK_URL}"
     start_svc backend worker beat assistant frontend
     ;;
 esac
