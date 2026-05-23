@@ -174,7 +174,11 @@ def _resolve_session_duration_minutes(
     if not remember_me:
         return ACCESS_TOKEN_EXPIRE_MINUTES
 
-    security_setting = get_or_create_user_security_setting(db, user=user)
+    try:
+        security_setting = get_or_create_user_security_setting(db, user=user)
+    except Exception:
+        db.rollback()
+        return ACCESS_TOKEN_EXPIRE_MINUTES
     trusted_device_days = max(1, int(security_setting.trusted_device_days or 14))
     return trusted_device_days * 24 * 60
 
@@ -192,7 +196,11 @@ def _should_require_face_scan_mfa(db: Session, user: User, role_names: list[str]
     if not any(role_name in PRIVILEGED_AUTH_ROLE_NAMES for role_name in role_names):
         return False
 
-    security_setting = get_or_create_user_security_setting(db, user=user)
+    try:
+        security_setting = get_or_create_user_security_setting(db, user=user)
+    except Exception:
+        db.rollback()
+        return False
     return bool(security_setting.mfa_enabled)
 
 
@@ -238,14 +246,17 @@ def issue_full_access_token_response(
         data=token_payload,
         expires_delta=timedelta(minutes=resolved_expires_minutes),
     )
-    create_user_session(
-        db,
-        user=user,
-        token_jti=token_jti,
-        session_id=session_id,
-        expires_in_minutes=resolved_expires_minutes,
-        request=request,
-    )
+    try:
+        create_user_session(
+            db,
+            user=user,
+            token_jti=token_jti,
+            session_id=session_id,
+            expires_in_minutes=resolved_expires_minutes,
+            request=request,
+        )
+    except Exception:
+        db.rollback()
 
     return {
         "access_token": access_token,

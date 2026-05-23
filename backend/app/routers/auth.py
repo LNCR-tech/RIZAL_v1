@@ -79,6 +79,21 @@ def _can_submit_public_password_reset_request(user: User | None) -> bool:
 def _login_rate_limit_identity(request: Request, email: str) -> str:
     return f"{client_ip_identity(request)}:email:{email.strip().lower()}"
 
+
+def _try_commit(db: Session) -> None:
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _try_record_login_history(db: Session, **kwargs) -> None:
+    try:
+        record_login_history(db, **kwargs)
+    except Exception:
+        db.rollback()
+
+
 @router.post("/token", response_model=Token)
 def login_for_access_token(
     request: Request,
@@ -94,7 +109,7 @@ def login_for_access_token(
     )
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
-        record_login_history(
+        _try_record_login_history(
             db,
             email_attempted=form_data.username,
             user=None,
@@ -103,7 +118,7 @@ def login_for_access_token(
             failure_reason="invalid_credentials",
             request=request,
         )
-        db.commit()
+        _try_commit(db)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -117,7 +132,7 @@ def login_for_access_token(
         request=request,
         remember_me=remember_me,
     )
-    record_login_history(
+    _try_record_login_history(
         db,
         email_attempted=user.email,
         user=user,
@@ -125,7 +140,7 @@ def login_for_access_token(
         auth_method="password",
         request=request,
     )
-    db.commit()
+    _try_commit(db)
     return response_payload
 
 @router.post("/login", response_model=Token)
@@ -142,7 +157,7 @@ def login_with_email(
     )
     user = authenticate_user(db, login_data.email, login_data.password)
     if not user:
-        record_login_history(
+        _try_record_login_history(
             db,
             email_attempted=login_data.email,
             user=None,
@@ -151,7 +166,7 @@ def login_with_email(
             failure_reason="invalid_credentials",
             request=request,
         )
-        db.commit()
+        _try_commit(db)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -164,7 +179,7 @@ def login_with_email(
         request=request,
         remember_me=login_data.remember_me,
     )
-    record_login_history(
+    _try_record_login_history(
         db,
         email_attempted=user.email,
         user=user,
@@ -173,7 +188,7 @@ def login_with_email(
         request=request,
     )
 
-    db.commit()
+    _try_commit(db)
     return response_payload
 
 
