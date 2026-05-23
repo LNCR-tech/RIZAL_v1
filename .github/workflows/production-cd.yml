@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   HEALTHCHECK_URL: http://18.142.190.113:8001/health
   ASSISTANT_HEALTHCHECK_URL: http://18.142.190.113:8500/health
   ASSISTANT_INTERNAL_HEALTHCHECK_URL: http://127.0.0.1:8500/health
