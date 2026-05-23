@@ -54,14 +54,19 @@ async function deleteOldAuraCaches() {
 async function cacheResponse(request, response) {
   if (!response || !response.ok || !response.body) return response
 
+  let responseForCache
+  try {
+    responseForCache = response.clone()
+  } catch (error) {
+    // Ignore clone errors for already-consumed responses.
+    return response
+  }
+
   try {
     const cache = await caches.open(CACHE_NAME)
-    await cache.put(request, response.clone())
+    await cache.put(request, responseForCache)
   } catch (error) {
-    // Ignore clone errors for already-consumed responses
-    if (error.name !== 'TypeError') {
-      console.warn('[SW] Cache write failed:', error)
-    }
+    console.warn('[SW] Cache write failed:', error)
   }
   return response
 }
@@ -70,13 +75,12 @@ async function resolveNavigationResponse(event) {
   try {
     const preloadResponse = await event.preloadResponse
     if (preloadResponse) {
-      void cacheResponse(event.request, preloadResponse.clone())
+      void cacheResponse(event.request, preloadResponse)
       return preloadResponse
     }
 
     const networkResponse = await fetch(event.request)
-    const responseToCache = networkResponse.clone()
-    void cacheResponse(event.request, responseToCache)
+    void cacheResponse(event.request, networkResponse)
     return networkResponse
   } catch {
     const cachedResponse = await caches.match(event.request)
@@ -92,8 +96,7 @@ async function resolveNavigationResponse(event) {
 async function resolveCodeAssetResponse(request) {
   try {
     const networkResponse = await fetch(request)
-    const responseToCache = networkResponse.clone()
-    void cacheResponse(request, responseToCache)
+    void cacheResponse(request, networkResponse)
     return networkResponse
   } catch {
     return (
@@ -110,8 +113,7 @@ async function resolveStaticAssetResponse(request) {
   try {
     const networkResponse = await fetch(request)
     if (networkResponse.ok && networkResponse.body) {
-      const responseToCache = networkResponse.clone()
-      void cacheResponse(request, responseToCache)
+      void cacheResponse(request, networkResponse)
     }
     return networkResponse
   } catch {
