@@ -222,6 +222,31 @@ npx playwright test e2e/workflows/pressable-coverage.spec.ts
 - Backend and assistant pytest verification could not be run locally through the default Python because `pytest` is not installed.
 - Backend and assistant pytest verification also could not use the repo virtualenvs because both virtualenvs point to an old missing Python path: `C:\Users\USER\AppData\Local\Programs\Python\Python312\python.exe`.
 
+## Follow-Up Change: URL Resolution Unit Test Isolation
+
+- Updated `frontend-web/tests/unit/services/urlResolution.spec.js`.
+- The test now stubs `VITE_API_BASE_URL` and `VITE_ASSISTANT_BASE_URL` to empty strings before each URL fallback assertion.
+- This makes the fallback tests independent from local `.env` values such as `http://localhost:8000` and `http://localhost:8500`.
+- Added a setup comment explaining why the env stubs are needed.
+- Verified `npx vitest run tests/unit/services/urlResolution.spec.js` passed: 1 file, 6 tests.
+- Verified `npm run test:unit` passed: 6 files, 83 tests.
+- Vitest still reports `close timed out after 10000ms` after successful completion; this is a lingering-process warning after tests pass, not a failed assertion.
+
+## Follow-Up Change: Playwright Failure Source Hints
+
+- Updated `frontend-web/e2e/helpers/pressables.ts`.
+- Added route-to-source-file hints for dashboard, workspace, governance, admin, login, and forgot-password routes.
+- Dynamic pressable no-op failures now include a `Likely source files` section.
+- Dynamic pressable no-op failures still include label, tag, role, type, class, `data-testid`, DOM index, CSS path, and HTML snippet.
+- Updated `frontend-web/e2e/workflows/pressable-coverage.spec.ts`.
+- Dynamic pressable test titles now include the likely source component in brackets, so the Playwright failure summary is easier to scan.
+- Updated `frontend-web/e2e/workflows/expected-ui-actions.spec.ts`.
+- Exact UI action test titles now include likely source components in brackets.
+- Verified `npx playwright test --list e2e/workflows/pressable-coverage.spec.ts --reporter=list` lists 52 tests with source hints.
+- Verified `npx playwright test --list e2e/workflows/expected-ui-actions.spec.ts --reporter=list` lists 6 tests with source hints.
+- Verified `npm run typecheck` passed.
+- Verified the known profile `Settings` no-op failure now reports `frontend-web/src/views/dashboard/ProfileView.vue` and `frontend-web/src/router/index.js` as likely source files.
+
 ## Current CI Capabilities
 
 After the latest testing changes, the GitHub CI workflow can check the following areas.

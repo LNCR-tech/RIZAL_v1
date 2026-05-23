@@ -8,7 +8,7 @@ import {
 import { navigateAndAssertUsable } from "../helpers/pressables";
 
 // This test checks login-page controls with exact expected outcomes: password visibility and forgot-password navigation.
-test("login page controls perform the expected visible actions", async ({ page }) => {
+test("login page controls perform the expected visible actions [LoginView.vue]", async ({ page }) => {
   await gotoLoginAndWait(page);
 
   const passwordInput = page.locator("#password");
@@ -30,7 +30,7 @@ test("login page controls perform the expected visible actions", async ({ page }
 });
 
 // This test checks student navigation and profile controls with exact route/toggle/edit expectations.
-test("student navigation and profile controls produce the expected results", async ({ page }) => {
+test("student navigation and profile controls produce the expected results [ProfileView.vue]", async ({ page }) => {
   test.skip(
     process.env.PLAYWRIGHT_MOCK_AUTH !== "true",
     "Student expected-result UI checks need Playwright mock auth.",
@@ -66,7 +66,7 @@ test("student navigation and profile controls produce the expected results", asy
 });
 
 // This test checks campus-admin navigation cards and settings controls with exact route/display expectations.
-test("campus admin workspace controls produce the expected results", async ({ page }) => {
+test("campus admin workspace controls produce the expected results [SchoolItScheduleView.vue]", async ({ page }) => {
   test.skip(
     process.env.PLAYWRIGHT_MOCK_AUTH !== "true",
     "Campus expected-result UI checks need Playwright mock auth.",
@@ -97,7 +97,7 @@ test("campus admin workspace controls produce the expected results", async ({ pa
 });
 
 // This test checks the governance create flow and audience selectors with exact field-visibility expectations.
-test("governance event create controls expose the expected audience fields", async ({ page }) => {
+test("governance event create controls expose the expected audience fields [GovernanceWorkspaceView.vue + EventEditorSheet.vue]", async ({ page }) => {
   await navigateAndAssertUsable(page, {
     name: "governance events preview",
     path: "/exposed/governance/events",
@@ -131,7 +131,7 @@ test("governance event create controls expose the expected audience fields", asy
 });
 
 // This test checks that creating a preview governance event with a year-level audience submits successfully and adds it to the event feed.
-test("governance event create accepts a year-level audience", async ({ page }) => {
+test("governance event create accepts a year-level audience [GovernanceWorkspaceView.vue + EventEditorSheet.vue]", async ({ page }) => {
   const eventName = "Automated Year 4 Audience Event";
   const currentMonth = new Date();
   const monthValue = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, "0")}`;
@@ -160,7 +160,7 @@ test("governance event create accepts a year-level audience", async ({ page }) =
 });
 
 // This test checks preview schedule cards with exact route outcomes and a visible settings panel.
-test("workspace preview schedule controls produce the expected results", async ({ page }) => {
+test("workspace preview schedule controls produce the expected results [SchoolItScheduleView.vue]", async ({ page }) => {
   await navigateAndAssertUsable(page, {
     name: "workspace schedule preview",
     path: "/exposed/workspace/schedule",

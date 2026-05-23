@@ -21,6 +21,11 @@ export type PressableRoute = {
   path: string;
 };
 
+type RouteSourceHint = {
+  pattern: RegExp;
+  files: string[];
+};
+
 type PressableCandidate = {
   domIndex: number;
   label: string;
@@ -60,6 +65,47 @@ type PageEffectSnapshot = {
   clickedElementHash: number;
   clickedElementVisible: boolean;
 };
+
+const ROUTER_SOURCE_FILE = "frontend-web/src/router/index.js";
+
+const ROUTE_SOURCE_HINTS: RouteSourceHint[] = [
+  { pattern: /^\/$/, files: ["frontend-web/src/views/desktop/auth/LoginView.vue", "frontend-web/src/views/mobile/auth/LoginView.vue"] },
+  { pattern: /^\/forgot-password$/, files: ["frontend-web/src/views/desktop/auth/ForgotPasswordView.vue", "frontend-web/src/views/auth/ForgotPasswordView.vue"] },
+
+  { pattern: /^\/(?:exposed\/)?dashboard\/schedule\/[^/]+\/attendance$/, files: ["frontend-web/src/views/dashboard/AttendanceView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/schedule\/[^/]+$/, files: ["frontend-web/src/views/dashboard/EventDetailView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/profile\/security$/, files: ["frontend-web/src/views/dashboard/ProfileSecurityView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/profile$/, files: ["frontend-web/src/views/dashboard/ProfileView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/schedule$/, files: ["frontend-web/src/views/dashboard/ScheduleView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/analytics$/, files: ["frontend-web/src/views/dashboard/AnalyticsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/gather\/attendance$/, files: ["frontend-web/src/views/mobile/dashboard/GatherAttendanceView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard\/gather$/, files: ["frontend-web/src/views/dashboard/GatherWelcomeView.vue"] },
+  { pattern: /^\/(?:exposed\/)?dashboard$/, files: ["frontend-web/src/views/dashboard/HomeView.vue"] },
+
+  { pattern: /^\/(?:exposed\/)?workspace\/users\/department\/[^/]+\/program\/[^/]+$/, files: ["frontend-web/src/views/dashboard/SchoolItProgramStudentsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/users\/department\/[^/]+$/, files: ["frontend-web/src/views/dashboard/SchoolItDepartmentProgramsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/users\/import$/, files: ["frontend-web/src/views/dashboard/SchoolItImportStudentsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/users\/unassigned$/, files: ["frontend-web/src/views/dashboard/SchoolItUnassignedStudentsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/student-council$/, files: ["frontend-web/src/views/dashboard/SchoolItStudentCouncilView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/schedule\/monitor$/, files: ["frontend-web/src/views/dashboard/SchoolItAttendanceMonitorView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/schedule\/reports$/, files: ["frontend-web/src/views/dashboard/SchoolItEventReportsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/schedule\/[^/]+$/, files: ["frontend-web/src/views/dashboard/EventDetailView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/schedule$/, files: ["frontend-web/src/views/dashboard/SchoolItScheduleView.vue"] },
+  { pattern: /^\/workspace\/profile$/, files: ["frontend-web/src/views/dashboard/ProfileView.vue"] },
+  { pattern: /^\/exposed\/workspace\/profile$/, files: ["frontend-web/src/views/dashboard/WorkspacePlaceholderView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/settings$/, files: ["frontend-web/src/views/dashboard/SchoolItSettingsView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace\/users$/, files: ["frontend-web/src/views/dashboard/SchoolItUsersView.vue"] },
+  { pattern: /^\/(?:exposed\/)?workspace$/, files: ["frontend-web/src/views/dashboard/SchoolItHomeView.vue"] },
+
+  { pattern: /^\/(?:exposed\/)?governance\/events\/[^/]+$/, files: ["frontend-web/src/views/dashboard/EventDetailView.vue"] },
+  { pattern: /^\/(?:exposed\/)?governance\/members$/, files: ["frontend-web/src/views/dashboard/SgMembersView.vue"] },
+  { pattern: /^\/(?:exposed\/)?governance\/create-unit$/, files: ["frontend-web/src/views/dashboard/SgCreateUnitView.vue"] },
+  { pattern: /^\/(?:exposed\/)?governance\/gather\/attendance$/, files: ["frontend-web/src/views/mobile/dashboard/GatherAttendanceView.vue"] },
+  { pattern: /^\/(?:exposed\/)?governance\/gather$/, files: ["frontend-web/src/views/dashboard/GatherWelcomeView.vue"] },
+  { pattern: /^\/(?:exposed\/)?governance(?:\/(?:students|admin|events))?$/, files: ["frontend-web/src/views/dashboard/GovernanceWorkspaceView.vue", "frontend-web/src/components/events/EventEditorSheet.vue"] },
+
+  { pattern: /^\/(?:exposed\/)?admin(?:\/(?:schools|accounts|oversight|profile))?$/, files: ["frontend-web/src/views/dashboard/AdminWorkspaceView.vue"] },
+];
 
 export const PREVIEW_DASHBOARD_ROUTES: PressableRoute[] = [
   { name: "login", path: "/" },
@@ -127,6 +173,30 @@ export const AUTHENTICATED_CAMPUS_ROUTES: PressableRoute[] = [
   { name: "campus settings", path: "/workspace/settings" },
   { name: "campus profile", path: "/workspace/profile" },
 ];
+
+export function getRouteSourceFiles(route: PressableRoute) {
+  const pathname = normalizeRoutePath(route.path);
+  const match = ROUTE_SOURCE_HINTS.find((hint) => hint.pattern.test(pathname));
+  const files = match?.files?.length ? match.files : [];
+  return [...new Set([...files, ROUTER_SOURCE_FILE])];
+}
+
+export function getRouteSourceLabel(route: PressableRoute) {
+  const labels = getRouteSourceFiles(route)
+    .filter((file) => file !== ROUTER_SOURCE_FILE)
+    .map((file) => file.split("/").pop() || file)
+    .filter((label, index, allLabels) => allLabels.indexOf(label) === index);
+
+  return labels.join(" + ") || ROUTER_SOURCE_FILE;
+}
+
+function normalizeRoutePath(path: string) {
+  try {
+    return new URL(path, "http://127.0.0.1").pathname.replace(/\/+$/, "") || "/";
+  } catch {
+    return String(path || "").replace(/[?#].*$/, "").replace(/\/+$/, "") || "/";
+  }
+}
 
 export async function navigateAndAssertUsable(page: Page, route: PressableRoute) {
   const response = await page.goto(route.path, { waitUntil: "domcontentloaded" });
@@ -523,12 +593,17 @@ function buildNoOpPressableError({
   beforeEffect: PageEffectSnapshot;
   afterEffect: PageEffectSnapshot;
 }) {
+  const sourceFiles = getRouteSourceFiles(route);
+
   return [
     "No detectable UI result after clicking pressable.",
     "",
     `Route: ${route.name} (${route.path})`,
     `URL before: ${beforeEffect.url}`,
     `URL after: ${afterEffect.url}`,
+    "",
+    "Likely source files:",
+    ...sourceFiles.map((file) => `- ${file}`),
     "",
     "Pressable:",
     `- label: ${candidate.label || "(no label)"}`,
@@ -545,6 +620,11 @@ function buildNoOpPressableError({
     "",
     "Why this failed:",
     "The click did not change URL, visible text/state, dialog/menu/toast counts, common active/open/selected classes, or the clicked element snapshot.",
+    "",
+    "How to locate it:",
+    "- Start with the likely source file above.",
+    "- Search for the label, aria-label, class, data-testid, or nearby text shown in the Pressable section.",
+    "- If the element comes from a shared child component, follow that component import from the likely source file.",
     "",
     "Fix options:",
     "- Wire this control to a real user-visible action.",

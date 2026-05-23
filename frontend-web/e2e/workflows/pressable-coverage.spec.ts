@@ -8,12 +8,13 @@ import {
   PREVIEW_WORKSPACE_ROUTES,
   type PressableRoute,
   exerciseSafePressablesOnRoute,
+  getRouteSourceLabel,
 } from "../helpers/pressables";
 
 function definePreviewPressableTests(groupName: string, routes: PressableRoute[]) {
   test.describe(groupName, () => {
     for (const route of routes) {
-      test(`${route.name} keeps every collected safe pressable usable`, async ({ page }) => {
+      test(`${route.name} [${getRouteSourceLabel(route)}] keeps every collected safe pressable usable`, async ({ page }) => {
         // This route-level test clicks every safe pressable collected on this page, with no per-route cap.
         test.setTimeout(180_000);
         await exerciseSafePressablesOnRoute(page, route);
@@ -29,7 +30,7 @@ function defineAuthenticatedPressableTests(
 ) {
   test.describe(groupName, () => {
     for (const route of routes) {
-      test(`${route.name} keeps every collected safe pressable usable`, async ({ page }) => {
+      test(`${route.name} [${getRouteSourceLabel(route)}] keeps every collected safe pressable usable`, async ({ page }) => {
         // This authenticated route-level test logs in, opens the route, and clicks every collected safe pressable.
         test.skip(
           process.env.PLAYWRIGHT_MOCK_AUTH !== "true",
