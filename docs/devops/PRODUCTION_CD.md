@@ -54,10 +54,15 @@ minimizes downtime and rolls back on failed health checks.
 
 ## Required GitHub Secrets
 
-- `VPS_HOST`: `18.142.190.113` or the production DNS name.
-- `VPS_USER`: SSH user, usually `ubuntu`.
-- `VPS_SSH_PRIVATE_KEY`: private key with access to the VPS deploy user.
-- `VPS_DEPLOY_DIR`: deployment directory, for example `/opt/aura`.
+- `SERVER_HOST`: `18.142.190.113` or the production DNS name.
+- `SERVER_PORT`: SSH port for the production host, usually `22`.
+- `SERVER_USER`: SSH user, usually `ubuntu`.
+- `SERVER_SSH_KEY`: private key with access to the VPS deploy user.
+- `SERVER_APP_DIR`: deployment directory, for example `/opt/aura`.
+
+The deploy job validates the host, user, app directory, and SSH key before
+opening the SSH session so missing secrets fail with an explicit message instead
+of an ambiguous deploy error. `SERVER_PORT` defaults to `22` when omitted.
 
 Do not store application secrets in GitHub Actions unless you also change the
 workflow to render `.env.production` on the server. The recommended model is to
@@ -98,7 +103,7 @@ ssh-keygen -t ed25519 -C "github-actions-aura-production" -f aura-prod-deploy
 ssh-copy-id -i aura-prod-deploy.pub ubuntu@18.142.190.113
 ```
 
-Put the contents of `aura-prod-deploy` into `VPS_SSH_PRIVATE_KEY`. Keep the
+Put the contents of `aura-prod-deploy` into `SERVER_SSH_KEY`. Keep the
 public key in `/home/ubuntu/.ssh/authorized_keys` on the VPS.
 
 ## Firewall
