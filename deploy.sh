@@ -66,10 +66,15 @@ log "current revision: ${PREVIOUS_REVISION}"
 rollback_on_error() {
   local exit_code=$?
   log "deployment failed; starting automatic rollback to ${PREVIOUS_REVISION}"
-  if ./rollback.sh "${PREVIOUS_REVISION}"; then
-    log "rollback completed"
+  if [ -f "./rollback.sh" ]; then
+    if ./rollback.sh "${PREVIOUS_REVISION}"; then
+      log "rollback completed"
+    else
+      log "rollback failed; manual intervention required"
+    fi
   else
-    log "rollback failed; manual intervention required"
+    log "rollback.sh not found; performing basic git rollback"
+    git checkout "${PREVIOUS_REVISION}" || true
   fi
   exit "${exit_code}"
 }
@@ -90,14 +95,15 @@ log "deploying revision: ${NEW_REVISION}"
 log "validating compose configuration"
 compose config --quiet
 
-if compose ps postgres --status running >/dev/null 2>&1; then
+POSTGRES_USER_VALUE="$(grep -E '^POSTGRES_USER=' "${ENV_FILE}" | tail -n 1 | cut -d= -f2- || true)"
+POSTGRES_USER_VALUE="${POSTGRES_USER_VALUE:-postgres}"
+
+if compose exec -T postgres pg_isready -U "${POSTGRES_USER_VALUE}" >/dev/null 2>&1; then
   BACKUP_FILE="${BACKUP_DIR}/postgres-$(date -u +%Y%m%dT%H%M%SZ)-${PREVIOUS_REVISION:0:12}.sql.gz"
   log "creating database backup: ${BACKUP_FILE}"
-  POSTGRES_USER_VALUE="$(grep -E '^POSTGRES_USER=' "${ENV_FILE}" | tail -n 1 | cut -d= -f2- || true)"
-  POSTGRES_USER_VALUE="${POSTGRES_USER_VALUE:-postgres}"
-  compose exec -T postgres pg_dumpall -U "${POSTGRES_USER_VALUE}" | gzip > "${BACKUP_FILE}"
+  compose exec -T postgres pg_dumpall -U "${POSTGRES_USER_VALUE}" | gzip > "${BACKUP_FILE}" || log "WARNING: Database backup failed!"
 else
-  log "postgres is not running yet; skipping pre-deploy database backup"
+  log "postgres is not running or ready yet; skipping pre-deploy database backup"
 fi
 
 log "pulling upstream images where available"
