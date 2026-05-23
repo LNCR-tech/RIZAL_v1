@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -13,6 +14,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+
+from dotenv import load_dotenv
+
+# Load assistant/.env before the lib.* imports below, which read os.getenv
+# (AI_API_BASE / AI_MODEL / SECRET_KEY / DB URLs) at import time. No-op when
+# .env is absent (e.g. in Docker, where env comes from env_file).
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from lib.app_settings import APP_SETTINGS, get_cors_allowed_origins
 from lib.database import get_db, init_db, Conversation, Message, DailyUsage, SessionLocal
@@ -29,6 +37,8 @@ from lib.policy import get_effective_policy, summarize_scope_rules, normalize_pe
 from lib.llm import call_openai, call_llm_stream, _extract_text_content, _suggest_retry_max_tokens
 from lib.prompt_budget import estimate_total_prompt_tokens
 from lib.tools_logic import parse_tool_arguments, sanitize_tool_args, looks_like_tool_markup, extract_function_markup, recover_tool_call_from_message
+from lib.deterministic_charts import detect_chart_intent, build_attendance_chart
+from lib.deterministic_answers import build_data_answer
 
 import re
 
@@ -54,6 +64,7 @@ class AssistantRequest(BaseModel):
     user_school_id: Optional[int] = None
     user_timezone: Optional[str] = None
     conversation_id: Optional[str] = None
+    fast: Optional[bool] = None  # client speed mode: True=Fast (slim, no tools)
 
 class ConversationSummary(BaseModel):
     conversation_id: str
@@ -104,8 +115,17 @@ def _load_system_prompt() -> str:
     prompt_path = os.path.join(ASSISTANT_DIR, "system_prompt.txt")
     if os.path.exists(prompt_path):
         with open(prompt_path, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    return "You are Aura, a professional assistant for the VALID8 system."
+            base = f.read().strip()
+    else:
+        base = "You are Aura, powered by Jose AI - the assistant for the Aura system."
+    # Prepend the canonical identity so the bot always presents as
+    # "Aura, powered by Jose AI" with a consistent persona / role rules,
+    # regardless of which model backs it. Safe no-op if the module is missing.
+    try:
+        import assistant_identity
+        return f"{assistant_identity.identity_block()}\n\n{base}"
+    except Exception:
+        return base
 
 def _render_system_prompt(template: str, **kwargs) -> str:
     for key, value in kwargs.items():
@@ -151,6 +171,26 @@ def _env_int(name: str, default: int) -> int:
 
 def _get_prompt_budget_tokens() -> int:
     return _env_int("ASSISTANT_PROMPT_BUDGET_TOKENS", APP_SETTINGS.prompt_budget_tokens)
+
+# --- In-memory per-user rate limit (burst/abuse protection) ---
+# Caps requests per user per rolling minute, on top of the daily quota. For a
+# multi-worker production deployment, back this with Redis; in-process is fine for
+# a single instance. Tune with ASSISTANT_RATE_PER_MIN (0 disables).
+_RATE_WINDOW_SEC = 60.0
+_RATE_MAX_PER_MIN = _env_int("ASSISTANT_RATE_PER_MIN", 20)
+_RATE_HITS: Dict[str, List[float]] = {}
+
+def _enforce_rate_limit(user_key: str) -> None:
+    if _RATE_MAX_PER_MIN <= 0 or not user_key:
+        return
+    now = time.monotonic()
+    cutoff = now - _RATE_WINDOW_SEC
+    hits = [t for t in _RATE_HITS.get(user_key, []) if t > cutoff]
+    if len(hits) >= _RATE_MAX_PER_MIN:
+        _RATE_HITS[user_key] = hits
+        raise HTTPException(status_code=429, detail="Too many requests - please slow down a moment.")
+    hits.append(now)
+    _RATE_HITS[user_key] = hits
 
 def _get_prompt_reserve_tokens() -> int:
     return _env_int("ASSISTANT_PROMPT_RESERVE_COMPLETION_TOKENS", APP_SETTINGS.prompt_reserve_completion_tokens)
@@ -331,7 +371,8 @@ async def assistant_stream(
     effective_permissions = governance.get("permission_codes") or []
     effective_school_id = body.user_school_id or governance.get("school_id") or identity.get("school_id")
 
-    # Enforce Daily Quota (Restored from v1)
+    # Burst/abuse rate limit (per user, per minute) + daily quota.
+    _enforce_rate_limit(token_subject)
     _enforce_daily_limit(db, token_subject, primary_role, effective_roles)
 
     # 2. Conversation Management
@@ -367,26 +408,90 @@ async def assistant_stream(
     db.add(user_msg)
     db.commit()
 
-    # 4. Prompt Rendering
-    readable, writable, scope, cap, non_cap = _render_role_capabilities(effective_roles, effective_permissions)
-    system_prompt = _render_system_prompt(
-        _load_system_prompt(),
-        user_id=tool_user_id,
-        user_role=primary_role,
-        effective_roles=", ".join(effective_roles),
-        effective_permissions=", ".join(effective_permissions),
-        user_name=body.user_name or identity.get("name") or "User",
-        user_school=body.user_school or identity.get("school_name") or "Unknown",
-        user_school_id=effective_school_id,
-        user_timezone=body.user_timezone or identity.get("timezone") or "UTC",
-        readable_tables=readable,
-        writable_tables=writable,
-        scope_rules=scope,
-        capability_notes=cap,
-        non_capability_notes=non_cap
-    )
+    # 3b. Deterministic charts (no LLM): if the user asked for a chart, build it
+    # straight from backend data and stream it back. Fast + reliable on a small
+    # local model. Falls through to the normal LLM path when it can't build one.
+    chart_intent = detect_chart_intent(body.message)
+    if chart_intent:
+        chart = await build_attendance_chart(chart_intent, authorization)
+        if chart:
+            caption, visual = chart["caption"], chart["visual"]
+            chart_msg = Message(
+                conversation_id=conversation_id, role="assistant", content=caption,
+                visual_data=json.dumps({"visual": visual}, default=str),
+            )
+            db.add(chart_msg)
+            db.commit()
+            db.refresh(chart_msg)
+            _chart_mid = chart_msg.id
 
-    tools = await mcp_client.get_all_tools()
+            async def _chart_only_generator():
+                yield _sse_event("message", {"conversation_id": conversation_id, "content": caption})
+                yield _sse_event("visualization", {"conversation_id": conversation_id, "visual": visual})
+                yield _sse_event("done", {"conversation_id": conversation_id, "message_id": _chart_mid, "finish_reason": "stop"})
+
+            return StreamingResponse(
+                _chart_only_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+            )
+
+    # 3c. Deterministic data answers (no LLM): events list / upcoming / ongoing /
+    # my absences / my attendance — the backend role-scopes the data. Falls through
+    # to the normal LLM path when there's no matching intent or data.
+    answer_text = await build_data_answer(body.message, authorization, effective_roles)
+    if answer_text:
+        answer_msg = Message(conversation_id=conversation_id, role="assistant", content=answer_text)
+        db.add(answer_msg)
+        db.commit()
+        db.refresh(answer_msg)
+        _answer_mid = answer_msg.id
+
+        async def _answer_only_generator():
+            yield _sse_event("message", {"conversation_id": conversation_id, "content": answer_text})
+            yield _sse_event("done", {"conversation_id": conversation_id, "message_id": _answer_mid, "finish_reason": "stop"})
+
+        return StreamingResponse(
+            _answer_only_generator(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        )
+
+    # 4. Prompt Rendering
+    # Per-request "fast" from the client wins; otherwise fall back to the env default.
+    fast_mode = body.fast if body.fast is not None else (os.getenv("LOCAL_FAST_MODE") == "1")
+    if fast_mode:
+        # Local small-model mode (e.g. jose.gguf on a CPU): slim
+        # ~100-token system prompt and NO tool schemas, so prompt-eval is a few
+        # seconds instead of ~2 min. Trade-off: chat/identity only (no DB tools or
+        # charts). Off by default; safe for cloud LLMs.
+        import assistant_identity
+        system_prompt = _render_system_prompt(
+            assistant_identity.FAST_SYSTEM_PROMPT,
+            user_name=body.user_name or identity.get("name") or "User",
+            user_school=body.user_school or identity.get("school_name") or "Unknown",
+        )
+        tools = []
+    else:
+        readable, writable, scope, cap, non_cap = _render_role_capabilities(effective_roles, effective_permissions)
+        system_prompt = _render_system_prompt(
+            _load_system_prompt(),
+            user_id=tool_user_id,
+            user_role=primary_role,
+            effective_roles=", ".join(effective_roles),
+            effective_permissions=", ".join(effective_permissions),
+            user_name=body.user_name or identity.get("name") or "User",
+            user_school=body.user_school or identity.get("school_name") or "Unknown",
+            user_school_id=effective_school_id,
+            user_timezone=body.user_timezone or identity.get("timezone") or "UTC",
+            readable_tables=readable,
+            writable_tables=writable,
+            scope_rules=scope,
+            capability_notes=cap,
+            non_capability_notes=non_cap
+        )
+        tools = await mcp_client.get_all_tools()
+
     messages, tools = await _apply_prompt_budget(
         db=db,
         conversation_id=conversation_id,
