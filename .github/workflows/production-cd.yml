@@ -12,6 +12,7 @@ concurrency:
 env:
   HEALTHCHECK_URL: http://18.142.190.113:8001/health
   ASSISTANT_HEALTHCHECK_URL: http://18.142.190.113:8500/health
+  ASSISTANT_INTERNAL_HEALTHCHECK_URL: http://127.0.0.1:8500/health
 
 jobs:
   deploy:
@@ -66,7 +67,7 @@ jobs:
       - name: Verify backend health
         run: |
           for attempt in $(seq 1 30); do
-            if curl -fsS "${HEALTHCHECK_URL}"; then
+            if curl -fsS --connect-timeout 5 --max-time 15 "${HEALTHCHECK_URL}"; then
               echo "Backend is healthy."
               exit 0
             fi
@@ -77,9 +78,14 @@ jobs:
           exit 1
 
       - name: Verify assistant health
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
           for attempt in $(seq 1 30); do
-            if curl -fsS "${ASSISTANT_HEALTHCHECK_URL}"; then
+            if ssh -p "${SERVER_PORT}" "${SERVER_USER}@${SERVER_HOST}" \
+              "curl -fsS --connect-timeout 5 --max-time 15 '${ASSISTANT_INTERNAL_HEALTHCHECK_URL}'"; then
               echo "Assistant is healthy."
               exit 0
             fi
