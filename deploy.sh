@@ -10,10 +10,13 @@ COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
 ASSISTANT_HEALTHCHECK_URL="${ASSISTANT_HEALTHCHECK_URL:-http://18.142.190.113:8500/health}"
+LOCAL_LLM_HEALTHCHECK_URL="${LOCAL_LLM_HEALTHCHECK_URL:-http://127.0.0.1:8091/v1/models}"
 BACKUP_DIR="${BACKUP_DIR:-${DEPLOY_DIR}/backups}"
 LOCK_FILE="${LOCK_FILE:-/tmp/aura-production-deploy.lock}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
 DB_SERVICE="${DB_SERVICE:-db}"
+LOCAL_AI_MODEL_FILE="${LOCAL_AI_MODEL_FILE:-jose.gguf}"
+LOCAL_AI_MODEL_PATH="${LOCAL_AI_MODEL_PATH:-${DEPLOY_DIR}/${LOCAL_AI_MODEL_FILE}}"
 
 log() {
   printf '[deploy] %s\n' "$*"
@@ -115,6 +118,12 @@ if [ ! -f "${ENV_FILE}" ]; then
 fi
 apply_legacy_env_defaults
 
+if [ "${DEPLOY_SCOPE}" = "backend-assistant" ] || [ "${DEPLOY_SCOPE}" = "full" ]; then
+  if [ ! -f "${LOCAL_AI_MODEL_PATH}" ]; then
+    fail "local AI model is missing: ${LOCAL_AI_MODEL_PATH}"
+  fi
+fi
+
 mkdir -p "${BACKUP_DIR}" .deploy
 
 PREVIOUS_REVISION="$(git rev-parse HEAD)"
@@ -164,8 +173,11 @@ fi
 
 log "pulling upstream images where available"
 case "${DEPLOY_SCOPE}" in
-  backend|backend-assistant|full)
+  backend)
     compose pull --quiet redis || log "redis image pull skipped; existing image will be used"
+    ;;
+  backend-assistant|full)
+    compose pull --quiet redis local-llm || log "redis/local-llm image pull skipped; existing images will be used"
     ;;
 esac
 
@@ -188,6 +200,11 @@ esac
 log "starting infrastructure"
 compose up -d "${DB_SERVICE}" redis
 wait_for_compose_service "${DB_SERVICE}" 36 5
+if [ "${DEPLOY_SCOPE}" = "backend-assistant" ] || [ "${DEPLOY_SCOPE}" = "full" ]; then
+  log "starting local LLM"
+  compose up -d local-llm
+  wait_for_health "${LOCAL_LLM_HEALTHCHECK_URL}" 36 5
+fi
 
 log "running migrations and bootstrap"
 compose up --abort-on-container-exit --exit-code-from migrate migrate

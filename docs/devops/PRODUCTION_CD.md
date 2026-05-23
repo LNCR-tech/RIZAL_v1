@@ -28,9 +28,9 @@ when explicitly added for local testing.
 GitHub Actions runs tests plus backend and assistant production image builds
 first. After those gates pass, the workflow opens an SSH session to the Ubuntu
 VPS, runs `deploy.sh`, pulls `main`, validates Compose, backs up Postgres,
-rebuilds the backend and assistant images, runs migrations/bootstrap jobs,
-restarts `backend`, `worker`, `beat`, and `assistant`, and verifies both
-`http://18.142.190.113:8001/health` and
+starts the local llama.cpp model server, rebuilds the backend and assistant
+images, runs migrations/bootstrap jobs, restarts `backend`, `worker`, `beat`,
+and `assistant`, and verifies both `http://18.142.190.113:8001/health` and
 `http://18.142.190.113:8500/health`.
 
 Docker Compose health checks gate service startup. Rollback is automatic when
@@ -75,6 +75,18 @@ Existing VPS env files that use `DB_USER`, `DB_PASSWORD`, `DB_NAME`,
 `ADMIN_EMAIL`, and `ADMIN_PASSWORD` remain supported. The deploy scripts derive
 the current `POSTGRES_*`, `DATABASE_URL`, and bootstrap admin settings from
 those legacy names when the current names are not present.
+
+For local AI inference, upload the GGUF model to `/opt/aura/jose.gguf` on the
+VPS before deploying assistant.
+The production Compose stack runs `ghcr.io/ggml-org/llama.cpp:server` as the
+internal `local-llm` service and points the assistant at
+`http://local-llm:8091/v1`. The llama.cpp Docker docs describe the `server`
+image as the image containing `llama-server` for OpenAI-compatible serving:
+https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md
+
+The deploy script checks for the model file before changing containers. If the
+file is absent, the deploy exits before rebuilding/restarting the assistant.
+Override `LOCAL_AI_MODEL_PATH` only if the model lives somewhere else.
 
 ## VPS Setup
 
@@ -159,6 +171,9 @@ Manual backend and assistant deployment without restarting frontend:
 cd /opt/aura
 DEPLOY_BRANCH=main DEPLOY_SCOPE=backend-assistant DB_SERVICE=db HEALTHCHECK_URL=http://18.142.190.113:8001/health ASSISTANT_HEALTHCHECK_URL=http://18.142.190.113:8500/health ./deploy.sh
 ```
+
+This scope also starts `local-llm` and checks
+`http://127.0.0.1:8091/v1/models` from the VPS before starting assistant.
 
 Full deployment, including frontend and assistant rebuild/restart, is available
 only when intentionally requested:
