@@ -104,7 +104,7 @@ log "pulling upstream images where available"
 compose pull --ignore-buildable --quiet || log "compose pull skipped or no pullable images were available"
 
 log "building updated images"
-compose build --pull
+compose build --pull postgres migrate bootstrap backend worker beat assistant
 
 log "starting infrastructure"
 compose up -d --remove-orphans postgres redis
@@ -114,7 +114,7 @@ compose up --abort-on-container-exit --exit-code-from migrate migrate
 compose up --abort-on-container-exit --exit-code-from bootstrap bootstrap
 
 log "restarting changed application containers"
-compose up -d --remove-orphans backend worker beat assistant
+compose up -d --remove-orphans backend worker beat assistant frontend
 
 log "waiting for Docker health checks"
 compose ps
