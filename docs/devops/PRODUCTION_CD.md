@@ -25,11 +25,13 @@ when explicitly added for local testing.
 
 ## Architecture
 
-GitHub Actions runs tests and backend production image builds first. After
-those gates pass, the workflow opens an SSH session to the Ubuntu VPS, runs
-`deploy.sh`, pulls `main`, validates Compose, backs up Postgres, rebuilds the
-backend image, runs migrations/bootstrap jobs, restarts `backend`, `worker`,
-and `beat`, and verifies `http://18.142.190.113:8001/health`.
+GitHub Actions runs tests plus backend and assistant production image builds
+first. After those gates pass, the workflow opens an SSH session to the Ubuntu
+VPS, runs `deploy.sh`, pulls `main`, validates Compose, backs up Postgres,
+rebuilds the backend and assistant images, runs migrations/bootstrap jobs,
+restarts `backend`, `worker`, `beat`, and `assistant`, and verifies both
+`http://18.142.190.113:8001/health` and
+`http://18.142.190.113:8500/health`.
 
 Docker Compose health checks gate service startup. Rollback is automatic when
 deployment fails after the previous revision is captured. Because the backend is
@@ -149,6 +151,13 @@ Manual backend-only deployment:
 ```bash
 cd /opt/aura
 DEPLOY_BRANCH=main DEPLOY_SCOPE=backend DB_SERVICE=db HEALTHCHECK_URL=http://18.142.190.113:8001/health ./deploy.sh
+```
+
+Manual backend and assistant deployment without restarting frontend:
+
+```bash
+cd /opt/aura
+DEPLOY_BRANCH=main DEPLOY_SCOPE=backend-assistant DB_SERVICE=db HEALTHCHECK_URL=http://18.142.190.113:8001/health ASSISTANT_HEALTHCHECK_URL=http://18.142.190.113:8500/health ./deploy.sh
 ```
 
 Full deployment, including frontend and assistant rebuild/restart, is available

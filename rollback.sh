@@ -10,6 +10,7 @@ DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
+ASSISTANT_HEALTHCHECK_URL="${ASSISTANT_HEALTHCHECK_URL:-http://18.142.190.113:8500/health}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
 DB_SERVICE="${DB_SERVICE:-db}"
 
@@ -89,11 +90,14 @@ case "${DEPLOY_SCOPE}" in
   backend)
     compose build migrate
     ;;
+  backend-assistant)
+    compose build migrate assistant
+    ;;
   full)
     compose build
     ;;
   *)
-    fail "unsupported DEPLOY_SCOPE: ${DEPLOY_SCOPE}. Use 'backend' or 'full'."
+    fail "unsupported DEPLOY_SCOPE: ${DEPLOY_SCOPE}. Use 'backend', 'backend-assistant', or 'full'."
     ;;
 esac
 
@@ -126,10 +130,16 @@ case "${DEPLOY_SCOPE}" in
   backend)
     start_svc backend worker beat
     ;;
+  backend-assistant)
+    start_svc backend worker beat assistant
+    ;;
   full)
     start_svc backend worker beat assistant frontend
     ;;
 esac
 
 wait_for_health "${HEALTHCHECK_URL}"
+if [ "${DEPLOY_SCOPE}" = "backend-assistant" ] || [ "${DEPLOY_SCOPE}" = "full" ]; then
+  wait_for_health "${ASSISTANT_HEALTHCHECK_URL}"
+fi
 log "rollback complete: ${TARGET_REVISION}"
