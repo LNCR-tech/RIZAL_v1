@@ -60,3 +60,28 @@ GITHUB/
 
 # SSH keys
 *.pem
+
+# --- Aura local AI / mobile / extra local artifacts ---
+# Local LLM model files (large; ship out-of-band, never commit)
+*.gguf
+assistant/models/
+# Python virtualenvs (any location)
+venv/
+.venv/
+assistant/venv/
+backend/venv/
+# Assistant local SQLite (also covered by *.db)
+assistant/assistant_local.db
+# Flutter mobile build artifacts + endpoint secrets
+*.apk
+*.aab
+*.ipa
+frontend-app/build/
+frontend-app/.dart_tool/
+frontend-app/config/cloud.json
+# Local-only helper scripts (never pushed)
+assistant/run_local.ps1
+push_changes.ps1
+# Misc local
+.agent/
+test-results/
