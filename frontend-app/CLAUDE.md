@@ -86,6 +86,44 @@ IP-based staging server is HTTP, so dev-only cleartext is enabled (Android
 `usesCleartextTraffic`, iOS ATS) — use HTTPS in production.
 
 ## Status
+**v1.24.0 — edit governance events + event-create 500 diagnosed (backend).** Event monitor
+(`governance_event_monitor_screen.dart`) gains an Edit action (gated by `manage_events`) →
+`EventEditorScreen(event:)` prefilled from the event, saving via `PATCH /api/events/{id}`
+(`EventsRepository.update`, scoped by `governance_context`); `DioClient.patch` now forwards
+query params. **Event _creation_ still 500s from the backend (cloud + local)** — traced
+server-side: a valid `EventCreate` payload reaches the handler and fails during processing;
+most likely the deployed/local DB lacks newer `events`/`event_targets` columns (only in
+`schema.sql`, no versioned alembic migration) → INSERT fails. The client request is correct;
+fix is a backend migration/redeploy, not the app. analyze clean, 42 tests.
+**v1.23.2 — governance Members screen back button.** `governance_members_screen.dart`
+now returns `AppScaffold(title: 'Members', actions: [add officer])` (matching
+`GovernanceEventsScreen`) so it has a back button + status-bar-safe title when pushed
+from a dashboard quick action (it was a bare tab body → no app bar, no back, title under
+the status bar). The add action moved to the app bar; the unit name is a context line.
+Still works as a bottom-nav tab. analyze clean, 42 tests.
+**v1.23.1 — app named "Aura" + real launcher icon.** `android:label` and iOS
+`CFBundleDisplayName` are now "Aura" (was `aura_app`). The Aura mark ships as the
+launcher icon — legacy mdpi–xxxhdpi PNGs **plus an Android adaptive icon**
+(`mipmap-anydpi-v26/ic_launcher.xml`: `@mipmap/ic_launcher_foreground` centred over
+`@color/ic_launcher_background` near-black) for Android 12+. Generated from the clean
+`frontend-web/public/pwa-512.png` brand asset — the `frontend-apk` icon files were
+CRLF-corrupted (extra `0D` in the PNG signature) and undecodable.
+**v1.23.0 — governance hierarchy management UI (SSG → SG → ORG).** Officers can build
+the governance tree in-app (backend already supported it; Flutter had no view). The
+governance dashboard (`governance_home_screen.dart`) gains a permission-gated "Create
+college SG" / "Create program ORG" action (gated on `create_sg` / `create_org`, locked
+otherwise) → `UnitCreatorScreen` (`unit_creator_screen.dart`: SG = college picker, ORG =
+program picker scoped to the parent SG's inherited college via `Program.departmentIds`;
+posts `department_id`/`program_id`; backend 400s shown inline) + a **Child units** list
+that tap-switches into a child, propagating the parent membership's `manage_members` /
+`assign_permissions` (one level, mirroring the backend) with a back control. A shared
+`OfficerEditor` (`officer_editor.dart`) replaces the SSG-only one and offers exactly the
+permissions each unit type allows (backend whitelist — only SSG grants `create_sg`, only
+SG `create_org`); used by the campus-admin SSG panel and the governance Members screen
+(add **and** edit officers with position + permissions) so each level can empower the
+next. Model: `GovernanceUnitSummary` parses `department_id`/`program_id`; `GovUnitAccess`
+gains `fromSummary`; `governance_providers` adds `govDepartmentsProvider` /
+`govProgramsProvider` / `createGovernanceUnit`. analyze clean, 42 tests.
 **v1.22.1 — assistant greeting + wait-don't-fail + toggle fix.** Chat opens with an
 instant client-side greeting "Hi <name>! I'm Aura, powered by Jose AI…"
 (`chat_controller.build()`). Assistant Dio `receiveTimeout` 300s so a slow local model
