@@ -1393,11 +1393,11 @@ export async function createGovernanceEvent(baseUrl, token, payload, params = {}
 }
 
 export async function getAttendanceSummary(baseUrl, token, params = {}) {
-    return request(baseUrl, '/attendance/summary', {
+    return requestWithFallback(baseUrl, ['/api/attendance/summary', '/attendance/summary'], {
         method: 'GET',
         token,
         params,
-    })
+    }, [404, 405])
 }
 
 export async function getEventAttendance(baseUrl, token, eventId, params = {}) {
