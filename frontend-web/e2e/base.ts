@@ -346,6 +346,9 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
       /favicon\.ico/i, // missing favicon
       /Third-party cookie will be blocked/i, // browser warning
       /AuraChatWindow/i, // some ai demo component warning
+      /dotlottie-player\.wasm/i, // CDN fallback warning from login animation
+      /Primary WASM load failed/i, // CDN fallback warning from login animation
+      /Attempting to load WASM from backup URL/i, // CDN fallback warning from login animation
       /Failed to load resource.*401/i, // expected during auth failure paths
       /Failed to load resource.*429/i, // expected if hitting rate limits
     ];
