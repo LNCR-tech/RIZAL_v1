@@ -114,7 +114,7 @@ compose up --abort-on-container-exit --exit-code-from migrate migrate
 compose up --abort-on-container-exit --exit-code-from bootstrap bootstrap
 
 log "restarting changed application containers"
-compose up -d --remove-orphans backend worker beat assistant frontend
+compose up -d --remove-orphans backend worker beat assistant
 
 log "waiting for Docker health checks"
 compose ps
