@@ -25,11 +25,11 @@ when explicitly added for local testing.
 
 ## Architecture
 
-GitHub Actions runs tests and production image builds first. After those gates
-pass, the workflow opens an SSH session to the Ubuntu VPS, runs `deploy.sh`,
-pulls `main`, validates Compose, backs up Postgres, rebuilds images, runs
-migrations/bootstrap jobs, restarts only services whose image or configuration
-changed, and verifies `http://18.142.190.113:8001/health`.
+GitHub Actions runs tests and backend production image builds first. After
+those gates pass, the workflow opens an SSH session to the Ubuntu VPS, runs
+`deploy.sh`, pulls `main`, validates Compose, backs up Postgres, rebuilds the
+backend image, runs migrations/bootstrap jobs, restarts `backend`, `worker`,
+and `beat`, and verifies `http://18.142.190.113:8001/health`.
 
 Docker Compose health checks gate service startup. Rollback is automatic when
 deployment fails after the previous revision is captured. Because the backend is
@@ -41,7 +41,8 @@ minimizes downtime and rolls back on failed health checks.
 
 - `.github/workflows/production-cd.yml`: main-branch production CD with test,
   build, SSH deploy, and final public health verification.
-- `docker-compose.prod.yml`: production Compose stack with internal Postgres and
+- `docker-compose.prod.yml`: production Compose stack using the existing
+  `rizal_v1` project and `db` database service, with internal Postgres and
   Redis, health checks, restart policies, log rotation, app services, and no
   dev-only exposed database/admin ports.
 - `.env.production.example`: server-side example for required production
@@ -67,6 +68,11 @@ of an ambiguous deploy error. `SERVER_PORT` defaults to `22` when omitted.
 Do not store application secrets in GitHub Actions unless you also change the
 workflow to render `.env.production` on the server. The recommended model is to
 create `.env.production` once on the VPS with restricted permissions.
+
+Existing VPS env files that use `DB_USER`, `DB_PASSWORD`, `DB_NAME`,
+`ADMIN_EMAIL`, and `ADMIN_PASSWORD` remain supported. The deploy scripts derive
+the current `POSTGRES_*`, `DATABASE_URL`, and bootstrap admin settings from
+those legacy names when the current names are not present.
 
 ## VPS Setup
 
@@ -138,11 +144,19 @@ domain, then redeploy.
 
 ## Operations
 
-Manual deployment:
+Manual backend-only deployment:
 
 ```bash
 cd /opt/aura
-DEPLOY_BRANCH=main HEALTHCHECK_URL=http://18.142.190.113:8001/health ./deploy.sh
+DEPLOY_BRANCH=main DEPLOY_SCOPE=backend DB_SERVICE=db HEALTHCHECK_URL=http://18.142.190.113:8001/health ./deploy.sh
+```
+
+Full deployment, including frontend and assistant rebuild/restart, is available
+only when intentionally requested:
+
+```bash
+cd /opt/aura
+DEPLOY_BRANCH=main DEPLOY_SCOPE=full DB_SERVICE=db HEALTHCHECK_URL=http://18.142.190.113:8001/health ./deploy.sh
 ```
 
 Manual rollback:
@@ -180,6 +194,10 @@ is already running. Copy those files to object storage or another host daily.
 
 - `compose config` fails: check `.env.production` for missing values or invalid
   quotes.
+- Database health fails before migrations: inspect
+  `docker compose --env-file .env.production -f docker-compose.prod.yml logs db`
+  and confirm `POSTGRES_USER`, `POSTGRES_PASSWORD`, and the existing data
+  volume.
 - Backend health fails: inspect `docker compose ... logs backend migrate
   bootstrap` and confirm `DATABASE_URL`, `SECRET_KEY`, CORS, and migrations.
 - Frontend loads but API calls fail: confirm `BACKEND_ORIGIN=http://backend:8000`

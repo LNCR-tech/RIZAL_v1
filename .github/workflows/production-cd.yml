@@ -127,8 +127,8 @@ jobs:
       - name: Validate production compose file
         run: docker compose --env-file .env.production.example -f docker-compose.prod.yml config --quiet
 
-      - name: Build production images
-        run: docker compose --env-file .env.production.example -f docker-compose.prod.yml build
+      - name: Build backend production images
+        run: docker compose --env-file .env.production.example -f docker-compose.prod.yml build migrate
 
   # Deploy by SSHing into the VPS and running the repository-owned deploy.sh.
   # The script performs git pull, compose build/up, health checks, and rollback.
@@ -177,10 +177,12 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_DIR: ${{ secrets.SERVER_APP_DIR }}
           DEPLOY_BRANCH: main
+          DEPLOY_SCOPE: backend
+          DB_SERVICE: db
           HEALTHCHECK_URL: ${{ env.HEALTHCHECK_URL }}
         run: |
           ssh -p "${SERVER_PORT}" "${SERVER_USER}@${SERVER_HOST}" \
-            "DEPLOY_DIR='${DEPLOY_DIR:-/opt/aura}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" \
+            "DEPLOY_DIR='${DEPLOY_DIR:-/opt/aura}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' DEPLOY_SCOPE='${DEPLOY_SCOPE}' DB_SERVICE='${DB_SERVICE}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" \
             < ./deploy.sh
 
       # Final public verification from GitHub's runner catches firewall, routing,
