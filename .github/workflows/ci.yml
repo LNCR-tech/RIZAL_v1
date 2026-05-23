@@ -128,9 +128,33 @@ jobs:
             exit $?
           fi
 
+  assistant-tests:
+    name: Assistant Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install Assistant Dependencies
+        working-directory: assistant
+        run: pip install -r requirements.txt
+      - name: Run Assistant Tests
+        working-directory: assistant
+        env:
+          SECRET_KEY: test-secret-key
+          ASSISTANT_DB_URL: sqlite:///./test_assistant_ci.db
+          AI_API_KEY: test-key
+          AI_API_BASE: https://test.example.com/v1
+          AI_MODEL: test-model
+          BACKEND_API_BASE_URL: http://localhost:8000
+        run: pytest tests/
+
   e2e-tests:
     name: E2E Playwright
-    needs: [backend-tests, frontend-tests]
+    needs: [backend-tests, frontend-tests, assistant-tests]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/pilot'
     services:
