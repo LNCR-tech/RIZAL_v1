@@ -1,0 +1,812 @@
+# Changelog
+
+All notable changes to the Aura (RIZAL) Flutter app are documented here.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
+project adheres to [Semantic Versioning](https://semver.org/). Pre-1.0 while
+building toward full four-workspace parity: **each phase bumps the minor**, bug
+fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
+`pubspec.yaml` `version:` tracks the latest entry as `<semver>+<build>`.
+
+## [Unreleased]
+
+## [1.22.1] - 2026-05-23
+### Added
+- **Personalized greeting.** The Aura AI chat opens with an instant, client-side
+  greeting — "Hi <name>! I'm Aura, powered by Jose AI …" (no model call, no waiting).
+  (`chat_controller.dart`)
+### Fixed
+- **Don't mislabel a slow model as unreachable.** The chat now waits up to 5 min for a
+  reply (`receiveTimeout` 300s) and, on a timeout, says "Aura is taking a while to
+  think" — "could not reach" is now reserved for a real connection failure
+  (`DioException` type check). (`assistant_service.dart`, `chat_controller.dart`)
+- **Fast/Think toggle overflow.** Moved the segmented control out of the cramped app
+  bar to a row above the input. (`chat_screen.dart`)
+- Local model stays warm (`run_local.ps1` adds `--mlock`) so replies don't crawl after
+  idle (cold ~64s → ~6s).
+
+## [1.22.0] - 2026-05-23
+### Added
+- **Assistant Fast / Think toggle.** A compact segmented control in the Aura AI app
+  bar switches the assistant between **Fast** (slim prompt, no tools — quick replies,
+  ideal for the on-device/local model) and **Think** (full prompt + data tools +
+  charts, slower). Persisted (`fast_mode_controller.dart`); sent per message
+  (`fast: bool`) and honored per request by the backend. Sliding accent pill,
+  ease-out, reduce-motion aware, tooltips, no emoji.
+  (`chat_screen.dart` `_ModeToggle`, `assistant_service.dart`, `chat_controller.dart`)
+
+## [1.21.0] - 2026-05-23
+### Added
+- **Aura AI renders charts.** The assistant chat now parses the backend's
+  `visualization` SSE events (Chart.js-style spec) and draws them inline with
+  `fl_chart` — bar / line / pie / doughnut, themed, with a legend
+  (`features/assistant/presentation/widgets/assistant_chart.dart`,
+  `ChartSpec` + `AssistantChart`). `assistant_service.dart` now captures the
+  `visual` payload, `chat_controller.dart` attaches parsed charts to the reply,
+  and `chat_screen.dart` renders text **and** charts in the bubble. Previously the
+  client dropped these events (text-only).
+### Changed
+- AI assistant identity is now **"Aura, powered by Jose AI"** (assistant *backend*:
+  new `assistant/assistant_identity.py` prepended to the system prompt; `.env`
+  points at a local llama.cpp server serving `jose.gguf`). Setup in
+  `assistant/RUN_LOCAL_JOSE.md`. No change to the Flutter app to use the local model.
+
+## [1.20.2] - 2026-05-23
+### Fixed
+- **Smoother settings (and any long-list) scrolling.** `RiseIn` was replaying its
+  rise/fade — and running an `Opacity` layer — every time a row mounted, which a
+  `ListView` does lazily *while scrolling*. Now only the initial on-load burst
+  animates (a shared reveal window opened by the list head); rows scrolled into view
+  render instantly with no wrapper. (`rise_in.dart`)
+
+## [1.20.1] - 2026-05-23
+### Fixed
+- **Export no longer stalls at 60% ("Adding brand logo").** The logo + student
+  roster are cached per session and fetched **in parallel** with stats/attendees
+  (was sequential, with the logo blocking last on an 8s timeout). Logo timeout cut
+  to 3s; the "Adding branding" blocking step is gone. Repeat exports skip the fetches
+  entirely → ~1–5s typical. (`export_sheet.dart`)
+- **Smooth light/dark switch.** `AppTheme.light/dark` are now memoized — the
+  expensive `ColorScheme.fromSeed` was being recomputed on every app rebuild (and
+  both themes every time), which caused the toggle jank. (`app_theme.dart`)
+- **Trimmed the crowded Beta-features descriptions** to one short line each
+  (`account_tab.dart`).
+
+## [1.20.0] - 2026-05-23
+### Added
+- **Background event check-in notifications + one-tap check-in.** With "Nearby
+  event check-in" on, the app registers OS-level geofences (`native_geofence`) for
+  the user's ongoing geofenced events; entering one fires an OS notification
+  ("You're at <event> — tap to check in") **even when the app is closed**, and
+  tapping it opens the **attendance / face-scan screen directly** (deep-link via
+  `pendingCheckInProvider` → `student_home` listener). `geofence_background.dart`
+  (background isolate callback) + `flutter_local_notifications`. The 1.19.0
+  in-app prompt still works in the foreground.
+- **"Beta features" settings group** — Account groups the experimental toggles
+  (Liquid glass tab bar, Nearby event check-in) into an iOS-style section with BETA
+  pills, plus a new **Auto check-in** toggle (BETA) that shows **"Coming soon"**
+  (hands-free, no-scan check-in — placeholder, `autoCheckFullProvider`).
+
+### Changed
+- Android: core library desugaring enabled (`app/build.gradle.kts`) +
+  geofence/notification permissions + native_geofence receivers/service in the
+  manifest. iOS: background-location usage string + `UIBackgroundModes` in Info.plist.
+- Swapped `geofence_service` → `native_geofence` (OS geofences are Android-14-safe —
+  no typed foreground service needed).
+
+### Notes
+- The background trigger + notification need **on-device field testing** (walk into a
+  geofenced event) and a geofenced event to exist (after the backend redeploy).
+  Gated behind the off-by-default toggle. analyze clean, 42 tests, debug APK builds.
+
+## [1.19.0] - 2026-05-23
+### Added
+- **Nearby event check-in (opt-in).** Account → Preferences → **"Nearby event
+  check-in"** (off by default, persisted — `auto_checkin_controller.dart`). When on,
+  while the student Home is open the app polls device location — but only when
+  there's an ongoing **geofenced** event to match — and if the student is inside an
+  event's radius it shows an in-app prompt (`NearbyEventBanner`): tap **Check in** to
+  go straight to the face scan, no navigating to the event. Detection in
+  `nearby_event_provider.dart` (latlong2 distance vs `ongoingEventsProvider` +
+  `geolocation_service`). Nothing hardcoded — radius/centre/window come from each
+  event.
+
+### Notes
+- Foreground only (works while the app is open). True always-on background geofence
+  + OS push would need `flutter_local_notifications` + background-location + a
+  foreground service (future work). analyze clean, 42 tests.
+
+## [1.18.2] - 2026-05-23
+### Fixed
+- **Liquid nav stopped rendering (esp. on web).** Reverted the blob from the
+  `liquid_glass_widgets` `GlassPanel` (which 404s its shaders on web) back to
+  `liquid_glass_renderer`'s `LiquidGlass`, and removed the `kIsWeb` guard that had
+  disabled the Liquid nav on web. It renders again on web **and** mobile (real
+  refraction on Impeller). `main.dart` no longer needs `initialize()`/`wrap()`.
+
+### Added
+- **BETA pill** on the "Liquid glass tab bar" toggle (`account_tab.dart`,
+  `_BetaPill`).
+
+## [1.18.1] - 2026-05-23
+On-device refinements (tested on an entry-level Android).
+
+### Fixed
+- **Manrope rendered super-thin.** The bundled Manrope is a **variable** font but
+  its weight axis wasn't being driven, so every weight looked thin/unreadable. Now
+  set `fontVariations: [FontVariation('wght', …)]` per style (`app_typography.dart`)
+  so regular/medium/bold render correctly.
+- **Laggy light↔dark switch** on low-end GPUs — set
+  `themeAnimationDuration: Duration.zero` (`app.dart`); the animated cross-fade was
+  re-rendering the glass nav every frame.
+- **School logo** now shows the school letter while the network image loads instead
+  of a blank disc (`school_badge.dart`, `loadingBuilder` + `gaplessPlayback`).
+
+### Changed
+- **Dropped the package `GlassBottomBar` option** (kept the custom **Liquid** nav,
+  which won on device). The beta control is back to a simple **Off / Liquid** switch
+  (`beta_controller.dart` is a bool again; `app_shell.dart` no longer imports
+  `liquid_glass_widgets`, which is now used only by the Liquid blob).
+
+## [1.18.0] - 2026-05-23
+### Added
+- **iOS 26 liquid glass via `liquid_glass_widgets`** + a **3-way nav selector**
+  (Account → "Liquid glass tab bar": **Off / Liquid / Glass bar**, persisted, fully
+  reversible). **Liquid** = the custom animated capsule blob, now rendered with the
+  package's `GlassPanel` (shader refraction). **Glass bar** = the package's
+  `GlassBottomBar` (iOS-26 bar, `standard` quality + `maskingQuality.off` so it
+  stays smooth on older/entry-level GPUs) for comparison. `main.dart` calls
+  `LiquidGlassWidgets.initialize()` + `wrap()`.
+
+### Changed
+- The beta nav flag (`beta_controller.dart`) is now an enum `BetaNavStyle` (was a bool).
+
+### Fixed
+- **Android build** — `camera_android_camerax` (camera-core 1.5.x) failed to compile
+  ("CallbackToFutureAdapter not found"); inject `androidx.concurrent:concurrent-futures`
+  into that module (`android/build.gradle.kts`).
+
+### Notes
+- The glass shaders need **Impeller (mobile/desktop)**; on **web** the package 404s
+  its shaders, so web skips `initialize()`/`wrap()` and the nav falls back to the
+  standard frosted nav (`kIsWeb` guards). Test the glass on a device/emulator.
+- analyze clean, 42 tests, debug APK builds.
+
+## [1.17.13] - 2026-05-23
+### Changed
+- **Beta nav blob: no edge overlap.** The blob clamps to the pill's inner bounds,
+  so on the first/last tab its edge **compresses** instead of spilling out of the
+  pill. The tap/slide zoom still pops out.
+
+## [1.17.12] - 2026-05-23
+### Changed
+- **Beta nav blob: always a wide pill (even with many tabs) + bigger.** The blob
+  now has a minimum width (≥ 1.6× its height) and is centered on the tab, so it
+  stays a horizontal pill instead of a circle on 5-tab bars (it can overflow the
+  slot/pill — that's fine). Taller resting size and a bigger tap/slide zoom (1.4×)
+  that pops out of the pill.
+
+## [1.17.11] - 2026-05-23
+### Changed
+- **Beta nav blob bigger at rest.** The resting blob is now larger (≈ the old
+  zoomed size — taller `_blobH` 62, smaller side gap), so tap/slide zooms to an
+  even bigger size.
+
+## [1.17.10] - 2026-05-23
+### Changed
+- **Beta nav blob: zoom on tap too, faster, no stretch.** The blob no longer
+  stretches/elongates — it just **slides + zooms**. Tapping now zooms (a quick
+  pop in/out) like dragging does, and the slide is faster (240ms).
+
+## [1.17.9] - 2026-05-23
+### Changed
+- **Beta nav blob: Dynamic-Island capsule that zooms while sliding.** The blob is
+  rendered outside the pill clip (`Clip.none`) and **zooms bigger (1.32×) while you
+  drag** — popping out of the pill like a Dynamic Island — settling back on release.
+  Shape is a horizontal capsule (radius = height/2, width > height).
+
+## [1.17.8] - 2026-05-23
+### Changed
+- **Beta nav blob: wider pill, pop-on-tap, clearer refraction.** The blob fills
+  more of its slot (a real horizontal pill, not an oval), **pops bigger** on tap
+  then settles back to a normal pill, and the frosted pill is lighter/less-blurred
+  so the page shows through — making the blob's refraction (thickness 28,
+  refractiveIndex 1.5, chromatic aberration 5) actually visible.
+
+## [1.17.7] - 2026-05-23
+### Changed
+- **Beta nav: smooth drag, glitch-free tap.** The blob now follows the finger
+  **continuously** while dragging (a free fractional position) instead of snapping
+  tab-to-tab, and settles to the nearest tab on release. Tapping animates the blob
+  from its real current position with the elastic stretch, so it no longer glitches.
+  The active icon colour tracks the blob during the drag.
+
+## [1.17.6] - 2026-05-23
+### Changed
+- **Beta nav blob is now a proper pill.** Its corner radius equals half its height
+  (fully rounded ends) and it's a bit shorter with a smaller side gap, so it reads
+  as a horizontal capsule instead of a rounded square / vertical oval.
+
+## [1.17.5] - 2026-05-23
+### Changed
+- **Beta liquid glass nav — elastic blob + centered icons.** The blob now
+  **stretches** as it slides between tabs (restores the liquid feel on both tap and
+  drag) via a stateful elastic animation — the leading edge leads and the trailing
+  edge lags (two eased curves). Reshaped to a content-fitting rounded blob (was a
+  tall oval) and the icons + labels are now properly centered in each slot.
+
+## [1.17.4] - 2026-05-23
+### Changed
+- **Beta liquid glass nav — bigger pill, drag-to-slide, and real refraction.** The
+  pill is taller (82) with roomier icons/labels; the blob now slides via **tap or
+  drag** (`onHorizontalDragUpdate`). The frosted pill tint is now **translucent
+  dark** so the page shows through it — giving the `liquid_glass_renderer` blob
+  actual light to **refract** (refractiveIndex 1.45 + thickness 24 + chromatic
+  aberration). The refraction is on the **blob only**; the back pill stays frosted.
+
+## [1.17.3] - 2026-05-23
+### Changed
+- **Beta liquid glass nav — visual rework** to match the iOS reference. Replaced
+  the package-styled bar with a custom `core/widgets/liquid_glass_nav.dart`: a
+  neutral **frosted, tinted pill** (pure UI — no backend brand colour, same size
+  and pill shape as the standard nav) holding a **colourless `liquid_glass_renderer`
+  blob** that slides to the active tab. Only the **active icon + label** takes the
+  university **primary** colour (animated). `liquid_bottom_nav_bar` is no longer
+  used by the shell.
+
+## [1.17.2] - 2026-05-23
+### Changed
+- **Smoother tab switching (all roles).** The view transition is now a
+  state-preserving **cross-fade** — the outgoing view fades out as the incoming
+  fades in, with no slide and no blank flash (was an abrupt slide-in that left a
+  gap). `_AnimatedTabStack` in `app_shell.dart`.
+- **Beta liquid nav: the blob now slides on tap.** Added an explicit snap
+  `animationDuration` (320ms) + `easeOutCubic` curve so tapping a tab glides the
+  liquid blob to it instead of teleporting.
+
+## [1.17.1] - 2026-05-23
+### Changed
+- **Beta liquid glass tab bar is now real liquid glass.** The beta nav is wrapped
+  in a `liquid_glass_renderer` `LiquidGlass` pill (transparent
+  `liquid_bottom_nav_bar` container) for genuine refraction with **chromatic
+  aberration** over the page behind it, plus light/thickness tuned for the native
+  iOS look. The shape is now a **pill** (was a rounded square — the radius was
+  smaller than half the bar height). Impeller-only; stays behind the beta toggle.
+
+## [1.17.0] - 2026-05-23
+Beta: opt-in iOS liquid glass tab bar (all roles).
+
+### Added
+- **Liquid glass tab bar (Beta)** — Account → Preferences → "Liquid glass tab bar".
+  When on, every workspace's bottom navigation becomes an iOS-style liquid bar
+  (`liquid_bottom_nav_bar`: liquid blob animation + glass blur, themed with the
+  brand accent); off keeps the standard nav. The choice is persisted
+  (`core/theme/beta_controller.dart`) and the toggle warns it's beta and may lag on
+  low-end devices.
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.16.2] - 2026-05-23
+Event creation fixed; PDF font + Events-screen crash fixed; report names + progress.
+
+### Fixed
+- **Creating an event failed** (looked like an "internal server error"). The
+  **deployed backend requires `location`**, but the form only sent it when
+  non-empty — confirmed live: `422 {"loc":["body","location"],"msg":"Field
+  required"}`. The venue field is now required and always sent.
+- **Governance "Events" showed a red Flutter error** when opened from the
+  dashboard quick action — the screen was a bare `Column` with no `Material`
+  ancestor, so its `ChoiceChip`/`TextField` threw "No Material widget found".
+  Wrapped in `AppScaffold` (works as a tab and when pushed; the create "+" moved
+  to the app bar).
+- **PDF export failed on dashes** — the built-in Helvetica font can't draw
+  "–"/"—" (U+2013/U+2014). All report text is now sanitized to Latin-1
+  (typographic glyphs → ASCII).
+
+### Added
+- **Report attendee columns: Name | Student ID | Time in | Time out | Status** —
+  names/numbers resolved via `GET /api/governance/students`.
+- **Real step progress bar** on export (Loading attendance → Matching names →
+  Branding → Building), not a fixed-duration dummy.
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.16.1] - 2026-05-23
+### Fixed
+- **Report export (PDF / Excel / CSV) hung and lagged the app.** Byte generation
+  ran on the UI isolate — the heavy PDF/XLSX building froze the app, and a slow
+  logo fetch could spin forever. Generation now runs in a **background isolate**
+  (`compute`) and the logo fetch has an 8s timeout, so the sheet stays responsive
+  and the share dialog opens promptly.
+
+## [1.16.0] - 2026-05-23
+Governance event creation + a map view with range on events.
+
+### Added
+- **Governance officers can create events.** The governance Events screen (and the
+  dashboard quick action) now has a **New event** button — shown when the unit
+  grants `manage_events` — opening the event editor scoped to the unit via
+  `POST /api/events?governance_context=SSG|SG|ORG` (the backend auto-scopes
+  department/program). The new event appears under the unit immediately.
+- **Map view with range** on events — a read-only `EventLocationMap`
+  (`core/widgets/event_location_map.dart`) showing the geofence centre + radius
+  circle, on the **event detail** (student) and **governance monitor** screens.
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.15.0] - 2026-05-23
+University logo now displays everywhere; secondary brand colour applied.
+
+### Fixed
+- **University logo never displayed.** The backend returns `logo_url` as a
+  **relative** path (`{public_prefix}/{file}`); the app rendered it raw and every
+  check gated on `startsWith('http')`, so it was silently dropped. Added
+  `core/network/media_url.dart` (`mediaUrl()`) to resolve relative paths against the
+  backend root, used wherever the logo is shown (account, settings, export, …).
+
+### Added
+- **`SchoolBadge`** (`core/widgets/school_badge.dart`) — the school logo inside a
+  primary→secondary **gradient ring** (so the **secondary brand colour is now
+  used**), with an initial fallback. Placed next to the greeting/name on the
+  **student** and **school-IT** home, in the **governance** header, the **account**
+  profile card, and the **profile** screen (with the university name).
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.14.0] - 2026-05-23
+Campus-admin Student Government panel; blank University settings fixed.
+
+### Fixed
+- **University settings was a blank screen** — a full-width `AuraButton` (the
+  "Choose" logo button) sat directly inside a `Row` (unbounded width), throwing an
+  infinite-width layout assertion that failed the whole body subtree. Constrained
+  it. (Not a backend or data problem — confirmed from the render exception.)
+
+### Added
+- **Campus-admin "Student Government" panel** (School-IT home → Student Government):
+  auto-creates the school **SSG** (`GET /api/governance/ssg/setup`) and lets the
+  campus admin **add / edit / remove the President & officers** — search a student,
+  set the position title, and grant per-officer permissions. New repository methods
+  `ssgSetup()` + `updateMember()`.
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.13.1] - 2026-05-23
+### Fixed
+- **Assigning an "Unassigned" student now works.** Users-by-College was listing
+  non-student accounts (which have no student profile, hence no "Assign to a
+  college" action) under "Unassigned". The view is now restricted to actual
+  students, so every entry under "Unassigned" is assignable (open it → "Assign to
+  a college").
+
+## [1.13.0] - 2026-05-23
+Critical pagination fix, governance→student switch, localization.
+
+### Fixed
+- **Users list pagination.** The backend paginates by **`page`** and ignores
+  `skip`; the previous skip-loop re-fetched page 1 repeatedly → **duplicate
+  accounts, very slow / endless skeleton loading, "--" counts**, and accounts past
+  the first page never loaded (the "already exists but can't find it" account —
+  e.g. `aclaogloryzann30@gmail.com`, id 2232, COE — sat on page 2). Now walks
+  `page=1..total_pages` with de-dup.
+- **Governance "Switch to student"** now actually opens the student view (was a
+  no-op `maybePop`).
+
+### Added
+- **System language** support — `flutter_localizations` delegates + supported
+  locales (en, fil); the app follows the device language for Material widgets and
+  date/number formatting.
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.12.0] - 2026-05-23
+Fixes: full user list, schedule filters, college management.
+
+### Fixed
+- **Users by college now loads ALL users** (paginated). A newly-created account on
+  a large school (e.g. JRMSU) sat beyond the first page (id ASC), so it was
+  invisible to the list + search even though it existed — the "already exists but
+  can't find it" bug.
+- **University settings no longer shows a blank screen** — it renders from the
+  in-token branding instantly (name/code/logo/colours); the network call only
+  refreshes.
+
+### Added
+- **Schedule filter pills** (All / Today / Upcoming / Past) in every calendar.
+- **Rename / Delete a college** from each college card (⋯ menu); unassigned
+  students remain assignable to a college from the student detail.
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.11.0] - 2026-05-23
+Student analytics polish.
+
+### Added
+- **Insights** redesigned: attendance **arc gauge**, a **Now & next** section
+  (ongoing + upcoming events), present/late/absent/excused/incomplete breakdown,
+  monthly trend, an **event-type pie**, and recent events with per-event status.
+
+### Notes
+- Completes the governance dashboard / calendars / analytics plan
+  (1.9.0 → 1.11.0). analyze clean, 42 tests.
+
+## [1.10.0] - 2026-05-23
+Calendars with search for all three workspaces.
+
+### Added
+- **Calendars** (`core/widgets/event_calendar.dart`, table_calendar) with
+  status-colored day markers, a selected-day list, and **search**:
+  - Student "Schedule" — their events; tap → detail + status.
+  - School-IT "Schedule" — all school events (upcoming/ongoing/done) + new event.
+  - Governance "Events" — scoped to the active unit (its college/org).
+
+### Notes
+- analyze clean, 42 tests.
+
+## [1.9.0] - 2026-05-23
+Governance event-management dashboard, report export, and a map event picker.
+
+### Added
+- **Governance dashboard** rebuilt: shows the officer's **position**, a compliance
+  **arc gauge**, real metric chips, **permission-aware quick actions** (greyed +
+  locked when not permitted), and a **Manage events** list with a **live
+  attendance progress bar** for ongoing events (15s polling).
+- **Export an event report** to **PDF / CSV / XLSX** (university logo + name,
+  college, date/time, schedule, attendance summary + attendee list) —
+  `features/reports/event_report_service.dart` + `ExportSheet`.
+- **Event-creation form** redesigned (sectioned) with an interactive **map**
+  (flutter_map / OpenStreetMap) to set the geofence centre + a **radius slider**.
+- Campus-admin **profile avatar = school logo**.
+- **Splash** always plays its bloom now (minimum-display gate).
+- Shared `core/widgets/arc_gauge.dart` (semicircle % gauge).
+
+### Notes
+- New deps: table_calendar, pdf, printing, excel, share_plus, path_provider,
+  flutter_map, latlong2. analyze clean, 42 tests.
+
+## [1.8.0] - 2026-05-23
+Face re-enroll from the camera.
+
+### Added
+- **Update face** (Account → Security → Face ID): capture a new photo with the
+  front camera to set your face reference. Role-routed — students hit
+  `/api/face/register`, admin/School-IT hit `/auth/security/face-reference`. The
+  backend enforces liveness + a single face; failures (e.g. "Face not found.")
+  show inline. Reuses the attendance camera pipeline; no new dependencies.
+
+## [1.7.0] - 2026-05-23
+School-IT customization, college management, and bundled fonts.
+
+### Added
+- **Bundled Manrope + JetBrains Mono** as asset fonts — correct typography in
+  release/offline builds (no runtime font fetch).
+- **University settings** redesigned (iOS Display style): a live brand **preview**,
+  **logo upload** (web + APK), **primary & secondary** brand colours, name/code,
+  and a compact event-policy row. Saving applies the primary colour to the theme
+  live.
+- **College management**: add a college, rename/delete a college (delete warns +
+  surfaces the backend error when students are still assigned).
+- **Assign / reassign a student to a college** from the student detail screen.
+- Add students **manually** per college (alongside bulk import).
+- **Governor → student** quick switch in the Governance header.
+
+### Notes
+- The duplicate-email check is global across schools on the backend, so the
+  add-student form now surfaces the backend's exact reason (e.g. "registered in
+  another school").
+- 42 tests; analyze clean.
+
+## [1.6.0] - 2026-05-22
+Animated splash, Apple-style navbar, and a Security section.
+
+### Added
+- **Security** settings (Account → Security): **Edit profile** (name/email →
+  `PATCH /api/users/{id}`), **Change password** (real form →
+  `/auth/change-password`), **Sign-in & devices** (active sessions + revoke
+  others + recent sign-ins via `/auth/security/*`), and a **Face ID** status tile.
+- **Animated bloom splash** — a native recreation of `aura_animated_bloom.svg`
+  (green aura reveal + white-logo elastic bloom); honours Reduce motion. (The SVG
+  itself can't render in Flutter — CSS/SMIL + chroma filters — so it's rebuilt.)
+
+### Changed
+- **Bottom navigation** redesigned: switching tabs now **slides + fades** in the
+  swipe direction (state-preserving, no overlap); the tap **ripple is removed**
+  (Pressable scale); the active item gets a soft accent pill + label.
+
+### Notes
+- 42 tests; analyze clean. Face re-enrollment is admin/kiosk-only (the backend
+  face endpoints are privileged), so the tile shows status + guidance.
+
+## [1.5.0] - 2026-05-22
+School IT branding customization.
+
+### Added
+- School IT can customize their school in **School settings**: edit the school
+  **name** + **code** and pick a **primary brand colour** (swatch picker). Saving
+  posts to `PUT /api/school/update` and applies the colour to the app theme
+  **live** (`theme_controller`), so the accent reflects the school brand. The
+  school **logo** is shown when set.
+
+## [1.4.0] - 2026-05-22
+Apple-style polish: iOS settings, staggered motion, per-school AI toggle.
+
+### Added
+- **Staggered "rise-up" entrance** on every dashboard + the Account screen (cards
+  fade + rise in, sequenced) — plays only when Reduce motion is off
+  (`RiseIn` / `staggered` in `core/widgets/rise_in.dart`).
+- **iOS-style Account / Settings**: grouped inset sections with soft colored icon
+  tiles (`SettingsTile` / `SettingsSection`), a tappable profile row, and
+  preference cards.
+- **Per-school Aura AI toggle** in the admin school detail — turn the AI assistant
+  on/off for a school. (Saved on-device for now; platform-wide enforcement needs a
+  backend `ai_enabled` field, flagged in code.)
+
+### Notes
+- 42 tests; analyze clean.
+
+## [1.3.1] - 2026-05-22
+### Fixed
+- Tab views no longer overlap when switching between workspace tabs — the
+  animated tab stack now `Offstage`s inactive tabs (only the active one is laid
+  out + painted; state is still preserved). They were painting through before.
+
+## [1.3.0] - 2026-05-22
+Dashboard redesign across all workspaces.
+
+### Added
+- **Student / School IT / Governance home screens redesigned** to match the Admin
+  dashboard — hero ring + metric cards with icon chips + a real chart:
+  - Student: attendance ring, present/absence chips, monthly-attendance bar chart,
+    and the next upcoming event (was a Phase-0 placeholder — now real data).
+  - School IT: students ring (face-enrolled %), department/program chips, and a
+    students-by-department bar chart.
+  - Governance: compliance ring + pending sanctions (sanctions dashboard),
+    students/published chips, an absences-by-event bar chart, recent announcements.
+- Shared `core/widgets/dashboard.dart` (HeroRingCard, MetricChipCard,
+  DashboardActionRow, DashboardBarChart) so every workspace home stays consistent.
+
+## [1.2.0] - 2026-05-22
+Admin dashboard redesign + Apple-style tab transitions.
+
+### Added
+- **Admin Overview redesigned** as a chart-led dashboard: an active-schools hero
+  ring, metric cards with icon chips, and a **Subscriptions** bar chart (fl_chart)
+  — airy and readable instead of plain stat boxes.
+- App-wide **cross-fade + lift** transition when switching bottom-nav tabs
+  (state-preserving, Apple-style fade-through); honours Reduce motion.
+- Status-colored icon chips on school cards.
+
+### Changed
+- Bottom navigation sits a little lower (smaller bottom inset).
+
+## [1.1.0] - 2026-05-22
+Admin parity, the real Aura logo + web preview, and Apple-style motion.
+
+### Added
+- **Admin school detail** opens reliably (renders from the loaded summary — the
+  deployed backend has no per-school detail GET) with a **subscription status**
+  control (active/trial/suspended) and a **Plan & limits** editor
+  (`/api/subscription/me`) — the per-school capability lever.
+- **Admin Logs** tab: audit logs (`/api/audit-logs`, search + status filters) and
+  notification logs (`/api/notifications/logs`).
+- **Reduce motion** setting (System / On / Off) in Account → Appearance; app-wide
+  Apple-style page transitions (Cupertino) that collapse when motion is reduced.
+  Reduce-motion also gates the stat ring + bottom-nav indicator.
+- Official **Aura logo** (from the web app) on splash + login via `AuraLogo`;
+  `device_preview` phone-frame preview; web platform enabled (`--web-port=5173`).
+
+### Changed
+- Semantic colors: Sign out, attendance **sign-out**, and suspended/deactivated
+  states are **red**; attendance **check-in** is **green**.
+- Splash + login brand mark switched from the text "A" to the real Aura logo.
+- `intl` bumped to `^0.20.2`.
+
+### Fixed
+- Tapping a school in Admin no longer shows "Something went wrong" (it called a
+  detail route absent from the deployed backend).
+
+### Tests
+- Audit/notification log + subscription parsing tests. 42 total; analyze clean.
+
+## [1.0.0] - 2026-05-22
+Phase 5 — cross-cutting polish. First complete release: all four role workspaces.
+
+### Added
+- Offline read-cache: a Dio interceptor caches successful GETs and serves them on
+  network failure (cleared on logout) — schedules, dashboards, and lists keep
+  working offline.
+- CI: GitHub Actions workflow (`aura-app-ci.yml`) running analyze + test, then a
+  debug APK build, on changes to `frontend-app/`.
+- Accessibility: tooltips on icon-only actions (new event/school/member/
+  announcement, password visibility) atop existing Semantics, reduced-motion, and
+  text-scaling support.
+- `RELEASE.md`: Android/iOS signing, store-metadata checklist, and credential-gated
+  follow-ups (FCM push, deep links).
+
+### Notes
+- 38 tests; `flutter analyze` clean. Push notifications, deep links, app icon, and
+  store signing are documented in `RELEASE.md` (need the team's Firebase project /
+  keystore / store accounts).
+
+## [0.5.0] - 2026-05-22
+Phase 4 — Platform Admin workspace. All four role workspaces are now functional.
+
+### Added
+- Overview: platform metrics (schools / campus admins / pending) + pending
+  password-reset approvals (`/auth/password-reset-requests` + approve at root).
+- Schools: list (`/api/school/admin/list`), detail with activate/deactivate
+  (`PATCH /api/school/admin/{id}/status`), and create-school + campus-admin in one
+  step (`POST /api/school/admin/create-school-it`, multipart) showing the generated
+  temporary password.
+- Accounts: campus-admin list (`/api/school/admin/school-it-accounts`) with
+  activate/deactivate and password reset.
+- Admin models/repository. Retired the placeholder tabs — every workspace now
+  renders real screens.
+
+### Tests
+- Admin model-parsing tests. 38 total; analyze clean.
+
+## [0.4.0] - 2026-05-22
+Phase 3 — School IT (campus admin) workspace.
+
+### Added
+- Dashboard with school metrics (students / departments / programs) and management
+  entry points.
+- Users tab: students list with live search, mapped to department/program names,
+  plus a student detail screen.
+- Schedule tab: events list, an event editor (name, location, start/end pickers,
+  optional device-location geofence) creating via `POST /api/events/`, and the
+  live attendance monitor.
+- Bulk import: pick a CSV/XLSX, preview validation, commit, and poll job status
+  with a progress bar and per-row errors (`file_picker` added).
+- School settings: school info + editable default event policy (`/api/school/me`,
+  `PUT /api/school/update`).
+- School IT models/repository; events repo gains create/delete. Verified School IT
+  routes live under `/api`.
+
+### Tests
+- School IT model-parsing tests. 34 total; analyze clean.
+
+## [0.3.0] - 2026-05-22
+Phase 2 — Governance (student government) workspace.
+
+### Added
+- Governance access discovery (`/governance/access/me`) with a workspace entry in
+  Account (shown only when the user belongs to a unit) and an SSG>SG>ORG
+  active-unit switcher.
+- Dashboard overview (`/governance/units/{id}/dashboard-overview`): student +
+  published-announcement counts, recent announcements, quick actions.
+- Members tab: officers of the active unit, with add (student search → assign)
+  and remove.
+- Events tab: events in the unit's governance context, with a live attendance
+  monitor (stats ring + status breakdown + attendee list).
+- Announcements: list + create.
+- Sanctions: dashboard (`/sanctions/dashboard`), per-event sanctioned students,
+  and compliance approval.
+- Governance + sanctions models/repositories; events repo gains a
+  `governance_context` filter. Verified governance/sanctions routes live under `/api`.
+
+### Tests
+- Governance + sanctions parsing tests. 31 total; analyze clean.
+
+## [0.2.1] - 2026-05-22
+Phase 1 — Student workspace complete.
+
+### Added
+- AI assistant chat: streamed SSE replies from `/assistant/stream` with live
+  typing, conversation continuity, and user context.
+- Gather kiosk: nearby-event discovery (`/public-attendance/events/nearby`) plus an
+  auto-scanning multi-face check-in loop (`/multi-face-scan`) with a recorded count
+  and per-person outcomes; recorded students go on a cooldown set.
+- Account → Manage links to Aura AI and Gather (kiosk).
+
+### Security
+- Backend + assistant URLs moved to a git-ignored `config/cloud.json` (loaded with
+  `--dart-define-from-file`); no endpoints are hardcoded in source. Dev-only
+  cleartext HTTP enabled (Android `usesCleartextTraffic`, iOS ATS) for the IP-based
+  staging server — switch to HTTPS for production.
+
+### Fixed
+- API path prefix set to `/api` (verified against the staging server: `/api/events/`
+  responds, `/api/v1/...` 404s); overridable via `--dart-define=AURA_API_PREFIX`.
+
+## [0.2.0] - 2026-05-22
+Phase 1 — Student workspace (core surfaces).
+
+### Added
+- Student data models (event, attendance, profile, notifications, analytics) with
+  lenient JSON parsing, plus typed repositories over the cloud API.
+- Schedule (grouped by day) and Event Detail with live attendance-window status.
+- Face-scan attendance: front-camera capture + geolocation posted to
+  `/face/face-scan-with-recognition`, with a result sheet. Native camera/location
+  permissions added for Android + iOS.
+- Quick "Scan" tab listing ongoing events for one-tap check-in.
+- Insights: attendance-rate ring, status breakdown, monthly trend chart
+  (fl_chart), and recent history.
+- Profile and Notifications screens; Account tab links to both.
+- `camera` + `geolocator` plugins and a geolocation service wrapper.
+
+### Tests
+- Added model-parsing tests (event/attendance/report/profile). 27 total; analyze clean.
+
+## [0.1.0] - 2026-05-22
+Phase 0 — foundation.
+
+### Added
+- Flutter Android + iOS client `aura_app` (appId `com.aura.aura_app`).
+- Design system: light/dark theme + per-school brand primary, Manrope +
+  JetBrains Mono type scale, spacing/radii/elevation, motion tokens (emil),
+  YIQ contrast helper. Documented in `DESIGN_SYSTEM.md`.
+- Component library: `AuraButton`, `AuraCard`, `AuraPill`/`StatusChip`,
+  `AuraTextField`, `GlassBottomNav`, `StatRing`, `AppScaffold`, `SectionHeader`,
+  `AuraSkeleton`, `Pressable`.
+- Networking: Dio client with bearer interceptor, base-URL normalization,
+  FastAPI error mapping (`ApiException`), paginated envelope (`Paginated`).
+- Auth: secure token store, token-payload/role parsing, session controller with
+  401 handling; email/password login via `POST /token` (fallback `/api/token`).
+- Role-based router (go_router) with auth / password-change / privileged-face
+  gates routing to Student / School IT / Admin / Governance shells.
+- Workspace shells with glass bottom nav and home previews; shared Account tab
+  (theme switch + sign out).
+- Tests (23): roles, base-URL, token meta, pagination, contrast, `AuraButton`.
+
+### Notes
+- Reuses the existing cloud FastAPI backend unchanged; base URLs via
+  `--dart-define`. No codegen (hand-written Riverpod + plain models).
+- `flutter analyze` clean; `flutter test` green.
+
+[Unreleased]: #unreleased
+[1.20.1]: #1201---2026-05-23
+[1.20.0]: #1200---2026-05-23
+[1.19.0]: #1190---2026-05-23
+[1.18.2]: #1182---2026-05-23
+[1.18.1]: #1181---2026-05-23
+[1.18.0]: #1180---2026-05-23
+[1.17.13]: #11713---2026-05-23
+[1.17.12]: #11712---2026-05-23
+[1.17.11]: #11711---2026-05-23
+[1.17.10]: #11710---2026-05-23
+[1.17.9]: #1179---2026-05-23
+[1.17.8]: #1178---2026-05-23
+[1.17.7]: #1177---2026-05-23
+[1.17.6]: #1176---2026-05-23
+[1.17.5]: #1175---2026-05-23
+[1.17.4]: #1174---2026-05-23
+[1.17.3]: #1173---2026-05-23
+[1.17.2]: #1172---2026-05-23
+[1.17.1]: #1171---2026-05-23
+[1.17.0]: #1170---2026-05-23
+[1.16.2]: #1162---2026-05-23
+[1.16.1]: #1161---2026-05-23
+[1.16.0]: #1160---2026-05-23
+[1.15.0]: #1150---2026-05-23
+[1.14.0]: #1140---2026-05-23
+[1.13.1]: #1131---2026-05-23
+[1.13.0]: #1130---2026-05-23
+[1.12.0]: #1120---2026-05-23
+[1.11.0]: #1110---2026-05-23
+[1.10.0]: #1100---2026-05-23
+[1.9.0]: #190---2026-05-23
+[1.8.0]: #180---2026-05-23
+[1.7.0]: #170---2026-05-23
+[1.6.0]: #160---2026-05-22
+[1.5.0]: #150---2026-05-22
+[1.4.0]: #140---2026-05-22
+[1.3.1]: #131---2026-05-22
+[1.3.0]: #130---2026-05-22
+[1.2.0]: #120---2026-05-22
+[1.1.0]: #110---2026-05-22
+[1.0.0]: #100---2026-05-22
+[0.5.0]: #050---2026-05-22
+[0.4.0]: #040---2026-05-22
+[0.3.0]: #030---2026-05-22
+[0.2.1]: #021---2026-05-22
+[0.2.0]: #020---2026-05-22
+[0.1.0]: #010---2026-05-22
