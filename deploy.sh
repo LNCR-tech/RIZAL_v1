@@ -9,6 +9,7 @@ DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
+ASSISTANT_HEALTHCHECK_URL="${ASSISTANT_HEALTHCHECK_URL:-http://18.142.190.113:8500/health}"
 BACKUP_DIR="${BACKUP_DIR:-${DEPLOY_DIR}/backups}"
 LOCK_FILE="${LOCK_FILE:-/tmp/aura-production-deploy.lock}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
@@ -163,7 +164,7 @@ fi
 
 log "pulling upstream images where available"
 case "${DEPLOY_SCOPE}" in
-  backend|full)
+  backend|backend-assistant|full)
     compose pull --quiet redis || log "redis image pull skipped; existing image will be used"
     ;;
 esac
@@ -173,11 +174,14 @@ case "${DEPLOY_SCOPE}" in
   backend)
     compose build --pull migrate
     ;;
+  backend-assistant)
+    compose build --pull migrate assistant
+    ;;
   full)
     compose build --pull "${DB_SERVICE}" migrate assistant frontend
     ;;
   *)
-    fail "unsupported DEPLOY_SCOPE: ${DEPLOY_SCOPE}. Use 'backend' or 'full'."
+    fail "unsupported DEPLOY_SCOPE: ${DEPLOY_SCOPE}. Use 'backend', 'backend-assistant', or 'full'."
     ;;
 esac
 
@@ -194,6 +198,10 @@ case "${DEPLOY_SCOPE}" in
   backend)
     compose up -d --no-deps backend worker beat
     ;;
+  backend-assistant)
+    compose up -d --no-deps backend worker beat
+    compose up -d --no-deps assistant
+    ;;
   full)
     compose up -d --remove-orphans backend worker beat assistant frontend
     ;;
@@ -204,6 +212,10 @@ compose ps
 
 log "verifying public backend health"
 wait_for_health "${HEALTHCHECK_URL}" 36 5
+if [ "${DEPLOY_SCOPE}" = "backend-assistant" ] || [ "${DEPLOY_SCOPE}" = "full" ]; then
+  log "verifying public assistant health"
+  wait_for_health "${ASSISTANT_HEALTHCHECK_URL}" 36 5
+fi
 
 log "pruning dangling images older than 24 hours"
 docker image prune -f --filter "until=24h" >/dev/null
