@@ -57,10 +57,31 @@ log "rebuilding images for rollback revision"
 compose build
 
 log "restarting application services"
-compose up -d --remove-orphans postgres redis
-compose up --abort-on-container-exit --exit-code-from migrate migrate
-compose up --abort-on-container-exit --exit-code-from bootstrap bootstrap
-compose up -d --remove-orphans backend worker beat assistant frontend
+SERVICES=$(compose config --services)
+
+start_svc() {
+  local svc_list=""
+  for svc in "$@"; do
+    if echo "$SERVICES" | grep -q "^${svc}$"; then
+      svc_list="${svc_list} ${svc}"
+    fi
+  done
+  if [ -n "${svc_list}" ]; then
+    compose up -d --remove-orphans ${svc_list}
+  fi
+}
+
+run_svc() {
+  for svc in "$@"; do
+    if echo "$SERVICES" | grep -q "^${svc}$"; then
+      compose up --abort-on-container-exit --exit-code-from "$svc" "$svc"
+    fi
+  done
+}
+
+start_svc postgres redis
+run_svc migrate bootstrap
+start_svc backend worker beat assistant frontend
 
 wait_for_health "${HEALTHCHECK_URL}"
 log "rollback complete: ${TARGET_REVISION}"
