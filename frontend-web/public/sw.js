@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aura-shell-v5'
+const CACHE_NAME = 'aura-shell-v6'
 const APP_BASE_PATH = normalizeAppBasePath(self.location.pathname)
 const APP_SHELL_URL = APP_BASE_PATH
 const RUNTIME_CONFIG_PATH = appPath('runtime-config.js')
@@ -161,7 +161,11 @@ if (isLocalhost) {
     const requestUrl = new URL(event.request.url)
 
     if (requestUrl.origin !== self.location.origin) return
-    if (requestUrl.pathname.startsWith(appPath('__backend__')) || requestUrl.pathname.startsWith('/api/')) return
+    if (
+      requestUrl.pathname.startsWith(appPath('__backend__')) ||
+      requestUrl.pathname.startsWith(appPath('__assistant__')) ||
+      requestUrl.pathname.startsWith('/api/')
+    ) return
 
     if (event.request.mode === 'navigate') {
       event.respondWith(resolveNavigationResponse(event))
