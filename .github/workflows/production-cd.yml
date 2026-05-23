@@ -147,23 +147,39 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
 
+      - name: Validate deployment secrets
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          test -n "${SERVER_HOST}" || { echo "Missing SERVER_HOST GitHub secret."; exit 1; }
+          test -n "${SERVER_USER}" || { echo "Missing SERVER_USER GitHub secret."; exit 1; }
+          test -n "${SERVER_APP_DIR}" || { echo "Missing SERVER_APP_DIR GitHub secret."; exit 1; }
+          test -n "${SERVER_SSH_KEY}" || { echo "Missing SERVER_SSH_KEY GitHub secret."; exit 1; }
+
       # Pin the current VPS host key into known_hosts to avoid interactive SSH.
       - name: Trust VPS host key
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${SERVER_PORT}" -H "${SERVER_HOST}" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       # Run the same idempotent deployment script operators can run manually.
       - name: Deploy over SSH
         env:
-          VPS_HOST: ${{ secrets.SERVER_HOST }}
-          VPS_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_DIR: ${{ secrets.SERVER_APP_DIR }}
           DEPLOY_BRANCH: main
           HEALTHCHECK_URL: ${{ env.HEALTHCHECK_URL }}
         run: |
-          ssh "${VPS_USER}@${VPS_HOST}" \
+          ssh -p "${SERVER_PORT}" "${SERVER_USER}@${SERVER_HOST}" \
             "DEPLOY_DIR='${DEPLOY_DIR:-/opt/aura}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" \
             < ./deploy.sh
 
