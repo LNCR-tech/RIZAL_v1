@@ -4,6 +4,7 @@ import {
   expectPathnameToMatch,
   gotoLoginAndWait,
   loginAs,
+  readStoredToken,
 } from "../helpers/auth";
 import { navigateAndAssertUsable } from "../helpers/pressables";
 
@@ -27,6 +28,44 @@ test("login page controls perform the expected visible actions [LoginView.vue]",
   await page.getByRole("button", { name: /back to login/i }).click();
   await expectPathnameToMatch(page, /^\/$/);
   await expect(page.locator("#password")).toBeVisible();
+});
+
+// This test checks the failed-login path with exact expected outcomes: backend rejection, no token, and staying on login.
+test("login rejects wrong passwords without creating a session [LoginView.vue]", async ({ page }) => {
+  test.skip(
+    process.env.PLAYWRIGHT_MOCK_AUTH !== "true",
+    "Bad-login UI check needs Playwright mock auth so the 401 response is deterministic.",
+  );
+
+  await gotoLoginAndWait(page);
+  await page.locator("#email").fill(E2E_USERS.student.email);
+  await page.locator("#password").fill("WrongPassword!");
+
+  const failedLogin = page.waitForResponse(
+    (response) =>
+      response.url().includes("/token") &&
+      response.request().method() === "POST" &&
+      response.status() === 401,
+  );
+  await page.getByRole("button", { name: /log in|login|sign in/i }).click();
+  await failedLogin;
+
+  await expectPathnameToMatch(page, /^\/$/);
+  await expect(page.locator("#password")).toBeVisible();
+  await expect.poll(async () => await readStoredToken(page)).toBe("");
+});
+
+// This test checks that a preview event detail route renders the expected event sections.
+test("student event detail preview shows the selected event information [EventDetailView.vue]", async ({ page }) => {
+  await navigateAndAssertUsable(page, {
+    name: "student event detail preview",
+    path: "/exposed/dashboard/schedule/3",
+  });
+
+  await expect(page.getByRole("heading", { name: /leadership summit/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^schedule$/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^location$/i })).toBeVisible();
+  await expect(page.getByLabel(/attendance geofence/i)).toBeVisible();
 });
 
 // This test checks student navigation and profile controls with exact route/toggle/edit expectations.

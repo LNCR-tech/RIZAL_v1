@@ -18,7 +18,7 @@
           <div class="school-it-schedule__search-wrapper" :class="{ 'school-it-schedule__search-wrapper--hidden': isEventSettingsOpen }">
             <div class="school-it-schedule__search">
               <input v-model="searchQuery" type="text" placeholder="" class="school-it-schedule__search-input" />
-              <button class="school-it-schedule__search-btn" type="button"><Search :size="18" :stroke-width="2.5" color="#bcf00e" /></button>
+              <button class="school-it-schedule__search-btn" type="button" aria-label="Search events"><Search :size="18" :stroke-width="2.5" color="#bcf00e" /></button>
             </div>
           </div>
 

@@ -213,15 +213,25 @@ jobs:
           psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
           alembic upgrade head
 
-      - name: Seed DB
-        working-directory: seeder
+      - name: Seed E2E DB
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
-          SEED_DATABASE: 'true'
-          SEED_CONFIRM: 'yes'
-          E2E_ADMIN_EMAIL: campus_admin@test.com
-          E2E_ADMIN_PASSWORD: TestPass123!
-        run: python seed.py --ci-mode demo --schools 1
+          SECRET_KEY: test-secret-key
+          FACE_SCAN_BYPASS_ALL: 'true'
+          RATE_LIMIT_ENABLED: 'false'
+        run: |
+          python - <<'PY'
+          from app.core.database import SessionLocal
+          from tests.conftest import _seed
+
+          db = SessionLocal()
+          try:
+              _seed(db)
+              db.commit()
+          finally:
+              db.close()
+          PY
 
       - name: Start Backend
         working-directory: backend

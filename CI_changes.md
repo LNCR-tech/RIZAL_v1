@@ -238,6 +238,7 @@ npx playwright test e2e/workflows/pressable-coverage.spec.ts
 - Added route-to-source-file hints for dashboard, workspace, governance, admin, login, and forgot-password routes.
 - Dynamic pressable no-op failures now include a `Likely source files` section.
 - Dynamic pressable no-op failures still include label, tag, role, type, class, `data-testid`, DOM index, CSS path, and HTML snippet.
+
 - Updated `frontend-web/e2e/workflows/pressable-coverage.spec.ts`.
 - Dynamic pressable test titles now include the likely source component in brackets, so the Playwright failure summary is easier to scan.
 - Updated `frontend-web/e2e/workflows/expected-ui-actions.spec.ts`.
@@ -246,6 +247,58 @@ npx playwright test e2e/workflows/pressable-coverage.spec.ts
 - Verified `npx playwright test --list e2e/workflows/expected-ui-actions.spec.ts --reporter=list` lists 6 tests with source hints.
 - Verified `npm run typecheck` passed.
 - Verified the known profile `Settings` no-op failure now reports `frontend-web/src/views/dashboard/ProfileView.vue` and `frontend-web/src/router/index.js` as likely source files.
+
+## Follow-Up Change: Remove Root Seeder Dependency
+
+- Removed the leftover local `seeder/` directory from this machine.
+- The root `seeder/` directory was already removed from git by the latest pull from `main`; the local copy only contained ignored files such as `.env` and Python cache files.
+- Updated `.github/workflows/ci.yml`.
+- Replaced the E2E `Seed DB` step that used `working-directory: seeder` and `python seed.py --ci-mode demo --schools 1`.
+- The E2E workflow now seeds deterministic test data from `backend/tests/conftest.py` by calling `_seed(db)` from the backend working directory.
+- This keeps the Playwright E2E job from depending on the deleted root `seeder/` folder while still creating the expected test users:
+  - `admin@test.com`
+  - `campus_admin@test.com`
+  - `student@test.com`
+- The backend application module `backend/app/seeder.py` was not removed because it is still the production bootstrap helper for baseline roles, event types, and the first admin account.
+
+## Follow-Up Change: Coverage Expansion
+
+- Added `frontend-web/tests/unit/services/locationDisplay.spec.js`.
+- These tests cover coordinate labels, reverse-geocode labels, failed reverse-geocode responses, suggestion search filtering/sorting, empty search handling, distance measurement, and venue distance text.
+- Added `frontend-web/tests/unit/services/devicePermissions.spec.js`.
+- These tests cover web camera permission success/denial, geolocation granted/denied states, normalized browser coordinates, missing geolocation support, and precise-location rejection when accuracy stays too low.
+- Added `frontend-web/tests/unit/components/EventLocationPicker.spec.js`.
+- These tests cover existing coordinate rendering, clear pin behavior, search suggestions, selected suggestions, search errors, current-location success, current-location failure, and disabled/read-only behavior.
+- Added `backend/tests/test_event_api_edge_cases.py`.
+- These tests cover invalid event target field combinations, unknown program targets, incomplete required geofence fields, overlong idempotency keys, empty target updates, and invalid report date filters.
+- Added `assistant/tests/test_deterministic_ai_behaviour.py`.
+- These tests cover deterministic data intent detection, upcoming-event answers from mocked backend data, student absence answers, non-student attendance refusal, chart intent detection, chart visual payload shape, and raw attendance chart fallback.
+- Updated `frontend-web/e2e/workflows/expected-ui-actions.spec.ts`.
+- Added exact Playwright checks for bad-login rejection and student event-detail preview content.
+- Added `frontend-web/e2e/workflows/ui-quality.spec.ts`.
+- Added UI/UX checks that:
+  - visible buttons and links on key routes have accessible names
+  - key routes do not create horizontal overflow on mobile, tablet, or desktop viewport sizes
+- Updated `frontend-web/src/views/dashboard/SchoolItScheduleView.vue`.
+- Added `aria-label="Search events"` to the School IT schedule search icon button after the new accessibility-name test found it had no accessible name.
+
+## Coverage Expansion Verification
+
+- `npx vitest run tests/unit/services/locationDisplay.spec.js tests/unit/services/devicePermissions.spec.js tests/unit/components/EventLocationPicker.spec.js --reporter=dot` passed: 3 files, 20 tests.
+- `npm run test:unit` passed: 9 files, 103 tests.
+- Frontend unit coverage increased to:
+  - statements: 58.85%
+  - branches: 54.58%
+  - functions: 65.72%
+  - lines: 60.33%
+- `npx playwright test --list e2e/workflows --reporter=list` now lists 68 workflow tests.
+- `node ./scripts/run-playwright-suite.mjs --mock-auth e2e/workflows/expected-ui-actions.spec.ts e2e/workflows/ui-quality.spec.ts --project=chromium --reporter=list --workers=1` passed: 10/10.
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `python -m py_compile tests/test_event_api_edge_cases.py` passed from the backend directory.
+- `python -m py_compile tests/test_deterministic_ai_behaviour.py` passed from the assistant directory.
+- Backend and assistant pytest verification could not be run locally because the current Python executable is `C:\Python314\python.exe` and does not have `pytest` installed.
+- `git diff --check` found no whitespace errors; it only printed Windows line-ending warnings.
 
 ## Current CI Capabilities
 
@@ -265,12 +318,14 @@ After the latest testing changes, the GitHub CI workflow can check the following
 - Runs Alembic migrations.
 - Runs backend pytest tests with coverage XML output.
 - Uses deterministic backend seed data for shared event, student, and year-level test cases.
+- Covers extra event API edge cases for invalid audiences, geofence validation, idempotency-key limits, empty target updates, and invalid report date filters.
 
 ### Assistant / AI
 
 - Installs assistant dependencies.
 - Runs `assistant/tests` directly with pytest.
 - Tests assistant health, auth rejection, streaming shape, conversation storage, conversation isolation, quota behavior, and tool-call events.
+- Tests deterministic AI behavior without real model calls, including data-answer intent detection, role-safe student attendance answers, and chart payload shape.
 - Uses mocked AI responses for CI stability.
 - Uses a SQLite assistant test database, so CI does not need a real AI API call for these tests.
 
@@ -281,18 +336,21 @@ After the latest testing changes, the GitHub CI workflow can check the following
 - Runs frontend typecheck.
 - Runs frontend unit tests.
 - Includes unit coverage for event audience/year-level UI behavior.
+- Includes unit coverage for location display helpers, device permission helpers, and the event location picker.
 
 ### E2E / Playwright
 
 - Waits for backend, frontend, and assistant test jobs before running E2E.
 - Starts Postgres and Redis.
 - Runs backend migrations.
-- Seeds demo data.
+- Seeds deterministic E2E data from the backend test fixture helper instead of the deleted root `seeder/` folder.
 - Starts the backend server.
 - Starts the assistant server.
 - Builds and starts the frontend preview server.
 - Runs Playwright against the real running app.
 - Fails on browser console errors.
+- Exact UI action tests now include bad-login rejection and event-detail preview rendering.
+- UI/UX quality tests check accessible names on visible buttons/links and horizontal overflow across mobile, tablet, and desktop viewports.
 - Uploads Playwright screenshots, videos, traces, reports, backend logs, assistant logs, and frontend preview logs.
 
 ### Local UI/UX Tests Added In This Pass

@@ -72,19 +72,6 @@ services:
     restart: "no"
     profiles: ["dev", "prod"]
 
-  seeder:
-    build:
-      context: .
-      dockerfile: ./seeder/Dockerfile
-    image: aura-seeder:${APP_ENV:-dev}
-    env_file:
-      - ./seeder/.env
-    depends_on:
-      bootstrap:
-        condition: service_completed_successfully
-    restart: "no"
-    profiles: ["dev", "prod"]
-
   # ---------------------------------------------------------------------------
   # Application services
   # ---------------------------------------------------------------------------
