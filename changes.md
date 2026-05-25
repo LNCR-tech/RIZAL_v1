@@ -92,14 +92,15 @@
 ### Flutter CI Failure Follow-up
 
 **`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
-- Removed the shader-backed `liquid_glass_renderer` usage from the beta nav and replaced the animated blob with a pure Flutter `DecoratedBox`.
-- This keeps the beta nav usable while avoiding SkSL shader compilation failures in CI.
+- Kept the existing shader-backed `LiquidGlass.withOwnLayer` beta nav path so the app's visual design is unchanged.
 
 **`frontend-app/pubspec.yaml` / `frontend-app/pubspec.lock`**
-- Removed unused liquid-glass shader/nav dependencies:
-  - `liquid_bottom_nav_bar`
-  - `liquid_glass_renderer`
-  - `liquid_glass_widgets`
+- Restored the liquid-glass nav dependencies.
+- Pointed `liquid_glass_renderer` to a local patched copy under `frontend-app/third_party/liquid_glass_renderer` so CI can compile the same renderer without changing the app widget.
+
+**`frontend-app/third_party/liquid_glass_renderer`**
+- Vendored `liquid_glass_renderer` `0.2.0-dev.4`.
+- Patched the shader SDF helper to read `uShapeData` as a global uniform instead of passing uniform arrays through helper functions. This avoids the SkSL compiler generating unsupported array initializer code while preserving the renderer's behavior.
 
 **`frontend-app/lib/core/widgets/aura_button.dart`**
 - Made button labels flexible with ellipsis so long labels do not overflow narrow mobile layouts.
@@ -122,10 +123,6 @@
   - Student Schedule, Scan, Insights, and Account tab navigation.
   - Schedule `Upcoming` filter.
   - Event editor date and time picker buttons.
-
-**`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
-- Clarified comments around the pure Flutter glass highlight so the source no longer describes shader refraction behavior.
-
 ### Notes
 
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.

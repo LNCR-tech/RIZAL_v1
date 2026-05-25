@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 import '../theme/app_spacing.dart';
 import '../theme/app_tokens.dart';
@@ -12,9 +13,11 @@ class LiquidGlassNavItem {
   final String label;
 }
 
-/// Beta tab bar: a translucent dark frosted pill with a bright capsule blob
-/// that follows the finger and zooms while sliding. It intentionally avoids
-/// shader-backed packages so CI tests and Android builds stay deterministic.
+/// Beta tab bar: a translucent dark **frosted pill** (pure UI) with a colourless
+/// **liquid-glass capsule** blob (Dynamic-Island / medicine-pill shape) that
+/// follows the finger, **zooms bigger while sliding** (rendered outside the pill
+/// clip so it can pop out), and refracts the page showing through. Only the
+/// active icon/label takes the university primary colour.
 class LiquidGlassNav extends StatefulWidget {
   const LiquidGlassNav({
     super.key,
@@ -163,8 +166,11 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                         ),
                       ),
                     ),
-                    // 2. Icons + labels, painted under the glass highlight so
-                    // the active capsule can sit above them while moving.
+                    // 2. Icons + labels — painted BEHIND the blob so the glass
+                    // can refract them. The liquid-glass layer refracts its
+                    // backdrop (whatever is painted before it); anything painted
+                    // AFTER it is not refracted — that's why the icons must go
+                    // here, under the blob.
                     Positioned.fill(
                       child: Row(
                         children: [
@@ -180,10 +186,11 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                         ],
                       ),
                     ),
-                    // 3. Glass-style capsule highlight. Wrapped in
-                    // IgnorePointer so taps still reach the icons underneath.
-                    // Outside the clip so it can zoom out of the pill while
-                    // sliding. Blob size + animation unchanged.
+                    // 3. Liquid-glass capsule blob — ON TOP of the icons so it
+                    // bends/refracts them like glass (React Bits FluidGlass
+                    // "lens" look). Wrapped in IgnorePointer so taps still reach
+                    // the icons underneath. Outside the clip so it can zoom out
+                    // of the pill while sliding. Blob size + animation unchanged.
                     AnimatedBuilder(
                       animation: _anim,
                       builder: (context, child) {
@@ -213,33 +220,25 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           child: Transform.scale(scale: scale, child: child),
                         );
                       },
-                      // Keep this purely Flutter-rendered; shader packages have
-                      // been brittle in CI's SkSL compilation path.
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(_blobH / 2),
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withOpacity(0.28),
-                                primary.withOpacity(0.22),
-                                Colors.white.withOpacity(0.10),
-                              ],
-                            ),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.32),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primary.withOpacity(0.22),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
+                      // Now that the icons are behind it, the blob actually
+                      // refracts them (FluidGlass-style lens). Tuned for a clearly
+                      // visible bend + chromatic edges — nudge these to taste.
+                      child: const IgnorePointer(
+                        child: LiquidGlass.withOwnLayer(
+                          glassContainsChild: false,
+                          shape:
+                              LiquidRoundedSuperellipse(borderRadius: _blobH / 2),
+                          settings: LiquidGlassSettings(
+                            blur: 0,
+                            thickness: 24,
+                            refractiveIndex: 1.4,
+                            chromaticAberration: 4,
+                            glassColor: Color(0x0DFFFFFF),
+                            lightAngle: 1.5708,
+                            lightIntensity: 2.2,
+                            saturation: 1.25,
                           ),
-                          child: const SizedBox.expand(),
+                          child: SizedBox.expand(),
                         ),
                       ),
                     ),

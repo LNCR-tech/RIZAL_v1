@@ -47,6 +47,10 @@ dependencies:
   path_provider: ^2.1.5
   flutter_map: ^8.3.0
   latlong2: ^0.9.1
+  liquid_bottom_nav_bar: ^0.1.0
+  liquid_glass_renderer:
+    path: third_party/liquid_glass_renderer
+  liquid_glass_widgets: ^0.12.3
   flutter_local_notifications: ^21.0.0
   native_geofence: ^1.2.2
 
