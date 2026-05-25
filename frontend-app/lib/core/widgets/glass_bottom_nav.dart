@@ -54,6 +54,7 @@ class GlassBottomNav extends StatelessWidget {
                 children: [
                   for (var i = 0; i < items.length; i++)
                     _NavButton(
+                      key: ValueKey('bottom-nav-${items[i].label}'),
                       item: items[i],
                       selected: i == currentIndex,
                       accent: t.accent,
@@ -74,6 +75,7 @@ class GlassBottomNav extends StatelessWidget {
 
 class _NavButton extends StatelessWidget {
   const _NavButton({
+    super.key,
     required this.item,
     required this.selected,
     required this.accent,

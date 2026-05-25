@@ -108,6 +108,10 @@
 **`frontend-app/lib/core/widgets/aura_button.dart`**
 - Made button labels flexible with ellipsis so long labels do not overflow narrow mobile layouts.
 - Added a semantics container to the button so accessibility-label tests can reliably find labels such as `Sign in`.
+- Excluded child semantics inside the button semantics node so the accessible label stays exact instead of merging with the visible text.
+
+**`frontend-app/lib/core/widgets/glass_bottom_nav.dart` / `frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
+- Added stable, non-visual keys to bottom navigation items for Flutter UI tests.
 
 **`frontend-app/lib/features/auth/presentation/login_screen.dart`**
 - Added explicit semantics around the password visibility toggle so UI-quality tests can verify the accessible label.
@@ -128,6 +132,8 @@
   - Schedule `Upcoming` filter.
   - Event editor date and time picker buttons.
 - Hardened pressable UI tests to use hit-testable targets and route-ready pumping before tapping navigation controls.
+- Reset the test app tree between signed-out and student sessions so Riverpod/router state from the prior pump cannot hide the student shell.
+- Switched student bottom-nav taps from visible text lookup to stable bottom-nav keys.
 
 ### Notes
 

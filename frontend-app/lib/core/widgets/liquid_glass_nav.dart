@@ -177,6 +177,9 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           for (var i = 0; i < n; i++)
                             Expanded(
                               child: _NavItem(
+                                key: ValueKey(
+                                  'bottom-nav-${widget.items[i].label}',
+                                ),
                                 item: widget.items[i],
                                 active: i == activeIndex,
                                 activeColor: primary,
@@ -255,6 +258,7 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    super.key,
     required this.item,
     required this.active,
     required this.activeColor,

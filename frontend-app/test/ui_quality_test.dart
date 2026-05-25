@@ -114,9 +114,12 @@ Future<void> _pumpAuraApp(
   WidgetTester tester, {
   required SessionState session,
 }) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
   SharedPreferences.setMockInitialValues({});
   await tester.pumpWidget(
     ProviderScope(
+      key: UniqueKey(),
       overrides: _appOverrides(session),
       child: DevicePreview(
         enabled: false,
@@ -203,6 +206,8 @@ void _expectVisibleIconButtonsHaveLabels(
   );
 }
 
+Finder _bottomNavTab(String label) => find.byKey(ValueKey('bottom-nav-$label'));
+
 Future<void> _tapAndExpectUiResponse(
   WidgetTester tester, {
   required Finder target,
@@ -237,7 +242,7 @@ void main() {
           _expectNoFlutterExceptions(tester, 'student home at ${viewport.name}');
 
           for (final label in ['Schedule', 'Scan', 'Insights']) {
-            final target = find.text(label).hitTestable();
+            final target = _bottomNavTab(label);
             if (target.evaluate().isEmpty) {
               fail('student $label tab target is missing at ${viewport.name}');
             }
@@ -321,7 +326,7 @@ void main() {
 
       await _tapAndExpectUiResponse(
         tester,
-        target: find.text('Schedule'),
+        target: _bottomNavTab('Schedule'),
         context: 'student schedule tab navigation',
         expectResponse: () =>
             expect(find.text('Upcoming'), findsOneWidget),
@@ -337,7 +342,7 @@ void main() {
 
       await _tapAndExpectUiResponse(
         tester,
-        target: find.text('Scan'),
+        target: _bottomNavTab('Scan'),
         context: 'student scan tab navigation',
         expectResponse: () =>
             expect(find.text('No live events'), findsOneWidget),
@@ -345,14 +350,14 @@ void main() {
 
       await _tapAndExpectUiResponse(
         tester,
-        target: find.text('Insights'),
+        target: _bottomNavTab('Insights'),
         context: 'student insights tab navigation',
         expectResponse: () => expect(find.text('75%'), findsOneWidget),
       );
 
       await _tapAndExpectUiResponse(
         tester,
-        target: find.text('Account'),
+        target: _bottomNavTab('Account'),
         context: 'student account tab navigation',
         expectResponse: () =>
             expect(find.text('student@test.com'), findsOneWidget),
