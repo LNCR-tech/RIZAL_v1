@@ -234,9 +234,9 @@ class LivenessChecker:
             crop = self._expand_crop_with_context(crop)
 
         input_height, input_width = self._input_size or (80, 80)
-        crop_bgr = crop[:, :, ::-1].copy()
-        resized = cv2.resize(crop_bgr, (input_width, input_height))
-        model_input = resized.astype(np.float32) / 255.0
+        # Model expects RGB input with (x - 127.5) / 128.0 normalisation
+        resized = cv2.resize(np.asarray(crop, dtype=np.uint8), (input_width, input_height))
+        model_input = (resized.astype(np.float32) - 127.5) / 128.0
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
 
@@ -245,8 +245,9 @@ class LivenessChecker:
             {self._input_name: model_input},
         )[0]
         probabilities = self._softmax(logits)
+        # MiniFASNetV2 class layout: 0=print-spoof, 1=video-spoof, 2=real
         if probabilities.shape[1] >= 3:
-            return float(1.0 - probabilities[0, 1:].sum())
+            return float(probabilities[0, 2])
         if probabilities.shape[1] >= 2:
             return float(probabilities[0, 1])
         return float(probabilities[0, 0])
