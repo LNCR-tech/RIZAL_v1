@@ -166,8 +166,31 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                         ),
                       ),
                     ),
-                    // 2. Liquid-glass capsule blob — outside the clip so it can
-                    // zoom out of the pill while sliding.
+                    // 2. Icons + labels — painted BEHIND the blob so the glass
+                    // can refract them. The liquid-glass layer refracts its
+                    // backdrop (whatever is painted before it); anything painted
+                    // AFTER it is not refracted — that's why the icons must go
+                    // here, under the blob.
+                    Positioned.fill(
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < n; i++)
+                            Expanded(
+                              child: _NavItem(
+                                item: widget.items[i],
+                                active: i == activeIndex,
+                                activeColor: primary,
+                                onTap: () => commit(i),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // 3. Liquid-glass capsule blob — ON TOP of the icons so it
+                    // bends/refracts them like glass (React Bits FluidGlass
+                    // "lens" look). Wrapped in IgnorePointer so taps still reach
+                    // the icons underneath. Outside the clip so it can zoom out
+                    // of the pill while sliding. Blob size + animation unchanged.
                     AnimatedBuilder(
                       animation: _anim,
                       builder: (context, child) {
@@ -197,37 +220,26 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           child: Transform.scale(scale: scale, child: child),
                         );
                       },
-                      child: const LiquidGlass.withOwnLayer(
-                        glassContainsChild: false,
-                        shape:
-                            LiquidRoundedSuperellipse(borderRadius: _blobH / 2),
-                        settings: LiquidGlassSettings(
-                          blur: 0,
-                          thickness: 28,
-                          refractiveIndex: 1.5,
-                          chromaticAberration: 5,
-                          glassColor: Color(0x0DFFFFFF),
-                          lightAngle: 1.5708,
-                          lightIntensity: 2.2,
-                          saturation: 1.25,
+                      // Now that the icons are behind it, the blob actually
+                      // refracts them (FluidGlass-style lens). Tuned for a clearly
+                      // visible bend + chromatic edges — nudge these to taste.
+                      child: const IgnorePointer(
+                        child: LiquidGlass.withOwnLayer(
+                          glassContainsChild: false,
+                          shape:
+                              LiquidRoundedSuperellipse(borderRadius: _blobH / 2),
+                          settings: LiquidGlassSettings(
+                            blur: 0,
+                            thickness: 24,
+                            refractiveIndex: 1.4,
+                            chromaticAberration: 4,
+                            glassColor: Color(0x0DFFFFFF),
+                            lightAngle: 1.5708,
+                            lightIntensity: 2.2,
+                            saturation: 1.25,
+                          ),
+                          child: SizedBox.expand(),
                         ),
-                        child: SizedBox.expand(),
-                      ),
-                    ),
-                    // 3. Icons + labels.
-                    Positioned.fill(
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < n; i++)
-                            Expanded(
-                              child: _NavItem(
-                                item: widget.items[i],
-                                active: i == activeIndex,
-                                activeColor: primary,
-                                onTap: () => commit(i),
-                              ),
-                            ),
-                        ],
                       ),
                     ),
                   ],
