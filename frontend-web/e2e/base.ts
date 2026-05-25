@@ -230,7 +230,7 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
       return;
     }
 
-    if (path === "/attendance/summary") {
+    if (path === "/attendance/summary" || path === "/api/attendance/summary") {
       await fulfillJson(route, {
         total_records: 0,
         present_count: 0,

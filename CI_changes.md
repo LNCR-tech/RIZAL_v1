@@ -300,6 +300,22 @@ npx playwright test e2e/workflows/pressable-coverage.spec.ts
 - Backend and assistant pytest verification could not be run locally because the current Python executable is `C:\Python314\python.exe` and does not have `pytest` installed.
 - `git diff --check` found no whitespace errors; it only printed Windows line-ending warnings.
 
+## Follow-Up Change: Flutter App Web-Parity Contracts
+
+- Added `frontend-app/test/web_parity_contract_test.dart`.
+- The new Flutter test file translates the current frontend-web automated test intentions into app-side parity contracts.
+- It contains exactly 171 generated Flutter tests to match the current frontend-web coverage count:
+  - 103 frontend-web unit-test intentions
+  - 68 frontend-web workflow/UI intentions
+- The app-side suite does not copy production logic into fake passing tests.
+- Each generated test checks that the Flutter app exposes a real source surface for the matching web-tested behavior.
+- Missing app equivalents fail with details that list the required source file group and the original web-test intention.
+- Marker mismatches fail with the source files searched and the missing behavior marker.
+- This is intentionally local-only for now; `.github/workflows/ci.yml` was not changed to run Flutter tests.
+- Current local limitation: this machine does not have `flutter` or `dart` on PATH, so the Flutter suite could not be executed here.
+- Current repository limitation: this checkout only tracks a partial `frontend-app` tree. It has no `lib/main.dart`, no `lib/app/router.dart`, no existing `test/` directory, and many imported core/theme/auth files are absent. The new parity contracts are expected to fail until the full Flutter app source is present or the missing app equivalents are implemented.
+- Updated `frontend-app/CHANGELOG.md` under `[Unreleased]` to document the new app-side parity suite.
+
 ## Current CI Capabilities
 
 After the latest testing changes, the GitHub CI workflow can check the following areas.
