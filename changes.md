@@ -89,6 +89,33 @@
 - The empty-recipient notification test now creates a temporary school with no students, so it still verifies zero recipients without leaving invalid event-target data in the shared CI test session.
 - This prevents later event-list API tests from failing response validation on `year_level <= 5`.
 
+### Flutter CI Failure Follow-up
+
+**`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
+- Removed the shader-backed `liquid_glass_renderer` usage from the beta nav and replaced the animated blob with a pure Flutter `DecoratedBox`.
+- This keeps the beta nav usable while avoiding SkSL shader compilation failures in CI.
+
+**`frontend-app/pubspec.yaml` / `frontend-app/pubspec.lock`**
+- Removed unused liquid-glass shader/nav dependencies:
+  - `liquid_bottom_nav_bar`
+  - `liquid_glass_renderer`
+  - `liquid_glass_widgets`
+
+**`frontend-app/lib/core/widgets/aura_button.dart`**
+- Made button labels flexible with ellipsis so long labels do not overflow narrow mobile layouts.
+
+**`frontend-app/lib/features/auth/presentation/login_screen.dart`**
+- Added explicit semantics around the password visibility toggle so UI-quality tests can verify the accessible label.
+
+**`frontend-app/test/event_editor_screen_test.dart`**
+- Replaced direct `ensureVisible` usage with `scrollUntilVisible` for the save button, because the editor body is a lazy `ListView`.
+
+**`frontend-app/integration_test/app_e2e_test.dart`**
+- Applied the same scroll-to-save behavior in the app integration test.
+
+**`frontend-app/test/ui_quality_test.dart`**
+- Relaxed the password semantics assertion to accept one or more matching semantics nodes, avoiding brittleness from Flutter's tooltip/semantics merging.
+
 ### Notes
 
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.

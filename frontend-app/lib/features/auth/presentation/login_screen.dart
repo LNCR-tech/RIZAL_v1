@@ -108,12 +108,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onSubmitted: (_) => _submit(),
                       prefixIcon: Icons.lock_outline_rounded,
                       autofillHints: const [AutofillHints.password],
-                      suffix: IconButton(
-                        tooltip: _obscure ? 'Show password' : 'Hide password',
-                        icon: Icon(_obscure
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded),
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                      suffix: Semantics(
+                        container: true,
+                        label: _obscure ? 'Show password' : 'Hide password',
+                        button: true,
+                        child: IconButton(
+                          tooltip:
+                              _obscure ? 'Show password' : 'Hide password',
+                          icon: Icon(_obscure
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
                       ),
                     ),
                     if (_error != null) ...[

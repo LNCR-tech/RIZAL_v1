@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 import '../theme/app_spacing.dart';
 import '../theme/app_tokens.dart';
@@ -13,11 +12,9 @@ class LiquidGlassNavItem {
   final String label;
 }
 
-/// Beta tab bar: a translucent dark **frosted pill** (pure UI) with a colourless
-/// **liquid-glass capsule** blob (Dynamic-Island / medicine-pill shape) that
-/// follows the finger, **zooms bigger while sliding** (rendered outside the pill
-/// clip so it can pop out), and refracts the page showing through. Only the
-/// active icon/label takes the university primary colour.
+/// Beta tab bar: a translucent dark frosted pill with a bright capsule blob
+/// that follows the finger and zooms while sliding. It intentionally avoids
+/// shader-backed packages so CI tests and Android builds stay deterministic.
 class LiquidGlassNav extends StatefulWidget {
   const LiquidGlassNav({
     super.key,
@@ -220,25 +217,33 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           child: Transform.scale(scale: scale, child: child),
                         );
                       },
-                      // Now that the icons are behind it, the blob actually
-                      // refracts them (FluidGlass-style lens). Tuned for a clearly
-                      // visible bend + chromatic edges — nudge these to taste.
-                      child: const IgnorePointer(
-                        child: LiquidGlass.withOwnLayer(
-                          glassContainsChild: false,
-                          shape:
-                              LiquidRoundedSuperellipse(borderRadius: _blobH / 2),
-                          settings: LiquidGlassSettings(
-                            blur: 0,
-                            thickness: 24,
-                            refractiveIndex: 1.4,
-                            chromaticAberration: 4,
-                            glassColor: Color(0x0DFFFFFF),
-                            lightAngle: 1.5708,
-                            lightIntensity: 2.2,
-                            saturation: 1.25,
+                      // Keep this purely Flutter-rendered; shader packages have
+                      // been brittle in CI's SkSL compilation path.
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(_blobH / 2),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withOpacity(0.28),
+                                primary.withOpacity(0.22),
+                                Colors.white.withOpacity(0.10),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.32),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primary.withOpacity(0.22),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
-                          child: SizedBox.expand(),
+                          child: const SizedBox.expand(),
                         ),
                       ),
                     ),

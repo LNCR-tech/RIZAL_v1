@@ -73,7 +73,11 @@ void main() {
         ),
       );
 
-      await tester.ensureVisible(find.text('Save changes'));
+      await tester.scrollUntilVisible(
+        find.text('Save changes'),
+        260,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Save changes'));
       await tester.pump();
 

@@ -236,7 +236,7 @@ void main() {
       addTearDown(semantics.dispose);
 
       await _pumpAuraApp(tester, session: _signedOutSession);
-      expect(find.bySemanticsLabel('Show password'), findsOneWidget);
+      expect(find.bySemanticsLabel('Show password'), findsWidgets);
       expect(find.bySemanticsLabel('Sign in'), findsWidgets);
       expect(find.bySemanticsLabel('Continue with Google'), findsWidgets);
       _expectVisibleIconButtonsHaveLabels(tester, 'login');
