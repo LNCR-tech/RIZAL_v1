@@ -506,7 +506,36 @@ event_default_late_threshold_minutes=15
 event_default_sign_out_grace_minutes=60
 ```
 
+**Behavior notes:**
+- Only fields that are present and non-empty are updated; omitted fields are left unchanged.
+- `primary_color` and `secondary_color` are stored in `school_branding` and read back from the same table in the response.
+- `logo` is an optional file upload; if omitted the existing logo URL is preserved.
+- Event default fields (`event_default_*`) update `school_event_policies`.
+
 **Response 200:** `SchoolBrandingResponse`
+```json
+{
+  "school_id": 1,
+  "school_name": "JRMSU",
+  "school_code": "JRMSU-001",
+  "logo_url": "https://...",
+  "primary_color": "#123456",
+  "secondary_color": "#654321",
+  "accent_color": null,
+  "event_default_early_check_in_minutes": 30,
+  "event_default_late_threshold_minutes": 15,
+  "event_default_sign_out_grace_minutes": 60,
+  "subscription_status": "active",
+  "active_status": true,
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-06-01T12:00:00Z"
+}
+```
+
+**Errors:**
+- `403` — not a campus_admin
+- `409` — school name or code already used by another school
+- `422` — invalid field value (e.g. color format)
 
 ---
 
