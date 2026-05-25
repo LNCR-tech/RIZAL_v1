@@ -233,10 +233,11 @@ class LivenessChecker:
         else:
             crop = self._expand_crop_with_context(crop)
 
-        input_height, input_width = self._input_size or (80, 80)
-        # Model expects RGB input with (x - 127.5) / 128.0 normalisation
-        resized = cv2.resize(np.asarray(crop, dtype=np.uint8), (input_width, input_height))
-        model_input = (resized.astype(np.float32) - 127.5) / 128.0
+        input_height, input_width = self._input_size or (128, 128)
+        # Model trained on BGR images, normalized to [0, 1]
+        crop_bgr = np.asarray(crop, dtype=np.uint8)[:, :, ::-1]
+        resized = cv2.resize(crop_bgr, (input_width, input_height))
+        model_input = resized.astype(np.float32) / 255.0
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
 
