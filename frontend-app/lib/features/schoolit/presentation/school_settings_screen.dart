@@ -33,8 +33,10 @@ class SchoolSettingsScreen extends ConsumerStatefulWidget {
 
 class _SchoolSettingsScreenState extends ConsumerState<SchoolSettingsScreen> {
   static const _palette = <String>[
-    '#AAFF00', '#22C55E', '#14B8A6', '#0EA5E9', '#3B82F6', '#6366F1',
-    '#8B5CF6', '#EC4899', '#F43F5E', '#F59E0B', '#162F65', '#0A0A0A',
+    '#AAFF00', '#84CC16', '#22C55E', '#10B981', '#14B8A6', '#06B6D4',
+    '#0EA5E9', '#3B82F6', '#6366F1', '#8B5CF6', '#A855F7', '#D946EF',
+    '#EC4899', '#F43F5E', '#EF4444', '#F97316', '#F59E0B', '#EAB308',
+    '#162F65', '#334155', '#64748B', '#0A0A0A',
   ];
 
   final _name = TextEditingController();
@@ -497,6 +499,7 @@ class _ColorRow extends StatelessWidget {
                   selected: selected?.toUpperCase() == hex.toUpperCase(),
                   onTap: () => onPick(hex),
                 ),
+              _CustomTrigger(initial: selected, onPicked: onPick),
             ],
           ),
         ],
@@ -553,4 +556,227 @@ class _NumField extends StatelessWidget {
         controller: controller,
         keyboardType: TextInputType.number);
   }
+}
+
+/// Rainbow swatch that opens a slider-based custom colour picker.
+class _CustomTrigger extends StatelessWidget {
+  const _CustomTrigger({required this.initial, required this.onPicked});
+  final String? initial;
+  final ValueChanged<String> onPicked;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final hex = await showModalBottomSheet<String>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _CustomColorSheet(initialHex: initial),
+        );
+        if (hex != null) onPicked(hex);
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const SweepGradient(colors: [
+              Color(0xFFFF1744), Color(0xFFFFEA00), Color(0xFF00E676),
+              Color(0xFF00B0FF), Color(0xFF651FFF), Color(0xFFFF1744),
+            ]),
+            border: Border.all(color: Colors.black.withOpacity(0.06)),
+          ),
+          child: const Icon(Icons.tune_rounded, size: 16, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+/// Slider-based (HSV) custom colour picker with a hex field + live preview.
+/// Pops the chosen colour as a "#RRGGBB" string, or null on cancel.
+class _CustomColorSheet extends StatefulWidget {
+  const _CustomColorSheet({this.initialHex});
+  final String? initialHex;
+
+  @override
+  State<_CustomColorSheet> createState() => _CustomColorSheetState();
+}
+
+class _CustomColorSheetState extends State<_CustomColorSheet> {
+  late HSVColor _hsv;
+  late final TextEditingController _hex;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = AppColors.parseHex(widget.initialHex) ?? AppColors.accent;
+    _hsv = HSVColor.fromColor(c);
+    _hex = TextEditingController(text: _hexString(c));
+  }
+
+  @override
+  void dispose() {
+    _hex.dispose();
+    super.dispose();
+  }
+
+  void _apply(HSVColor v) {
+    setState(() {
+      _hsv = v;
+      final h = _hexString(v.toColor());
+      if (_hex.text.toUpperCase() != h.toUpperCase()) _hex.text = h;
+    });
+  }
+
+  void _onHexTyped(String s) {
+    final c = AppColors.parseHex(s);
+    if (c != null) setState(() => _hsv = HSVColor.fromColor(c));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final color = _hsv.toColor();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.x20, AppSpacing.x12, AppSpacing.x20, AppSpacing.x24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.x16),
+                  decoration: BoxDecoration(
+                      color: t.border, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black.withOpacity(0.08)),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.x16),
+                  Expanded(
+                      child:
+                          Text('Custom colour', style: textTheme.titleLarge)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.x20),
+              _LabeledSlider(
+                label: 'Hue',
+                value: _hsv.hue,
+                max: 360,
+                activeColor: HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor(),
+                onChanged: (v) => _apply(_hsv.withHue(v)),
+              ),
+              _LabeledSlider(
+                label: 'Saturation',
+                value: _hsv.saturation,
+                max: 1,
+                activeColor: color,
+                onChanged: (v) => _apply(_hsv.withSaturation(v)),
+              ),
+              _LabeledSlider(
+                label: 'Brightness',
+                value: _hsv.value,
+                max: 1,
+                activeColor: color,
+                onChanged: (v) => _apply(_hsv.withValue(v)),
+              ),
+              const SizedBox(height: AppSpacing.x12),
+              TextField(
+                controller: _hex,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Hex',
+                  hintText: '#AABBCC',
+                ),
+                onChanged: _onHexTyped,
+              ),
+              const SizedBox(height: AppSpacing.x20),
+              AuraButton(
+                label: 'Use this colour',
+                icon: Icons.check_rounded,
+                onPressed: () => Navigator.of(context).pop(_hexString(color)),
+              ),
+              const SizedBox(height: AppSpacing.x8),
+              AuraButton(
+                label: 'Cancel',
+                variant: AuraButtonVariant.ghost,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LabeledSlider extends StatelessWidget {
+  const _LabeledSlider({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.activeColor,
+    required this.onChanged,
+  });
+  final String label;
+  final double value;
+  final double max;
+  final Color activeColor;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: textTheme.bodySmall?.copyWith(color: t.textSecondary)),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: activeColor,
+            thumbColor: activeColor,
+            overlayColor: activeColor.withOpacity(0.15),
+          ),
+          child: Slider(
+            value: value.clamp(0, max).toDouble(),
+            max: max,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _hexString(Color c) {
+  String h(int v) => v.toRadixString(16).padLeft(2, '0');
+  return '#${h(c.red)}${h(c.green)}${h(c.blue)}'.toUpperCase();
 }

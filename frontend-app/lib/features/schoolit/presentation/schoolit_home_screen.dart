@@ -12,6 +12,7 @@ import '../../../core/widgets/section_header.dart';
 import '../application/schoolit_providers.dart';
 import 'campus_governance_screen.dart';
 import 'import_students_screen.dart';
+import 'programs_screen.dart';
 import 'school_settings_screen.dart';
 
 /// School IT "Home" — students ring, department/program metrics, a
@@ -150,6 +151,15 @@ class SchoolItHomeScreen extends ConsumerWidget {
             subtitle: 'SSG officers & permissions',
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const CampusGovernanceScreen())),
+          ),
+          const SizedBox(height: AppSpacing.x12),
+          DashboardActionRow(
+            icon: Icons.menu_book_rounded,
+            label: 'Programs',
+            subtitle: 'Add & organize academic programs',
+            tint: t.sg,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const ProgramsScreen())),
           ),
           const SizedBox(height: AppSpacing.x12),
           DashboardActionRow(

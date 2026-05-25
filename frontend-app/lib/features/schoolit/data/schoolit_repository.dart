@@ -76,6 +76,23 @@ class SchoolItRepository {
   Future<void> deleteDepartment(int id) =>
       _client.delete('${Api.departments}$id');
 
+  /// Create an academic program (`POST /api/programs/`). [departmentIds] are the
+  /// colleges that offer it (optional).
+  Future<void> createProgram(String name,
+          {List<int> departmentIds = const []}) =>
+      _client.post(Api.programs,
+          data: {'name': name, 'department_ids': departmentIds});
+
+  /// Update a program's name and/or its colleges (`PATCH /api/programs/{id}`).
+  Future<void> updateProgram(int id,
+          {String? name, List<int>? departmentIds}) =>
+      _client.patch('${Api.programs}$id', data: {
+        if (name != null) 'name': name,
+        if (departmentIds != null) 'department_ids': departmentIds,
+      });
+
+  Future<void> deleteProgram(int id) => _client.delete('${Api.programs}$id');
+
   Future<SchoolBranding> school() async {
     final r = await _client.get(Api.schoolMe);
     return SchoolBranding.fromJson((r.data as Map).cast<String, dynamic>());
