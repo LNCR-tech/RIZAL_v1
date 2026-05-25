@@ -9,3 +9,9 @@ Local changes:
   instead of being passed through helper functions as a float array. This avoids
   SkSL compiler errors from generated array initializers while keeping the
   renderer API and app widget usage unchanged.
+- Unrolled the SDF shape merge loop to avoid SkSL `min(int,int)` and dynamic
+  loop issues.
+- Replaced derivative intrinsics (`dFdx`/`dFdy`) with finite-difference normal
+  sampling for runtime-effect compatibility.
+- Removed loops from the experimental arbitrary shader's center sampler and
+  gradient helper so the file compiles under SkSL.

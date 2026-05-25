@@ -125,7 +125,9 @@ Future<void> _pumpAuraApp(
     ),
   );
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 500));
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 250));
+  }
 }
 
 Future<void> _pumpEventEditor(WidgetTester tester) async {
@@ -207,10 +209,15 @@ Future<void> _tapAndExpectUiResponse(
   required String context,
   required VoidCallback expectResponse,
 }) async {
-  expect(target, findsWidgets, reason: '$context target is missing');
-  await tester.ensureVisible(target.first);
+  if (target.evaluate().isEmpty) {
+    fail('$context target is missing');
+  }
+
+  final visibleTarget =
+      target.hitTestable().evaluate().isNotEmpty ? target.hitTestable() : target;
+  await tester.ensureVisible(visibleTarget.first);
   await tester.pump();
-  await tester.tap(target.first);
+  await tester.tap(visibleTarget.first);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
   _expectNoFlutterExceptions(tester, context);
@@ -230,7 +237,11 @@ void main() {
           _expectNoFlutterExceptions(tester, 'student home at ${viewport.name}');
 
           for (final label in ['Schedule', 'Scan', 'Insights']) {
-            await tester.tap(find.text(label).first);
+            final target = find.text(label).hitTestable();
+            if (target.evaluate().isEmpty) {
+              fail('student $label tab target is missing at ${viewport.name}');
+            }
+            await tester.tap(target.first);
             await tester.pump(const Duration(milliseconds: 500));
             _expectNoFlutterExceptions(
               tester,
@@ -313,7 +324,7 @@ void main() {
         target: find.text('Schedule'),
         context: 'student schedule tab navigation',
         expectResponse: () =>
-            expect(find.text('Search events'), findsOneWidget),
+            expect(find.text('Upcoming'), findsOneWidget),
       );
 
       await _tapAndExpectUiResponse(

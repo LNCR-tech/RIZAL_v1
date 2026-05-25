@@ -105,6 +105,7 @@ class AuraButton extends StatelessWidget {
     );
 
     return Semantics(
+      container: true,
       button: true,
       enabled: !disabled,
       label: label,

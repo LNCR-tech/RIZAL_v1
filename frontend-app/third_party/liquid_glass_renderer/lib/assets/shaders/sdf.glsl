@@ -79,39 +79,39 @@ float sceneSDF(vec2 p, int numShapes, float blend) {
 
     float result = getShapeSDFFromArray(0, p);
 
-    // Optimized: unroll for common cases (1-4 shapes), use loop for 5+ shapes
-    if (numShapes <= 4) {
-        // Fully unrolled for 1-4 shapes (covers 90%+ of use cases)
-        if (numShapes >= 2) {
-            float shapeSDF = getShapeSDFFromArray(1, p);
-            result = smoothUnion(result, shapeSDF, blend);
-        }
-        if (numShapes >= 3) {
-            float shapeSDF = getShapeSDFFromArray(2, p);
-            result = smoothUnion(result, shapeSDF, blend);
-        }
-        if (numShapes >= 4) {
-            float shapeSDF = getShapeSDFFromArray(3, p);
-            result = smoothUnion(result, shapeSDF, blend);
-        }
-    } else {
-        // Dynamic loop for 5+ shapes (uncommon cases)
-        for (int i = 1; i < min(numShapes, MAX_SHAPES); i++) {
-            float shapeSDF = getShapeSDFFromArray(i, p);
-            result = smoothUnion(result, shapeSDF, blend);
-        }
-    }
+    // Fully unrolled to avoid SkSL rejecting dynamic int min()/loop forms.
+    if (numShapes >= 2) result = smoothUnion(result, getShapeSDFFromArray(1, p), blend);
+    if (numShapes >= 3) result = smoothUnion(result, getShapeSDFFromArray(2, p), blend);
+    if (numShapes >= 4) result = smoothUnion(result, getShapeSDFFromArray(3, p), blend);
+    if (numShapes >= 5) result = smoothUnion(result, getShapeSDFFromArray(4, p), blend);
+    if (numShapes >= 6) result = smoothUnion(result, getShapeSDFFromArray(5, p), blend);
+    if (numShapes >= 7) result = smoothUnion(result, getShapeSDFFromArray(6, p), blend);
+    if (numShapes >= 8) result = smoothUnion(result, getShapeSDFFromArray(7, p), blend);
+    if (numShapes >= 9) result = smoothUnion(result, getShapeSDFFromArray(8, p), blend);
+    if (numShapes >= 10) result = smoothUnion(result, getShapeSDFFromArray(9, p), blend);
+    if (numShapes >= 11) result = smoothUnion(result, getShapeSDFFromArray(10, p), blend);
+    if (numShapes >= 12) result = smoothUnion(result, getShapeSDFFromArray(11, p), blend);
+    if (numShapes >= 13) result = smoothUnion(result, getShapeSDFFromArray(12, p), blend);
+    if (numShapes >= 14) result = smoothUnion(result, getShapeSDFFromArray(13, p), blend);
+    if (numShapes >= 15) result = smoothUnion(result, getShapeSDFFromArray(14, p), blend);
+    if (numShapes >= 16) result = smoothUnion(result, getShapeSDFFromArray(15, p), blend);
 
     return result;
 }
 
-// Calculate 3D normal using derivatives (shader-specific normal calculation)
-vec3 getNormal(float sd, float thickness) {
-    float dx = dFdx(sd);
-    float dy = dFdy(sd);
+// Calculate 3D normal with finite differences. Flutter's SkSL compiler rejects
+// derivative intrinsics in these runtime effects on some targets.
+vec3 getNormal(vec2 p, float thickness, int numShapes, float blend) {
+    float sd = sceneSDF(p, numShapes, blend);
+    float sampleOffset = 1.0;
+    float dx = sceneSDF(p + vec2(sampleOffset, 0.0), numShapes, blend) -
+        sceneSDF(p - vec2(sampleOffset, 0.0), numShapes, blend);
+    float dy = sceneSDF(p + vec2(0.0, sampleOffset), numShapes, blend) -
+        sceneSDF(p - vec2(0.0, sampleOffset), numShapes, blend);
 
     // The cosine and sine between normal and the xy plane
-    float n_cos = max(thickness + sd, 0.0) / thickness;
+    float safeThickness = max(thickness, 0.001);
+    float n_cos = max(safeThickness + sd, 0.0) / safeThickness;
     float n_sin = sqrt(max(0.0, 1.0 - n_cos * n_cos));
 
     return normalize(vec3(dx * n_cos, dy * n_cos, n_sin));

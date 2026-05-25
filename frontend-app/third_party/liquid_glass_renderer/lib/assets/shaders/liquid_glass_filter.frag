@@ -61,7 +61,12 @@ void main() {
         return;
     }
 
-    vec3 normal = getNormal(sd, uThickness);
+    vec3 normal = getNormal(
+        fragCoord,
+        uThickness,
+        int(uNumShapes),
+        uBlend
+    );
 
     // Use shared rendering pipeline
     fragColor = renderLiquidGlass(

@@ -55,68 +55,46 @@ float approximateSDF(float blurredAlpha, float thickness) {
 
 // Find the center of mass of the shape
 vec2 findShapeCenter(vec2 currentUV) {
-    vec2 texelSize = 2.0 / uForegroundSize;
-    vec2 centerSum = vec2(0.0);
-    float totalAlpha = 0.0;
-
-    // Sample in a reasonable radius around the current point
-    int sampleRadius = 10;
-    for (int y = -sampleRadius; y <= sampleRadius; y++) {
-        for (int x = -sampleRadius; x <= sampleRadius; x++) {
-            vec2 sampleUV = currentUV + vec2(float(x), float(y)) * texelSize;
-
-            // Make sure we're within texture bounds
-            if (sampleUV.x >= 0.0 && sampleUV.x <= 1.0 && sampleUV.y >= 0.0 && sampleUV.y <= 1.0) {
-                float alpha = texture(uForegroundTexture, sampleUV).a;
-                if (alpha > 0.1) {
-                    centerSum += sampleUV * alpha;
-                    totalAlpha += alpha;
-                }
-            }
-        }
-    }
-
-    // Return center of mass, or current UV if no valid samples found
-    return totalAlpha > 0.0 ? centerSum / totalAlpha : currentUV;
+    // Runtime-effect SkSL rejects loop forms used by the upstream exploratory
+    // center-of-mass sampler. This experimental shader is not used by the app
+    // nav path; keep it compiling with the current UV as the local center.
+    return currentUV;
 }
 
 
 
 
 
+vec2 sobelAtScale(sampler2D tex, vec2 uv, vec2 texelSize, float scale) {
+    vec2 d = texelSize * scale;
+
+    // Sample the 3x3 neighborhood at the current scale.
+    float tl = texture(tex, uv - d).a;
+    float tm = texture(tex, uv - vec2(0.0, d.y)).a;
+    float tr = texture(tex, uv + vec2(d.x, -d.y)).a;
+    float ml = texture(tex, uv - vec2(d.x, 0.0)).a;
+    float mr = texture(tex, uv + vec2(d.x, 0.0)).a;
+    float bl = texture(tex, uv + vec2(-d.x, d.y)).a;
+    float bm = texture(tex, uv + vec2(0.0, d.y)).a;
+    float br = texture(tex, uv + d).a;
+
+    // Apply the Sobel operator to calculate the gradient for this scale.
+    float sobelX = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
+    float sobelY = (bl + 2.0 * bm + br) - (tl + 2.0 * tm + tr);
+    return vec2(sobelX, sobelY);
+}
+
 // Helper for robust, multi-scale gradient calculation using a Sobel operator.
 // This is more noise-resistant than simple central differences.
 vec2 calculateGradient(sampler2D tex, vec2 uv, vec2 texelSize) {
-    vec2 gradient = vec2(0.0);
-    float totalWeight = 0.0;
-
-    // Sample at different scales (1x, 2x, 4x) to capture both fine and broad details.
-    // This creates a smooth gradient, even from noisy or wide-blurred textures.
-    for (float scale = 1.0; scale <= 4.0; scale *= 2.0) {
-        float weight = 1.0 / scale;
-        vec2 d = texelSize * scale;
-
-        // Sample the 3x3 neighborhood at the current scale.
-        float tl = texture(tex, uv - d).a;
-        float tm = texture(tex, uv - vec2(0.0, d.y)).a;
-        float tr = texture(tex, uv + vec2(d.x, -d.y)).a;
-        float ml = texture(tex, uv - vec2(d.x, 0.0)).a;
-        float mr = texture(tex, uv + vec2(d.x, 0.0)).a;
-        float bl = texture(tex, uv + vec2(-d.x, d.y)).a;
-        float bm = texture(tex, uv + vec2(0.0, d.y)).a;
-        float br = texture(tex, uv + d).a;
-
-        // Apply the Sobel operator to calculate the gradient for this scale.
-        float sobelX = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
-        float sobelY = (bl + 2.0 * bm + br) - (tl + 2.0 * tm + tr);
-
-        gradient += vec2(sobelX, sobelY) * weight;
-        totalWeight += weight;
-    }
+    vec2 gradient =
+        sobelAtScale(tex, uv, texelSize, 1.0) +
+        sobelAtScale(tex, uv, texelSize, 2.0) * 0.5 +
+        sobelAtScale(tex, uv, texelSize, 4.0) * 0.25;
 
     // Normalize the summed gradients.
     // The 0.125 factor is an approximation to normalize the Sobel kernel (1/8).
-    return (gradient / totalWeight) * 0.125;
+    return (gradient / 1.75) * 0.125;
 }
 
 vec3 getReconstructedNormal(vec2 p, float thickness) {
