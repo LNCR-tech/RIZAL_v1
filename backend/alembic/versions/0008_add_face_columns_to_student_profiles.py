@@ -1,6 +1,6 @@
 """Add face recognition columns to student_profiles.
 
-Revision ID: 0008_face_columns_student_profiles
+Revision ID: 0008_student_face_cols
 Revises: 0007_sanction_attend_fk
 Create Date: 2026-05-25
 """
@@ -8,7 +8,7 @@ Create Date: 2026-05-25
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0008_face_columns_student_profiles"
+revision = "0008_student_face_cols"
 down_revision = "0007_sanction_attend_fk"
 branch_labels = None
 depends_on = None
