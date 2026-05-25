@@ -293,7 +293,7 @@ def _future_event_payload(name="Target RBAC Test"):
 def test_campus_admin_can_create_all_scope_event(client, campus_admin_headers):
     payload = {
         **_future_event_payload("ALL Scope Event"),
-        "event_targets": [{"scope_type": "ALL"}],
+        "year_levels": [],
     }
     r = client.post("/api/events/", headers=campus_admin_headers, json=payload)
     assert r.status_code in (200, 201), r.text
@@ -304,7 +304,7 @@ def test_campus_admin_can_create_all_scope_event(client, campus_admin_headers):
 def test_campus_admin_can_create_year_level_event(client, campus_admin_headers):
     payload = {
         **_future_event_payload("Year Level Scope Event"),
-        "event_targets": [{"scope_type": "YEAR_LEVEL", "year_level": 2}],
+        "year_levels": [2],
     }
     r = client.post("/api/events/", headers=campus_admin_headers, json=payload)
     assert r.status_code in (200, 201), r.text
@@ -315,7 +315,7 @@ def test_campus_admin_can_create_year_level_event(client, campus_admin_headers):
 def test_student_cannot_create_event(client, student_headers):
     payload = {
         **_future_event_payload("Student Attempt"),
-        "event_targets": [{"scope_type": "ALL"}],
+        "year_levels": [],
     }
     r = client.post("/api/events/", headers=student_headers, json=payload)
     assert r.status_code == 403
@@ -324,7 +324,7 @@ def test_student_cannot_create_event(client, student_headers):
 def test_unauthenticated_cannot_create_event(client):
     payload = {
         **_future_event_payload("Unauth Attempt"),
-        "event_targets": [{"scope_type": "ALL"}],
+        "year_levels": [],
     }
     r = client.post("/api/events/", json=payload)
     assert r.status_code == 401
@@ -340,7 +340,7 @@ def test_campus_admin_can_update_event_targets(client, campus_admin_headers):
     r2 = client.patch(
         f"/api/events/{event_id}",
         headers=campus_admin_headers,
-        json={"event_targets": [{"scope_type": "YEAR_LEVEL", "year_level": 3}]},
+        json={"year_levels": [3]},
     )
     assert r2.status_code == 200, r2.text
     data = r2.json()
