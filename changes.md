@@ -1,5 +1,85 @@
 # Changes
 
+## 2026-05-26 (Flutter App CI, UI Quality, and Analyze Fixes)
+
+### CI Workflow Changes
+
+**`.github/workflows/aura-app-ci.yml`**
+- Added Flutter app integration-test execution with `flutter test integration_test`.
+- Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, `flutter test`, then `flutter test integration_test`.
+- Extended the Android job after `flutter build apk --debug` with an emulator smoke check:
+  - Enables KVM permissions on the GitHub runner.
+  - Starts an Android API 35 x86_64 emulator through `reactivecircus/android-emulator-runner@v2`.
+  - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
+  - Launches `com.aura.aura_app/.MainActivity`.
+  - Waits briefly and fails with recent `logcat` output if the app process is not alive.
+- CD/deployment workflows remain manual-only through `workflow_dispatch`; pushing to `integrate/pilot-merge` runs CI, not deployment.
+
+### Flutter App Test Coverage
+
+**`frontend-app/pubspec.yaml` / `frontend-app/pubspec.lock`**
+- Added the Flutter SDK `integration_test` dev dependency so app-level integration tests can run in CI.
+
+**`frontend-app/integration_test/app_e2e_test.dart`**
+- Added app-level Flutter integration coverage that boots `AuraApp()` with mocked Riverpod providers.
+- Covers signed-out login behavior, password visibility, required-login validation, student shell tab navigation, and event-editor save behavior.
+
+**`frontend-app/test/ui_quality_test.dart`**
+- Added Flutter-side UI/UX quality checks to mirror the intent of the web Playwright UI-quality suite.
+- Pumps key app states across common viewport sizes: mobile, tablet, and desktop.
+- Fails on Flutter layout/runtime exceptions, catching overflow-style UI regressions.
+- Checks accessible semantics labels for login controls, bottom navigation tabs, and event-editor icon-only controls.
+- Verifies icon-only `IconButton`s used in the tested surfaces expose a tooltip or semantic label.
+
+**Other Flutter app tests**
+- Added and expanded focused unit/widget tests for router redirects, navigation items, repository API paths, geolocation behavior, attendance scan flow, event-editor draft/payload logic, location display formatting, and event editor repository submission.
+- Expanded `AuraButton` widget coverage for loading state, disabled interaction, icons, and compact layout.
+
+### Flutter App Source Changes Supporting Tests
+
+**`frontend-app/lib/features/shell/navigation_items.dart`**
+- Centralized workspace tab definitions so navigation structure can be tested independently from the shell widget.
+
+**`frontend-app/lib/features/shell/app_shell.dart`**
+- Refactored shell tabs to consume the centralized navigation item list.
+
+**`frontend-app/lib/features/events/application/event_editor_draft.dart`**
+- Added pure event-editor draft logic for initializing editable form state from an event.
+
+**`frontend-app/lib/features/events/application/event_editor_payload.dart`**
+- Added pure event-editor payload building and validation for create/edit submissions.
+
+**`frontend-app/lib/features/attendance/application/attendance_scan_flow.dart`**
+- Added pure attendance scan flow helpers for testable event/location decision logic.
+
+**`frontend-app/lib/shared/utils/location_display.dart`**
+- Added shared coordinate formatting helpers for consistent location display.
+
+**`frontend-app/lib/features/schoolit/presentation/event_editor_screen.dart`**
+- Moved save-payload construction through the shared event-editor payload helper.
+- Added tooltips to the date/time icon buttons: `Pick start date`, `Pick start time`, `Pick end date`, and `Pick end time`.
+
+**`frontend-app/lib/app/router.dart`**
+- Extracted redirect decision logic so route guard behavior can be unit-tested.
+
+**`frontend-app/lib/core/services/geolocation_service.dart`**
+- Added an injectable geolocation platform adapter so permission/location behavior can be tested without native device access.
+- Fixed the analyzer `prefer_const_constructors` finding by using `const GeolocationService()` in the provider.
+
+### Flutter Analyze Fixes
+
+**`frontend-app/lib/core/theme/app_theme.dart`**
+- Replaced `CupertinoPageTransitionsBuilder` with a local `_AuraPageTransitionsBuilder`.
+- This avoids the CI analyzer failure where the Flutter SDK used by CI did not resolve `CupertinoPageTransitionsBuilder`.
+- The replacement keeps a lightweight horizontal route transition and still uses `_NoPageTransitionsBuilder` when reduced motion is enabled.
+
+### Notes
+
+- The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.
+- The web Playwright E2E job in `.github/workflows/ci.yml` is gated to run only on the `pilot` branch.
+- The Flutter UI-quality tests now run through `flutter test` on `frontend-app/**` pushes.
+- The Android emulator step currently proves APK install and launch; it does not yet run Flutter integration tests on the emulator.
+
 ## 2026-05-09 (Phase 12: Rejected Scan Audit Logging)
 
 ### Architecture Decision
