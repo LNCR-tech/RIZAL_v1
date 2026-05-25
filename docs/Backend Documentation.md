@@ -437,7 +437,7 @@ logo=<file>  (optional)
   "school": { ...SchoolBrandingResponse... },
   "school_it_user_id": 5,
   "school_it_email": "admin@example.edu",
-  "generated_temporary_password": "xKq2mNpW7s"
+  "generated_temporary_password": "<auto_generated>"
 }
 ```
 
@@ -577,7 +577,7 @@ Reset a Campus Admin's password. Generates a new temporary password.
 {
   "user_id": 5,
   "email": "admin@example.edu",
-  "temporary_password": "TmpPwd9Xkz",
+  "temporary_password": "<auto_generated>",
   "must_change_password": true
 }
 ```
