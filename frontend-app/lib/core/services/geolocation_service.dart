@@ -62,4 +62,4 @@ class GeolocationService {
 }
 
 final geolocationServiceProvider =
-    Provider<GeolocationService>((ref) => GeolocationService());
+    Provider<GeolocationService>((ref) => const GeolocationService());
