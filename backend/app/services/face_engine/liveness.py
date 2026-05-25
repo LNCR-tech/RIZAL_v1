@@ -250,9 +250,8 @@ class LivenessChecker:
             f" logits={[round(float(v),3) for v in logits[0]]} crop={crop.shape[1]}x{crop.shape[0]}",
             flush=True,
         )
-        # MiniFASNetV2 class layout: 0=print-spoof, 1=video-spoof, 2=real
-        if probabilities.shape[1] >= 3:
-            return float(probabilities[0, 2])
-        if probabilities.shape[1] >= 2:
-            return float(probabilities[0, 1])
-        return float(probabilities[0, 0])
+        # MiniFASNetV2 class layout (this export): 0=real, 1=video-spoof, 2=print-spoof
+        # Verified via LIVENESS_DEBUG: photos score c2≈0.99, c0≈0.001 — c0 is the real class.
+        if probabilities.shape[1] >= 1:
+            return float(probabilities[0, 0])
+        return 0.0
