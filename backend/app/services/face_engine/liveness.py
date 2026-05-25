@@ -245,14 +245,10 @@ class LivenessChecker:
             {self._input_name: model_input},
         )[0]
         probabilities = self._softmax(logits)
-        logger.info(
-            "Liveness raw: logits=%s probs=[c0=%.4f c1=%.4f c2=%.4f] crop=%dx%d",
-            [round(float(v), 4) for v in logits[0]],
-            float(probabilities[0, 0]),
-            float(probabilities[0, 1]),
-            float(probabilities[0, 2]),
-            crop.shape[1],
-            crop.shape[0],
+        print(
+            f"LIVENESS_DEBUG probs=[c0={probabilities[0,0]:.4f} c1={probabilities[0,1]:.4f} c2={probabilities[0,2]:.4f}]"
+            f" logits={[round(float(v),3) for v in logits[0]]} crop={crop.shape[1]}x{crop.shape[0]}",
+            flush=True,
         )
         # MiniFASNetV2 class layout: 0=print-spoof, 1=video-spoof, 2=real
         if probabilities.shape[1] >= 3:
