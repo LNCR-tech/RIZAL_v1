@@ -728,11 +728,11 @@ async def update_school(
         settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
     if settings is not None:
         if payload.event_default_early_check_in_minutes is not None:
-            settings.event_default_early_check_in_minutes = payload.event_default_early_check_in_minutes
+            settings.default_early_check_in_minutes = payload.event_default_early_check_in_minutes
         if payload.event_default_late_threshold_minutes is not None:
-            settings.event_default_late_threshold_minutes = payload.event_default_late_threshold_minutes
+            settings.default_late_threshold_minutes = payload.event_default_late_threshold_minutes
         if payload.event_default_sign_out_grace_minutes is not None:
-            settings.event_default_sign_out_grace_minutes = payload.event_default_sign_out_grace_minutes
+            settings.default_sign_out_grace_minutes = payload.event_default_sign_out_grace_minutes
         school.settings = settings
     _write_audit(
         db,
