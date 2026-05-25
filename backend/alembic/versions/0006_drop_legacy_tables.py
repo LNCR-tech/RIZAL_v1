@@ -28,40 +28,59 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # --- Drop orphaned FK columns that block table drops ---
+    # All operations are guarded with IF EXISTS so the migration is safe on both
+    # the legacy deployed DB (where these tables/columns existed) and a fresh DB
+    # built from schema.sql (where they were never created).
+    op.execute(sa.text("""
+        DO $$
+        BEGIN
+            -- Drop orphaned FK column: sanction_records.attendance_id
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'sanction_records' AND column_name = 'attendance_id'
+            ) THEN
+                ALTER TABLE sanction_records
+                    DROP CONSTRAINT IF EXISTS sanction_records_attendance_id_fkey,
+                    DROP COLUMN attendance_id;
+            END IF;
 
-    # sanction_records.attendance_id → attendances (legacy)
-    op.drop_constraint(
-        "sanction_records_attendance_id_fkey", "sanction_records", type_="foreignkey"
-    )
-    op.drop_column("sanction_records", "attendance_id")
+            -- Drop orphaned FK column: sanction_compliance_history.sanction_item_id
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'sanction_compliance_history' AND column_name = 'sanction_item_id'
+            ) THEN
+                ALTER TABLE sanction_compliance_history
+                    DROP CONSTRAINT IF EXISTS sanction_compliance_history_sanction_item_id_fkey,
+                    DROP COLUMN sanction_item_id;
+            END IF;
 
-    # sanction_compliance_history.sanction_item_id → sanction_items (legacy)
-    op.drop_constraint(
-        "sanction_compliance_history_sanction_item_id_fkey",
-        "sanction_compliance_history",
-        type_="foreignkey",
-    )
-    op.drop_column("sanction_compliance_history", "sanction_item_id")
+            -- Drop legacy table: attendances
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables WHERE table_name = 'attendances'
+            ) THEN
+                ALTER TABLE attendances DROP CONSTRAINT IF EXISTS attendances_event_id_fkey;
+                ALTER TABLE attendances DROP CONSTRAINT IF EXISTS attendances_student_id_fkey;
+                ALTER TABLE attendances DROP CONSTRAINT IF EXISTS attendances_verified_by_fkey;
+                DROP TABLE attendances;
+            END IF;
 
-    # --- Drop legacy tables ---
+            -- Drop legacy table: sanction_items
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables WHERE table_name = 'sanction_items'
+            ) THEN
+                ALTER TABLE sanction_items
+                    DROP CONSTRAINT IF EXISTS sanction_items_sanction_record_id_fkey;
+                DROP TABLE sanction_items;
+            END IF;
 
-    # attendances had FKs to events, student_profiles, users — drop those first
-    op.drop_constraint("attendances_event_id_fkey", "attendances", type_="foreignkey")
-    op.drop_constraint("attendances_student_id_fkey", "attendances", type_="foreignkey")
-    op.drop_constraint("attendances_verified_by_fkey", "attendances", type_="foreignkey")
-    op.drop_table("attendances")
-
-    # sanction_items had FK to sanction_records
-    op.drop_constraint("sanction_items_sanction_record_id_fkey", "sanction_items", type_="foreignkey")
-    op.drop_table("sanction_items")
-
-    # Remaining tables — outgoing FKs only, safe to drop directly
-    op.drop_table("event_department_association")
-    op.drop_table("event_program_association")
-    op.drop_table("program_department_association")
-    op.drop_table("school_settings")
-    op.drop_table("school_subscription_settings")
+            -- Drop remaining legacy tables (outgoing FKs only)
+            DROP TABLE IF EXISTS event_department_association;
+            DROP TABLE IF EXISTS event_program_association;
+            DROP TABLE IF EXISTS program_department_association;
+            DROP TABLE IF EXISTS school_settings;
+            DROP TABLE IF EXISTS school_subscription_settings;
+        END $$;
+    """))
 
 
 def downgrade() -> None:
