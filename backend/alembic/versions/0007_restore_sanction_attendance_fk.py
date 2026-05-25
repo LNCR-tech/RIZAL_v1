@@ -13,7 +13,7 @@ FK → attendance_records(id).  This migration adds it back where missing.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0007_restore_sanction_attendance_fk"
+revision = "0007_sanction_attend_fk"
 down_revision = "0006_drop_legacy_tables"
 branch_labels = None
 depends_on = None
