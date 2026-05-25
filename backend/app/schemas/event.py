@@ -222,9 +222,15 @@ class EventBase(BaseModel):
         return self
 
 class EventCreate(EventBase):
-    department_ids: List[int] = Field(default_factory=list)
-    program_ids: List[int] = Field(default_factory=list)
-    event_targets: List[EventTargetCreate] = Field(default_factory=list)
+    year_levels: List[int] = Field(default_factory=list)
+
+    @field_validator("year_levels")
+    @classmethod
+    def validate_year_levels(cls, v: List[int]) -> List[int]:
+        for y in v:
+            if y < 1 or y > 5:
+                raise ValueError("year_levels must be between 1 and 5")
+        return sorted(set(v))
 
     @field_validator("start_datetime", "end_datetime", mode="after")
     @classmethod
@@ -252,9 +258,17 @@ class EventUpdate(BaseModel):
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None
-    department_ids: Optional[List[int]] = None
-    program_ids: Optional[List[int]] = None
-    event_targets: Optional[List[EventTargetCreate]] = None
+    year_levels: Optional[List[int]] = None
+
+    @field_validator("year_levels")
+    @classmethod
+    def validate_year_levels(cls, v: Optional[List[int]]) -> Optional[List[int]]:
+        if v is None:
+            return v
+        for y in v:
+            if y < 1 or y > 5:
+                raise ValueError("year_levels must be between 1 and 5")
+        return sorted(set(v))
 
     @field_validator("start_datetime", "end_datetime", mode="after")
     @classmethod

@@ -7,6 +7,32 @@ from .shared import *  # noqa: F403
 router = APIRouter()
 
 
+def _build_targets_from_year_levels(
+    year_levels: list[int],
+    scoped_department_ids: list[int],
+    scoped_program_ids: list[int],
+) -> list[EventTargetCreate]:
+    dept_id = scoped_department_ids[0] if scoped_department_ids else None
+    prog_id = scoped_program_ids[0] if scoped_program_ids else None
+
+    if not year_levels:
+        if prog_id:
+            return [EventTargetCreate(scope_type=EventTargetScope.COURSE, course_id=prog_id)]
+        if dept_id:
+            return [EventTargetCreate(scope_type=EventTargetScope.DEPARTMENT, department_id=dept_id)]
+        return [EventTargetCreate(scope_type=EventTargetScope.ALL)]
+
+    targets = []
+    for year in year_levels:
+        if prog_id:
+            targets.append(EventTargetCreate(scope_type=EventTargetScope.COURSE_YEAR, course_id=prog_id, year_level=year))
+        elif dept_id:
+            targets.append(EventTargetCreate(scope_type=EventTargetScope.DEPARTMENT_YEAR, department_id=dept_id, year_level=year))
+        else:
+            targets.append(EventTargetCreate(scope_type=EventTargetScope.YEAR_LEVEL, year_level=year))
+    return targets
+
+
 def _normalize_event_create_idempotency_key(raw_value: str | None) -> str | None:
     normalized = str(raw_value or "").strip()
     if not normalized:
@@ -61,13 +87,6 @@ def create_event(
         _ensure_event_manager(db, current_user)
         school_id = _require_school_scope(current_user)
         payload_fields_set = _get_payload_fields_set(event)
-
-        # Enforce target-scope permissions before any DB writes.
-        validate_event_targets_for_actor(
-            db,
-            current_user=current_user,
-            event_targets=event.event_targets or [],
-        )
 
         if normalized_idempotency_key is not None:
             existing_event = _find_existing_idempotent_event(
@@ -170,22 +189,11 @@ def create_event(
         db.add(db_event)
         db.flush()
 
-        # Handle Event Targets (Phase 4)
-        targets_to_create = []
-        if event.event_targets:
-            targets_to_create = event.event_targets
-        elif event.department_ids or event.program_ids:
-            # Backward compatibility: migrate legacy ids to targets
-            for dept_id in event.department_ids:
-                targets_to_create.append(EventTargetCreate(scope_type=EventTargetScope.DEPARTMENT, department_id=dept_id))
-            for prog_id in event.program_ids:
-                targets_to_create.append(EventTargetCreate(scope_type=EventTargetScope.COURSE, course_id=prog_id))
-        else:
-            # Default to ALL if nothing specified (preserves old behavior)
-            targets_to_create.append(EventTargetCreate(scope_type=EventTargetScope.ALL))
-
-        if not targets_to_create:
-            raise HTTPException(status_code=400, detail="Event must have at least one target audience.")
+        targets_to_create = _build_targets_from_year_levels(
+            event.year_levels,
+            scoped_department_ids,
+            scoped_program_ids,
+        )
 
         for target_data in targets_to_create:
             # Validation of department/program existence within the same school
@@ -220,31 +228,20 @@ def create_event(
             )
             db.add(db_target)
 
-        target_department_ids = list(event.department_ids or [])
-        target_program_ids = list(event.program_ids or [])
-        if resolved_governance_unit is not None:
-            target_department_ids, target_program_ids = scoped_department_ids, scoped_program_ids
-
-        if target_department_ids:
+        if scoped_department_ids:
             departments = db.query(DepartmentModel).filter(
                 DepartmentModel.school_id == school_id,
-                DepartmentModel.id.in_(target_department_ids)
+                DepartmentModel.id.in_(scoped_department_ids)
             ).all()
-            if len(departments) != len(target_department_ids):
-                missing = set(target_department_ids) - {department.id for department in departments}
-                raise HTTPException(status_code=404, detail=f"Departments not found: {missing}")
             db_event.departments = departments
 
-        if target_program_ids:
+        if scoped_program_ids:
             programs = db.query(ProgramModel).options(
                 joinedload(ProgramModel.departments)
             ).filter(
                 ProgramModel.school_id == school_id,
-                ProgramModel.id.in_(target_program_ids)
+                ProgramModel.id.in_(scoped_program_ids)
             ).all()
-            if len(programs) != len(target_program_ids):
-                missing = set(target_program_ids) - {program.id for program in programs}
-                raise HTTPException(status_code=404, detail=f"Programs not found: {missing}")
             db_event.programs = programs
 
         auto_sync_result = None
@@ -313,14 +310,6 @@ def update_event(
             event=db_event,
             governance_context=governance_context,
         )
-
-        # Enforce target-scope permissions when the caller is replacing targets.
-        if event_update.event_targets is not None:
-            validate_event_targets_for_actor(
-                db,
-                current_user=current_user,
-                event_targets=event_update.event_targets,
-            )
 
         was_completed = db_event.status == ModelEventStatus.COMPLETED
 
@@ -435,96 +424,29 @@ def update_event(
                 event_type_id=event_type_id,
             )
 
-        resolved_scope = _resolve_governance_event_write_scope(
+        _, scoped_department_ids, scoped_program_ids = _resolve_governance_event_write_unit_and_scope(
             db,
             current_user=current_user,
             governance_context=governance_context,
         )
-        target_department_ids = (
-            list(event_update.department_ids) if event_update.department_ids is not None else None
-        )
-        target_program_ids = (
-            list(event_update.program_ids) if event_update.program_ids is not None else None
-        )
-        if resolved_scope is not None:
-            target_department_ids, target_program_ids = resolved_scope
 
-        if target_department_ids is not None:
-            db_event.departments = []
-            db.flush()
-            departments = db.query(DepartmentModel).filter(
-                DepartmentModel.school_id == school_id,
-                DepartmentModel.id.in_(target_department_ids)
-            ).all()
-            if len(departments) != len(target_department_ids):
-                missing = set(target_department_ids) - {department.id for department in departments}
-                raise HTTPException(status_code=404, detail=f"Departments not found: {missing}")
-            db_event.departments = departments
-
-        if target_program_ids is not None:
-            db_event.programs = []
-            db.flush()
-            programs = db.query(ProgramModel).options(
-                joinedload(ProgramModel.departments)
-            ).filter(
-                ProgramModel.school_id == school_id,
-                ProgramModel.id.in_(target_program_ids)
-            ).all()
-            if len(programs) != len(target_program_ids):
-                missing = set(target_program_ids) - {program.id for program in programs}
-                raise HTTPException(status_code=404, detail=f"Programs not found: {missing}")
-            db_event.programs = programs
-
-        # Handle Event Targets update (Phase 4)
-        explicit_targets = event_update.event_targets
-
-        # If legacy fields are explicitly updated but event_targets is not, migrate them
-        if explicit_targets is None and (event_update.department_ids is not None or event_update.program_ids is not None):
-            explicit_targets = []
-            # Use provided lists or existing associations
-            dept_ids = event_update.department_ids if event_update.department_ids is not None else [d.id for d in db_event.departments]
-            prog_ids = event_update.program_ids if event_update.program_ids is not None else [p.id for p in db_event.programs]
-
-            for dept_id in dept_ids:
-                explicit_targets.append(EventTargetCreate(scope_type=EventTargetScope.DEPARTMENT, department_id=dept_id))
-            for prog_id in prog_ids:
-                explicit_targets.append(EventTargetCreate(scope_type=EventTargetScope.COURSE, course_id=prog_id))
-
-            if not explicit_targets:
-                explicit_targets.append(EventTargetCreate(scope_type=EventTargetScope.ALL))
-
-        if explicit_targets is not None:
-            if not explicit_targets:
-                raise HTTPException(status_code=400, detail="Event must have at least one target audience.")
-
-            # Remove existing targets and replace them
+        if event_update.year_levels is not None:
+            new_targets = _build_targets_from_year_levels(
+                event_update.year_levels,
+                scoped_department_ids,
+                scoped_program_ids,
+            )
             db.query(EventTargetModel).filter(EventTargetModel.event_id == db_event.id).delete()
             db.flush()
-
-            for target_data in explicit_targets:
-                # Validation
-                if target_data.department_id:
-                    if not db.query(DepartmentModel).filter(
-                        DepartmentModel.id == target_data.department_id,
-                        DepartmentModel.school_id == school_id
-                    ).first():
-                        raise HTTPException(status_code=400, detail=f"Department {target_data.department_id} invalid")
-                if target_data.course_id:
-                    if not db.query(ProgramModel).filter(
-                        ProgramModel.id == target_data.course_id,
-                        ProgramModel.school_id == school_id
-                    ).first():
-                        raise HTTPException(status_code=400, detail=f"Program {target_data.course_id} invalid")
-
-                db_target = EventTargetModel(
+            for target_data in new_targets:
+                db.add(EventTargetModel(
                     event_id=db_event.id,
                     school_id=school_id,
                     scope_type=target_data.scope_type,
                     year_level=target_data.year_level,
                     department_id=target_data.department_id,
-                    course_id=target_data.course_id
-                )
-                db.add(db_target)
+                    course_id=target_data.course_id,
+                ))
 
         auto_sync_result = None
         if db_event.status not in {ModelEventStatus.CANCELLED, ModelEventStatus.COMPLETED}:
