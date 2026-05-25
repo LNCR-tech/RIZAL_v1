@@ -8,25 +8,56 @@ class GeoFix {
   final double? accuracy;
 }
 
+abstract class GeolocationPlatform {
+  Future<bool> isLocationServiceEnabled();
+  Future<LocationPermission> checkPermission();
+  Future<LocationPermission> requestPermission();
+  Future<GeoFix> getCurrentPosition();
+}
+
+class GeolocatorPlatformAdapter implements GeolocationPlatform {
+  const GeolocatorPlatformAdapter();
+
+  @override
+  Future<bool> isLocationServiceEnabled() =>
+      Geolocator.isLocationServiceEnabled();
+
+  @override
+  Future<LocationPermission> checkPermission() => Geolocator.checkPermission();
+
+  @override
+  Future<LocationPermission> requestPermission() =>
+      Geolocator.requestPermission();
+
+  @override
+  Future<GeoFix> getCurrentPosition() async {
+    final pos = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+    return GeoFix(pos.latitude, pos.longitude, pos.accuracy);
+  }
+}
+
 /// Thin wrapper over geolocator with permission handling. Returns null when
 /// location is unavailable or denied (callers decide if it's required).
 class GeolocationService {
-  Future<GeoFix?> current() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return null;
+  const GeolocationService([this._platform = const GeolocatorPlatformAdapter()]);
 
-    var permission = await Geolocator.checkPermission();
+  final GeolocationPlatform _platform;
+
+  Future<GeoFix?> current() async {
+    if (!await _platform.isLocationServiceEnabled()) return null;
+
+    var permission = await _platform.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      permission = await _platform.requestPermission();
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       return null;
     }
 
-    final pos = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
-    return GeoFix(pos.latitude, pos.longitude, pos.accuracy);
+    return _platform.getCurrentPosition();
   }
 }
 

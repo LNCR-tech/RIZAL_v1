@@ -7,28 +7,7 @@ import '../../core/theme/beta_controller.dart';
 import '../../core/widgets/app_scaffold.dart';
 import '../../core/widgets/glass_bottom_nav.dart';
 import '../../core/widgets/liquid_glass_nav.dart';
-import '../admin/presentation/admin_accounts_screen.dart';
-import '../admin/presentation/admin_home_screen.dart';
-import '../admin/presentation/admin_logs_screen.dart';
-import '../admin/presentation/admin_schools_screen.dart';
-import '../events/presentation/scan_entry_screen.dart';
-import '../events/presentation/schedule_screen.dart';
-import '../governance/presentation/governance_events_screen.dart';
-import '../governance/presentation/governance_home_screen.dart';
-import '../governance/presentation/governance_members_screen.dart';
-import '../schoolit/presentation/schoolit_home_screen.dart';
-import '../schoolit/presentation/schoolit_schedule_screen.dart';
-import '../schoolit/presentation/schoolit_users_screen.dart';
-import '../student/presentation/analytics_screen.dart';
-import '../student/presentation/student_home_screen.dart';
-import 'account_tab.dart';
-
-class _TabSpec {
-  const _TabSpec(this.icon, this.label, this.screen);
-  final IconData icon;
-  final String label;
-  final Widget screen;
-}
+import 'navigation_items.dart';
 
 /// Role-based shell: an [IndexedStack] of tabs with the glass bottom nav.
 /// Tab sets differ per [Workspace]; deeper navigation arrives per phase.
@@ -45,8 +24,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = _tabsFor(widget.workspace);
-    final safeIndex = _index.clamp(0, tabs.length - 1);
+    final tabs = shellTabsForWorkspace(widget.workspace);
+    final safeIndex = _index.clamp(0, tabs.length - 1).toInt();
     final beta = ref.watch(betaNavProvider);
 
     return AppScaffold(
@@ -72,43 +51,6 @@ class _AppShellState extends ConsumerState<AppShell> {
               ],
             ),
     );
-  }
-
-  List<_TabSpec> _tabsFor(Workspace w) {
-    switch (w) {
-      case Workspace.student:
-        return const [
-          _TabSpec(Icons.home_rounded, 'Home', StudentHomeScreen()),
-          _TabSpec(Icons.calendar_month_rounded, 'Schedule', ScheduleScreen()),
-          _TabSpec(Icons.center_focus_strong_rounded, 'Scan', ScanEntryScreen()),
-          _TabSpec(Icons.insights_rounded, 'Insights', AnalyticsScreen()),
-          _TabSpec(Icons.person_rounded, 'Account', AccountTab()),
-        ];
-      case Workspace.governance:
-        return const [
-          _TabSpec(Icons.dashboard_rounded, 'Home', GovernanceHomeScreen()),
-          _TabSpec(Icons.groups_rounded, 'Members', GovernanceMembersScreen()),
-          _TabSpec(Icons.event_rounded, 'Events', GovernanceEventsScreen()),
-          _TabSpec(Icons.person_rounded, 'Account', AccountTab()),
-        ];
-      case Workspace.schoolIt:
-        return const [
-          _TabSpec(Icons.dashboard_rounded, 'Home', SchoolItHomeScreen()),
-          _TabSpec(Icons.people_rounded, 'Users', SchoolItUsersScreen()),
-          _TabSpec(Icons.calendar_month_rounded, 'Schedule',
-              SchoolItScheduleScreen()),
-          _TabSpec(Icons.person_rounded, 'Account', AccountTab()),
-        ];
-      case Workspace.admin:
-        return const [
-          _TabSpec(Icons.dashboard_rounded, 'Home', AdminHomeScreen()),
-          _TabSpec(Icons.apartment_rounded, 'Schools', AdminSchoolsScreen()),
-          _TabSpec(Icons.admin_panel_settings_rounded, 'Accounts',
-              AdminAccountsScreen()),
-          _TabSpec(Icons.receipt_long_rounded, 'Logs', AdminLogsScreen()),
-          _TabSpec(Icons.person_rounded, 'Account', AccountTab()),
-        ];
-    }
   }
 }
 

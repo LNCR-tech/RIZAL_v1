@@ -24,6 +24,35 @@ String workspacePath(Workspace w) {
   }
 }
 
+String? resolveAppRedirect({
+  required SessionState session,
+  required bool splashDone,
+  required String location,
+}) {
+  if (session.status == SessionStatus.unknown || !splashDone) {
+    return location == '/splash' ? null : '/splash';
+  }
+  if (!session.isAuthenticated) {
+    return location == '/login' ? null : '/login';
+  }
+  if (session.needsPasswordChange) {
+    return location == '/change-password' ? null : '/change-password';
+  }
+  if (session.needsPrivilegedFace) {
+    return location == '/face-verify' ? null : '/face-verify';
+  }
+
+  const transient = {
+    '/splash',
+    '/login',
+    '/change-password',
+    '/face-verify',
+    '/',
+  };
+  if (transient.contains(location)) return workspacePath(session.workspace);
+  return null;
+}
+
 /// App router. Redirects react to session changes via [refreshListenable],
 /// enforcing: splash while unknown → login when signed out → password/face
 /// gates → the correct role workspace.
@@ -41,28 +70,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final splashDone = ref.read(splashGateProvider);
       final loc = state.matchedLocation;
 
-      if (s.status == SessionStatus.unknown || !splashDone) {
-        return loc == '/splash' ? null : '/splash';
-      }
-      if (!s.isAuthenticated) {
-        return loc == '/login' ? null : '/login';
-      }
-      if (s.needsPasswordChange) {
-        return loc == '/change-password' ? null : '/change-password';
-      }
-      if (s.needsPrivilegedFace) {
-        return loc == '/face-verify' ? null : '/face-verify';
-      }
-
-      const transient = {
-        '/splash',
-        '/login',
-        '/change-password',
-        '/face-verify',
-        '/',
-      };
-      if (transient.contains(loc)) return workspacePath(s.workspace);
-      return null;
+      return resolveAppRedirect(
+        session: s,
+        splashDone: splashDone,
+        location: loc,
+      );
     },
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),

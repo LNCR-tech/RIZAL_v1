@@ -14,6 +14,7 @@ import '../../../core/widgets/aura_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../shared/models/event.dart';
 import '../../../shared/utils/formatting.dart';
+import '../../events/application/event_editor_payload.dart';
 import '../../events/application/events_providers.dart';
 import '../../events/data/events_repository.dart';
 import '../../governance/application/governance_providers.dart';
@@ -131,44 +132,31 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
   Future<void> _save() async {
     final start = _combine(_startDate, _startTime);
     final end = _combine(_endDate, _endTime);
-    if (_name.text.trim().isEmpty || start == null || end == null) {
-      setState(() => _error = 'Add a name, start, and end time.');
+
+    late final Map<String, dynamic> body;
+    try {
+      body = buildEventEditorPayload(
+        name: _name.text,
+        location: _location.text,
+        description: _description.text,
+        start: start,
+        end: end,
+        geoRequired: _geoRequired,
+        geoLatitude: _geoLat,
+        geoLongitude: _geoLng,
+        geoRadiusM: _geoRadius,
+        isEdit: _isEdit,
+      );
+    } on EventEditorPayloadError catch (e) {
+      setState(() => _error = e.message);
       return;
     }
-    if (_location.text.trim().isEmpty) {
-      setState(() => _error = 'Add a venue / location.');
-      return;
-    }
-    if (!end.isAfter(start)) {
-      setState(() => _error = 'End time must be after the start time.');
-      return;
-    }
-    if (_geoRequired && (_geoLat == null || _geoLng == null)) {
-      setState(() => _error = 'Tap the map to set the event location.');
-      return;
-    }
+
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final body = <String, dynamic>{
-        'name': _name.text.trim(),
-        'location': _location.text.trim(),
-        if (_description.text.trim().isNotEmpty)
-          'description': _description.text.trim(),
-        'start_datetime': start.toUtc().toIso8601String(),
-        'end_datetime': end.toUtc().toIso8601String(),
-      };
-      if (_geoRequired) {
-        body['geo_required'] = true;
-        body['geo_latitude'] = _geoLat;
-        body['geo_longitude'] = _geoLng;
-        body['geo_radius_m'] = _geoRadius.round();
-      } else if (_isEdit) {
-        // Let the officer turn the geofence off on an existing event.
-        body['geo_required'] = false;
-      }
       final repo = ref.read(eventsRepositoryProvider);
       if (_isEdit) {
         await repo.update(widget.event!.id, body,
