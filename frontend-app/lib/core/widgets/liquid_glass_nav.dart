@@ -163,11 +163,8 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                         ),
                       ),
                     ),
-                    // 2. Icons + labels — painted BEHIND the blob so the glass
-                    // can refract them. The liquid-glass layer refracts its
-                    // backdrop (whatever is painted before it); anything painted
-                    // AFTER it is not refracted — that's why the icons must go
-                    // here, under the blob.
+                    // 2. Icons + labels, painted under the glass highlight so
+                    // the active capsule can sit above them while moving.
                     Positioned.fill(
                       child: Row(
                         children: [
@@ -183,11 +180,10 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                         ],
                       ),
                     ),
-                    // 3. Liquid-glass capsule blob — ON TOP of the icons so it
-                    // bends/refracts them like glass (React Bits FluidGlass
-                    // "lens" look). Wrapped in IgnorePointer so taps still reach
-                    // the icons underneath. Outside the clip so it can zoom out
-                    // of the pill while sliding. Blob size + animation unchanged.
+                    // 3. Glass-style capsule highlight. Wrapped in
+                    // IgnorePointer so taps still reach the icons underneath.
+                    // Outside the clip so it can zoom out of the pill while
+                    // sliding. Blob size + animation unchanged.
                     AnimatedBuilder(
                       animation: _anim,
                       builder: (context, child) {

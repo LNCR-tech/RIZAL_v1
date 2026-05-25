@@ -115,6 +115,16 @@
 
 **`frontend-app/test/ui_quality_test.dart`**
 - Relaxed the password semantics assertion to accept one or more matching semantics nodes, avoiding brittleness from Flutter's tooltip/semantics merging.
+- Added a Flutter-side safe-pressable response test for key controls:
+  - Login password visibility toggle.
+  - Empty login submit validation.
+  - Google sign-in placeholder snackbar.
+  - Student Schedule, Scan, Insights, and Account tab navigation.
+  - Schedule `Upcoming` filter.
+  - Event editor date and time picker buttons.
+
+**`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
+- Clarified comments around the pure Flutter glass highlight so the source no longer describes shader refraction behavior.
 
 ### Notes
 

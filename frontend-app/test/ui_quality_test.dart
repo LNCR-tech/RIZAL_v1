@@ -129,6 +129,9 @@ Future<void> _pumpAuraApp(
 }
 
 Future<void> _pumpEventEditor(WidgetTester tester) async {
+  final start = DateTime.now().add(const Duration(days: 7));
+  final end = start.add(const Duration(hours: 2));
+
   await tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
@@ -137,8 +140,8 @@ Future<void> _pumpEventEditor(WidgetTester tester) async {
             id: 7,
             name: 'Assembly',
             location: 'Main Hall',
-            startDatetime: DateTime.utc(2099, 1, 1, 9),
-            endDatetime: DateTime.utc(2099, 1, 1, 11),
+            startDatetime: start,
+            endDatetime: end,
           ),
         ),
       ),
@@ -198,6 +201,22 @@ void _expectVisibleIconButtonsHaveLabels(
   );
 }
 
+Future<void> _tapAndExpectUiResponse(
+  WidgetTester tester, {
+  required Finder target,
+  required String context,
+  required VoidCallback expectResponse,
+}) async {
+  expect(target, findsWidgets, reason: '$context target is missing');
+  await tester.ensureVisible(target.first);
+  await tester.pump();
+  await tester.tap(target.first);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+  _expectNoFlutterExceptions(tester, context);
+  expectResponse();
+}
+
 void main() {
   testWidgets(
     'key app states avoid layout exceptions across common viewports',
@@ -253,6 +272,102 @@ void main() {
       expect(find.byTooltip('Pick end date'), findsOneWidget);
       expect(find.byTooltip('Pick end time'), findsOneWidget);
       _expectVisibleIconButtonsHaveLabels(tester, 'event editor');
+    },
+  );
+
+  testWidgets(
+    'key safe pressables produce expected UI responses',
+    (tester) async {
+      await _pumpAuraApp(tester, session: _signedOutSession);
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.byTooltip('Show password'),
+        context: 'login password visibility toggle',
+        expectResponse: () =>
+            expect(find.byTooltip('Hide password'), findsOneWidget),
+      );
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Sign in'),
+        context: 'empty login submit validation',
+        expectResponse: () =>
+            expect(find.text('Enter your email and password.'), findsOneWidget),
+      );
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Continue with Google'),
+        context: 'google sign-in placeholder feedback',
+        expectResponse: () => expect(
+          find.text('Google Sign-In wiring lands in Phase 1.'),
+          findsOneWidget,
+        ),
+      );
+
+      await _pumpAuraApp(tester, session: _studentSession);
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Schedule'),
+        context: 'student schedule tab navigation',
+        expectResponse: () =>
+            expect(find.text('Search events'), findsOneWidget),
+      );
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Upcoming'),
+        context: 'schedule upcoming filter',
+        expectResponse: () =>
+            expect(find.text('E2E Orientation'), findsOneWidget),
+      );
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Scan'),
+        context: 'student scan tab navigation',
+        expectResponse: () =>
+            expect(find.text('No live events'), findsOneWidget),
+      );
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Insights'),
+        context: 'student insights tab navigation',
+        expectResponse: () => expect(find.text('75%'), findsOneWidget),
+      );
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.text('Account'),
+        context: 'student account tab navigation',
+        expectResponse: () =>
+            expect(find.text('student@test.com'), findsOneWidget),
+      );
+
+      await _pumpEventEditor(tester);
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.byTooltip('Pick start date'),
+        context: 'event editor start date picker',
+        expectResponse: () =>
+            expect(find.byType(DatePickerDialog), findsOneWidget),
+      );
+      Navigator.of(tester.element(find.byType(DatePickerDialog))).pop();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await _tapAndExpectUiResponse(
+        tester,
+        target: find.byTooltip('Pick start time'),
+        context: 'event editor start time picker',
+        expectResponse: () =>
+            expect(find.byType(TimePickerDialog), findsOneWidget),
+      );
+      Navigator.of(tester.element(find.byType(TimePickerDialog))).pop();
+      await tester.pump(const Duration(milliseconds: 300));
     },
   );
 }
