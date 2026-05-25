@@ -73,6 +73,15 @@
 - This avoids the CI analyzer failure where the Flutter SDK used by CI did not resolve `CupertinoPageTransitionsBuilder`.
 - The replacement keeps a lightweight horizontal route transition and still uses `_NoPageTransitionsBuilder` when reduced motion is enabled.
 
+### Backend Model Defaults
+
+**`backend/app/models/school.py`**
+- Added default-enabled school event policy columns on `SchoolEventPolicy`:
+  - `privileged_face_verification_enabled = true`
+  - `attendance_face_recognition_enabled = true`
+  - `first_time_face_registration_required = true`
+- These defaults keep existing schools permissive unless a later policy path explicitly disables face verification or first-time registration requirements.
+
 ### Notes
 
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.
