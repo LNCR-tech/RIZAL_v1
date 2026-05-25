@@ -10,6 +10,10 @@ precision mediump float;
 #define DEBUG_BLUR_MATTE 0
 
 #include <flutter/runtime_effect.glsl>
+uniform sampler2D uBackgroundTexture;
+uniform sampler2D uForegroundTexture;
+uniform sampler2D uForegroundBlurredTexture;
+#define LIQUID_GLASS_SAMPLE_BACKGROUND(uv) texture(uBackgroundTexture, uv)
 #include "shared.glsl"
 
 // Optimized uniform layout - grouped into vectors for 50% fewer API calls
@@ -33,13 +37,9 @@ vec2 uOffset = uTransformData.xy;
 float uSaturation = uLightConfig.w;
 float uGaussianBlur = uOpticalProps.w;
 
-uniform sampler2D uBackgroundTexture;
-uniform sampler2D uForegroundTexture;
-
 // A pre-blurred version of the foreground texture.
 // This will be eroded, so that the alpha is always 0 at the edge.
 // This is used to calculate the normal.
-uniform sampler2D uForegroundBlurredTexture;
 layout(location = 0) out vec4 fragColor;
 
 
@@ -62,40 +62,6 @@ vec2 findShapeCenter(vec2 currentUV) {
 }
 
 
-
-
-
-vec2 sobelAtScale(sampler2D tex, vec2 uv, vec2 texelSize, float scale) {
-    vec2 d = texelSize * scale;
-
-    // Sample the 3x3 neighborhood at the current scale.
-    float tl = texture(tex, uv - d).a;
-    float tm = texture(tex, uv - vec2(0.0, d.y)).a;
-    float tr = texture(tex, uv + vec2(d.x, -d.y)).a;
-    float ml = texture(tex, uv - vec2(d.x, 0.0)).a;
-    float mr = texture(tex, uv + vec2(d.x, 0.0)).a;
-    float bl = texture(tex, uv + vec2(-d.x, d.y)).a;
-    float bm = texture(tex, uv + vec2(0.0, d.y)).a;
-    float br = texture(tex, uv + d).a;
-
-    // Apply the Sobel operator to calculate the gradient for this scale.
-    float sobelX = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
-    float sobelY = (bl + 2.0 * bm + br) - (tl + 2.0 * tm + tr);
-    return vec2(sobelX, sobelY);
-}
-
-// Helper for robust, multi-scale gradient calculation using a Sobel operator.
-// This is more noise-resistant than simple central differences.
-vec2 calculateGradient(sampler2D tex, vec2 uv, vec2 texelSize) {
-    vec2 gradient =
-        sobelAtScale(tex, uv, texelSize, 1.0) +
-        sobelAtScale(tex, uv, texelSize, 2.0) * 0.5 +
-        sobelAtScale(tex, uv, texelSize, 4.0) * 0.25;
-
-    // Normalize the summed gradients.
-    // The 0.125 factor is an approximation to normalize the Sobel kernel (1/8).
-    return (gradient / 1.75) * 0.125;
-}
 
 vec3 getReconstructedNormal(vec2 p, float thickness) {
     vec2 uv = p / uForegroundSize;
@@ -195,7 +161,6 @@ void main() {
         uLightDirection,
         uLightIntensity,
         uAmbientStrength,
-        uBackgroundTexture,
         normal,
         foregroundColor.a,
         uGaussianBlur,

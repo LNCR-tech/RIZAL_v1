@@ -14,6 +14,8 @@ precision mediump float;
 #define DEBUG_NORMALS 0
 
 #include <flutter/runtime_effect.glsl>
+uniform sampler2D uBlurredTexture;
+#define LIQUID_GLASS_SAMPLE_BACKGROUND(uv) texture(uBlurredTexture, uv)
 #include "shared.glsl"
 #define SHAPE_DATA_LOCATION 6
 #include "sdf.glsl"
@@ -36,7 +38,6 @@ float uBlend = uOpticalProps.w;
 float uSaturation = uLightConfig.w;
 
 layout(location = 5) uniform float uNumShapes;             // numShapes
-uniform sampler2D uBlurredTexture;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
@@ -81,7 +82,6 @@ void main() {
         uLightDirection,
         uLightIntensity,
         uAmbientStrength,
-        uBlurredTexture,
         normal,
         foregroundAlpha,
         0.0,

@@ -145,7 +145,7 @@ float calculateDispersiveIndex(float baseIndex, float chromaticAberration, float
 }
 
 // Calculate refraction with physically-based chromatic aberration
-vec4 calculateRefraction(vec2 screenUV, vec3 normal, float height, float thickness, float refractiveIndex, float chromaticAberration, vec2 uSize, sampler2D backgroundTexture, float blurRadius, out vec2 refractionDisplacement) {
+vec4 calculateRefraction(vec2 screenUV, vec3 normal, float height, float thickness, float refractiveIndex, float chromaticAberration, vec2 uSize, float blurRadius, out vec2 refractionDisplacement) {
     float baseHeight = thickness * 8.0;
     vec3 incident = vec3(0.0, 0.0, -1.0);
 
@@ -162,7 +162,7 @@ vec4 calculateRefraction(vec2 screenUV, vec3 normal, float height, float thickne
     // Optimize for the most common case: no chromatic aberration
     if (chromaticAberration < 0.001) {
         vec2 refractedUV = screenUV + baseDisplacement * invUSize;
-        return texture(backgroundTexture, refractedUV);
+        return LIQUID_GLASS_SAMPLE_BACKGROUND(refractedUV);
     }
 
     // Chromatic aberration path - 3 texture samples only
@@ -175,9 +175,9 @@ vec4 calculateRefraction(vec2 screenUV, vec3 normal, float height, float thickne
     vec2 blueUV = screenUV + blueOffset * invUSize;
 
     // Single texture sample per channel - 3 samples total
-    float red = texture(backgroundTexture, redUV).r;
-    vec4 greenSample = texture(backgroundTexture, greenUV);
-    float blue = texture(backgroundTexture, blueUV).b;
+    float red = LIQUID_GLASS_SAMPLE_BACKGROUND(redUV).r;
+    vec4 greenSample = LIQUID_GLASS_SAMPLE_BACKGROUND(greenUV);
+    float blue = LIQUID_GLASS_SAMPLE_BACKGROUND(blueUV).b;
 
     return vec4(red, greenSample.g, blue, greenSample.a);
 }
@@ -217,12 +217,12 @@ vec4 applyGlassColor(vec4 liquidColor, vec4 glassColor) {
 }
 
 // Complete liquid glass rendering pipeline
-vec4 renderLiquidGlass(vec2 screenUV, vec2 p, vec2 uSize, float sd, float thickness, float refractiveIndex, float chromaticAberration, vec4 glassColor, vec2 lightDirection, float lightIntensity, float ambientStrength, sampler2D backgroundTexture, vec3 normal, float foregroundAlpha, float gaussianBlur, float saturation) {
+vec4 renderLiquidGlass(vec2 screenUV, vec2 p, vec2 uSize, float sd, float thickness, float refractiveIndex, float chromaticAberration, vec4 glassColor, vec2 lightDirection, float lightIntensity, float ambientStrength, vec3 normal, float foregroundAlpha, float gaussianBlur, float saturation) {
     float height = getHeight(sd, thickness);
 
     // Calculate refraction & chromatic aberration
     vec2 refractionDisplacement;
-    vec4 refractColor = calculateRefraction(screenUV, normal, height, thickness, refractiveIndex, chromaticAberration, uSize, backgroundTexture, gaussianBlur, refractionDisplacement);
+    vec4 refractColor = calculateRefraction(screenUV, normal, height, thickness, refractiveIndex, chromaticAberration, uSize, gaussianBlur, refractionDisplacement);
 
     // Get background color for lighting calculations
     vec3 backgroundColor = refractColor.rgb;
@@ -241,7 +241,7 @@ vec4 renderLiquidGlass(vec2 screenUV, vec2 p, vec2 uSize, float sd, float thickn
 
     // Use alpha for smooth transition at boundaries
     // Only sample background texture when we need to blend
-    vec4 bgSample = texture(backgroundTexture, screenUV);
+    vec4 bgSample = LIQUID_GLASS_SAMPLE_BACKGROUND(screenUV);
     return mix(bgSample, finalColor, foregroundAlpha);
 }
 

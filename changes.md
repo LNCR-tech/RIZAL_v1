@@ -104,6 +104,7 @@
 - Unrolled SDF shape merging to avoid SkSL `min(int,int)` and loop-initializer limitations.
 - Replaced derivative intrinsics with finite-difference normal sampling for runtime-effect compatibility.
 - Removed loops from the experimental arbitrary shader's center sampler and gradient helper so the file compiles under SkSL.
+- Removed `sampler2D`/shader parameters from shared liquid-glass shader helpers and routed background texture reads through entry-shader sampling macros. This addresses SkSL's unsupported shader-parameter compilation path while preserving the same shader-backed liquid-glass visual path.
 
 **`frontend-app/lib/core/widgets/aura_button.dart`**
 - Made button labels flexible with ellipsis so long labels do not overflow narrow mobile layouts.

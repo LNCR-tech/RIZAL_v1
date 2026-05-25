@@ -15,3 +15,7 @@ Local changes:
   sampling for runtime-effect compatibility.
 - Removed loops from the experimental arbitrary shader's center sampler and
   gradient helper so the file compiles under SkSL.
+- Removed `sampler2D` parameters from shared shader helper functions. Entry
+  shaders now expose their background texture through a local sampling macro, so
+  SkSL does not need to compile unsupported shader/sampler function parameters
+  while each shader still samples the same texture it used before.

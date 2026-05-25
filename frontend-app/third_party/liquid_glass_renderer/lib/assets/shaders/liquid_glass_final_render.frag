@@ -10,6 +10,9 @@ precision mediump float;
 #define DEBUG_GEOMETRY 0
 
 #include <flutter/runtime_effect.glsl>
+uniform sampler2D uBackgroundTexture;
+uniform sampler2D uGeometryTexture;
+#define LIQUID_GLASS_SAMPLE_BACKGROUND(uv) texture(uBackgroundTexture, uv)
 #include "displacement_encoding.glsl"
 #include "render.glsl"
 
@@ -28,9 +31,6 @@ float uThickness = uOpticalProps.z;
 float uLightIntensity = uLightConfig.x;
 float uAmbientStrength = uLightConfig.y;
 float uSaturation = uLightConfig.z;
-
-uniform sampler2D uBackgroundTexture;
-uniform sampler2D uGeometryTexture;
 
 layout(location = 0) out vec4 fragColor;
 
