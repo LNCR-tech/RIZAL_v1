@@ -245,13 +245,7 @@ class LivenessChecker:
             {self._input_name: model_input},
         )[0]
         probabilities = self._softmax(logits)
-        print(
-            f"LIVENESS_DEBUG probs=[c0={probabilities[0,0]:.4f} c1={probabilities[0,1]:.4f} c2={probabilities[0,2]:.4f}]"
-            f" logits={[round(float(v),3) for v in logits[0]]} crop={crop.shape[1]}x{crop.shape[0]}",
-            flush=True,
-        )
-        # MiniFASNetV2 class layout (this export): 0=real, 1=video-spoof, 2=print-spoof
-        # Verified via LIVENESS_DEBUG: photos score c2≈0.99, c0≈0.001 — c0 is the real class.
+        # 2-class model: index 0 = real/live, index 1 = spoof
         if probabilities.shape[1] >= 1:
             return float(probabilities[0, 0])
         return 0.0
