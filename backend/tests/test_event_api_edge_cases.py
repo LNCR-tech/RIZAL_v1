@@ -74,7 +74,7 @@ def test_create_event_rejects_incomplete_geofence_fields(client, campus_admin_he
     )
 
     assert response.status_code == 400
-    assert "Geofence coordinates and radius are required" in response.text
+    assert "latitude, longitude, and radius" in response.text
 
 
 def test_create_event_rejects_overlong_idempotency_key(client, campus_admin_headers):

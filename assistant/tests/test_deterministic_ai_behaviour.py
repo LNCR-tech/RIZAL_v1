@@ -76,9 +76,11 @@ async def test_data_answer_reports_student_absences_from_attendance_report():
             }
         raise AssertionError(f"Unexpected backend path: {path}")
 
-    with patch("lib.deterministic_answers.request_backend", new=AsyncMock(side_effect=fake_backend)):
+    with patch("lib.deterministic_charts.request_backend", new=AsyncMock(side_effect=fake_backend)), \
+         patch("lib.deterministic_answers.request_backend", new=AsyncMock(side_effect=fake_backend)):
         answer = await build_data_answer("What events was I absent from?", "Bearer token", ["student"])
 
+    assert answer is not None, "build_data_answer returned None"
     assert "Events you were absent from (1):" in answer
     assert "Foundation Day" in answer
     assert "Orientation" not in answer
