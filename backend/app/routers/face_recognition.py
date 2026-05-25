@@ -118,6 +118,8 @@ def _serialize_attendance_decision(decision) -> dict[str, object]:
     for key, value in list(payload.items()):
         if isinstance(value, datetime):
             payload[key] = value.isoformat()
+    # "message" conflicts with the explicit message= kwarg in _attendance_scan_error_detail
+    payload.pop("message", None)
     return payload
 
 
