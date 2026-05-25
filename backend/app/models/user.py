@@ -93,6 +93,23 @@ class StudentProfile(Base):
     program = relationship("Program")
     attendance_records = relationship("AttendanceRecord", back_populates="student", cascade="all, delete-orphan")
 
+    def update_face_encoding(
+        self,
+        encoding_bytes: bytes,
+        *,
+        provider: str,
+        dtype: str,
+        dimension: int,
+        normalized: bool = True,
+    ) -> None:
+        self.face_encoding = encoding_bytes
+        self.embedding_provider = provider
+        self.embedding_dtype = dtype
+        self.embedding_dimension = dimension
+        self.embedding_normalized = normalized
+        self.is_face_registered = True
+        self.last_face_update = utc_now()
+
     # Compatibility property — old code used student_id, new schema uses student_number
     @hybrid_property
     def student_id(self) -> str | None:
