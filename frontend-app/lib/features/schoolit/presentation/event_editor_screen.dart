@@ -367,6 +367,7 @@ class _PickerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final subject = label == 'Starts' ? 'start' : 'end';
     return AuraCard(
       padding: const EdgeInsets.all(AppSpacing.x16),
       child: Row(
@@ -382,9 +383,16 @@ class _PickerTile extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(icon: const Icon(Icons.event_rounded), onPressed: onDate),
           IconButton(
-              icon: const Icon(Icons.schedule_rounded), onPressed: onTime),
+            tooltip: 'Pick $subject date',
+            icon: const Icon(Icons.event_rounded),
+            onPressed: onDate,
+          ),
+          IconButton(
+            tooltip: 'Pick $subject time',
+            icon: const Icon(Icons.schedule_rounded),
+            onPressed: onTime,
+          ),
         ],
       ),
     );
