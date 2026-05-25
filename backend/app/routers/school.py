@@ -112,9 +112,6 @@ def _sync_school_settings(db: Session, school: School, updated_by_user_id: int) 
         settings = SchoolSetting(school_id=school.id)
         db.add(settings)
 
-    settings.primary_color = school.primary_color
-    settings.secondary_color = school.secondary_color or "#2C5F9E"
-    settings.accent_color = school.secondary_color or school.primary_color
     settings.updated_by_user_id = updated_by_user_id
     school.settings = settings
 
@@ -717,7 +714,7 @@ async def update_school(
         school.name = payload.school_name
     if payload.primary_color is not None:
         school.primary_color = payload.primary_color
-    if secondary_color is not None:
+    if payload.secondary_color is not None:
         school.secondary_color = payload.secondary_color
     if school_code is not None:
         school.school_code = payload.school_code
