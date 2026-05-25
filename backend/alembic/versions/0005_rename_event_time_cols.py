@@ -15,9 +15,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Drop any check constraints on events that reference start_datetime.
-    # PostgreSQL does not auto-update CHECK expression strings on RENAME COLUMN,
-    # so we must drop and recreate the constraint manually.
+    # The deployed DB has both old columns (start_datetime/end_datetime, NOT NULL,
+    # no timezone) and new columns (start_at/end_at, nullable, with timezone).
+    # All existing rows already have start_at/end_at populated.
+    # Drop the old columns and make start_at/end_at NOT NULL.
+
+    # Drop any check constraints referencing the old column names.
     op.execute(sa.text("""
         DO $$
         DECLARE r RECORD;
@@ -34,8 +37,11 @@ def upgrade() -> None:
         END $$;
     """))
 
-    op.alter_column("events", "start_datetime", new_column_name="start_at")
-    op.alter_column("events", "end_datetime", new_column_name="end_at")
+    op.drop_column("events", "start_datetime")
+    op.drop_column("events", "end_datetime")
+
+    op.alter_column("events", "start_at", nullable=False)
+    op.alter_column("events", "end_at", nullable=False)
 
     op.create_check_constraint(
         "ck_events_end_after_start", "events", "end_at >= start_at"
@@ -59,9 +65,20 @@ def downgrade() -> None:
         END $$;
     """))
 
-    op.alter_column("events", "start_at", new_column_name="start_datetime")
-    op.alter_column("events", "end_at", new_column_name="end_datetime")
+    op.alter_column("events", "start_at", nullable=True)
+    op.alter_column("events", "end_at", nullable=True)
 
-    op.create_check_constraint(
-        "ck_events_end_after_start", "events", "end_datetime >= start_datetime"
-    )
+    op.add_column("events", sa.Column(
+        "start_datetime", sa.DateTime(timezone=False), nullable=True
+    ))
+    op.add_column("events", sa.Column(
+        "end_datetime", sa.DateTime(timezone=False), nullable=True
+    ))
+
+    op.execute(sa.text(
+        "UPDATE events SET start_datetime = start_at AT TIME ZONE 'UTC',"
+        " end_datetime = end_at AT TIME ZONE 'UTC'"
+    ))
+
+    op.alter_column("events", "start_datetime", nullable=False)
+    op.alter_column("events", "end_datetime", nullable=False)
