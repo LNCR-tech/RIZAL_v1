@@ -246,7 +246,7 @@ class LivenessChecker:
             {self._input_name: model_input},
         )[0]
         probabilities = self._softmax(logits)
-        # 2-class model: index 0 = real/live, index 1 = spoof
-        if probabilities.shape[1] >= 1:
-            return float(probabilities[0, 0])
+        # 2-class model: index 0 = spoof, index 1 = real/live
+        if probabilities.shape[1] >= 2:
+            return float(probabilities[0, 1])
         return 0.0
