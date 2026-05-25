@@ -115,20 +115,15 @@ def get_school_context(db: Session, user: User) -> dict[str, object | None]:
                 .first()
             )
 
+        branding = getattr(school, "branding", None)
         return {
             "school_id": school.id,
             "school_name": school.school_name or school.name,
             "school_code": school.school_code,
             "logo_url": school.logo_url,
-            "primary_color": school.primary_color
-            if getattr(school, "primary_color", None)
-            else (settings.primary_color if settings else None),
-            "secondary_color": school.secondary_color
-            if getattr(school, "secondary_color", None)
-            else (settings.secondary_color if settings else None),
-            "accent_color": settings.accent_color
-            if settings
-            else (school.secondary_color or school.primary_color),
+            "primary_color": (branding.primary_color if branding else None) or "#162F65",
+            "secondary_color": (branding.secondary_color if branding else None),
+            "accent_color": (branding.accent_color if branding else None),
         }
     except Exception:
         return {}
