@@ -2,9 +2,11 @@
 
 Aura's AI (`assistant/`) does **not** run the model itself — it consumes the
 **centralized Jose** service over HTTP (OpenAI-compatible). Centralized Jose is a
-**separate project**: the sibling folder `centralized-jose/` (kept out of this
-repo so any project can use it). Full docs:
-`../../centralized-jose/docs/integration-and-deployment.md`.
+**separate project** with its own repository:
+
+- **Repo:** https://github.com/zannn123/centralized-jose
+- **Local folder:** the sibling `centralized-jose/` (kept outside this repo so any project can use it)
+- **Full docs:** `centralized-jose/docs/integration-and-deployment.md` (in that repo)
 
 ## How Aura connects
 
