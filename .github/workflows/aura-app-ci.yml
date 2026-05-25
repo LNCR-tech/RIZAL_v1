@@ -1,0 +1,57 @@
+name: Aura App (Flutter) CI
+
+# Gates for the Flutter client in frontend-app/. Mirrors the web CI's
+# analyze + test gates. Build is included to catch native/codegen breakage.
+
+on:
+  push:
+    paths:
+      - "frontend-app/**"
+      - ".github/workflows/aura-app-ci.yml"
+  pull_request:
+    paths:
+      - "frontend-app/**"
+
+jobs:
+  analyze-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+  build-android:
+    runs-on: ubuntu-latest
+    needs: analyze-test
+    defaults:
+      run:
+        working-directory: frontend-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Endpoints are injected at build time; CI builds with the emulator default.
+      - name: Build debug APK
+        run: flutter build apk --debug

@@ -10,6 +10,71 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-05-23
+### Added
+- **Edit governance events.** The event monitor screen now has an Edit action
+  (gated by `manage_events`) that opens the editor **prefilled from the event**
+  and saves via `PATCH /api/events/{id}` (`EventsRepository.update`,
+  `EventEditorScreen(event:)`), scoped by `governance_context`; the geofence can
+  be changed or turned off. `DioClient.patch` now forwards query params.
+### Notes
+- Event **creation** still returns HTTP 500 from the backend (cloud **and**
+  local). Traced server-side: a valid `EventCreate` payload (name + start/end,
+  status defaults to `upcoming`) reaches the handler and fails during processing —
+  most likely the deployed/local DB is missing newer `events` / `event_targets`
+  columns because migrations didn't run (those columns live only in `schema.sql`,
+  not a versioned alembic migration). The app sends a correct request; the fix is
+  a backend migration/redeploy, not a client change.
+
+## [1.23.2] - 2026-05-23
+### Fixed
+- **Governance Members screen had no back button** when opened from a dashboard
+  quick action (e.g. after drilling into a child SG/ORG), and its title sat under
+  the status bar. It's now wrapped in `AppScaffold` like the Events screen — a
+  proper "Members" app bar with an automatic back button when pushed, the "Add
+  officer" action moved into the app bar, and the unit name shown as a context
+  line. Still works as a bottom-nav tab.
+
+## [1.23.1] - 2026-05-23
+### Changed
+- **App name is now "Aura"** (was `aura_app`) — Android `android:label` + iOS
+  `CFBundleDisplayName`.
+- **Real launcher icon.** The Aura mark now ships as the app icon: legacy density
+  buckets (mdpi–xxxhdpi) **plus an Android adaptive icon** (`mipmap-anydpi-v26`,
+  the mark centred in the safe zone over a near-black background) so it renders
+  correctly on Android 12+. Sourced from the clean `pwa-512` brand asset — the
+  `frontend-apk` icon copies were CRLF-corrupted (an extra `0D` in the PNG header)
+  and undecodable.
+
+## [1.23.0] - 2026-05-23
+### Added
+- **Governance hierarchy management UI (SSG → SG → ORG).** Officers can now build
+  the governance tree in-app — the backend already supported it, but Flutter had no
+  view to do it.
+  - **Create child units.** A permission-gated action on the governance dashboard:
+    "Create college SG" (when an SSG officer holds `create_sg`) and "Create program
+    ORG" (when an SG officer holds `create_org`); locked with a "Not permitted"
+    tooltip otherwise. New `UnitCreatorScreen` (`unit_creator_screen.dart`) — SG mode
+    shows a college picker (`govDepartmentsProvider`), ORG mode shows the college
+    inherited from the parent SG plus a program picker scoped to that college
+    (`Program.departmentIds`); it sends `department_id` / `program_id` per the backend
+    contract and surfaces validation errors (e.g. one SG per college) inline.
+    (`governance_repository.createUnit`, `createGovernanceUnit` helper)
+  - **Child units + drill-in.** The dashboard lists child units (SGs under an SSG,
+    ORGs under an SG); tapping one switches the workspace into it — carrying the
+    management permissions the backend propagates from a *direct* parent membership
+    (`manage_members` / `assign_permissions`) — with a back control to return.
+  - **Empower officers down the chain.** A shared `OfficerEditor`
+    (`officer_editor.dart`) replaces the SSG-only one and offers exactly the
+    permissions each unit type allows (matching the backend whitelist — only SSG can
+    grant `create_sg`, only SG `create_org`). Wired into the campus-admin SSG panel and
+    the governance Members screen (add **and** edit officers with position +
+    permissions), so an SSG can appoint SG officers and an SG can appoint ORG officers.
+### Changed
+- `GovernanceUnitSummary` now parses `department_id` / `program_id`; `GovUnitAccess`
+  gains `fromSummary` for tap-to-switch. The Members screen's add flow moved from a
+  search-only bottom sheet to the full `OfficerEditor`.
+
 ## [1.22.1] - 2026-05-23
 ### Added
 - **Personalized greeting.** The Aura AI chat opens with an instant, client-side

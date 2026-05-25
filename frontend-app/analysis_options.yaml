@@ -1,0 +1,15 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # Color channel helpers (.red/.green/.blue/.value) are deprecated on the
+    # newest Flutter but still compile; we use them for YIQ/contrast math.
+    deprecated_member_use: ignore
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_final_locals: true
+    use_key_in_widget_constructors: true
+    sized_box_for_whitespace: true
