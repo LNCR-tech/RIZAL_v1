@@ -82,6 +82,13 @@
   - `first_time_face_registration_required = true`
 - These defaults keep existing schools permissive unless a later policy path explicitly disables face verification or first-time registration requirements.
 
+### Backend Test Data Fixes
+
+**`backend/tests/test_event_announcement_notifications.py`**
+- Replaced an invalid `YEAR_LEVEL` target value of `99` with a valid `year_level=5`.
+- The empty-recipient notification test now creates a temporary school with no students, so it still verifies zero recipients without leaving invalid event-target data in the shared CI test session.
+- This prevents later event-list API tests from failing response validation on `year_level <= 5`.
+
 ### Notes
 
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.

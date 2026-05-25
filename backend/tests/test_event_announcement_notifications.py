@@ -8,6 +8,8 @@ Covers:
 - Multi-school boundary is enforced (event from another school returns 404).
 """
 
+from uuid import uuid4
+
 import pytest
 from app.models.event import Event, EventTarget, EventTargetScope
 from app.models.user import User, UserRole, StudentProfile
@@ -280,25 +282,44 @@ def test_all_scope_notifies_active_students_only(db_session, school_and_deps):
     assert _notification_count(db_session, user_id=user_transferred.id) == before_transferred
 
 
-def test_empty_participant_list_returns_zero_counts(db_session, school_and_deps):
-    school, dept, prog = school_and_deps
+def test_empty_participant_list_returns_zero_counts(db_session):
+    from app.models.school import School
 
-    event = _future_event(db_session, school_id=school.id, name="No Participants Event")
+    empty_school = School(
+        school_code=f"EMPTY-{uuid4().hex[:12].upper()}",
+        legal_name="Empty Participants School",
+        display_name="Empty Participants School",
+        address="None",
+        is_active=True,
+    )
+    db_session.add(empty_school)
+    db_session.flush()
+
+    event = _future_event(
+        db_session,
+        school_id=empty_school.id,
+        name="No Participants Event",
+    )
     db_session.add(EventTarget(
         event_id=event.id,
-        school_id=school.id,
+        school_id=empty_school.id,
         scope_type=EventTargetScope.YEAR_LEVEL,
-        year_level=99,
+        year_level=5,
     ))
     db_session.flush()
 
-    result = dispatch_event_announcement_notifications(db_session, event=event)
-    db_session.flush()
+    try:
+        result = dispatch_event_announcement_notifications(db_session, event=event)
+        db_session.flush()
 
-    assert result["processed_users"] == 0
-    assert result["sent"] == 0
-    assert result["failed"] == 0
-    assert result["skipped"] == 0
+        assert result["processed_users"] == 0
+        assert result["sent"] == 0
+        assert result["failed"] == 0
+        assert result["skipped"] == 0
+    finally:
+        db_session.delete(event)
+        db_session.delete(empty_school)
+        db_session.flush()
 
 
 # ---------------------------------------------------------------------------
