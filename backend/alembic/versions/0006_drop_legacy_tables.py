@@ -34,10 +34,18 @@ def upgrade() -> None:
     op.execute(sa.text("""
         DO $$
         BEGIN
-            -- Drop orphaned FK column: sanction_records.attendance_id
+            -- Drop sanction_records.attendance_id ONLY if it FK-references the legacy
+            -- attendances table. The column was re-pointed to attendance_records in the
+            -- current schema and must not be dropped on a fresh DB.
             IF EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'sanction_records' AND column_name = 'attendance_id'
+                SELECT 1 FROM pg_constraint c
+                JOIN pg_class t ON t.oid = c.conrelid
+                JOIN pg_class f ON f.oid = c.confrelid
+                JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+                WHERE t.relname = 'sanction_records'
+                  AND c.contype = 'f'
+                  AND f.relname = 'attendances'
+                  AND a.attname = 'attendance_id'
             ) THEN
                 ALTER TABLE sanction_records
                     DROP CONSTRAINT IF EXISTS sanction_records_attendance_id_fkey,
