@@ -1,7 +1,7 @@
 """rename events start_datetime/end_datetime to start_at/end_at
 
 Revision ID: 0005_rename_event_time_cols
-Revises: b033a6f7e275
+Revises: bfdc12357b0c
 Create Date: 2026-05-25 00:00:00.000000
 """
 
@@ -9,7 +9,10 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0005_rename_event_time_cols"
-down_revision = "b033a6f7e275"
+# Rebased onto bfdc12357b0c (which follows 0004_school_face_feature_flags off
+# b033a6f7e275) so the migration history is a single linear chain. The prior
+# `b033a6f7e275` parent created two heads after merging origin/main.
+down_revision = "bfdc12357b0c"
 branch_labels = None
 depends_on = None
 
