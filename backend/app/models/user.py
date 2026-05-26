@@ -80,7 +80,12 @@ class StudentProfile(Base):
     embedding_dtype = Column(String(16), nullable=True)
     embedding_dimension = Column(Integer, nullable=True)
     embedding_normalized = Column(Boolean, nullable=False, default=True)
-    is_face_registered = Column(Boolean, nullable=True, index=True)
+    # Migration bfdc12357b0c makes this NOT NULL with server_default='false'.
+    # Mirror the DB constraint here so new ORM rows don't INSERT NULL and
+    # trip the NotNullViolation.
+    is_face_registered = Column(
+        Boolean, nullable=False, default=False, index=True
+    )
     face_image_url = Column(String(500), nullable=True)
     registration_complete = Column(Boolean, nullable=True, index=True)
     last_face_update = Column(DateTime(timezone=True), nullable=True)
