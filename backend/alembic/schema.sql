@@ -252,7 +252,18 @@ CREATE TABLE IF NOT EXISTS user_security_settings (
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_jti CHAR(64) NOT NULL UNIQUE,
+  -- TEXT, not CHAR(64). Postgres CHAR is blank-padded — a 36-char UUID
+  -- stored in CHAR(64) becomes 36 chars + 28 trailing spaces. The ORM
+  -- (`platform_features.UserSession.token_jti = Column(Text, ...)`)
+  -- sends TEXT parameters in WHERE clauses, and Postgres's cast
+  -- between CHAR-padded values and TEXT parameters falls the wrong
+  -- way — every `assert_session_valid` lookup misses the row that the
+  -- login INSERT just created. Symptom: dashboard flashes for a
+  -- moment after sign-in, then every authed request 401s with
+  -- "Session is not valid" and the client logs back out. Migration
+  -- 0010 fixes existing deployments; this keeps fresh bootstraps
+  -- aligned with the ORM.
+  token_jti TEXT NOT NULL UNIQUE,
   ip_address TEXT,
   user_agent TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -10,6 +10,50 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.27.2] - 2026-05-26
+
+### Fixed (root cause for the v1.27.1 sign-in loop)
+The actual bug behind "dashboard flashes then logs back out" turned out
+to be a schema-vs-ORM type mismatch on the `user_sessions.token_jti`
+column. Backend-side fix that takes effect after the migration runs.
+
+- **`backend/alembic/versions/0010_user_sessions_token_jti_text.py`** —
+  new migration. Runs
+  `ALTER TABLE user_sessions ALTER COLUMN token_jti TYPE TEXT USING rtrim(token_jti)`.
+  The `rtrim()` strips the trailing-space padding Postgres added when
+  the column was CHAR(64), so rows that already exist resolve
+  correctly after the migration; nobody has to re-sign-in. Unique
+  constraint and the implicit unique-index are preserved across the
+  type change.
+- **`backend/alembic/schema.sql`** — fresh-DB bootstrap now uses
+  `TEXT NOT NULL UNIQUE` instead of `CHAR(64) NOT NULL UNIQUE`, so
+  a clean deploy doesn't reintroduce the same bug.
+
+### Why the bug looked like a Flutter issue
+Postgres CHAR is blank-padded. A 36-character UUID stored in CHAR(64)
+becomes 36 chars + 28 trailing spaces. The ORM model declares
+`token_jti = Column(Text, ...)` and SQLAlchemy binds the WHERE-clause
+parameter as TEXT. Postgres's implicit cast between the padded CHAR
+column and the TEXT parameter fails the equality test, so
+`assert_session_valid` returns None for every freshly-issued JTI.
+Login INSERT succeeds → JWT returned → very next authed request 401s
+with "Session is not valid" → Flutter logs out → loop.
+
+The v1.27.1 client-side mitigations (3-second login grace,
+401-diagnostic logging, login-endpoint exclusion in `DioClient`) stay
+in place — they're still defensible regardless of this specific bug
+and give the next "logged out mysteriously" report a real lead to
+chase.
+
+### Deploy
+Required on the cloud backend:
+```
+git pull origin main
+docker compose -f docker-compose.prod.yml run --rm migrate
+```
+That single migrate run applies `0010` to the live DB. The frontend
+needs no rebuild — the fix is purely server-side.
+
 ## [1.27.1] - 2026-05-26
 
 ### Fixed
