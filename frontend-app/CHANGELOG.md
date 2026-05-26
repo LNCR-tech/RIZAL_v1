@@ -10,6 +10,75 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-05-27
+
+### Added
+- **First-login face-registration gate for students.** Any signed-in
+  student whose token meta reports `face_reference_enrolled: false`
+  is now routed to a dedicated onboarding screen before they can
+  reach their workspace. They cannot bounce around the app without a
+  face on file — face is the primary identification for attendance
+  check-in, so the alternative was a student getting deep into the
+  app and only discovering at the moment they tried to check in that
+  they couldn't.
+- **`SessionState.needsFaceRegistration`** gate
+  (`lib/core/auth/session_controller.dart`). True when the signed-in
+  user is a student (`Roles.workspaceFor(roles) == Workspace.student`)
+  AND `meta.faceReferenceEnrolled` is false. Privileged accounts
+  (admin / school-IT / governance) are intentionally excluded —
+  they register from Account → Security → Face ID and their MFA
+  flow is the separate `needsPrivilegedFace` gate.
+- **`SessionController.markFaceRegistered()`** — called by the new
+  screen after the backend confirms enrollment. Flips the meta flag
+  and re-persists, so the router's gate clears immediately and the
+  student lands on home without a re-login.
+- **`/register-face` route + `RegisterFaceScreen`**
+  (`lib/features/auth/presentation/register_face_screen.dart`).
+  Two-stage flow:
+    1. **Intro** — a calm theme-aware screen with the reason ("We use
+       this to mark you present at events"), three privacy bullets
+       (kept on your school's server / one-time setup / re-take any
+       time), and a "Continue" CTA. A low-emphasis "Sign out" link
+       sits in the top-right for users who landed here by mistake.
+    2. **Capture** — front-camera preview with a face-frame overlay
+       and a soft top/bottom vignette so the frame and instructions
+       read cleanly. Reuses the same camera plumbing as the existing
+       `UpdateFaceScreen`.
+  Backend errors from `POST /api/face/register` translate to
+  actionable copy: 400 ("Image must contain exactly one face."), 403
+  ("We couldn't confirm it was a real face — avoid printed photos or
+  screens." — anti-spoof), 413 (too large), 415 (unsupported
+  format), 429 (rate-limit), 503 (service starting). Unknown status
+  codes still show the actual message with the HTTP code embedded
+  for diagnostics.
+
+### Changed
+- **`SessionController.logout()` no longer drops the face reference
+  flag** — was already the case, just noting that the
+  `markFaceRegistered` companion writes through to the same
+  persisted `aura_auth_meta` blob so a hot-restart picks up the
+  cleared gate.
+- **`resolveAppRedirect`** now consults `needsFaceRegistration`
+  after `needsPrivilegedFace` and before the workspace redirect.
+  `/register-face` joins the "transient" set so a student already on
+  it doesn't bounce.
+
+### Backend (no change)
+- The backend has **no `must_register_face` server-side flag**. The
+  gating is purely client-side off the existing
+  `face_reference_enrolled` field that's already in every
+  `/token` / `/auth/google` response (verified in
+  `backend/app/services/auth_session.py`). `POST /api/face/register`
+  is unchanged — same endpoint the existing "Update face" flow in
+  Account → Security has been calling since v1.8.0.
+
+### Verified
+- `flutter analyze` clean.
+- `flutter test` — 133 pass (131 prior + 2 new router tests for the
+  gate). Existing `ui_quality_test` fixture student updated with
+  `faceReferenceEnrolled: true` so it continues to exercise the
+  workspace shell instead of the new gate.
+
 ## [1.28.3] - 2026-05-27
 
 ### Fixed
@@ -1349,6 +1418,7 @@ Phase 0 — foundation.
 - `flutter analyze` clean; `flutter test` green.
 
 [Unreleased]: #unreleased
+[1.29.0]: #1290---2026-05-27
 [1.28.3]: #1283---2026-05-27
 [1.28.2]: #1282---2026-05-27
 [1.28.1]: #1281---2026-05-27

@@ -33,6 +33,20 @@ class SessionState {
   bool get needsPasswordChange => meta?.mustChangePassword ?? false;
   bool get needsPrivilegedFace => meta?.pendingPrivilegedFace ?? false;
 
+  /// First-login face-registration gate. True when a student is signed in
+  /// but the backend says no face reference is enrolled yet — they get
+  /// redirected to [RegisterFaceScreen] before reaching their workspace.
+  ///
+  /// Privileged accounts (admin / school-IT / governance) are intentionally
+  /// excluded: they register from Account → Security → Face ID, and their
+  /// MFA flow is the separate [needsPrivilegedFace] gate.
+  bool get needsFaceRegistration {
+    final m = meta;
+    if (m == null) return false;
+    if (m.faceReferenceEnrolled) return false;
+    return Roles.workspaceFor(m.roles) == Workspace.student;
+  }
+
   SessionState copyWith(
           {SessionStatus? status, AuthMeta? meta, bool clearMeta = false}) =>
       SessionState(
@@ -123,6 +137,19 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     logout();
+  }
+
+  /// Called by [RegisterFaceScreen] after the backend confirms the face
+  /// reference is enrolled, so the router's [SessionState.needsFaceRegistration]
+  /// gate clears immediately and the student lands on their home workspace
+  /// without waiting for a re-login.
+  Future<void> markFaceRegistered() async {
+    final current = state.meta;
+    if (current == null) return;
+    final updated = current.copyWith(faceReferenceEnrolled: true);
+    state = state.copyWith(meta: updated);
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs!.setString(_kMeta, jsonEncode(updated.toJson()));
   }
 
   void _applyBranding(AuthMeta meta) {

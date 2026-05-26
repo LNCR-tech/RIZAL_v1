@@ -60,6 +60,10 @@ const _studentSession = SessionState(
     firstName: 'E2E',
     lastName: 'Student',
     schoolName: 'Test University',
+    // The UI-quality tests exercise the student's workspace shell; the
+    // new face-registration gate would otherwise reroute every test to
+    // `/register-face`. Treat the fixture student as already enrolled.
+    faceReferenceEnrolled: true,
   ),
 );
 

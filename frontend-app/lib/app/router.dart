@@ -8,6 +8,7 @@ import 'splash_gate.dart';
 import '../features/auth/presentation/change_password_screen.dart';
 import '../features/auth/presentation/face_verify_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/register_face_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/shell/app_shell.dart';
 
@@ -41,12 +42,16 @@ String? resolveAppRedirect({
   if (session.needsPrivilegedFace) {
     return location == '/face-verify' ? null : '/face-verify';
   }
+  if (session.needsFaceRegistration) {
+    return location == '/register-face' ? null : '/register-face';
+  }
 
   const transient = {
     '/splash',
     '/login',
     '/change-password',
     '/face-verify',
+    '/register-face',
     '/',
   };
   if (transient.contains(location)) return workspacePath(session.workspace);
@@ -84,6 +89,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, __) => const ChangePasswordScreen()),
       GoRoute(
           path: '/face-verify', builder: (_, __) => const FaceVerifyScreen()),
+      GoRoute(
+          path: '/register-face',
+          builder: (_, __) => const RegisterFaceScreen()),
       GoRoute(
           path: '/student',
           builder: (_, __) => const AppShell(workspace: Workspace.student)),
