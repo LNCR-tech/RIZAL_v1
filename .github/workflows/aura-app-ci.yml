@@ -1,16 +1,16 @@
 name: Aura App (Flutter) CI
 
 # Gates for the Flutter client in frontend-app/. Mirrors the web CI's
-# analyze + test gates. Build is included to catch native/codegen breakage.
+# analyze + test gates. Emulator integration is included for mobile E2E checks.
 
 on:
   push:
-    paths:
-      - "frontend-app/**"
-      - ".github/workflows/aura-app-ci.yml"
+    branches: [ "main", "develop", "feature/*", "integrate/pilot-merge" ]
   pull_request:
     paths:
       - "frontend-app/**"
+      - ".github/workflows/aura-app-ci.yml"
+  workflow_dispatch:
 
 jobs:
   analyze-test:
@@ -35,18 +35,56 @@ jobs:
       - name: Test
         run: flutter test
 
-      # Integration tests need a connected device (Android emulator or real
-      # device); they cannot run on the Linux runner with the web device.
-      # The build-android job runs them inside the emulator-runner action.
-
-  build-android:
+  mobile-e2e:
     runs-on: ubuntu-latest
     needs: analyze-test
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
+      SECRET_KEY: test-secret-key
+      TEST_MODE: "true"
+      TESTING: "true"
+      ENV: test
+      EMAIL_DELIVERY_MODE: disabled
+      EMAIL_TRANSPORT: disabled
+      RATE_LIMIT_ENABLED: "false"
+      RATE_LIMIT_FAIL_OPEN: "true"
+      FACE_SCAN_BYPASS_ALL: "true"
+      PRIVILEGED_FACE_VERIFICATION_ENABLED: "false"
+      CELERY_TASK_ALWAYS_EAGER: "true"
+      REDIS_URL: redis://127.0.0.1:6379/0
     defaults:
       run:
         working-directory: frontend-app
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -55,10 +93,44 @@ jobs:
         with:
           channel: stable
           cache: true
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Prepare mobile E2E backend database
+        working-directory: backend
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
+          alembic upgrade head
+      - name: Seed mobile E2E backend database
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from app.core.database import SessionLocal
+          from tests.conftest import _seed
+
+          db = SessionLocal()
+          try:
+              _seed(db)
+              db.commit()
+          finally:
+              db.close()
+          PY
+      - name: Start mobile E2E backend
+        working-directory: backend
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+          echo $! > backend.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat backend.log
+          exit 1
       - run: flutter pub get
-      # Endpoints are injected at build time; CI builds with the emulator default.
-      - name: Build debug APK
-        run: flutter build apk --debug
 
       - name: Enable KVM group permissions
         run: |
@@ -66,33 +138,36 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Install and launch debug APK
+      - name: Run Flutter integration tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 33
+          target: google_apis
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
           working-directory: frontend-app
-          script: |
-            apk="build/app/outputs/flutter-apk/app-debug.apk"
-            package="com.aura.aura_app"
+          script: >
+            device="$(adb devices | awk 'NR > 1 && $2 == "device" { print $1; exit }')";
+            if [ -z "$device" ]; then adb devices -l; exit 1; fi;
+            adb -s "$device" logcat -c || true;
+            flutter devices;
+            flutter test integration_test -d "$device"
+            --dart-define=AURA_RUN_BACKEND_E2E=true
+            --dart-define=AURA_API_BASE_URL=http://10.0.2.2:8000
+            --dart-define=AURA_API_TIMEOUT_MS=30000
+            || { adb -s "$device" logcat -d -t 300 || true; exit 1; }
 
-            dump_logs() {
-              adb logcat -d -t 300 || true
-            }
-
-            adb logcat -c || true
-            adb install -r -t -g "$apk" || {
-              dump_logs
-              exit 1
-            }
-            adb shell am start -W -n "$package/.MainActivity" || {
-              dump_logs
-              exit 1
-            }
-            sleep 10
-
-            adb shell pidof "$package" || {
-              dump_logs
-              exit 1
-            }
+      - name: Upload mobile E2E backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-app-mobile-e2e-backend-log
+          path: backend/backend.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -5,14 +5,24 @@
 ### CI Workflow Changes
 
 **`.github/workflows/aura-app-ci.yml`**
-- Added Flutter app integration-test execution with `flutter test integration_test`.
-- Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, `flutter test`, then `flutter test integration_test`.
-- Extended the Android job after `flutter build apk --debug` with an emulator smoke check:
+- Runs the Flutter app CI on pushes to `main`, `develop`, `feature/*`, and `integrate/pilot-merge`, with manual `workflow_dispatch` support.
+- Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, then `flutter test`.
+- Added real-backend setup to the Android job:
+  - Starts PostgreSQL with `pgvector/pgvector:pg15`.
+  - Starts Redis with `redis:7-alpine`.
+  - Installs backend Python dependencies.
+  - Creates `fastapi_db`.
+  - Runs Alembic migrations.
+  - Seeds the backend test data from `backend/tests/conftest.py`.
+  - Starts FastAPI on port `8000` for the emulator.
+- Kept the Android job focused on emulator-based integration checks:
   - Enables KVM permissions on the GitHub runner.
-  - Starts an Android API 35 x86_64 emulator through `reactivecircus/android-emulator-runner@v2`.
-  - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
-  - Launches `com.aura.aura_app/.MainActivity`.
-  - Waits briefly and fails with recent `logcat` output if the app process is not alive.
+  - Starts an Android API 33 x86_64 `google_apis` emulator through `reactivecircus/android-emulator-runner@v2`.
+  - Uses a lighter Pixel 2 profile, 2 GB RAM, explicit no-window/no-snapshot emulator options, and a 300-second boot timeout so emulator boot failures fail clearly instead of repeating indefinitely.
+  - Resolves the attached Android device from `adb devices` and runs `flutter test integration_test -d "$device"` with `AURA_RUN_BACKEND_E2E=true`.
+  - Flattened the emulator runner shell script to a single command sequence so the action no longer trips on a multiline shell function definition.
+  - Uploads `backend/backend.log` as a short-retention artifact for mobile E2E failures.
+- Removed the separate `flutter build apk --debug`, ADB install, manual launch, and process-liveness smoke check from CI.
 - CD/deployment workflows remain manual-only through `workflow_dispatch`; pushing to `integrate/pilot-merge` runs CI, not deployment.
 
 ### Flutter App Test Coverage
@@ -23,6 +33,14 @@
 **`frontend-app/integration_test/app_e2e_test.dart`**
 - Added app-level Flutter integration coverage that boots `AuraApp()` with mocked Riverpod providers.
 - Covers signed-out login behavior, password visibility, required-login validation, student shell tab navigation, and event-editor save behavior.
+- Hardened the integration harness by resetting the widget tree between app pumps, keying the `ProviderScope`, disabling Hero flights during tests, and tapping bottom navigation by stable keys instead of visible text.
+
+**`frontend-app/integration_test/real_backend_e2e_test.dart`**
+- Added a skipped-by-default mobile E2E smoke test that is enabled in CI with `AURA_RUN_BACKEND_E2E=true`.
+- Boots the actual Flutter app on the Android emulator while keeping test-only splash, beta-nav, token-store, and geofence overrides.
+- Logs in through the app UI as `student@test.com` / `TestPass123!` against the seeded FastAPI backend.
+- Verifies the student workspace loads, opens the Schedule tab, switches to Upcoming, finds `Seed Year Level Event`, and opens the real backend event detail showing `Seed Hall`.
+- Uses stable bottom-nav keys and disables Hero flights during the test run to avoid duplicate-Hero-tag failures from mounted tab stacks.
 
 **`frontend-app/test/ui_quality_test.dart`**
 - Added Flutter-side UI/UX quality checks to mirror the intent of the web Playwright UI-quality suite.
@@ -58,6 +76,7 @@
 **`frontend-app/lib/features/schoolit/presentation/event_editor_screen.dart`**
 - Moved save-payload construction through the shared event-editor payload helper.
 - Added tooltips to the date/time icon buttons: `Pick start date`, `Pick start time`, `Pick end date`, and `Pick end time`.
+- Captures `ScaffoldMessenger` before popping after save so the route does not look up ancestors from a deactivated context.
 
 **`frontend-app/lib/app/router.dart`**
 - Extracted redirect decision logic so route guard behavior can be unit-tested.
@@ -89,6 +108,12 @@
 - The empty-recipient notification test now creates a temporary school with no students, so it still verifies zero recipients without leaving invalid event-target data in the shared CI test session.
 - This prevents later event-list API tests from failing response validation on `year_level <= 5`.
 
+### Backend CI Lint Fixes
+
+**`backend/app/services/centralized_ai_service.py`**
+- Removed the unused `full_tool_calls` name from a nested stream parser's `nonlocal` declaration.
+- This resolves the CI flake8 `F824` failure while preserving streamed tool-call accumulation through in-place dictionary mutation.
+
 ### Flutter CI Failure Follow-up
 
 **`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
@@ -101,6 +126,7 @@
 **`frontend-app/third_party/liquid_glass_renderer`**
 - Vendored `liquid_glass_renderer` `0.2.0-dev.4`.
 - Patched the shader SDF helper to read `uShapeData` as a global uniform instead of passing uniform arrays through helper functions. This avoids the SkSL compiler generating unsupported array initializer code while preserving the renderer's behavior.
+- Replaced the remaining dynamic `uShapeData[baseIndex]` SDF lookup with fully unrolled literal uniform-array indices, because Impeller/SkSL rejects runtime uniform-array indexing.
 - Unrolled SDF shape merging to avoid SkSL `min(int,int)` and loop-initializer limitations.
 - Replaced derivative intrinsics with finite-difference normal sampling for runtime-effect compatibility.
 - Removed loops from the experimental arbitrary shader's center sampler and gradient helper so the file compiles under SkSL.
@@ -141,7 +167,7 @@
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.
 - The web Playwright E2E job in `.github/workflows/ci.yml` is gated to run only on the `pilot` branch.
 - The Flutter UI-quality tests now run through `flutter test` on `frontend-app/**` pushes.
-- The Android emulator step currently proves APK install and launch; it does not yet run Flutter integration tests on the emulator.
+- The Android emulator step now runs Flutter integration tests only; separate APK build/install/launch smoke is no longer part of Flutter CI.
 
 ## 2026-05-22 (Campus Admin Enhancements)
 

@@ -170,9 +170,11 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
         ref.invalidate(scheduleEventsProvider);
       }
       if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(_isEdit ? 'Event updated.' : 'Event created.')));
+        messenger.showSnackBar(SnackBar(
+          content: Text(_isEdit ? 'Event updated.' : 'Event created.'),
+        ));
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
