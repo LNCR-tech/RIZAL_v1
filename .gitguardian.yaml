@@ -1,0 +1,46 @@
+# GitGuardian configuration for known-safe defaults in the Aura repo.
+#
+# Real secrets live in `.env.production` (gitignored) and in GitHub
+# Actions repository secrets — those never appear in tracked files.
+#
+# The strings flagged below are deliberate **test / fallback defaults**
+# of the literal value `postgres` (a Postgres convention), used in
+# isolated test runners or as shell-fallback expressions that are
+# overridden by the operator's real `.env.production` in deployment.
+# They are not secrets and should not be rotated.
+#
+# Docs: https://docs.gitguardian.com/ggshield-docs/reference/scan
+
+version: 2
+
+secret:
+  # These files contain the only known false-positive paths. Each entry is
+  # scoped to a specific file rather than blanket-ignoring directories so
+  # a real new secret in any other tracked file is still caught.
+  ignored-paths:
+    # CI postgres service uses the conventional "postgres" test value to
+    # set up the dockerized DB the test suite spins up against.
+    - ".github/workflows/production-cd.yml"
+    - ".github/workflows/ci.yml"
+    - ".github/workflows/aura-app-ci.yml"
+    - ".github/workflows/staging-cd.yml"
+    - ".github/workflows/hotfix-cd.yml"
+
+    # Operator-deploy shell scripts: `POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}`
+    # is a shell fallback expression, not a stored secret. The actual
+    # production password lives in `/opt/aura/.env.production` on the
+    # server (gitignored).
+    - "deploy.sh"
+    - "rollback.sh"
+
+    # `${POSTGRES_PASSWORD:-postgres}` again — Compose env interpolation
+    # with the same fallback. Real value comes from `.env.production`.
+    - "docker-compose.prod.yml"
+
+  # Backend test fixtures intentionally use `password123!` and similar
+  # constants so the integration test suite can sign in deterministically.
+  # These never touch production.
+  ignored-matches: []
+
+  # If a real secret ever lands in one of the above files, prefer rotating
+  # it + removing the path here rather than expanding this list.
