@@ -20,6 +20,30 @@ At minimum include:
 - route or schema changes
 - migration or configuration impact
 
+## 2026-05-26 - Stabilize legacy login session creation
+
+### Purpose
+
+Stop valid logins from returning `500 Internal Server Error` when optional login-context lookups fail or when older pilot databases still have legacy `user_sessions` column types.
+
+### Main files
+
+- `Backend/app/services/auth_session.py`
+- `Backend/alembic/versions/0011_user_sessions_runtime_schema.py`
+- `Backend/docs/BACKEND_CHANGELOG.md`
+
+### Runtime behavior
+
+- optional governance, school-context, and face-enrollment lookups now roll back the SQLAlchemy session before returning fallback values
+- this prevents swallowed optional lookup errors from poisoning the transaction used to insert `user_sessions`
+- legacy `user_sessions.id` columns are converted to `UUID`
+- legacy `user_sessions.ip_address` and `user_sessions.user_agent` columns are converted to `TEXT`
+
+### Migration impact
+
+- run Alembic upgrade to apply `0011_user_sessions_runtime_schema`
+- no broad `users.id` conversion is performed, avoiding dependent view breakage on older deployments
+
 ## 2026-04-30 - Align Docker default ports with pilot stack
 
 ### Purpose

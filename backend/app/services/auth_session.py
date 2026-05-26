@@ -69,6 +69,7 @@ def _get_governance_role_names(db: Session, user: User) -> list[str]:
             current_user=user,
         )
     except Exception:
+        db.rollback()
         return []
 
     # GovernanceUnitType values are "SSG"/"SG"/"ORG".
@@ -90,6 +91,7 @@ def _get_governance_permission_codes(db: Session, user: User) -> list[str]:
             current_user=user,
         )
     except Exception:
+        db.rollback()
         return []
     normalized_codes = {_enum_value(code).lower() for code in permission_codes}
     return sorted({code for code in normalized_codes if code})
@@ -126,6 +128,7 @@ def get_school_context(db: Session, user: User) -> dict[str, object | None]:
             "accent_color": (branding.accent_color if branding else None),
         }
     except Exception:
+        db.rollback()
         return {}
 
 
@@ -150,6 +153,7 @@ def has_face_reference_enrolled(db: Session, user_id: int) -> bool:
             return False
         return bool(row[0])
     except Exception:
+        db.rollback()
         return False
 
 
