@@ -34,7 +34,7 @@ class AppAppearanceScreen extends ConsumerWidget {
         children: [
           _Preview(pref: pref, reduce: reduce),
           const SizedBox(height: AppSpacing.x32),
-          _SectionLabel(text: 'Brand mark'),
+          const _SectionLabel(text: 'Brand mark'),
           const SizedBox(height: AppSpacing.x12),
           Row(
             children: [
@@ -65,13 +65,13 @@ class AppAppearanceScreen extends ConsumerWidget {
                           schoolId: pref.schoolId,
                           size: 56,
                         )
-                      : _PlaceholderTile(size: 56),
+                      : const _PlaceholderTile(size: 56),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.x32),
-          _SectionLabel(text: 'App name'),
+          const _SectionLabel(text: 'App name'),
           const SizedBox(height: AppSpacing.x12),
           Row(
             children: [

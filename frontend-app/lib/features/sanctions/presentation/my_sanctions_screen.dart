@@ -61,9 +61,8 @@ class MySanctionsScreen extends ConsumerWidget {
           children: [
             const SizedBox(height: 24),
             ErrorView(
-              message: e is ApiException
-                  ? e.message
-                  : 'Could not load your sanctions.',
+              message: _formatSanctionsError(
+                  e, 'Could not load your sanctions.'),
               onRetry: () => ref.invalidate(mySanctionsProvider),
             ),
           ],
@@ -126,6 +125,23 @@ class MySanctionsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Formats an exception into a user-facing error message. Surfaces the HTTP
+/// status code when available so a real backend failure is diagnosable from
+/// the UI alone (the previous wording was a flat "Something went wrong"
+/// which gave no signal about what to investigate).
+String _formatSanctionsError(Object e, String fallback) {
+  if (e is ApiException) {
+    final msg = e.message.trim();
+    if (e.statusCode > 0) {
+      return msg.isEmpty
+          ? 'HTTP ${e.statusCode}'
+          : '$msg (HTTP ${e.statusCode})';
+    }
+    return msg.isEmpty ? fallback : msg;
+  }
+  return fallback;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

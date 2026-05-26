@@ -93,6 +93,13 @@ class AssistantService {
 }
 
 /// Dedicated Dio for the assistant service (separate base URL + bearer).
+///
+/// The baseUrl is re-read from [AppConfig.assistantBaseUrl] on every
+/// request so a hot-reload that changes the compile-time default (e.g.
+/// switching the assistant to a new port) flows into the next AI call
+/// without requiring a hot restart. The Dio instance survives across
+/// hot reloads; only its baseUrl is updated in-place when the const
+/// changes.
 final assistantDioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
@@ -105,6 +112,15 @@ final assistantDioProvider = Provider<Dio>((ref) {
   );
   dio.interceptors.add(
     InterceptorsWrapper(onRequest: (options, handler) async {
+      // Re-evaluate the assistant base URL on every request. After a
+      // hot reload changes the AppConfig default, the next chat message
+      // picks up the new endpoint instead of pinning to whatever was
+      // current when this provider was built.
+      final liveBase =
+          BackendBaseUrl.normalize(AppConfig.assistantBaseUrl);
+      if (liveBase.isNotEmpty && liveBase != dio.options.baseUrl) {
+        dio.options.baseUrl = liveBase;
+      }
       final token = await ref.read(tokenStoreProvider).read();
       if (token != null && token.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $token';

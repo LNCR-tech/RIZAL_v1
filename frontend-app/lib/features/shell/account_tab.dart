@@ -151,48 +151,51 @@ class AccountTab extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.x24),
 
-        // Preferences — labelled control cards.
-        Text('PREFERENCES',
-            style: textTheme.labelSmall
-                ?.copyWith(color: t.textMuted, letterSpacing: 0.8)),
-        const SizedBox(height: AppSpacing.x8),
-        _ControlCard(
-          icon: Icons.brightness_6_rounded,
-          iconColor: _indigo,
-          title: 'Appearance',
-          control: SegmentedButton<ThemeMode>(
-            segments: const [
-              ButtonSegment(value: ThemeMode.system, label: Text('System')),
-              ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-              ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-            ],
-            selected: {themeMode},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) =>
-                ref.read(themeControllerProvider.notifier).setMode(s.first),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.x12),
-        _ControlCard(
-          icon: Icons.motion_photos_paused_rounded,
-          iconColor: t.textSecondary,
-          title: 'Reduce motion',
-          control: SegmentedButton<MotionPref>(
-            segments: const [
-              ButtonSegment(value: MotionPref.system, label: Text('System')),
-              ButtonSegment(value: MotionPref.on, label: Text('On')),
-              ButtonSegment(value: MotionPref.off, label: Text('Off')),
-            ],
-            selected: {motionPref},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) =>
-                ref.read(motionControllerProvider.notifier).set(s.first),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.x24),
+        // APPEARANCE — instant look-and-feel (theme, motion) plus deeper
+        // brand customization (App appearance) and the experimental glass
+        // nav. One section so the user finds every "how it looks" knob in
+        // one place instead of three.
         SettingsSection(
-          header: 'Personalization',
+          header: 'Appearance',
           tiles: [
+            _PreferenceRow(
+              icon: Icons.brightness_6_rounded,
+              iconColor: _indigo,
+              title: 'Theme',
+              control: SegmentedButton<ThemeMode>(
+                segments: const [
+                  ButtonSegment(
+                      value: ThemeMode.system, label: Text('System')),
+                  ButtonSegment(
+                      value: ThemeMode.light, label: Text('Light')),
+                  ButtonSegment(
+                      value: ThemeMode.dark, label: Text('Dark')),
+                ],
+                selected: {themeMode},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => ref
+                    .read(themeControllerProvider.notifier)
+                    .setMode(s.first),
+              ),
+            ),
+            _PreferenceRow(
+              icon: Icons.motion_photos_paused_rounded,
+              iconColor: t.textSecondary,
+              title: 'Reduce motion',
+              control: SegmentedButton<MotionPref>(
+                segments: const [
+                  ButtonSegment(
+                      value: MotionPref.system, label: Text('System')),
+                  ButtonSegment(value: MotionPref.on, label: Text('On')),
+                  ButtonSegment(value: MotionPref.off, label: Text('Off')),
+                ],
+                selected: {motionPref},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => ref
+                    .read(motionControllerProvider.notifier)
+                    .set(s.first),
+              ),
+            ),
             SettingsTile(
               icon: Icons.palette_outlined,
               iconColor: _violet,
@@ -200,12 +203,6 @@ class AccountTab extends ConsumerWidget {
               subtitle: brandingSummary(),
               onTap: () => _push(context, const AppAppearanceScreen()),
             ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.x24),
-        SettingsSection(
-          header: 'Beta features',
-          tiles: [
             _BetaSwitchTile(
               icon: Icons.blur_on_rounded,
               iconColor: _violet,
@@ -214,66 +211,16 @@ class AccountTab extends ConsumerWidget {
               value: betaNav,
               onChanged: (v) => ref.read(betaNavProvider.notifier).set(v),
             ),
-            _BetaSwitchTile(
-              icon: Icons.location_on_rounded,
-              iconColor: _teal,
-              title: 'Nearby event check-in',
-              subtitle: 'Prompt me when I reach an event.',
-              value: autoCheckIn,
-              onChanged: (v) => ref.read(autoCheckInProvider.notifier).set(v),
-            ),
-            _BetaSwitchTile(
-              icon: Icons.bolt_rounded,
-              iconColor: _blue,
-              title: 'Auto check-in',
-              subtitle: autoCheckFull ? 'Coming soon.' : 'Hands-free, no scan.',
-              value: autoCheckFull,
-              onChanged: (v) {
-                ref.read(autoCheckFullProvider.notifier).set(v);
-                if (v) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Auto check-in is coming soon.')),
-                  );
-                }
-              },
-            ),
           ],
         ),
         const SizedBox(height: AppSpacing.x24),
 
+        // ACCOUNT — identity, auth, biometrics. Was "Security" but the
+        // first row is "Edit profile" so naming it Account reads more
+        // naturally for the user. The redundant "General > Profile" tile
+        // is gone — the top profile card is the canonical entry point.
         SettingsSection(
-          header: 'General',
-          tiles: [
-            SettingsTile(
-              icon: Icons.person_rounded,
-              iconColor: _blue,
-              title: 'Profile',
-              onTap: () => _push(context, const ProfileScreen()),
-            ),
-            SettingsTile(
-              icon: Icons.notifications_rounded,
-              iconColor: t.absent,
-              title: 'Notifications',
-              onTap: () => _push(context, const NotificationsScreen()),
-            ),
-            SettingsTile(
-              icon: Icons.auto_awesome_rounded,
-              iconColor: _violet,
-              title: 'Aura AI',
-              onTap: () => _push(context, const ChatScreen()),
-            ),
-            SettingsTile(
-              icon: Icons.center_focus_strong_rounded,
-              iconColor: t.present,
-              title: 'Gather (kiosk)',
-              onTap: () => _push(context, const GatherScreen()),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.x24),
-        SettingsSection(
-          header: 'Security',
+          header: 'Account',
           tiles: [
             SettingsTile(
               icon: Icons.manage_accounts_rounded,
@@ -306,10 +253,76 @@ class AccountTab extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.x24),
 
-        // Students see "My sanctions" — every other role uses the governance
-        // dashboard for the same data so it's intentionally hidden there.
-        if (Roles.workspaceFor(meta?.roles ?? const []) == Workspace.student) ...[
+        // NOTIFICATIONS — alerts + the attendance-prompt toggles (which
+        // previously lived under "Beta features" but conceptually belong
+        // with notifications since that's what they emit).
+        SettingsSection(
+          header: 'Notifications',
+          tiles: [
+            SettingsTile(
+              icon: Icons.notifications_rounded,
+              iconColor: t.absent,
+              title: 'Inbox',
+              subtitle: 'Reminders, results, system messages',
+              onTap: () => _push(context, const NotificationsScreen()),
+            ),
+            _BetaSwitchTile(
+              icon: Icons.location_on_rounded,
+              iconColor: _teal,
+              title: 'Nearby event check-in',
+              subtitle: 'Prompt me when I reach an event.',
+              value: autoCheckIn,
+              onChanged: (v) =>
+                  ref.read(autoCheckInProvider.notifier).set(v),
+            ),
+            _BetaSwitchTile(
+              icon: Icons.bolt_rounded,
+              iconColor: _blue,
+              title: 'Auto check-in',
+              subtitle:
+                  autoCheckFull ? 'Coming soon.' : 'Hands-free, no scan.',
+              value: autoCheckFull,
+              onChanged: (v) {
+                ref.read(autoCheckFullProvider.notifier).set(v);
+                if (v) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Auto check-in is coming soon.')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.x24),
+
+        // TOOLS — utilities beside the main workspace (AI chat, kiosk).
+        SettingsSection(
+          header: 'Tools',
+          tiles: [
+            SettingsTile(
+              icon: Icons.auto_awesome_rounded,
+              iconColor: _violet,
+              title: 'Aura AI',
+              subtitle: 'Ask about attendance, schedule, sanctions',
+              onTap: () => _push(context, const ChatScreen()),
+            ),
+            SettingsTile(
+              icon: Icons.center_focus_strong_rounded,
+              iconColor: t.present,
+              title: 'Gather (kiosk)',
+              subtitle: 'Multi-face scan for events',
+              onTap: () => _push(context, const GatherScreen()),
+            ),
+          ],
+        ),
+
+        // COMPLIANCE — students see "My sanctions"; other roles use the
+        // governance dashboard for the same data so it's hidden there.
+        if (Roles.workspaceFor(meta?.roles ?? const []) ==
+            Workspace.student) ...[
           const SizedBox(height: AppSpacing.x24),
           SettingsSection(
             header: 'Compliance',
@@ -326,6 +339,8 @@ class AccountTab extends ConsumerWidget {
         ],
 
         const SizedBox(height: AppSpacing.x24),
+
+        // SUPPORT — public-facing help.
         SettingsSection(
           header: 'Support',
           tiles: [
@@ -339,6 +354,8 @@ class AccountTab extends ConsumerWidget {
           ],
         ),
 
+        // WORKSPACES — visible only when the signed-in user has
+        // governance access (officer roles).
         if (govAccess != null && govAccess.hasAccess) ...[
           const SizedBox(height: AppSpacing.x24),
           SettingsSection(
@@ -369,8 +386,13 @@ class AccountTab extends ConsumerWidget {
   }
 }
 
-class _ControlCard extends StatelessWidget {
-  const _ControlCard({
+/// Settings row with a colored icon tile + title above a full-width
+/// control widget. Designed to drop into a [SettingsSection]'s tile list
+/// so segmented preference pickers (Theme, Reduce motion) sit in the
+/// same card as adjacent SettingsTile rows — no nested AuraCards, no
+/// visual rhythm break.
+class _PreferenceRow extends StatelessWidget {
+  const _PreferenceRow({
     required this.icon,
     required this.iconColor,
     required this.title,
@@ -384,7 +406,9 @@ class _ControlCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return AuraCard(
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.x16, vertical: AppSpacing.x16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -394,14 +418,16 @@ class _ControlCard extends StatelessWidget {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                    color: iconColor, borderRadius: BorderRadius.circular(8)),
+                  color: iconColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Icon(icon, color: Colors.white, size: 18),
               ),
               const SizedBox(width: AppSpacing.x12),
-              Text(title, style: textTheme.titleLarge),
+              Expanded(child: Text(title, style: textTheme.bodyLarge)),
             ],
           ),
-          const SizedBox(height: AppSpacing.x16),
+          const SizedBox(height: AppSpacing.x12),
           control,
         ],
       ),

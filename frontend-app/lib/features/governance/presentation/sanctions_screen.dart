@@ -37,8 +37,7 @@ class SanctionsScreen extends ConsumerWidget {
             children: [
               const SizedBox(height: 24),
               ErrorView(
-                message:
-                    e is ApiException ? e.message : 'Could not load sanctions.',
+                message: _formatDashboardError(e),
                 onRetry: () => ref.invalidate(sanctionsDashboardProvider),
               ),
             ],
@@ -136,6 +135,26 @@ class SanctionsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Formats the dashboard exception into a useful error message. Calls out
+/// 403 explicitly so the user understands it's a permissions issue (not a
+/// random backend failure they should retry forever), and embeds the HTTP
+/// status code on anything else so the cause is diagnosable from the UI.
+String _formatDashboardError(Object e) {
+  if (e is ApiException) {
+    if (e.isForbidden) {
+      return 'You need officer access to view the sanctions dashboard.';
+    }
+    final msg = e.message.trim();
+    if (e.statusCode > 0) {
+      return msg.isEmpty
+          ? 'HTTP ${e.statusCode}'
+          : '$msg (HTTP ${e.statusCode})';
+    }
+    return msg.isEmpty ? 'Could not load sanctions.' : msg;
+  }
+  return 'Could not load sanctions.';
 }
 
 /// Tiny governance-tier badge surfaced on each event row. Colour comes

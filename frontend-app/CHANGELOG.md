@@ -10,6 +10,56 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.28.3] - 2026-05-27
+
+### Fixed
+- **Sanctions screens no longer paint a red error wall for 404 / 403
+  responses.** `mySanctionsProvider`, `activeClearanceDeadlineProvider`,
+  and `sanctionsDashboardProvider` now swallow "no data here yet"
+  status codes and return empty / null, so the screen renders the
+  existing "All clear" empty state instead of "Something went wrong".
+  Real failures (500, network, etc.) still surface — and they now
+  include the HTTP status code in the message so the actual cause is
+  diagnosable from the UI without a debugger.
+- **Governance sanctions dashboard 403** is recognized explicitly and
+  shown as *"You need officer access to view the sanctions
+  dashboard"* instead of a generic error.
+
+### Changed
+- **`DioClient` re-reads `AppConfig.apiBaseUrl` on every request** so a
+  hot-reload that changes the compile-time default flows into the next
+  API call without requiring a full restart. Mirrors what the assistant
+  Dio already does (added in v1.28.1). Skipped when the caller passed
+  an explicit baseUrl (tests).
+- **Account dashboard hierarchy reworked for consistent UI rhythm**
+  across every role (student / school-IT / governance / admin all use
+  this same screen).
+  - Old layout mixed three visual patterns (bare "PREFERENCES" label +
+    standalone `_ControlCard`s, plus `SettingsSection`s, plus a
+    "Beta features" cluster) and duplicated the Profile entry (top
+    card + General > Profile tile both went to the same screen).
+  - New hierarchy: **Appearance** (Theme · Reduce motion · App
+    appearance · Liquid glass nav) → **Account** (Edit profile ·
+    Password · Sign-in & devices · Face ID) → **Notifications**
+    (Inbox · Nearby check-in · Auto check-in) → **Tools** (Aura AI ·
+    Gather kiosk) → **Compliance** (My sanctions, students only) →
+    **Support** (Help Center) → **Workspaces** (Governance, if
+    applicable) → Sign out.
+  - All sections now use the same `SettingsSection` card pattern. The
+    Theme / Reduce motion segmented pickers are wrapped in a new
+    `_PreferenceRow` widget so they sit *inside* the Appearance card
+    next to their sibling tiles, no nested cards, no visual rhythm
+    break. `_ControlCard` is gone.
+  - The redundant "General > Profile" tile is removed — the top
+    profile summary card is the canonical Profile entry.
+  - "Security" section renamed **Account** since the first row is
+    "Edit profile" — that read naturally to the user; "Security"
+    suggested something different.
+  - Beta toggles distributed by *intent*: Liquid glass nav lives in
+    Appearance (it's visual), Nearby check-in + Auto check-in live in
+    Notifications (they emit prompts). No more catch-all "Beta
+    features" bucket.
+
 ## [1.28.2] - 2026-05-27
 
 ### Changed
@@ -1299,6 +1349,7 @@ Phase 0 — foundation.
 - `flutter analyze` clean; `flutter test` green.
 
 [Unreleased]: #unreleased
+[1.28.3]: #1283---2026-05-27
 [1.28.2]: #1282---2026-05-27
 [1.28.1]: #1281---2026-05-27
 [1.28.0]: #1280---2026-05-27

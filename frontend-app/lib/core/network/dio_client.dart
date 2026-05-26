@@ -28,6 +28,7 @@ typedef UnauthorizedCallback = void Function();
 class DioClient {
   DioClient({required TokenStore tokenStore, this.cache, String? baseUrl})
       : _tokenStore = tokenStore,
+        _explicitBaseUrl = baseUrl,
         dio = Dio(
           BaseOptions(
             baseUrl: BackendBaseUrl.normalize(baseUrl ?? AppConfig.apiBaseUrl),
@@ -47,6 +48,17 @@ class DioClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          // Re-evaluate the base URL on every request so a hot-reload that
+          // changes AppConfig.apiBaseUrl flows into the next call without
+          // requiring a full restart. Skipped when the caller passed an
+          // explicit baseUrl (typically tests that pin a mock URL).
+          if (_explicitBaseUrl == null || _explicitBaseUrl.isEmpty) {
+            final liveBase =
+                BackendBaseUrl.normalize(AppConfig.apiBaseUrl);
+            if (liveBase.isNotEmpty && liveBase != dio.options.baseUrl) {
+              dio.options.baseUrl = liveBase;
+            }
+          }
           final token = await _tokenStore.read();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
@@ -116,6 +128,7 @@ class DioClient {
   final Dio dio;
   final TokenStore _tokenStore;
   final CacheStore? cache;
+  final String? _explicitBaseUrl;
 
   /// Invoked when any request returns 401. Wired by [dioClientProvider].
   UnauthorizedCallback? onUnauthorized;

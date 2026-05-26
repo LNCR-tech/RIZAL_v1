@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_exception.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/models/event.dart';
 import '../../../shared/models/governance.dart';
@@ -17,17 +18,38 @@ final governanceAccessProvider =
 });
 
 /// Current student's own sanction records (`GET /api/sanctions/students/me`).
+///
 /// Returns an empty list when the student has no outstanding sanctions or
-/// when their role doesn't include student profile (officer-only accounts).
+/// when the backend declines the request with a status code that should
+/// be treated as "nothing to show":
+///   * 404 — endpoint reports no records / no student profile (older
+///     backend deploys returned this instead of `[]`).
+///   * 403 — the account isn't a student (officer-only login that still
+///     happens to surface the tile during workspace switching).
+/// Anything else (500s, network failures) bubbles up so the screen can
+/// render a real, retryable error with the actual status code visible.
 final mySanctionsProvider =
     FutureProvider.autoDispose<List<SanctionRecord>>((ref) async {
-  return ref.watch(sanctionsRepositoryProvider).mine();
+  try {
+    return await ref.watch(sanctionsRepositoryProvider).mine();
+  } on ApiException catch (e) {
+    if (e.isNotFound || e.isForbidden) return const <SanctionRecord>[];
+    rethrow;
+  }
 });
 
-/// School-wide active clearance deadline. Null when none is set.
+/// School-wide active clearance deadline. Null when none is set or when
+/// the backend declines (404 / 403) — same gentle-fallback policy as
+/// [mySanctionsProvider] so a missing deadline never paints the whole
+/// screen red.
 final activeClearanceDeadlineProvider =
     FutureProvider.autoDispose<ClearanceDeadline?>((ref) async {
-  return ref.watch(sanctionsRepositoryProvider).activeClearanceDeadline();
+  try {
+    return await ref.watch(sanctionsRepositoryProvider).activeClearanceDeadline();
+  } on ApiException catch (e) {
+    if (e.isNotFound || e.isForbidden) return null;
+    rethrow;
+  }
 });
 
 /// Explicitly selected active unit (overrides the preferred default).
@@ -135,8 +157,17 @@ final eventAttendeesProvider = FutureProvider.autoDispose
 });
 
 final sanctionsDashboardProvider =
-    FutureProvider.autoDispose<SanctionsDashboard>((ref) {
-  return ref.watch(sanctionsRepositoryProvider).dashboard();
+    FutureProvider.autoDispose<SanctionsDashboard>((ref) async {
+  try {
+    return await ref.watch(sanctionsRepositoryProvider).dashboard();
+  } on ApiException catch (e) {
+    // 404 = no events / no dashboard data yet for this scope. Treat as
+    // empty rather than an error wall. 403 is a real permission failure —
+    // let it surface with a proper error so the user sees "you need
+    // officer access" instead of a misleading empty state.
+    if (e.isNotFound) return const SanctionsDashboard();
+    rethrow;
+  }
 });
 
 final sanctionEventStudentsProvider =
