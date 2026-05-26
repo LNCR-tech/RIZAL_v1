@@ -261,8 +261,10 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   -- login INSERT just created. Symptom: dashboard flashes for a
   -- moment after sign-in, then every authed request 401s with
   -- "Session is not valid" and the client logs back out. Migration
-  -- 0010 fixes existing deployments; this keeps fresh bootstraps
-  -- aligned with the ORM.
+  -- 0010 fixes existing deployments — this keeps fresh bootstraps
+  -- aligned with the ORM. (Comment must contain no ';' — the
+  -- baseline migration runs `schema.sql.split(';')`, so a stray
+  -- semicolon inside prose would cut the CREATE TABLE in half.)
   token_jti TEXT NOT NULL UNIQUE,
   ip_address TEXT,
   user_agent TEXT,
