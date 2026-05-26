@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/role.dart';
+import '../../../core/auth/session_controller.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -10,9 +13,31 @@ import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/rise_in.dart';
 import '../data/help_content.dart';
 
+/// Maps the current session to a [HelpAudience]. Public viewers (login
+/// screen, no session) see the trimmed-down public help; staff and platform
+/// admins see their role-specific + dev docs section.
+HelpAudience audienceForSession(SessionState session) {
+  if (!session.isAuthenticated) return HelpAudience.public;
+  switch (session.workspace) {
+    case Workspace.student:
+      return HelpAudience.student;
+    case Workspace.schoolIt:
+      return HelpAudience.campusAdmin;
+    case Workspace.governance:
+      return HelpAudience.governance;
+    case Workspace.admin:
+      return HelpAudience.admin;
+  }
+}
+
 /// In-app Help Center — a single, searchable surface for guides,
 /// troubleshooting, and contact. Source content lives in [HelpContent], which
-/// mirrors `docs/user-guide/*.md`.
+/// mirrors `docs/user-guide/*.md` and `docs/technical/*` for admins.
+///
+/// Pass [audience] to force a specific tier (used by the login screen for the
+/// public catalogue). When omitted, the audience is derived from the current
+/// session so each role sees a tailored set: students get attendance + AI,
+/// campus admins get user/import/governance, super admins get developer docs.
 ///
 /// Design notes (ui-ux-pro-max + emil + frontend-design):
 ///   • Editorial type hierarchy (Manrope display + body).
@@ -20,14 +45,17 @@ import '../data/help_content.dart';
 ///   • Categories are accordion cards with stagger-on-mount.
 ///   • Articles open in a draggable bottom sheet so users stay in context.
 ///   • Motion follows [AppMotion]: ease-out under 300ms, respect reduced motion.
-class HelpCenterScreen extends StatefulWidget {
-  const HelpCenterScreen({super.key});
+class HelpCenterScreen extends ConsumerStatefulWidget {
+  const HelpCenterScreen({super.key, this.audience});
+
+  /// Explicit viewer tier. When null, derived from the current session.
+  final HelpAudience? audience;
 
   @override
-  State<HelpCenterScreen> createState() => _HelpCenterScreenState();
+  ConsumerState<HelpCenterScreen> createState() => _HelpCenterScreenState();
 }
 
-class _HelpCenterScreenState extends State<HelpCenterScreen> {
+class _HelpCenterScreenState extends ConsumerState<HelpCenterScreen> {
   final TextEditingController _query = TextEditingController();
   final FocusNode _focus = FocusNode();
   String _trimmed = '';
@@ -67,7 +95,19 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final searching = _trimmed.isNotEmpty;
-    final hits = searching ? HelpContent.search(_trimmed) : const [];
+    final viewer = widget.audience ??
+        audienceForSession(ref.watch(sessionControllerProvider));
+    final visibleCategories = HelpContent.categoriesFor(viewer);
+    final hits =
+        searching ? HelpContent.searchFor(viewer, _trimmed) : const [];
+    // Quick-help chips only deep-link into articles the viewer can see.
+    final quickHelp = [
+      for (final q in HelpContent.quickHelp)
+        if (HelpContent.findArticle(q.categoryId, q.articleId)
+                ?.visibleFor(viewer) ??
+            false)
+          q,
+    ];
 
     return AppScaffold(
       title: 'Help Center',
@@ -76,7 +116,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         padding: const EdgeInsets.fromLTRB(
             AppSpacing.x20, AppSpacing.x8, AppSpacing.x20, 130),
         children: staggered([
-          const _IntroHeader(),
+          _IntroHeader(audience: viewer),
           const SizedBox(height: AppSpacing.x16),
           _SearchField(
             controller: _query,
@@ -88,15 +128,21 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           ),
           const SizedBox(height: AppSpacing.x16),
           if (!searching) ...[
-            _QuickHelpRow(onPick: (label, categoryId, articleId) {
-              final cat = HelpContent.findCategory(categoryId);
-              final art = HelpContent.findArticle(categoryId, articleId);
-              if (cat != null && art != null) _openArticle(cat, art);
-            }),
-            const SizedBox(height: AppSpacing.x24),
-            _CategoryHeader(label: 'BROWSE BY TOPIC', count: HelpContent.categories.length),
+            if (quickHelp.isNotEmpty)
+              _QuickHelpRow(
+                entries: quickHelp,
+                onPick: (label, categoryId, articleId) {
+                  final cat = HelpContent.findCategory(categoryId);
+                  final art = HelpContent.findArticle(categoryId, articleId);
+                  if (cat != null && art != null) _openArticle(cat, art);
+                },
+              ),
+            if (quickHelp.isNotEmpty)
+              const SizedBox(height: AppSpacing.x24),
+            _CategoryHeader(
+                label: 'BROWSE BY TOPIC', count: visibleCategories.length),
             const SizedBox(height: AppSpacing.x8),
-            for (final c in HelpContent.categories) ...[
+            for (final c in visibleCategories) ...[
               _CategoryCard(
                 category: c,
                 onOpenArticle: (a) => _openArticle(c, a),
@@ -134,7 +180,24 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _IntroHeader extends StatelessWidget {
-  const _IntroHeader();
+  const _IntroHeader({required this.audience});
+
+  final HelpAudience audience;
+
+  String get _subtitle {
+    switch (audience) {
+      case HelpAudience.public:
+        return 'Signing in, getting started, and reaching support — everything you need before your first session.';
+      case HelpAudience.student:
+        return 'Attendance, schedule, your account — everything you need to run your day in Aura.';
+      case HelpAudience.campusAdmin:
+        return 'Managing users, imports, school settings, and student government — your daily campus-admin playbook.';
+      case HelpAudience.governance:
+        return 'Running events, managing officers, and exporting reports — your governance toolkit.';
+      case HelpAudience.admin:
+        return 'Operations, developer docs, and SaaS billing — everything to run Aura across schools.';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +209,7 @@ class _IntroHeader extends StatelessWidget {
         Text('How can we help?', style: textTheme.displaySmall),
         const SizedBox(height: AppSpacing.x8),
         Text(
-          'Practical guides, troubleshooting, and contact — everything you need to use Aura confidently.',
+          _subtitle,
           style: textTheme.bodyMedium?.copyWith(color: t.textSecondary),
         ),
       ],
@@ -181,48 +244,95 @@ class _SearchField extends StatelessWidget {
         return AnimatedContainer(
           duration: AppMotion.popover,
           curve: AppMotion.easeOut,
+          height: 56,
           decoration: BoxDecoration(
-            color: t.surfaceAlt,
+            color: focused ? t.surface : t.surfaceAlt,
             borderRadius: AppRadii.rPill,
             border: Border.all(
-              color: focused ? t.accent : t.border,
-              width: focused ? 1.4 : 1,
+              color: focused
+                  ? t.accent.withOpacity(0.55)
+                  : t.border.withOpacity(0.6),
+              width: focused ? 1.5 : 1,
             ),
+            boxShadow: focused
+                ? [
+                    BoxShadow(
+                      color: t.accent.withOpacity(0.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : t.brightness == Brightness.light
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x0A000000),
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                      ]
+                    : const [],
           ),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x16),
           child: Row(
             children: [
-              Icon(Icons.search_rounded, color: t.textMuted, size: 22),
+              AnimatedScale(
+                duration: AppMotion.popover,
+                curve: AppMotion.easeOut,
+                scale: focused ? 1.08 : 1.0,
+                child: Icon(
+                  Icons.search_rounded,
+                  color: focused ? t.accent : t.textMuted,
+                  size: 22,
+                ),
+              ),
               const SizedBox(width: AppSpacing.x12),
               Expanded(
                 child: TextField(
                   controller: controller,
                   focusNode: focusNode,
                   textInputAction: TextInputAction.search,
+                  cursorColor: t.accent,
+                  cursorWidth: 1.8,
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     isCollapsed: true,
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: AppSpacing.x16),
-                    hintText: 'Search guides and troubleshooting',
+                    hintText: 'Search guides, FAQ, troubleshooting…',
                     hintStyle: textTheme.bodyLarge
                         ?.copyWith(color: t.textMuted),
                   ),
                   style: textTheme.bodyLarge,
                 ),
               ),
-              if (hasText)
-                Pressable(
-                  scale: 0.9,
-                  haptic: false,
-                  onTap: onClear,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.x4, vertical: AppSpacing.x8),
-                    child: Icon(Icons.close_rounded,
-                        color: t.textSecondary, size: 20),
-                  ),
+              AnimatedSwitcher(
+                duration: AppMotion.popover,
+                switchInCurve: AppMotion.easeOut,
+                switchOutCurve: AppMotion.easeOut,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
                 ),
+                child: hasText
+                    ? Pressable(
+                        key: const ValueKey('clear'),
+                        scale: 0.9,
+                        haptic: false,
+                        onTap: onClear,
+                        child: Container(
+                          margin: const EdgeInsets.only(left: AppSpacing.x4),
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: t.surfaceAlt,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: t.border),
+                          ),
+                          child: Icon(Icons.close_rounded,
+                              color: t.textSecondary, size: 16),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('empty')),
+              ),
             ],
           ),
         );
@@ -236,8 +346,9 @@ class _SearchField extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _QuickHelpRow extends StatelessWidget {
-  const _QuickHelpRow({required this.onPick});
+  const _QuickHelpRow({required this.entries, required this.onPick});
 
+  final List<({String label, String categoryId, String articleId})> entries;
   final void Function(String label, String categoryId, String articleId) onPick;
 
   @override
@@ -260,10 +371,10 @@ class _QuickHelpRow extends StatelessWidget {
           height: 40,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: HelpContent.quickHelp.length,
+            itemCount: entries.length,
             separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.x8),
             itemBuilder: (context, i) {
-              final q = HelpContent.quickHelp[i];
+              final q = entries[i];
               return _QuickHelpChip(
                 label: q.label,
                 onTap: () => onPick(q.label, q.categoryId, q.articleId),

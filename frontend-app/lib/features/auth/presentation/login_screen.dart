@@ -8,7 +8,12 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/aura_button.dart';
 import '../../../core/widgets/aura_logo.dart';
 import '../../../core/widgets/aura_text_field.dart';
+import '../../../core/widgets/pressable.dart';
+import '../../help/data/help_content.dart';
+import '../../help/presentation/help_center_screen.dart';
 import '../data/auth_repository.dart';
+import '../data/google_sign_in_service.dart';
+import 'forgot_password_dialog.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -55,6 +60,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) setState(() => _error = 'Unexpected error. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _continueWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final idToken = await ref
+          .read(googleSignInServiceProvider)
+          .signInAndGetIdToken();
+      if (idToken == null) {
+        // User cancelled the picker — silently restore the form.
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final result = await ref
+          .read(authRepositoryProvider)
+          .loginWithGoogle(idToken: idToken);
+      await ref.read(sessionControllerProvider.notifier).completeLogin(
+            accessToken: result.accessToken,
+            meta: result.meta,
+          );
+    } on GoogleSignInError catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } on ApiException catch (e) {
+      // Translate the backend's specific Google failures into wording the
+      // user can act on.
+      String message = e.message;
+      if (e.statusCode == 403) {
+        message = 'Google sign-in is disabled for this deployment. '
+            'Use your school email and password instead.';
+      } else if (e.statusCode == 404) {
+        message = 'No Aura account is linked to that Google email. '
+            'Ask your Campus Admin to register your school email first.';
+      } else if (e.statusCode == 401) {
+        message = 'Google could not verify your account. '
+            'Make sure your Google email is verified and try again.';
+      }
+      if (mounted) setState(() => _error = message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error =
+            'Unexpected error while signing in with Google. Please try again.');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -137,20 +190,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       label: 'Continue with Google',
                       icon: Icons.g_mobiledata,
                       variant: AuraButtonVariant.ghost,
-                      onPressed: _loading
-                          ? null
-                          : () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        'Google Sign-In wiring lands in Phase 1.')),
-                              ),
+                      onPressed: _loading ? null : _continueWithGoogle,
                     ),
-                    const SizedBox(height: AppSpacing.x24),
-                    Text(
-                      'Forgot your password? Reset it in the web app for now.',
-                      textAlign: TextAlign.center,
-                      style:
-                          textTheme.bodySmall?.copyWith(color: t.textMuted),
+                    const SizedBox(height: AppSpacing.x20),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: AppSpacing.x4,
+                      runSpacing: 0,
+                      children: [
+                        Pressable(
+                          scale: 0.99,
+                          haptic: false,
+                          onTap: _loading
+                              ? null
+                              : () => ForgotPasswordDialog.show(
+                                    context,
+                                    initialEmail: _email.text.trim().isEmpty
+                                        ? null
+                                        : _email.text.trim(),
+                                  ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.x8,
+                                horizontal: AppSpacing.x12),
+                            child: Text(
+                              'Forgot your password?',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: t.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Pressable(
+                          scale: 0.99,
+                          haptic: false,
+                          onTap: _loading
+                              ? null
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => const HelpCenterScreen(
+                                          audience: HelpAudience.public),
+                                    ),
+                                  ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.x8,
+                                horizontal: AppSpacing.x12),
+                            child: Text(
+                              'Need help?',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: t.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

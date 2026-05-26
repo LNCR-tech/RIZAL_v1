@@ -1,5 +1,42 @@
 import 'package:flutter/material.dart';
 
+/// Tiered viewer of the help center. The screen filters categories and
+/// articles to whichever set matches the current viewer.
+///
+/// Audience mapping from session:
+///   - not signed in           → [public]
+///   - student workspace       → [student]
+///   - school-IT / campus admin→ [campusAdmin]
+///   - governance / SSG        → [governance]
+///   - platform / super admin  → [admin]
+enum HelpAudience { public, student, campusAdmin, governance, admin }
+
+/// Convenience sets used when tagging categories + articles. Articles
+/// default to [allAuthed] (post-signin only) — flag content that's safe to
+/// expose on the login screen with [withPublic].
+const Set<HelpAudience> allAudiences = <HelpAudience>{
+  HelpAudience.public,
+  HelpAudience.student,
+  HelpAudience.campusAdmin,
+  HelpAudience.governance,
+  HelpAudience.admin,
+};
+
+const Set<HelpAudience> allAuthed = <HelpAudience>{
+  HelpAudience.student,
+  HelpAudience.campusAdmin,
+  HelpAudience.governance,
+  HelpAudience.admin,
+};
+
+const Set<HelpAudience> staffOnly = <HelpAudience>{
+  HelpAudience.campusAdmin,
+  HelpAudience.governance,
+  HelpAudience.admin,
+};
+
+const Set<HelpAudience> adminOnly = <HelpAudience>{HelpAudience.admin};
+
 /// A single help article: a short body paragraph plus numbered steps and an
 /// optional tip. Pure data so the catalogue stays trivially searchable.
 @immutable
@@ -11,6 +48,7 @@ class HelpArticle {
     this.steps = const <String>[],
     this.tip,
     this.keywords = const <String>[],
+    this.audiences = allAudiences,
   });
 
   final String id;
@@ -19,6 +57,13 @@ class HelpArticle {
   final List<String> steps;
   final String? tip;
   final List<String> keywords;
+
+  /// Roles allowed to see this article. Defaults to **everyone**; tighten
+  /// when an article is role-specific. Effective visibility is the
+  /// intersection with the parent category's [HelpCategory.audiences].
+  final Set<HelpAudience> audiences;
+
+  bool visibleFor(HelpAudience viewer) => audiences.contains(viewer);
 
   /// Plain-text haystack used by [HelpContent.search]. Lower-cased once.
   String get _haystack => '$title $body ${steps.join(' ')} ${keywords.join(' ')}'
@@ -37,6 +82,7 @@ class HelpCategory {
     required this.icon,
     required this.color,
     required this.articles,
+    this.audiences = allAuthed,
   });
 
   final String id;
@@ -45,6 +91,19 @@ class HelpCategory {
   final IconData icon;
   final Color color;
   final List<HelpArticle> articles;
+
+  /// Roles allowed to see this category. Default is [allAuthed] — the
+  /// category disappears on the login screen unless explicitly opened up.
+  /// Effective article visibility is the intersection of category + article
+  /// audiences, so narrowing the category narrows everything inside it.
+  final Set<HelpAudience> audiences;
+
+  /// Returns the articles visible to [viewer]. Empty when the category
+  /// itself is hidden or none of its articles allow [viewer].
+  List<HelpArticle> visibleArticlesFor(HelpAudience viewer) {
+    if (!audiences.contains(viewer)) return const [];
+    return [for (final a in articles) if (a.visibleFor(viewer)) a];
+  }
 }
 
 /// Static catalogue of help content. Source of truth lives in
@@ -68,16 +127,54 @@ class HelpContent {
     _troubleshooting,
     _security,
     _about,
+    _developerDocs,
   ];
 
+  /// Returns categories filtered to those visible to [viewer], each with
+  /// its visible-only article list.
+  static List<HelpCategory> categoriesFor(HelpAudience viewer) {
+    final out = <HelpCategory>[];
+    for (final c in categories) {
+      final visible = c.visibleArticlesFor(viewer);
+      if (visible.isEmpty) continue;
+      out.add(HelpCategory(
+        id: c.id,
+        title: c.title,
+        summary: c.summary,
+        icon: c.icon,
+        color: c.color,
+        articles: visible,
+        audiences: c.audiences,
+      ));
+    }
+    return out;
+  }
+
+  /// Audience-aware search. Only articles visible to [viewer] are returned.
+  static List<({HelpCategory category, HelpArticle article})> searchFor(
+      HelpAudience viewer, String rawQuery) {
+    final q = rawQuery.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    final hits = <({HelpCategory category, HelpArticle article})>[];
+    for (final c in categories) {
+      for (final a in c.visibleArticlesFor(viewer)) {
+        if (a.matches(q)) hits.add((category: c, article: a));
+      }
+    }
+    return hits;
+  }
+
   /// Quick-help chips at the top of the screen. Each entry deep-links into a
-  /// specific article so a user one tap away from the answer.
+  /// specific article so a user is one tap away from the answer. The screen
+  /// further filters this list by the current audience so chips never link
+  /// to articles the viewer cannot open.
   static final List<({String label, String categoryId, String articleId})>
       quickHelp = <({String label, String categoryId, String articleId})>[
+    (label: 'Forgot password', categoryId: 'account', articleId: 'ac-forgot-password'),
     (label: 'Cannot log in', categoryId: 'troubleshooting', articleId: 'tb-login'),
     (label: 'Face scan failed', categoryId: 'troubleshooting', articleId: 'tb-face'),
-    (label: 'Change password', categoryId: 'account', articleId: 'ac-password'),
     (label: 'Grant permissions', categoryId: 'getting-started', articleId: 'gs-permissions'),
+    (label: 'Install the app', categoryId: 'getting-started', articleId: 'gs-device-requirements'),
   ];
 
   /// Flat search across every article. Returns matches with their parent
@@ -136,6 +233,7 @@ const HelpCategory _gettingStarted = HelpCategory(
   summary: 'First login, permissions, and face registration.',
   icon: Icons.rocket_launch_rounded,
   color: _rose,
+  audiences: allAudiences,
   articles: [
     HelpArticle(
       id: 'gs-first-login',
@@ -369,6 +467,34 @@ const HelpCategory _account = HelpCategory(
       keywords: ['change password', 'reset', 'forgot', 'security'],
     ),
     HelpArticle(
+      id: 'ac-forgot-password',
+      title: 'Forgot your password? Reset it',
+      // Visible on the login screen too — this is the article people will
+      // actually be hunting for.
+      audiences: allAudiences,
+      body:
+          'Aura uses an admin-approval reset flow — there is no self-serve "click this link" reset. You submit a request from the login screen, then your Campus Admin approves it and gives you a temporary password.',
+      steps: [
+        'On the Sign in screen, tap "Forgot your password?" under the buttons.',
+        'Enter your school email and tap Send request.',
+        'Aura confirms the request was submitted. The response is intentionally generic — no account enumeration.',
+        'Your Campus Admin reviews pending requests under their admin panel and approves yours.',
+        'They share a temporary password with you (in person, via your school\'s usual channel).',
+        'Sign in with that temporary password. Aura immediately walks you through setting a permanent one.',
+      ],
+      tip:
+          'If you do not get a response within a day, contact your Campus Admin directly. There is no automatic email.',
+      keywords: [
+        'forgot password',
+        'forgot',
+        'reset',
+        'password reset',
+        'cannot sign in',
+        'admin approval',
+        'temporary password',
+      ],
+    ),
+    HelpArticle(
       id: 'ac-sessions',
       title: 'Sign-in & devices',
       body:
@@ -525,6 +651,7 @@ const HelpCategory _workspaces = HelpCategory(
     HelpArticle(
       id: 'ws-student',
       title: 'Student workflow',
+      audiences: {HelpAudience.student, HelpAudience.admin},
       body:
           'The student workspace lives at /student. Home, Schedule, Analytics, Notifications, and Aura AI cover the daily flow.',
       steps: [
@@ -539,6 +666,7 @@ const HelpCategory _workspaces = HelpCategory(
     HelpArticle(
       id: 'ws-school-it',
       title: 'Campus Admin / School IT workflow',
+      audiences: {HelpAudience.campusAdmin, HelpAudience.admin},
       body:
           'School IT and Campus Admin operate under /workspace. You manage users, run bulk imports, edit school settings, and oversee student government.',
       steps: [
@@ -553,6 +681,7 @@ const HelpCategory _workspaces = HelpCategory(
     HelpArticle(
       id: 'ws-governance',
       title: 'Governance / SSG officer workflow',
+      audiences: {HelpAudience.governance, HelpAudience.admin},
       body:
           'Officers run events under /governance. The dashboard shows compliance at a glance and gates actions by permission.',
       steps: [
@@ -568,6 +697,7 @@ const HelpCategory _workspaces = HelpCategory(
     ),
     HelpArticle(
       id: 'ws-admin',
+      audiences: adminOnly,
       title: 'Platform admin workflow',
       body:
           'Platform admins manage schools and accounts across the deployment from /admin. Access is permission-gated.',
@@ -588,6 +718,7 @@ const HelpCategory _troubleshooting = HelpCategory(
   summary: 'Common issues and what to do.',
   icon: Icons.build_circle_rounded,
   color: _amber,
+  audiences: allAudiences,
   articles: [
     HelpArticle(
       id: 'tb-login',
@@ -706,6 +837,7 @@ const HelpCategory _security = HelpCategory(
   summary: 'Habits that keep your account and school data safe.',
   icon: Icons.shield_rounded,
   color: _red,
+  audiences: allAudiences,
   articles: [
     HelpArticle(
       id: 'sec-credentials',
@@ -780,6 +912,7 @@ const HelpCategory _about = HelpCategory(
   summary: 'What Aura is, who runs it, and how to reach support.',
   icon: Icons.info_rounded,
   color: _slate,
+  audiences: allAudiences,
   articles: [
     HelpArticle(
       id: 'ab-what',
@@ -808,6 +941,146 @@ const HelpCategory _about = HelpCategory(
       body:
           'Aura is a small set of cooperating services: a FastAPI backend, this Flutter mobile client, a Vue web app, an assistant service (Aura · Jose AI), PostgreSQL for data, Redis + Celery for background jobs.',
       keywords: ['services', 'architecture', 'backend', 'frontend'],
+    ),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Developer Docs — surfaced only to platform admin (super admin / SaaS owner)
+// who manages payments + infrastructure. Each article is a quick-reference;
+// the canonical source-of-truth lives in `docs/technical/...`.
+// ─────────────────────────────────────────────────────────────────────────────
+const HelpCategory _developerDocs = HelpCategory(
+  id: 'developer-docs',
+  title: 'Developer docs',
+  summary: 'Architecture, API, database, deployment — for admins running Aura.',
+  icon: Icons.code_rounded,
+  color: _indigo,
+  audiences: adminOnly,
+  articles: [
+    HelpArticle(
+      id: 'dev-architecture',
+      audiences: adminOnly,
+      title: 'System architecture at a glance',
+      body:
+          'Aura is split into five long-running services orchestrated by Docker Compose: backend (FastAPI), frontend-web (Vue 3 + Vite), frontend-app (this Flutter client), assistant (Python service serving Aura · Jose AI), and storage (Postgres + Redis). Migrations and bootstrap run as one-shot jobs on `docker compose up`.',
+      steps: [
+        'backend → FastAPI on :8001 (dev) / :8000 (prod). Alembic migrations, Celery worker + beat.',
+        'frontend-web → Vue 3 SPA on :5173 (dev) / :80 (prod), wrapped by Capacitor for Android.',
+        'frontend-app → Flutter (Android + iOS). Talks to backend ROOT (no /api prefix); login at POST /token.',
+        'assistant → FastAPI on :8500. Streams SSE; serves Aura · Jose AI either via centralized Jose gateway or a local llama-server.',
+        'database → Postgres 16; redis → Redis 7. Both internal-only in prod compose.',
+      ],
+      tip:
+          'Full diagrams + dependency graph live in `docs/technical/architecture/system-architecture.md` and `architecture/diagrams.md`.',
+      keywords: ['architecture', 'system', 'services', 'compose', 'overview'],
+    ),
+    HelpArticle(
+      id: 'dev-tech-stack',
+      audiences: adminOnly,
+      title: 'Tech stack',
+      body:
+          'Backend: FastAPI · SQLAlchemy · Alembic · Pydantic v2 · Celery · Redis · Postgres 16 · ONNX runtime (face recognition). Frontend-web: Vue 3 · Vite · Pinia · Vue Router · Tailwind · Playwright. Frontend-app: Flutter · Riverpod · go_router · Dio · fl_chart · Manrope/JetBrainsMono. Assistant: FastAPI · MCP · llama.cpp (Jose).',
+      steps: [
+        'See `docs/technical/architecture/tech-stack.md` for pinned versions + rationale.',
+        'Pre-1.0 SemVer is enforced separately for each service; service folders track their own CHANGELOG.',
+      ],
+      keywords: ['tech stack', 'dependencies', 'versions', 'frameworks'],
+    ),
+    HelpArticle(
+      id: 'dev-api-reference',
+      audiences: adminOnly,
+      title: 'API reference — auth, attendance, governance',
+      body:
+          'The backend exposes ~90 REST endpoints, all bearer-token authenticated. The Token contract is in `backend/app/schemas/auth.py` and includes brand + role meta so a single login fully bootstraps a session.',
+      steps: [
+        'Auth: POST /token (OAuth2 form), POST /login (JSON), POST /auth/google, POST /auth/forgot-password, POST /auth/change-password.',
+        'Events: POST /api/events, PATCH /api/events/{id}, GET /api/events with scope filters; `governance_context=SSG|SG|ORG` for officers.',
+        'Attendance: POST /api/face/scan (face + liveness), POST /api/attendance/manual.',
+        'Governance: SSG/SG/ORG CRUD + member + permission endpoints under /api/governance/*.',
+        'List endpoints use the {data, page, total, total_pages} envelope — `Paginated.dart` unwraps both bare lists and the envelope.',
+      ],
+      tip:
+          'Comprehensive reference: `docs/technical/api/reference.md` + `endpoints.md`. Error contract: `api/error-contract.md`.',
+      keywords: ['api', 'endpoints', 'rest', 'reference', 'oauth', 'token'],
+    ),
+    HelpArticle(
+      id: 'dev-database',
+      audiences: adminOnly,
+      title: 'Database schema + migrations',
+      body:
+          'Postgres 16. All schema changes go through Alembic migrations in `backend/alembic/versions/`. `schema.sql` is informational only — do not rely on it without a matching migration.',
+      steps: [
+        'Core tables: users, schools, departments, programs, events, event_targets, attendance_records, governance_units, governance_members, governance_member_permissions, school_audit_logs.',
+        'School isolation is enforced via `school_id` on every domain table; cross-school reads are gated in the service layer.',
+        'Migrations run on every `docker compose up` via the `migrate` service. Migration ID is bounded to alembic_version.VARCHAR(32).',
+        'ERD diagrams: `docs/technical/database/erd/ERDv2.md`. Relationships: `database/relationships.md`. Per-table notes: `database/tables.md`.',
+      ],
+      tip:
+          'Event_target_scope simplification (year_levels only) landed on main today — Flutter client side already supports it via Phase 11 contract.',
+      keywords: ['database', 'postgres', 'schema', 'migrations', 'alembic'],
+    ),
+    HelpArticle(
+      id: 'dev-deployment',
+      audiences: adminOnly,
+      title: 'Deployment + CI/CD',
+      body:
+          'Three GitHub Actions workflows: `ci.yml` runs on all PRs (lint + unit + Playwright + Flutter test), `staging-cd.yml` deploys to staging on push to `develop`, `production-cd.yml` deploys to prod on push to `main`. `aura-app-ci.yml` runs Flutter-specific gates on `frontend-app/**` changes.',
+      steps: [
+        'Production stack: docker-compose.prod.yml on AWS EC2 (Ubuntu). Frontend on port 80, backend on 8000, assistant on 8500.',
+        'Deploy flow: `deploy.sh` pulls latest, runs migrations, restarts changed services, then `rollback.sh` fires on failure with a Postgres backup snapshot.',
+        '.env.production holds secrets (SECRET_KEY, DB_PASSWORD, AI_API_KEY, AI_API_BASE, AI_MODEL, MAILJET keys). Never commit them.',
+        'Linux deploy runbook: `backend/docs/getting-started/linux-deploy.md`. Detailed CD pipeline: `docs/technical/deployment/ci-cd-pipeline.md`.',
+      ],
+      keywords: ['deployment', 'ci', 'cd', 'docker', 'github actions', 'aws'],
+    ),
+    HelpArticle(
+      id: 'dev-setup',
+      audiences: adminOnly,
+      title: 'Local development setup',
+      body:
+          'Clone, copy each service\'s `.env.example` to `.env`, fill in AI provider + SECRET_KEY, then `docker compose up --build`. The full dev stack (incl. pgAdmin + Mailpit) comes up in one command. Flutter client runs separately via `flutter run --dart-define-from-file=config/cloud.json`.',
+      steps: [
+        'Repo root: `Copy-Item .env.example .env`, fill required values.',
+        'Backend, frontend, assistant, db: `docker compose up --build`. Wait for the `bootstrap` service to finish — that\'s when the admin seed lands.',
+        'Frontend-app: `flutter pub get`, then run via the script at `scripts/run-web-dev.ps1` for web preview against the cloud backend.',
+        'Tests: `cd frontend-app && flutter analyze && flutter test`; `cd backend && pytest`.',
+      ],
+      tip:
+          'Full guide: `docs/technical/development/setup-guide.md`. Coding standards: `development/coding-standards.md`.',
+      keywords: ['setup', 'development', 'local', 'dev', 'docker compose'],
+    ),
+    HelpArticle(
+      id: 'dev-testing',
+      audiences: adminOnly,
+      title: 'Testing strategy',
+      body:
+          'Three test layers run independently on every PR: backend pytest (unit + integration with a real Postgres in CI), Flutter `flutter test` (unit + widget) plus `integration_test/`, and frontend-web Playwright (E2E workflows). UI-quality tests run via `test/ui_quality_test.dart` to mirror the Playwright suite.',
+      steps: [
+        'Backend: `pytest -q`. Markers: `unit`, `integration`, `slow`.',
+        'Flutter: `flutter analyze && flutter test`. The UI-quality suite asserts layout safety + accessibility labels across viewports.',
+        'Web E2E: `cd frontend-web && npm run e2e`. CI gates the suite to PRs that touch `frontend-web/**` or workflows that depend on it.',
+        'Coverage targets: backend ≥80% line, Flutter ≥70% line, Playwright = workflow coverage rather than line %.',
+      ],
+      tip:
+          'Test plan: `docs/technical/testing/test-plan.md`. QA workflow: `testing/qa-toolchain-workflow.md`.',
+      keywords: ['testing', 'pytest', 'flutter test', 'playwright', 'qa'],
+    ),
+    HelpArticle(
+      id: 'dev-billing',
+      audiences: adminOnly,
+      title: 'Billing & subscription (SaaS owner)',
+      body:
+          'Aura is delivered to schools as a managed SaaS. The platform admin (you) owns billing, school onboarding/offboarding, and the subscription state on the Admin → Schools panel.',
+      steps: [
+        'Each School row has `subscription_status` (`active` / `trial` / `paused` / `cancelled`).',
+        'A school in `paused` or `cancelled` falls into limited-mode at the frontend (read-only).',
+        'Use `/admin/schools/{id}` to flip subscription state. Audit log records the actor + reason.',
+        'Stripe / payment-gateway integration lives in the backend\'s `subscription` router — not yet exposed end-to-end; the panel currently flips state manually.',
+      ],
+      tip:
+          'When the gateway integration ships, the panel will surface payment links + invoice history per school.',
+      keywords: ['billing', 'subscription', 'saas', 'admin', 'payments'],
     ),
   ],
 );

@@ -325,10 +325,12 @@ void main() {
       await _tapAndExpectUiResponse(
         tester,
         target: find.text('Continue with Google'),
-        context: 'google sign-in placeholder feedback',
+        context: 'google sign-in not-configured feedback',
         expectResponse: () => expect(
-          find.text('Google Sign-In wiring lands in Phase 1.'),
-          findsOneWidget,
+          // When AURA_GOOGLE_WEB_CLIENT_ID isn't provided to the test the
+          // service refuses to start sign-in and surfaces this banner.
+          find.textContaining('Sign in with Google'),
+          findsWidgets,
         ),
       );
 

@@ -1,7 +1,7 @@
 name: aura_app
 description: "Aura (RIZAL) — school attendance & governance. Flutter client for Android & iOS."
 publish_to: "none"
-version: 1.25.0+56
+version: 1.26.0+57
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -54,9 +54,14 @@ dependencies:
   flutter_local_notifications: ^21.0.0
   native_geofence: ^1.2.2
 
+  # Google OAuth sign-in. Needs AURA_GOOGLE_WEB_CLIENT_ID at run-time and
+  # native config (google-services.json on Android, GoogleService-Info.plist
+  # on iOS) for production; falls back to a clear error on web when the
+  # client ID isn't set so the feature degrades gracefully.
+  google_sign_in: ^6.2.2
+
   # ── Later phases (uncomment when implementing; need native setup) ──
   # google_mlkit_face_detection: ^0.12.0   # on-device face framing/liveness cue
-  # google_sign_in: ^6.2.2
   # flutter_local_notifications: ^17.2.4
   # hive_flutter: ^1.1.0
 

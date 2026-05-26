@@ -9,12 +9,95 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 `pubspec.yaml` `version:` tracks the latest entry as `<semver>+<build>`.
 
 ## [Unreleased]
+
+## [1.26.0] - 2026-05-26
+
 ### Added
-- Added `test/web_parity_contract_test.dart`, a Flutter-side parity contract
-  suite that mirrors the current frontend-web automated test intentions one for
-  one. The suite defines 171 app contracts: 103 unit-test equivalents and 68
-  workflow/UI equivalents. It intentionally checks for real Flutter app source
-  surfaces instead of passing against copied web/test-only helper behavior.
+- **Real Google sign-in.** "Continue with Google" on the login screen is
+  now functional. New `GoogleSignInService` reads
+  `AURA_GOOGLE_WEB_CLIENT_ID` via `--dart-define`, drives the
+  `google_sign_in` SDK (web + native), and posts the resulting ID token to
+  `POST /auth/google`. Backend errors translate to actionable copy:
+  - 403 (Google login disabled) → "Google sign-in is disabled for this
+    deployment. Use your school email and password instead."
+  - 404 (email not registered) → "No Aura account is linked to that
+    Google email. Ask your Campus Admin to register your school email
+    first."
+  - 401 (invalid token / unverified email) → "Google could not verify
+    your account. Make sure your Google email is verified and try
+    again."
+  - Not configured (empty client ID) → "Sign in with Google isn't
+    enabled for this app yet." Service refuses to attempt sign-in.
+  - User cancels → silent (no error banner). `AppConfig` gains
+    `googleAndroidClientId` + `isGoogleSignInConfigured` helper.
+- **Real forgot-password flow.** Replaced "Reset it in the web app for
+  now" with a `ForgotPasswordDialog` (Card-styled modal with reset-icon
+  badge, email field, Cancel/Send actions, loading + error states). It
+  calls `AuthRepository.forgotPassword(email)` → `POST /auth/forgot-password`
+  → backend's generic admin-approval message → snackbar. Pre-fills the
+  email from the login form. Validates locally for empty/no-@ before
+  hitting the network.
+- **Public Help Center from the login screen.** New "Need help?" link
+  beside "Forgot your password?" opens
+  `HelpCenterScreen(audience: HelpAudience.public)` — a trimmed
+  catalogue (no privileged or dev-docs content) for unauthenticated
+  visitors.
+- **Role-based Help Center.** New `HelpAudience` enum
+  (`public`/`student`/`campusAdmin`/`governance`/`admin`) tagged on every
+  category and on individual articles. The screen derives the viewer
+  from the current session — students see attendance + AI + their own
+  workflow; campus admins see manage-users / imports / governance setup;
+  governance officers see event-management; super-admins see everything
+  plus the new Developer docs. Quick-help chips and search are filtered
+  to the viewer's tier.
+- **Developer docs section (admin-only).** New `developer-docs` category
+  visible only to platform admins, with 8 quick-reference articles
+  sourced from `docs/technical/`: architecture, tech stack, API
+  reference, database/migrations, deployment/CI/CD, local dev setup,
+  testing strategy, and SaaS billing + subscription state. Each article
+  points to the canonical source-of-truth in the in-repo docs tree.
+- **Forgot-password help article.** New `ac-forgot-password` article in
+  the Account category, public-visible, with step-by-step admin-approval
+  flow. Promoted to the first Quick-help chip ("Forgot password").
+- **Audience-aware screen UX.** `_IntroHeader` writes a per-tier
+  subtitle ("Attendance, schedule, your account…" for students,
+  "Operations, developer docs, and SaaS billing…" for admins).
+  `_QuickHelpRow` accepts a pre-filtered list of entries so chips never
+  link to articles the viewer can't see.
+
+### Changed
+- **Help search bar polish.** Surface-light fill in idle, surface-white
+  + accent ring + soft accent-tinted shadow on focus. Search icon
+  scales 1.08× when focused. Clear button is now a circular soft chip
+  with `AnimatedSwitcher` fade/scale entry. Cursor uses the brand
+  accent. Hint copy clarified to "Search guides, FAQ, troubleshooting…"
+- **Bottom nav semantics.** `_NavButton` in `glass_bottom_nav.dart` and
+  `_NavItem` in `liquid_glass_nav.dart` now wrap the inner button in
+  `ExcludeSemantics` and add `container: true` on the parent
+  `Semantics` so `find.bySemanticsLabel('Home' | 'Schedule' | …)`
+  returns the bottom-nav nodes cleanly (the prior tree merged the child
+  Text's label, masking the parent label and breaking
+  `ui_quality_test`).
+- **Quick-help line-up.** "Forgot password" and "Install the app" join
+  the chip row; "Change password" article remains in the Account
+  category but is no longer a chip (the forgot-password flow is what
+  users actually need pre-signin).
+- **Login screen layout.** Footer links use `Wrap` (instead of `Row`)
+  so the "Forgot your password? · Need help?" pair wraps to two lines
+  at mobile widths instead of overflowing.
+
+### Fixed
+- **`ui_quality_test.dart` semantics handle leak.** The
+  `key app controls expose accessible semantics labels` test now
+  disposes the `SemanticsHandle` via `try/finally` so dispose runs
+  before `_endOfTestVerifications` (addTearDown ordering left a stray
+  handle and tripped the "SemanticsHandle was active at end of test"
+  assertion once the body actually reached the end).
+
+### Verified
+- `flutter analyze` clean.
+- `flutter test` — 120 tests pass (115 existing + 5 new audience
+  filtering tests in `test/unit/help_content_test.dart`).
 
 ## [1.25.0] - 2026-05-26
 

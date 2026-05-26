@@ -90,4 +90,89 @@ void main() {
       }
     });
   });
+
+  group('Audience filtering', () {
+    test('developer-docs is admin-only', () {
+      final adminCats = HelpContent.categoriesFor(HelpAudience.admin);
+      final studentCats = HelpContent.categoriesFor(HelpAudience.student);
+      final publicCats = HelpContent.categoriesFor(HelpAudience.public);
+
+      expect(adminCats.any((c) => c.id == 'developer-docs'), isTrue);
+      expect(studentCats.any((c) => c.id == 'developer-docs'), isFalse);
+      expect(publicCats.any((c) => c.id == 'developer-docs'), isFalse);
+    });
+
+    test('workspaces articles are filtered to their role', () {
+      final student =
+          HelpContent.categoriesFor(HelpAudience.student).firstWhere(
+        (c) => c.id == 'workspaces',
+        orElse: () => throw 'workspaces missing for student',
+      );
+      expect(student.articles.map((a) => a.id), contains('ws-student'));
+      expect(
+          student.articles.map((a) => a.id), isNot(contains('ws-school-it')));
+      expect(student.articles.map((a) => a.id), isNot(contains('ws-admin')));
+
+      final campusAdmin = HelpContent.categoriesFor(HelpAudience.campusAdmin)
+          .firstWhere((c) => c.id == 'workspaces');
+      expect(
+          campusAdmin.articles.map((a) => a.id), contains('ws-school-it'));
+      expect(campusAdmin.articles.map((a) => a.id),
+          isNot(contains('ws-student')));
+
+      final admin = HelpContent.categoriesFor(HelpAudience.admin)
+          .firstWhere((c) => c.id == 'workspaces');
+      // Admin sees everything.
+      expect(admin.articles.map((a) => a.id),
+          containsAll(['ws-student', 'ws-school-it', 'ws-governance', 'ws-admin']));
+    });
+
+    test('public viewer sees a trimmed catalogue', () {
+      final publicCats = HelpContent.categoriesFor(HelpAudience.public);
+      final ids = publicCats.map((c) => c.id).toSet();
+      // Public-friendly categories survive.
+      expect(ids, containsAll([
+        'getting-started',
+        'troubleshooting',
+        'security',
+        'about',
+      ]));
+      // Authed-only categories are hidden.
+      expect(ids, isNot(contains('attendance')));
+      expect(ids, isNot(contains('schedule')));
+      expect(ids, isNot(contains('assistant')));
+      expect(ids, isNot(contains('developer-docs')));
+    });
+
+    test('forgot-password article is public-visible', () {
+      final publicCats = HelpContent.categoriesFor(HelpAudience.public);
+      final account =
+          publicCats.where((c) => c.id == 'account').toList();
+      // Account category itself is authed-only, but the forgot-password
+      // article opts in via its own audiences — categoriesFor still
+      // skips the category since articles must pass both filters. Verify
+      // the article visibility flag directly.
+      final article =
+          HelpContent.findArticle('account', 'ac-forgot-password');
+      expect(article, isNotNull);
+      expect(article!.visibleFor(HelpAudience.public), isTrue);
+      expect(article.visibleFor(HelpAudience.student), isTrue);
+      // The article remains addressable via searchFor when its parent
+      // category permits the viewer. Since `account.audiences` is
+      // allAuthed, the public viewer won't see it via categoriesFor.
+      expect(account, isEmpty);
+    });
+
+    test('searchFor respects audience', () {
+      final adminHits = HelpContent.searchFor(HelpAudience.admin, 'api');
+      // Admin sees dev-api-reference (developer-docs is admin-only).
+      expect(
+          adminHits.any((h) => h.article.id == 'dev-api-reference'), isTrue);
+
+      final studentHits = HelpContent.searchFor(HelpAudience.student, 'api');
+      // Student does not.
+      expect(studentHits.any((h) => h.article.id == 'dev-api-reference'),
+          isFalse);
+    });
+  });
 }
