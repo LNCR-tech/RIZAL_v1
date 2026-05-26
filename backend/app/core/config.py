@@ -211,6 +211,14 @@ class Settings:
     google_login_enabled: bool
     google_web_client_id: str
     google_android_client_id: str
+    centralized_ai_api_key: str
+    ai_provider: str
+    ai_api_key: str
+    ai_api_base: str
+    ai_model: str
+    ai_max_tokens: int
+    ai_api_version: str
+    ai_request_timeout_seconds: int
 
 
 def get_settings() -> Settings:
@@ -424,4 +432,28 @@ def get_settings() -> Settings:
         google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),
         google_web_client_id=os.getenv("GOOGLE_WEB_CLIENT_ID", "").strip(),
         google_android_client_id=os.getenv("GOOGLE_ANDROID_CLIENT_ID", "").strip(),
+        centralized_ai_api_key=os.getenv("CENTRALIZED_AI_API_KEY", "").strip(),
+        ai_provider=(os.getenv("AI_PROVIDER") or "openai").strip(),
+        ai_api_key=(
+            os.getenv("AI_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("ANTHROPIC_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or ""
+        ).strip(),
+        ai_api_base=(
+            os.getenv("AI_API_BASE")
+            or os.getenv("OPENAI_API_BASE")
+            or os.getenv("ANTHROPIC_API_BASE")
+            or os.getenv("GEMINI_API_BASE")
+            or ""
+        ).strip(),
+        ai_model=(os.getenv("AI_MODEL") or "jose-ai").strip(),
+        ai_max_tokens=_as_int(os.getenv("AI_MAX_TOKENS"), 4096, "AI_MAX_TOKENS"),
+        ai_api_version=(os.getenv("AI_API_VERSION") or "2023-06-01").strip(),
+        ai_request_timeout_seconds=_as_int(
+            os.getenv("AI_REQUEST_TIMEOUT_SECONDS"),
+            60,
+            "AI_REQUEST_TIMEOUT_SECONDS",
+        ),
     )

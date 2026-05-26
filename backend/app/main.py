@@ -38,6 +38,7 @@ from app.routers import (
     public_attendance,
     health,
     sanctions,
+    centralized_ai,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,6 +164,7 @@ app.include_router(health.router)
 app.include_router(health.router, prefix="/api/v1")
 
 include_api_router(sanctions.router)
+include_api_router(centralized_ai.router)
 
 logo_storage_dir = Path(settings.school_logo_storage_dir)
 logo_storage_dir.mkdir(parents=True, exist_ok=True)
@@ -192,5 +194,6 @@ async def root():
             "governance": "/api/governance/settings/me",
             "governance_hierarchy": "/api/governance/units",
             "sanctions": "/api/sanctions",
+            "centralized_ai": "/api/centralized-ai/chat",
         }
     }
