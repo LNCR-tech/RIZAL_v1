@@ -5,8 +5,8 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_brand_mark.dart';
 import '../../../core/widgets/aura_button.dart';
-import '../../../core/widgets/aura_logo.dart';
 import '../../../core/widgets/aura_text_field.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../help/data/help_content.dart';
@@ -265,23 +265,11 @@ class _Brand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppTokens.of(context);
     return Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: t.navInk,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Padding(
-            padding: EdgeInsets.all(9),
-            child: AuraLogo(size: 30),
-          ),
-        ),
+        const AppBrandMark(size: 48),
         const SizedBox(width: 12),
-        Text('Aura', style: Theme.of(context).textTheme.headlineMedium),
+        AppNameText(style: Theme.of(context).textTheme.headlineMedium),
       ],
     );
   }

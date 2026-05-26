@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../cache/cache_store.dart';
+import '../cache/school_logo_cache.dart';
+import '../network/media_url.dart';
+import '../theme/app_branding_controller.dart';
 import '../theme/theme_controller.dart';
 import 'auth_meta.dart';
 import 'role.dart';
@@ -93,6 +97,11 @@ class SessionController extends Notifier<SessionState> {
     _loginAt = null;
     await ref.read(tokenStoreProvider).clear();
     await ref.read(cacheStoreProvider).clear();
+    // Drop the cached school logo bytes — the next sign-in re-fetches and
+    // re-caches. Keep the user's App appearance toggle choices intact (those
+    // are personal prefs, not session state).
+    unawaited(ref.read(schoolLogoCacheProvider).clear());
+    unawaited(ref.read(appBrandingProvider.notifier).clearSnapshot());
     _prefs ??= await SharedPreferences.getInstance();
     await _prefs!.remove(_kMeta);
     ref.read(themeControllerProvider.notifier).setBrandPrimaryHex(null);
@@ -117,9 +126,23 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _applyBranding(AuthMeta meta) {
-    Future.microtask(() => ref
-        .read(themeControllerProvider.notifier)
-        .setBrandPrimaryHex(meta.primaryColor));
+    Future.microtask(() {
+      ref
+          .read(themeControllerProvider.notifier)
+          .setBrandPrimaryHex(meta.primaryColor);
+      // Keep the persisted App-appearance snapshot in sync with the latest
+      // login so a returning user sees the right school brand on splash /
+      // login even before the next network round-trip.
+      ref.read(appBrandingProvider.notifier).captureSchoolSnapshot(meta);
+      // Warm the disk cache so the brand mark renders without a network
+      // round-trip on the next launch.
+      final url = mediaUrl(meta.logoUrl);
+      if (url != null) {
+        unawaited(ref
+            .read(schoolLogoCacheProvider)
+            .preload(url, meta.schoolId));
+      }
+    });
   }
 }
 

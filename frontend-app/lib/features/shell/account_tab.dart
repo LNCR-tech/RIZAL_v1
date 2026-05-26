@@ -26,6 +26,7 @@ import '../sanctions/presentation/my_sanctions_screen.dart';
 import '../notifications/presentation/notifications_screen.dart';
 import '../student/presentation/edit_profile_screen.dart';
 import '../student/presentation/profile_screen.dart';
+import 'app_appearance_section.dart';
 import 'app_shell.dart';
 
 /// Account & settings — an iOS-style grouped surface with soft colored icon
@@ -75,6 +76,7 @@ class AccountTab extends ConsumerWidget {
                     schoolName: meta?.schoolName,
                     primaryHex: meta?.primaryColor,
                     secondaryHex: meta?.secondaryColor,
+                    schoolId: meta?.schoolId,
                     size: 56,
                   )
                 else
@@ -109,6 +111,7 @@ class AccountTab extends ConsumerWidget {
                                   schoolName: meta?.schoolName,
                                   primaryHex: meta?.primaryColor,
                                   secondaryHex: meta?.secondaryColor,
+                                  schoolId: meta?.schoolId,
                                   size: 18,
                                 ),
                                 const SizedBox(width: 6),
@@ -172,6 +175,8 @@ class AccountTab extends ConsumerWidget {
                 ref.read(motionControllerProvider.notifier).set(s.first),
           ),
         ),
+        const SizedBox(height: AppSpacing.x24),
+        const AppAppearanceSection(),
         const SizedBox(height: AppSpacing.x24),
         SettingsSection(
           header: 'Beta features',

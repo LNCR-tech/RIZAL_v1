@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/theme/app_branding_controller.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/motion_controller.dart';
 import '../core/theme/theme_controller.dart';
@@ -19,6 +20,7 @@ class AuraApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final theme = ref.watch(themeControllerProvider);
     final motionPref = ref.watch(motionControllerProvider);
+    final branding = ref.watch(appBrandingProvider);
     final osReduce = MediaQueryData.fromView(View.of(context)).disableAnimations;
     final reduceMotion = MotionController.resolve(motionPref, osReduce);
     // Keep the background geofence check-in alive for the session (notification
@@ -26,7 +28,7 @@ class AuraApp extends ConsumerWidget {
     ref.watch(geofenceBackgroundProvider);
 
     return MaterialApp.router(
-      title: 'Aura',
+      title: branding.resolvedAppName(),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(
           brandPrimary: theme.brandPrimary, reduceMotion: reduceMotion),

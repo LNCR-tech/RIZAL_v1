@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import '../network/media_url.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import 'school_logo_image.dart';
 
 /// A circular school logo inside a brand gradient ring (school primary →
-/// secondary), falling back to the school's first initial. Resolves relative
-/// `logo_url`s and uses the **secondary** brand colour so it's actually applied.
+/// secondary), falling back to the school's first initial. Resolves
+/// relative `logo_url`s and uses the **secondary** brand colour so it's
+/// actually applied.
+///
+/// Logo bytes are routed through [SchoolLogoImage] — disk-cached so the
+/// second app launch hits local storage instead of the network.
 class SchoolBadge extends StatelessWidget {
   const SchoolBadge({
     super.key,
@@ -15,6 +20,7 @@ class SchoolBadge extends StatelessWidget {
     this.size = 44,
     this.primaryHex,
     this.secondaryHex,
+    this.schoolId,
   });
 
   final String? logoUrl;
@@ -22,6 +28,7 @@ class SchoolBadge extends StatelessWidget {
   final double size;
   final String? primaryHex;
   final String? secondaryHex;
+  final int? schoolId;
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +38,7 @@ class SchoolBadge extends StatelessWidget {
     final url = mediaUrl(logoUrl);
     final name = (schoolName ?? '').trim();
     final letter = name.isNotEmpty ? name[0].toUpperCase() : 'A';
+    final fallback = _Fallback(letter, primary, size);
 
     return Container(
       width: size,
@@ -48,14 +56,14 @@ class SchoolBadge extends StatelessWidget {
         decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface),
         clipBehavior: Clip.antiAlias,
         child: url != null
-            ? Image.network(url,
+            ? SchoolLogoImage(
+                url: url,
+                schoolId: schoolId,
                 fit: BoxFit.cover,
-                gaplessPlayback: true,
-                // Show the letter while the logo loads, instead of a blank disc.
-                loadingBuilder: (_, child, progress) =>
-                    progress == null ? child : _Fallback(letter, primary, size),
-                errorBuilder: (_, __, ___) => _Fallback(letter, primary, size))
-            : _Fallback(letter, primary, size),
+                placeholder: fallback,
+                errorBuilder: (_) => fallback,
+              )
+            : fallback,
       ),
     );
   }

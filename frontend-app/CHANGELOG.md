@@ -10,6 +10,75 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-05-27
+
+### Added
+- **In-app branding swap (App appearance).** Account → **App appearance**
+  lets the user choose whether the brand mark and app name use the Aura
+  defaults or the signed-in school's logo + code. Two independent
+  `SegmentedButton<bool>` controls (Brand mark · App name) plus a live
+  preview card on top; defaults off until the user opts in. Premium
+  layout — one focused `AuraCard`, calm hierarchy, JetBrainsMono for the
+  school-code option, `AnimatedSwitcher` fade+scale between states.
+  Tiles render even when the school has no logo / code uploaded yet (the
+  toggle locks OFF with a friendly hint) so the user can see what's
+  possible. Footnote explicitly sets expectation: the **home-screen icon
+  stays as Aura** — see "Notes" below.
+- **`AppBrandingPref` + `AppBrandingController`**
+  (`lib/core/theme/app_branding_controller.dart`). Persists the two
+  toggles **plus a snapshot of the school's metadata** (code, name, logo
+  URL, primary / secondary hex, school id), refreshed every successful
+  login via `captureSchoolSnapshot(meta)`. The snapshot lets the login
+  screen and `MaterialApp.title` render the school brand on cold launch
+  before any network round-trip, so returning users never see an
+  "Aura → school" flash.
+- **`SchoolLogoCache`** (`lib/core/cache/school_logo_cache.dart`).
+  Disk-backed cache of the school logo bytes in
+  `getApplicationSupportDirectory()/school_logo_cache/`, keyed by
+  `school_id` + URL hash. After the first network fetch the logo loads
+  from disk on every subsequent app launch — no re-download, no flash of
+  the fallback initial. Web falls back to an in-memory map. Uses a fresh
+  `Dio` instance (no auth interceptor — the logo endpoint is public).
+  Cleared on logout.
+- **`SchoolLogoImage`** (`lib/core/widgets/school_logo_image.dart`).
+  `Image.network` replacement that consults `SchoolLogoCache` first and
+  writes through on miss. Used inside `SchoolBadge` so every existing
+  badge surface (account header, governance header, profile, etc.)
+  inherits the disk-caching benefit transparently.
+- **`AppBrandMark` + `AppNameText`** (`lib/core/widgets/app_brand_mark.dart`).
+  Composite widgets that pick the Aura mark / wordmark vs. the school's
+  logo / code from the `AppBrandingPref`. Drop-in for any chrome that
+  previously hardcoded `AuraLogo` + `Text('Aura')`.
+
+### Changed
+- **`SchoolBadge` accepts an optional `schoolId`** and renders the logo
+  via `SchoolLogoImage`. Callers in `account_tab.dart` pass the schoolId
+  so cache keys are stable across logo updates.
+- **`MaterialApp.title`** (`lib/app/app.dart`) is now reactive — it
+  watches `appBrandingProvider` and uses `resolvedAppName()` so the
+  title shown in the OS task switcher and browser tab follows the
+  user's choice (Aura by default, the school's code when opted in).
+- **`LoginScreen._Brand`** swaps the hardcoded `AuraLogo` chip +
+  `Text('Aura')` for `AppBrandMark` + `AppNameText`. The "Aura" import
+  on the login screen is now unused and removed.
+- **`SessionController.completeLogin`** captures the school snapshot
+  via `captureSchoolSnapshot(meta)` and fire-and-forget warms the
+  `SchoolLogoCache` with `preload(url, schoolId)`. `logout()` clears the
+  cache and snapshot but keeps the user's toggle choices so the same
+  person logging back in picks up where they left off.
+
+### Notes — what this deliberately does NOT change
+- The **OS launcher icon** (the home-screen icon you tap to open Aura)
+  stays as Aura. iOS `UIApplication.setAlternateIconName` and Android
+  activity-aliases both require pre-bundled icon variants at build time
+  — a school's uploaded logo can't become the OS icon at runtime. The
+  settings card surfaces this as a small `info_outline` footnote so
+  expectations stay correct.
+- The same constraint applies to the **OS launcher label** (the text
+  under the home-screen icon). The `MaterialApp.title` — which is what
+  shows in the task switcher / app picker / browser tab — *is*
+  reactive; the home-screen label is not.
+
 ## [1.27.2] - 2026-05-26
 
 ### Fixed (root cause for the v1.27.1 sign-in loop)
@@ -1163,6 +1232,7 @@ Phase 0 — foundation.
 - `flutter analyze` clean; `flutter test` green.
 
 [Unreleased]: #unreleased
+[1.28.0]: #1280---2026-05-27
 [1.20.1]: #1201---2026-05-23
 [1.20.0]: #1200---2026-05-23
 [1.19.0]: #1190---2026-05-23
