@@ -33,12 +33,14 @@
 **`frontend-app/integration_test/app_e2e_test.dart`**
 - Added app-level Flutter integration coverage that boots `AuraApp()` with mocked Riverpod providers.
 - Covers signed-out login behavior, password visibility, required-login validation, student shell tab navigation, and event-editor save behavior.
+- Hardened the integration harness by resetting the widget tree between app pumps, keying the `ProviderScope`, disabling Hero flights during tests, and tapping bottom navigation by stable keys instead of visible text.
 
 **`frontend-app/integration_test/real_backend_e2e_test.dart`**
 - Added a skipped-by-default mobile E2E smoke test that is enabled in CI with `AURA_RUN_BACKEND_E2E=true`.
 - Boots the actual Flutter app on the Android emulator while keeping test-only splash, beta-nav, token-store, and geofence overrides.
 - Logs in through the app UI as `student@test.com` / `TestPass123!` against the seeded FastAPI backend.
 - Verifies the student workspace loads, opens the Schedule tab, switches to Upcoming, finds `Seed Year Level Event`, and opens the real backend event detail showing `Seed Hall`.
+- Uses stable bottom-nav keys and disables Hero flights during the test run to avoid duplicate-Hero-tag failures from mounted tab stacks.
 
 **`frontend-app/test/ui_quality_test.dart`**
 - Added Flutter-side UI/UX quality checks to mirror the intent of the web Playwright UI-quality suite.
@@ -74,6 +76,7 @@
 **`frontend-app/lib/features/schoolit/presentation/event_editor_screen.dart`**
 - Moved save-payload construction through the shared event-editor payload helper.
 - Added tooltips to the date/time icon buttons: `Pick start date`, `Pick start time`, `Pick end date`, and `Pick end time`.
+- Captures `ScaffoldMessenger` before popping after save so the route does not look up ancestors from a deactivated context.
 
 **`frontend-app/lib/app/router.dart`**
 - Extracted redirect decision logic so route guard behavior can be unit-tested.

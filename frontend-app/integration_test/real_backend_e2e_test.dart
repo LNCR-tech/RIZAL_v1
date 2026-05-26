@@ -48,9 +48,12 @@ class MemoryTokenStore extends TokenStore {
 }
 
 Future<void> _pumpRealApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
   SharedPreferences.setMockInitialValues({});
   await tester.pumpWidget(
     ProviderScope(
+      key: UniqueKey(),
       overrides: [
         splashGateProvider.overrideWith(() => ReadySplashGate()),
         betaNavProvider.overrideWith(() => FixedBetaNavController()),
@@ -59,12 +62,17 @@ Future<void> _pumpRealApp(WidgetTester tester) async {
       ],
       child: DevicePreview(
         enabled: false,
-        builder: (_) => const AuraApp(),
+        builder: (_) => const HeroMode(
+          enabled: false,
+          child: AuraApp(),
+        ),
       ),
     ),
   );
   await tester.pump();
 }
+
+Finder _bottomNavTab(String label) => find.byKey(ValueKey('bottom-nav-$label'));
 
 Future<void> _pumpUntilFound(
   WidgetTester tester,
@@ -105,10 +113,10 @@ void main() {
         find.text('Hi, Test'),
         reason: 'student home after backend login',
       );
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Schedule'), findsOneWidget);
+      expect(_bottomNavTab('Home'), findsOneWidget);
+      expect(_bottomNavTab('Schedule'), findsOneWidget);
 
-      await tester.tap(find.text('Schedule').first);
+      await tester.tap(_bottomNavTab('Schedule'));
       await _pumpUntilFound(
         tester,
         find.text('Upcoming'),

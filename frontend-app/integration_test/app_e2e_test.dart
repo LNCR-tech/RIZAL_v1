@@ -145,19 +145,29 @@ Future<void> _pumpAuraApp(
   WidgetTester tester, {
   required SessionState session,
 }) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
   SharedPreferences.setMockInitialValues({});
   await tester.pumpWidget(
     ProviderScope(
+      key: UniqueKey(),
       overrides: _appOverrides(session),
       child: DevicePreview(
         enabled: false,
-        builder: (_) => const AuraApp(),
+        builder: (_) => const HeroMode(
+          enabled: false,
+          child: AuraApp(),
+        ),
       ),
     ),
   );
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 500));
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 250));
+  }
 }
+
+Finder _bottomNavTab(String label) => find.byKey(ValueKey('bottom-nav-$label'));
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -183,21 +193,21 @@ void main() {
     await _pumpAuraApp(tester, session: _studentSession);
 
     expect(find.text('Hi, E2E'), findsOneWidget);
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Schedule'), findsOneWidget);
-    expect(find.text('Scan'), findsOneWidget);
-    expect(find.text('Insights'), findsOneWidget);
-    expect(find.text('Account'), findsOneWidget);
+    expect(_bottomNavTab('Home'), findsOneWidget);
+    expect(_bottomNavTab('Schedule'), findsOneWidget);
+    expect(_bottomNavTab('Scan'), findsOneWidget);
+    expect(_bottomNavTab('Insights'), findsOneWidget);
+    expect(_bottomNavTab('Account'), findsOneWidget);
 
-    await tester.tap(find.text('Schedule'));
+    await tester.tap(_bottomNavTab('Schedule'));
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('Schedule'), findsWidgets);
 
-    await tester.tap(find.text('Scan').first);
+    await tester.tap(_bottomNavTab('Scan'));
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('No live events'), findsOneWidget);
 
-    await tester.tap(find.text('Insights').first);
+    await tester.tap(_bottomNavTab('Insights'));
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('Attendance'), findsWidgets);
   });
