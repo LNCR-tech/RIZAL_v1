@@ -82,7 +82,31 @@ class DioClient {
               return;
             }
           }
-          if (e.response?.statusCode == 401) onUnauthorized?.call();
+          if (e.response?.statusCode == 401) {
+            // Diagnostic — only in debug builds. In release this is silent so
+            // we don't leak URLs to the console.
+            if (kDebugMode) {
+              final path = e.requestOptions.path;
+              final method = e.requestOptions.method;
+              final body = e.response?.data;
+              // ignore: avoid_print
+              print(
+                'AURA 401 → $method $path '
+                '${body is Map ? body.cast<String, dynamic>()['detail'] ?? body : body}',
+              );
+            }
+            // Don't logout on 401s from login-style endpoints — those are
+            // credential failures, not session invalidations. Only authed
+            // requests should drive the session into expired state.
+            final path = e.requestOptions.path.toLowerCase();
+            final isLoginEndpoint = path.endsWith('/token') ||
+                path.endsWith('/login') ||
+                path.endsWith('/auth/google') ||
+                path.endsWith('/auth/forgot-password');
+            if (!isLoginEndpoint) {
+              onUnauthorized?.call();
+            }
+          }
           handler.next(e);
         },
       ),

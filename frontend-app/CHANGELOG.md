@@ -10,6 +10,39 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.27.1] - 2026-05-26
+
+### Fixed
+- **"Sign in flashes the dashboard then returns to login" loop.** Three
+  changes addressing the same root cause from different angles:
+  - `DioClient.onError` no longer fires `onUnauthorized` for 401s on
+    login-style endpoints (`/token`, `/login`, `/auth/google`,
+    `/auth/forgot-password`). A 401 there means "wrong credentials",
+    not "session invalidated" — calling `logout()` on the
+    already-unauthenticated state was a no-op, but the path is now
+    intentionally narrowed so future auth-flow refactors can't get this
+    wrong.
+  - `SessionController.handleUnauthorized` now honours a **3-second
+    login grace window** after `completeLogin()`. A 401 in that window
+    is ignored (likely a backend race committing the `user_sessions`
+    row, or a parallel dashboard query crossing wires with token
+    write). After 3s the normal logout-on-401 behaviour resumes.
+  - **Diagnostic 401 logging in debug builds** — the failing
+    `METHOD path → detail` is printed to console so future
+    "logged out mysteriously" reports include the actual culprit
+    endpoint without needing DevTools.
+
+### Backend (deploy required for cloud)
+- **`backend/app/services/auth_session.py` no longer silently swallows
+  `create_user_session` exceptions.** The previous `try / except
+  Exception: db.rollback()` returned a JWT to the client even when the
+  `user_sessions` row failed to insert, leaving the client with a
+  token whose `jti` was unknown to `assert_session_valid` — every
+  authed request thereafter 401'd. Now logs the exception (with stack
+  trace) and re-raises so login fails fast with a proper 500, instead
+  of producing a "ghost session" that flashes the dashboard then logs
+  the user out.
+
 ## [1.27.0] - 2026-05-26
 
 ### Added

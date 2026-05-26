@@ -40,7 +40,20 @@ class SessionState {
 /// Owns auth lifecycle: restore on launch, login, logout, and 401 handling.
 class SessionController extends Notifier<SessionState> {
   static const _kMeta = 'aura_auth_meta';
+  // Grace window after a fresh login during which transient 401s do NOT
+  // drive the session into expired state. Real causes seen in the wild:
+  //   * backend commits the UserSession row a few ms after the token
+  //     response goes out — the very first authed request races and hits
+  //     `assert_session_valid` before the INSERT lands.
+  //   * Flutter fires multiple parallel queries on dashboard mount; one
+  //     transient network blip 401s and would otherwise log out.
+  // 3 seconds is enough for the backend session table to be queryable +
+  // for Flutter's initial fan-out to settle. Real session revocations
+  // (admin invalidates a device) take much longer than 3 seconds to
+  // notice in any UX, so this trade-off is safe.
+  static const Duration _loginGrace = Duration(seconds: 3);
   SharedPreferences? _prefs;
+  DateTime? _loginAt;
 
   @override
   SessionState build() {
@@ -71,11 +84,13 @@ class SessionController extends Notifier<SessionState> {
     await ref.read(tokenStoreProvider).write(accessToken);
     _prefs ??= await SharedPreferences.getInstance();
     await _prefs!.setString(_kMeta, jsonEncode(meta.toJson()));
+    _loginAt = DateTime.now();
     state = SessionState(status: SessionStatus.authenticated, meta: meta);
     _applyBranding(meta);
   }
 
   Future<void> logout() async {
+    _loginAt = null;
     await ref.read(tokenStoreProvider).clear();
     await ref.read(cacheStoreProvider).clear();
     _prefs ??= await SharedPreferences.getInstance();
@@ -85,10 +100,20 @@ class SessionController extends Notifier<SessionState> {
   }
 
   /// Called by the Dio 401 interceptor when the token is rejected.
+  /// Honours [_loginGrace] so a transient race in the first few seconds
+  /// after login doesn't immediately log the user back out.
   void handleUnauthorized() {
-    if (state.status == SessionStatus.authenticated) {
-      logout();
+    if (state.status != SessionStatus.authenticated) return;
+    final loginAt = _loginAt;
+    if (loginAt != null &&
+        DateTime.now().difference(loginAt) < _loginGrace) {
+      // Race against the backend committing the session row, or a parallel
+      // dashboard query crossing wires with token write. Hold off on
+      // logout — if the session is *really* invalid, the next authed
+      // request after the grace window will catch it.
+      return;
     }
+    logout();
   }
 
   void _applyBranding(AuthMeta meta) {
