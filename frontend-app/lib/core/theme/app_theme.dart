@@ -56,7 +56,7 @@ class AppTheme {
           for (final p in TargetPlatform.values)
             p: reduceMotion
                 ? const _NoPageTransitionsBuilder()
-                : const CupertinoPageTransitionsBuilder(),
+                : const _AuraPageTransitionsBuilder(),
         },
       ),
       dividerTheme: DividerThemeData(color: t.border, thickness: 1, space: 1),
@@ -91,6 +91,29 @@ class AppTheme {
         labelStyle: textTheme.labelMedium?.copyWith(color: t.textSecondary),
       ),
     );
+  }
+}
+
+/// Lightweight horizontal route transition used instead of depending on a
+/// platform-specific builder export that varies across Flutter SDK versions.
+class _AuraPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _AuraPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final position = Tween<Offset>(
+      begin: const Offset(0.08, 0),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+    );
+    return SlideTransition(position: position, child: child);
   }
 }
 

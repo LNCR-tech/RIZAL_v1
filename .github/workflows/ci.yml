@@ -128,10 +128,35 @@ jobs:
             exit $?
           fi
 
+  assistant-tests:
+    name: Assistant Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install Assistant Dependencies
+        working-directory: assistant
+        run: pip install -r requirements.txt
+      - name: Run Assistant Tests
+        working-directory: assistant
+        env:
+          SECRET_KEY: test-secret-key
+          ASSISTANT_DB_URL: sqlite:///./test_assistant_ci.db
+          AI_API_KEY: test-key
+          AI_API_BASE: https://test.example.com/v1
+          AI_MODEL: test-model
+          BACKEND_API_BASE_URL: http://localhost:8000
+        run: pytest tests/
+
   e2e-tests:
     name: E2E Playwright
-    needs: [backend-tests, frontend-tests]
+    needs: [backend-tests, frontend-tests, assistant-tests]
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/pilot'
     services:
       postgres:
         image: pgvector/pgvector:pg15
@@ -188,15 +213,25 @@ jobs:
           psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
           alembic upgrade head
 
-      - name: Seed DB
-        working-directory: seeder
+      - name: Seed E2E DB
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fastapi_db
-          SEED_DATABASE: 'true'
-          SEED_CONFIRM: 'yes'
-          E2E_ADMIN_EMAIL: campus_admin@test.com
-          E2E_ADMIN_PASSWORD: TestPass123!
-        run: python seed.py --ci-mode demo --schools 1
+          SECRET_KEY: test-secret-key
+          FACE_SCAN_BYPASS_ALL: 'true'
+          RATE_LIMIT_ENABLED: 'false'
+        run: |
+          python - <<'PY'
+          from app.core.database import SessionLocal
+          from tests.conftest import _seed
+
+          db = SessionLocal()
+          try:
+              _seed(db)
+              db.commit()
+          finally:
+              db.close()
+          PY
 
       - name: Start Backend
         working-directory: backend

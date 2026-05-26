@@ -1,5 +1,8 @@
 import pytest
+from uuid import uuid4
+
 from app.utils.passwords import verify_password_bcrypt
+
 
 def test_wrong_password_rejected(client):
     r = client.post("/login", json={"email": "admin@test.com", "password": "WrongPassword!"})
@@ -25,9 +28,26 @@ def test_xss_payload_rejection(client, campus_admin_headers):
 
 def test_cross_school_data_access_blocked(client, campus_admin_headers, db_session):
     from app.models.school import School
-    other_school = School(school_code="TEST-002", legal_name="Other", display_name="Other", address="None", is_active=True)
+
+    unique = uuid4().hex[:12].upper()
+    school_code = f"TEST-{unique}"
+    other_school = School(
+        school_code=school_code,
+        legal_name=f"Other {unique}",
+        display_name=f"Other {unique}",
+        address="None",
+        is_active=True,
+    )
     db_session.add(other_school)
     db_session.commit()
+    db_session.refresh(other_school)
     
-    r = client.get(f"/api/school/admin/{other_school.id}/status", headers=campus_admin_headers)
-    assert r.status_code in [403, 404], "Campus admin should not access other schools"
+    try:
+        r = client.get(f"/api/school/admin/{other_school.id}/status", headers=campus_admin_headers)
+        assert r.status_code in [403, 404], "Campus admin should not access other schools"
+    finally:
+        db_session.rollback()
+        school = db_session.query(School).filter_by(school_code=school_code).first()
+        if school is not None:
+            db_session.delete(school)
+            db_session.commit()

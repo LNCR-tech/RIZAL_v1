@@ -89,10 +89,15 @@ class AuraButton extends StatelessWidget {
                 padding: const EdgeInsets.only(right: AppSpacing.x8),
                 child: Icon(icon, size: 18, color: fg),
               ),
-            Text(
-              label,
-              style: textTheme.labelLarge
-                  ?.copyWith(color: disabled ? fg.withOpacity(0.6) : fg),
+            Flexible(
+              fit: FlexFit.loose,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.labelLarge
+                    ?.copyWith(color: disabled ? fg.withOpacity(0.6) : fg),
+              ),
             ),
           ],
         ],
@@ -100,6 +105,8 @@ class AuraButton extends StatelessWidget {
     );
 
     return Semantics(
+      container: true,
+      excludeSemantics: true,
       button: true,
       enabled: !disabled,
       label: label,

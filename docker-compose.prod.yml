@@ -1,0 +1,245 @@
+name: rizal_v1
+
+# All production services read the same server-side environment file. Keep the
+# real file only on the VPS; commit .env.production.example instead.
+x-app-env: &app-env
+  env_file:
+    - ./.env.production
+
+# Persist user-uploaded/imported backend assets outside container lifecycles.
+x-backend-volumes: &backend-volumes
+  - import_storage:/app/storage/imports
+  - branding_storage:/app/storage/school_logos
+  - insightface_storage:/home/appuser/.insightface
+
+# Rotate Docker JSON logs so a noisy service cannot fill the VPS disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  # Internal database only. No host port is published in production.
+  db:
+    build:
+      context: ./database
+    image: aura-postgres:prod
+    restart: unless-stopped
+    <<: *app-env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-fastapi_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+
+  # Internal broker/cache only. Append-only mode gives Redis a restart buffer.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  # One-shot schema migration job. App containers wait for this to complete.
+  migrate:
+    build:
+      context: ./backend
+    image: aura-backend:${APP_ENV:-prod}
+    restart: "no"
+    command: alembic upgrade heads
+    <<: *app-env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *default-logging
+
+  # One-shot bootstrap job for required default records/admin setup.
+  bootstrap:
+    image: aura-backend:${APP_ENV:-prod}
+    restart: "no"
+    command: python bootstrap.py
+    <<: *app-env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *default-logging
+
+  # Public backend API. Preserve current host port 8001.
+  backend:
+    image: aura-backend:${APP_ENV:-prod}
+    restart: unless-stopped
+    <<: *app-env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+      SERVICE_MODE: web
+      PORT: 8000
+      RUN_MIGRATIONS_ON_START: "false"
+      RUN_CELERY_WORKER: "false"
+      RUN_CELERY_BEAT: "false"
+    ports:
+      - "8001:8000"
+    volumes: *backend-volumes
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    logging: *default-logging
+
+  # Background task processor. It reuses the backend image for consistency.
+  worker:
+    image: aura-backend:${APP_ENV:-prod}
+    restart: unless-stopped
+    command: >-
+      sh -c 'exec celery -A app.workers.celery_app.celery_app worker
+      --loglevel="$${CELERY_LOGLEVEL:-info}"
+      --pool "$${CELERY_WORKER_POOL:-solo}"
+      --concurrency "$${CELERY_WORKER_CONCURRENCY:-1}"'
+    <<: *app-env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+    volumes: *backend-volumes
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    logging: *default-logging
+
+  # Celery scheduler for periodic jobs.
+  beat:
+    image: aura-backend:${APP_ENV:-prod}
+    restart: unless-stopped
+    command: >-
+      sh -c 'exec celery -A app.workers.celery_app.celery_app beat
+      --loglevel="$${CELERY_LOGLEVEL:-info}"
+      --schedule /tmp/celerybeat-schedule'
+    <<: *app-env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    logging: *default-logging
+
+  # Assistant API. Preserve current host port 8500.
+  local-llm:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    command:
+      - -m
+      - /models/${LOCAL_AI_MODEL_FILE:-jose.gguf}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8091"
+      - --jinja
+      - --alias
+      - ${LOCAL_AI_MODEL:-jose-ai}
+      - -c
+      - ${LOCAL_AI_CONTEXT_TOKENS:-8192}
+    volumes:
+      - ${LOCAL_AI_MODEL_PATH:-./jose.gguf}:/models/${LOCAL_AI_MODEL_FILE:-jose.gguf}:ro
+    ports:
+      - "127.0.0.1:8091:8091"
+    expose:
+      - "8091"
+    logging: *default-logging
+
+  assistant:
+    build:
+      context: ./assistant
+    image: aura-assistant:${APP_ENV:-prod}
+    restart: unless-stopped
+    <<: *app-env
+    environment:
+      AI_PROVIDER: openai
+      AI_API_BASE: http://local-llm:8091/v1
+      AI_MODEL: ${LOCAL_AI_MODEL:-jose-ai}
+      AI_API_KEY: ${LOCAL_AI_API_KEY:-sk-noop}
+      LOCAL_FAST_MODE: ${LOCAL_FAST_MODE:-1}
+    ports:
+      - "8500:8500"
+    depends_on:
+      local-llm:
+        condition: service_started
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8500/health', timeout=3).read()\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  # Static frontend served by nginx. Preserve current host port 5173.
+  frontend:
+    build:
+      context: ./frontend-web
+      args:
+        VITE_API_BASE_URL: /__backend__/
+        VITE_API_TIMEOUT_MS: ${AURA_API_TIMEOUT_MS:-15000}
+    image: aura-frontend:${APP_ENV:-prod}
+    restart: unless-stopped
+    <<: *app-env
+    environment:
+      BACKEND_ORIGIN: ${BACKEND_ORIGIN:-http://backend:8000}
+      ASSISTANT_ORIGIN: ${ASSISTANT_ORIGIN:-http://assistant:8500}
+      AURA_API_BASE_URL: ${AURA_API_BASE_URL:-/__backend__}
+      AURA_API_TIMEOUT_MS: ${AURA_API_TIMEOUT_MS:-15000}
+      AURA_ASSISTANT_BASE_URL: ${AURA_ASSISTANT_BASE_URL:-/__assistant__}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  redis_data:
+  import_storage:
+  branding_storage:
+  insightface_storage:

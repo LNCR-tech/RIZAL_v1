@@ -60,9 +60,13 @@ The assistant only needs an OpenAI-compatible endpoint — pick one:
 
 **a) Self-host Jose AI (`jose.gguf`)** — get the `jose.gguf` file from **Zann** (the
 maintainer; it is not in the repo), ship it to the box (~1 GB; e.g. via S3 or scp),
-then run llama.cpp as its own service bound to localhost:
+then run llama.cpp as its own service. In the production Compose stack, place the
+model at `/opt/aura/jose.gguf`; `docker-compose.prod.yml` starts
+the internal `local-llm` service and points the assistant at it automatically.
+
+Standalone command equivalent:
 ```bash
-llama-server -m /opt/aura/assistant/models/jose.gguf \
+llama-server -m /opt/aura/jose.gguf \
   --host 127.0.0.1 --port 8091 --jinja --alias jose-ai
 ```
 `--jinja` is required for **charts** (tool-calling). CPU works for 1.5B but is slow

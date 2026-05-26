@@ -9,6 +9,12 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 `pubspec.yaml` `version:` tracks the latest entry as `<semver>+<build>`.
 
 ## [Unreleased]
+### Added
+- Added `test/web_parity_contract_test.dart`, a Flutter-side parity contract
+  suite that mirrors the current frontend-web automated test intentions one for
+  one. The suite defines 171 app contracts: 103 unit-test equivalents and 68
+  workflow/UI equivalents. It intentionally checks for real Flutter app source
+  surfaces instead of passing against copied web/test-only helper behavior.
 
 ## [1.25.0] - 2026-05-26
 

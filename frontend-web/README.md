@@ -29,9 +29,9 @@ This repo ships with a production-style Docker setup so the frontend can be demo
 - `docker-compose.yml`
   Starts the demo container and maps the app to a local port.
 - `nginx.conf.template`
-  Handles SPA routing and proxies backend requests from `/__backend__` to the configured backend origin.
+  Handles SPA routing and proxies backend requests from `/__backend__` plus assistant requests from `/__assistant__` to the configured service origins.
 - `runtime-config.js.template`
-  Generates the runtime backend configuration file so the same build can point to a different cloud backend later.
+  Generates the runtime backend and assistant configuration file so the same build can point to different cloud services later.
 - `public/runtime-config.js`
   Safe browser fallback for local development when no runtime override is injected.
 - `.env.example`
@@ -40,7 +40,7 @@ This repo ships with a production-style Docker setup so the frontend can be demo
 ### Container
 
 - `aura-web`
-  Serves the built Aura frontend on port `80`, keeps Vue Router working with `try_files`, forwards API requests to the external backend through `/__backend__`, and injects runtime backend config on container start.
+  Serves the built Aura frontend on port `80`, keeps Vue Router working with `try_files`, forwards API requests through `/__backend__`, forwards assistant SSE requests through `/__assistant__`, and injects runtime service config on container start.
 
 ### Start
 
@@ -48,17 +48,20 @@ This repo ships with a production-style Docker setup so the frontend can be demo
 2. Set `BACKEND_ORIGIN` to the backend root URL.
    Use the host root, not the `/api` suffix.
    Example: `https://your-ngrok-host.ngrok-free.dev`
-3. Optional:
+3. Set `ASSISTANT_ORIGIN` to the assistant root URL.
+   Example: `http://assistant:8500` in Docker or `https://assistant.example.com` for a separate service.
+4. Optional:
    - keep `AURA_API_BASE_URL=/__backend__` to use the built-in nginx proxy
+   - keep `AURA_ASSISTANT_BASE_URL=/__assistant__` to use the built-in assistant proxy
    - or set `AURA_API_BASE_URL=https://your-cloud-api.example.com` to call the cloud API directly from the browser
-   - if you use a direct cloud URL, make sure the backend allows your frontend origin with CORS
-4. Run:
+   - if you use a direct cloud URL, make sure the backend or assistant allows your frontend origin with CORS
+5. Run:
 
 ```bash
 docker compose --env-file .env.docker up --build -d
 ```
 
-5. Open:
+6. Open:
 
 ```text
 http://localhost:8080
@@ -84,6 +87,12 @@ The frontend now resolves the backend in this order:
 
 This means you can keep one frontend build and change only runtime config when the backend moves.
 
+The assistant uses the same runtime pattern:
+
+1. `window.__AURA_RUNTIME_CONFIG__.assistantBaseUrl`
+2. `VITE_ASSISTANT_BASE_URL`
+3. default proxy path `/__assistant__`
+
 ### Local Vite development
 
 Use a proxy target in `.env.development.local`:
@@ -99,7 +108,9 @@ Use the nginx proxy:
 
 ```env
 BACKEND_ORIGIN=https://your-cloud-backend.example.com
+ASSISTANT_ORIGIN=https://your-assistant.example.com
 AURA_API_BASE_URL=/__backend__
+AURA_ASSISTANT_BASE_URL=/__assistant__
 ```
 
 ### Static / cloud frontend hosting
@@ -110,6 +121,7 @@ Publish a `runtime-config.js` alongside the built app with:
 window.__AURA_RUNTIME_CONFIG__ = {
   apiBaseUrl: "https://your-cloud-backend.example.com",
   apiTimeoutMs: 15000,
+  assistantBaseUrl: "https://your-assistant.example.com",
 };
 ```
 

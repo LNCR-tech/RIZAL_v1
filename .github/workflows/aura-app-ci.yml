@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Integration Test
+        run: flutter test integration_test
+
   build-android:
     runs-on: ubuntu-latest
     needs: analyze-test
@@ -55,3 +58,40 @@ jobs:
       # Endpoints are injected at build time; CI builds with the emulator default.
       - name: Build debug APK
         run: flutter build apk --debug
+
+      - name: Enable KVM group permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and launch debug APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          working-directory: frontend-app
+          script: |
+            apk="build/app/outputs/flutter-apk/app-debug.apk"
+            package="com.aura.aura_app"
+
+            dump_logs() {
+              adb logcat -d -t 300 || true
+            }
+
+            adb logcat -c || true
+            adb install -r -t -g "$apk" || {
+              dump_logs
+              exit 1
+            }
+            adb shell am start -W -n "$package/.MainActivity" || {
+              dump_logs
+              exit 1
+            }
+            sleep 10
+
+            adb shell pidof "$package" || {
+              dump_logs
+              exit 1
+            }

@@ -8,21 +8,29 @@ class GeoFix {
   final double? accuracy;
 }
 
-/// Thin wrapper over geolocator with permission handling. Returns null when
-/// location is unavailable or denied (callers decide if it's required).
-class GeolocationService {
-  Future<GeoFix?> current() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return null;
+abstract class GeolocationPlatform {
+  Future<bool> isLocationServiceEnabled();
+  Future<LocationPermission> checkPermission();
+  Future<LocationPermission> requestPermission();
+  Future<GeoFix> getCurrentPosition();
+}
 
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return null;
-    }
+class GeolocatorPlatformAdapter implements GeolocationPlatform {
+  const GeolocatorPlatformAdapter();
 
+  @override
+  Future<bool> isLocationServiceEnabled() =>
+      Geolocator.isLocationServiceEnabled();
+
+  @override
+  Future<LocationPermission> checkPermission() => Geolocator.checkPermission();
+
+  @override
+  Future<LocationPermission> requestPermission() =>
+      Geolocator.requestPermission();
+
+  @override
+  Future<GeoFix> getCurrentPosition() async {
     final pos = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
@@ -30,5 +38,28 @@ class GeolocationService {
   }
 }
 
+/// Thin wrapper over geolocator with permission handling. Returns null when
+/// location is unavailable or denied (callers decide if it's required).
+class GeolocationService {
+  const GeolocationService([this._platform = const GeolocatorPlatformAdapter()]);
+
+  final GeolocationPlatform _platform;
+
+  Future<GeoFix?> current() async {
+    if (!await _platform.isLocationServiceEnabled()) return null;
+
+    var permission = await _platform.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await _platform.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return null;
+    }
+
+    return _platform.getCurrentPosition();
+  }
+}
+
 final geolocationServiceProvider =
-    Provider<GeolocationService>((ref) => GeolocationService());
+    Provider<GeolocationService>((ref) => const GeolocationService());

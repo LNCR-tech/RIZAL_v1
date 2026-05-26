@@ -177,6 +177,9 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           for (var i = 0; i < n; i++)
                             Expanded(
                               child: _NavItem(
+                                key: ValueKey(
+                                  'bottom-nav-${widget.items[i].label}',
+                                ),
                                 item: widget.items[i],
                                 active: i == activeIndex,
                                 activeColor: primary,
@@ -220,13 +223,26 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           child: Transform.scale(scale: scale, child: child),
                         );
                       },
-                      // The blob's glass. On device (Impeller) it really
-                      // refracts the icons behind it; on web — where the
-                      // refraction shader isn't available — it falls back to a
-                      // fake magnifying lens (see _BlobGlass). IgnorePointer so
-                      // taps still reach the icons underneath.
+                      // Now that the icons are behind it, the blob actually
+                      // refracts them (FluidGlass-style lens). Tuned for a clearly
+                      // visible bend + chromatic edges — nudge these to taste.
                       child: const IgnorePointer(
-                        child: _BlobGlass(borderRadius: _blobH / 2),
+                        child: LiquidGlass.withOwnLayer(
+                          glassContainsChild: false,
+                          shape:
+                              LiquidRoundedSuperellipse(borderRadius: _blobH / 2),
+                          settings: LiquidGlassSettings(
+                            blur: 0,
+                            thickness: 24,
+                            refractiveIndex: 1.4,
+                            chromaticAberration: 4,
+                            glassColor: Color(0x0DFFFFFF),
+                            lightAngle: 1.5708,
+                            lightIntensity: 2.2,
+                            saturation: 1.25,
+                          ),
+                          child: SizedBox.expand(),
+                        ),
                       ),
                     ),
                   ],
@@ -242,6 +258,7 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    super.key,
     required this.item,
     required this.active,
     required this.activeColor,
@@ -256,10 +273,12 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = active ? activeColor : Colors.white.withOpacity(0.64);
     return Semantics(
+      container: true,
       button: true,
       selected: active,
       label: item.label,
-      child: GestureDetector(
+      child: ExcludeSemantics(
+        child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Center(
@@ -292,93 +311,7 @@ class _NavItem extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The blob's glass. Picks the best available technique for the platform:
-///
-/// * **Device (Impeller — iOS / most Android):** the real [LiquidGlass]
-///   backdrop-refraction shader, which bends the icons painted behind it.
-/// * **Web (Skia/CanvasKit):** the refraction shader isn't supported there
-///   (`ImageFilter.isShaderFilterSupported == false`), so we fall back to a
-///   *fake* magnifying lens ([_FakeLensBlob]) that zooms the live backdrop —
-///   the closest glass-like effect web can render. Not 1:1 with the real shader.
-class _BlobGlass extends StatelessWidget {
-  const _BlobGlass({required this.borderRadius});
-
-  final double borderRadius;
-
-  @override
-  Widget build(BuildContext context) {
-    if (ImageFilter.isShaderFilterSupported) {
-      return LiquidGlass.withOwnLayer(
-        glassContainsChild: false,
-        shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
-        settings: const LiquidGlassSettings(
-          blur: 0,
-          thickness: 24,
-          refractiveIndex: 1.4,
-          chromaticAberration: 4,
-          glassColor: Color(0x0DFFFFFF),
-          lightAngle: 1.5708,
-          lightIntensity: 2.2,
-          saturation: 1.25,
-        ),
-        child: const SizedBox.expand(),
-      );
-    }
-    return _FakeLensBlob(borderRadius: borderRadius);
-  }
-}
-
-/// Web fallback: a magnifying-glass lens. [RawMagnifier] samples the backdrop
-/// (the icons behind the blob) and zooms it via a backdrop *matrix* filter,
-/// which web DOES support (unlike the refraction shader). A sheen + bright edge
-/// keep it reading as a glass capsule.
-class _FakeLensBlob extends StatelessWidget {
-  const _FakeLensBlob({required this.borderRadius});
-
-  final double borderRadius;
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(borderRadius);
-    return LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth.isFinite ? c.maxWidth : 0.0;
-        final h = c.maxHeight.isFinite ? c.maxHeight : 0.0;
-        if (w <= 0 || h <= 0) return const SizedBox.shrink();
-        return ClipRRect(
-          borderRadius: radius,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              RawMagnifier(
-                size: Size(w, h),
-                magnificationScale: 1.4,
-                decoration: const MagnifierDecoration(shape: StadiumBorder()),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: radius,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.30),
-                      Colors.white.withOpacity(0.04),
-                      Colors.white.withOpacity(0.18),
-                    ],
-                  ),
-                  border:
-                      Border.all(color: Colors.white.withOpacity(0.45), width: 1),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      ),
     );
   }
 }

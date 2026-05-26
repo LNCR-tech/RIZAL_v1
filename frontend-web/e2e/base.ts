@@ -57,9 +57,82 @@ function normalizeOrigin(value: string): string {
   }
 }
 
+const mockDepartments = [
+  { id: 1, name: "College of Engineering", code: "COE", school_id: 1 },
+  { id: 2, name: "College of Business", code: "COB", school_id: 1 },
+];
+
+const mockPrograms = [
+  { id: 1, name: "BS Computer Science", code: "BSCS", school_id: 1, department_id: 1 },
+  { id: 2, name: "BS Information Technology", code: "BSIT", school_id: 1, department_id: 1 },
+];
+
+const mockEvents = [
+  {
+    id: 1,
+    name: "E2E Orientation",
+    title: "E2E Orientation",
+    description: "Mock event used by Playwright UI checks.",
+    location_name: "Main Hall",
+    start_time: "2026-05-23T09:00:00Z",
+    end_time: "2026-05-23T11:00:00Z",
+    status: "upcoming",
+    school_id: 1,
+    require_geofence: false,
+    latitude: null,
+    longitude: null,
+    radius_meters: null,
+    event_targets: [{ scope_type: "ALL" }],
+  },
+];
+
+const mockAdminSchools = [
+  {
+    school_id: 1,
+    id: 1,
+    school_name: "Test University",
+    school_code: "TEST-001",
+    subscription_status: "trial",
+    active_status: true,
+    primary_color: "#162F65",
+    secondary_color: "#2C5F9E",
+    accent_color: "#000000",
+  },
+];
+
+const mockSchoolItAccounts = [
+  {
+    id: 201,
+    user_id: 201,
+    email: "campus_admin@test.com",
+    first_name: "Campus",
+    last_name: "Admin",
+    school_id: 1,
+    school_name: "Test University",
+    is_active: true,
+    roles: ["campus_admin"],
+  },
+];
+
+const mockGovernanceUnit = {
+  id: 7001,
+  governance_unit_id: 7001,
+  unit_code: "SSG",
+  unit_name: "Supreme Student Government",
+  unit_type: "SSG",
+  school_id: 1,
+  is_active: true,
+  permission_codes: ["manage_events", "manage_members", "assign_permissions"],
+};
+
 async function installMockAuthRoutes(page: import("@playwright/test").Page): Promise<void> {
   const sessions = new Map<string, MockSession>();
   const backendOrigin = normalizeOrigin(mockBackendBaseUrl);
+
+  const isMockBackendRequest = (request: import("@playwright/test").Request): boolean => {
+    if (!backendOrigin) return false;
+    return normalizeOrigin(request.url()) === backendOrigin;
+  };
 
   const readSessionFromRequest = (request: import("@playwright/test").Request): MockSession | null => {
     const authorization = request.headers()["authorization"] || request.headers()["Authorization"] || "";
@@ -113,27 +186,64 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
     }
 
     if (path === "/api/governance/access/me") {
-      await fulfillJson(route, { units: [], memberships: [] });
+      await fulfillJson(route, {
+        user_id: readSessionFromRequest(route.request())?.userId ?? 1,
+        school_id: 1,
+        permission_codes: ["manage_events", "manage_members", "assign_permissions"],
+        units: [mockGovernanceUnit],
+        memberships: [mockGovernanceUnit],
+      });
       return;
     }
 
     if (
       path === "/api/departments" ||
-      path === "/departments" ||
+      path === "/departments"
+    ) {
+      await fulfillJson(route, mockDepartments);
+      return;
+    }
+
+    if (
       path === "/api/programs" ||
-      path === "/programs" ||
+      path === "/programs"
+    ) {
+      await fulfillJson(route, mockPrograms);
+      return;
+    }
+
+    if (
       path === "/api/users" ||
-      path === "/users" ||
-      path === "/api/governance/units" ||
-      path === "/attendance/summary"
+      path === "/users"
     ) {
       await fulfillJson(route, []);
       return;
     }
 
+    if (path === "/api/governance/units") {
+      await fulfillJson(route, [mockGovernanceUnit]);
+      return;
+    }
+
+    if (path === "/api/governance/students") {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (path === "/attendance/summary" || path === "/api/attendance/summary") {
+      await fulfillJson(route, {
+        total_records: 0,
+        present_count: 0,
+        absent_count: 0,
+        late_count: 0,
+        attendance_rate: 0,
+      });
+      return;
+    }
+
     if (path === "/api/governance/ssg/setup") {
       await fulfillJson(route, {
-        unit: null,
+        unit: mockGovernanceUnit,
         members: [],
         candidates: [],
         elections: [],
@@ -147,10 +257,61 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
       return;
     }
 
+    if (path === "/api/school/admin/list") {
+      await fulfillJson(route, mockAdminSchools);
+      return;
+    }
+
+    if (path === "/api/school/admin/school-it-accounts") {
+      await fulfillJson(route, mockSchoolItAccounts);
+      return;
+    }
+
+    if (path === "/api/audit-logs") {
+      await fulfillJson(route, { data: [], total: 0, page: 1, total_pages: 1, limit: 25 });
+      return;
+    }
+
+    if (path === "/api/notifications/logs") {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (path === "/api/governance/settings/me") {
+      await fulfillJson(route, {
+        school_id: 1,
+        allow_sg_event_creation: true,
+        allow_org_event_creation: true,
+        require_event_approval: false,
+        retention_days: 365,
+      });
+      return;
+    }
+
+    if (path === "/api/governance/requests") {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (/^\/api\/governance\/units\/\d+$/.test(path)) {
+      await fulfillJson(route, mockGovernanceUnit);
+      return;
+    }
+
+    if (/^\/api\/governance\/units\/\d+\/announcements$/.test(path)) {
+      await fulfillJson(route, []);
+      return;
+    }
+
     await route.fallback();
   });
 
   await page.route(/\/(?:api\/)?token(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
     if (route.request().method().toUpperCase() !== "POST") {
       await route.fallback();
       return;
@@ -211,6 +372,11 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
   });
 
   await page.route(/\/(?:api\/)?users\/me\/?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
     if (route.request().method().toUpperCase() !== "GET") {
       await route.fallback();
       return;
@@ -263,6 +429,11 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
   });
 
   await page.route(/\/api\/school(?:-settings)?\/me\/?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
     if (route.request().method().toUpperCase() !== "GET") {
       await route.fallback();
       return;
@@ -290,6 +461,11 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
   });
 
   await page.route(/\/(?:api\/)?events\/?(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
     if (route.request().method().toUpperCase() !== "GET") {
       await route.fallback();
       return;
@@ -298,11 +474,79 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([]),
+      body: JSON.stringify(mockEvents),
+    });
+  });
+
+  await page.route(/\/(?:api\/)?events\/\d+\/?(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
+    if (route.request().method().toUpperCase() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockEvents[0]),
+    });
+  });
+
+  await page.route(/\/(?:api\/)?events\/\d+\/time-status\/?(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
+    if (route.request().method().toUpperCase() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        event_id: 1,
+        status: "upcoming",
+        is_check_in_open: false,
+        is_sign_out_open: false,
+      }),
+    });
+  });
+
+  await page.route(/\/api\/attendance\/events\/\d+\/(?:report|attendances|attendances-with-students)\/?(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
+    if (route.request().method().toUpperCase() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    const url = new URL(route.request().url());
+    const isReport = /\/report\/?$/i.test(url.pathname);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(isReport
+        ? { rows: [], total: 0, present: 0, absent: 0, late: 0 }
+        : []),
     });
   });
 
   await page.route(/\/api\/attendance\/(?:me\/records|students\/me)\/?(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
     if (route.request().method().toUpperCase() !== "GET") {
       await route.fallback();
       return;
@@ -315,7 +559,33 @@ async function installMockAuthRoutes(page: import("@playwright/test").Page): Pro
     });
   });
 
+  await page.route(/\/(?:api\/)?logos\/aura\.png(?:\?.*)?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
+    if (route.request().method().toUpperCase() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+  });
+
   await page.route(/\/(?:api\/)?auth\/security\/face-status\/?$/i, async (route) => {
+    if (!isMockBackendRequest(route.request())) {
+      await route.fallback();
+      return;
+    }
+
     if (route.request().method().toUpperCase() !== "GET") {
       await route.fallback();
       return;
@@ -346,6 +616,10 @@ export const test = base.extend<{ strictPage: import("@playwright/test").Page }>
       /favicon\.ico/i, // missing favicon
       /Third-party cookie will be blocked/i, // browser warning
       /AuraChatWindow/i, // some ai demo component warning
+      /dotlottie-player\.wasm/i, // CDN fallback warning from login animation
+      /Primary WASM load failed/i, // CDN fallback warning from login animation
+      /Attempting to load WASM from backup URL/i, // CDN fallback warning from login animation
+      /GL Driver Message.*ReadPixels/i, // browser/WebGL performance noise from animated login visuals
       /Failed to load resource.*401/i, // expected during auth failure paths
       /Failed to load resource.*429/i, // expected if hitting rate limits
     ];

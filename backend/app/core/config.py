@@ -409,8 +409,16 @@ def get_settings() -> Settings:
         school_logo_max_file_size_mb=APP_SETTINGS.school_logo_max_file_size_mb,
         school_logo_public_prefix=APP_SETTINGS.school_logo_public_prefix,
         cors_allowed_origins=cors_allowed_origins,
-        default_admin_email=os.getenv("DEFAULT_ADMIN_EMAIL", APP_SETTINGS.default_admin_email).strip(),
-        default_admin_password=os.getenv("DEFAULT_ADMIN_PASSWORD", APP_SETTINGS.default_admin_password),
+        default_admin_email=(
+            os.getenv("DEFAULT_ADMIN_EMAIL")
+            or os.getenv("ADMIN_EMAIL")
+            or APP_SETTINGS.default_admin_email
+        ).strip(),
+        default_admin_password=(
+            os.getenv("DEFAULT_ADMIN_PASSWORD")
+            or os.getenv("ADMIN_PASSWORD")
+            or APP_SETTINGS.default_admin_password
+        ),
         google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),
         google_web_client_id=os.getenv("GOOGLE_WEB_CLIENT_ID", "").strip(),
         google_android_client_id=os.getenv("GOOGLE_ANDROID_CLIENT_ID", "").strip(),

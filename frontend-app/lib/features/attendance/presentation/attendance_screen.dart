@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,13 +9,9 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/states.dart';
 import '../../../shared/models/event.dart';
+import '../application/attendance_scan_flow.dart';
 import '../data/attendance_repository.dart';
 import 'attendance_result_sheet.dart';
-
-class _AttendanceError {
-  const _AttendanceError(this.message);
-  final String message;
-}
 
 /// Face-scan attendance: front-camera capture + geolocation → backend.
 class AttendanceScreen extends ConsumerStatefulWidget {
@@ -98,18 +92,20 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     });
     try {
       final geo = await ref.read(geolocationServiceProvider).current();
-      if (widget.event.geoRequired && geo == null) {
-        throw const _AttendanceError(
-            'Location is required for this event. Enable location access and try again.');
-      }
+      validateAttendanceScanLocation(event: widget.event, geo: geo);
       final shot = await controller.takePicture();
       final bytes = await shot.readAsBytes();
+      final request = buildAttendanceScanRequest(
+        event: widget.event,
+        imageBytes: bytes,
+        geo: geo,
+      );
       final result = await ref.read(attendanceRepositoryProvider).faceScan(
-            eventId: widget.event.id,
-            imageBase64: base64Encode(bytes),
-            latitude: geo?.latitude,
-            longitude: geo?.longitude,
-            accuracyM: geo?.accuracy,
+            eventId: request.eventId,
+            imageBase64: request.imageBase64,
+            latitude: request.latitude,
+            longitude: request.longitude,
+            accuracyM: request.accuracyM,
           );
       if (!mounted) return;
       HapticFeedback.mediumImpact();
@@ -122,7 +118,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
-    } on _AttendanceError catch (e) {
+    } on AttendanceScanFlowError catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) {

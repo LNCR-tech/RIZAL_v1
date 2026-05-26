@@ -24,6 +24,9 @@
     "android:build:release": "npm run android:sync && cd aura-apk\\android && gradlew.bat assembleRelease",
     "test:e2e": "playwright test",
     "test:e2e:preview": "playwright test e2e/preview-smoke.spec.ts",
+    "test:e2e:critical": "playwright test e2e/frontend-backend.spec.js e2e/rbac.spec.ts e2e/preview-smoke.spec.ts",
+    "test:e2e:uiux": "node ./scripts/run-playwright-suite.mjs --mock-auth e2e/workflows --workers=1",
+    "test:e2e:uiux:backend": "node ./scripts/run-playwright-suite.mjs --require-backend e2e/workflows --workers=1",
     "playwright:install": "playwright install chromium",
     "playwright:install:ci": "playwright install --with-deps chromium"
   },
