@@ -577,32 +577,61 @@ Files under `frontend-app/test/` cover:
 
 File:
 - `frontend-app/integration_test/app_e2e_test.dart`
+- `frontend-app/integration_test/real_backend_e2e_test.dart`
 
 What it contains:
 - Signed-out app lands on login and exposes controls
 - Student shell tab navigation
 - Event editor edit flow saves through the event repository
+- Real-backend mobile smoke path: student logs in through the Flutter UI,
+  opens the Schedule tab, loads the seeded backend event, and opens event detail
 
 Current CI behavior:
 - `flutter test integration_test -d emulator-5554` runs inside the Android
   emulator job, because Flutter integration tests need a real connected device
   and cannot run against the Linux runner's web device.
-- These tests use mocked app providers and verify app-level user flows without
-  depending on the real backend.
+- The mocked-provider integration tests still verify app-level user flows
+  without depending on the backend.
+- The real-backend E2E test is skipped by default unless
+  `--dart-define=AURA_RUN_BACKEND_E2E=true` is supplied.
+- In CI, `.github/workflows/aura-app-ci.yml` starts PostgreSQL, Redis, applies
+  Alembic migrations, seeds the backend test data, starts FastAPI on port
+  `8000`, then runs the Flutter app against `http://10.0.2.2:8000`.
 
 ### Android APK Build And Launch Smoke
 
 Workflow job: `build-android`
 
 What it installs:
+- Python 3.12 and backend dependencies for the mobile E2E backend
 - Java 17
 - Flutter stable
 - Flutter dependencies
 
 What it runs:
 ```bash
+cd backend
+pip install -r requirements.txt
+psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE fastapi_db;"
+alembic upgrade head
+python - <<'PY'
+from app.core.database import SessionLocal
+from tests.conftest import _seed
+
+db = SessionLocal()
+try:
+    _seed(db)
+    db.commit()
+finally:
+    db.close()
+PY
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+cd frontend-app
 flutter pub get
-flutter build apk --debug
+flutter build apk --debug \
+  --dart-define=AURA_API_BASE_URL=http://10.0.2.2:8000 \
+  --dart-define=AURA_API_TIMEOUT_MS=30000
 ```
 
 Then it runs an Android emulator:
@@ -611,15 +640,21 @@ Then it runs an Android emulator:
 - Pixel 6 profile
 
 Inside the emulator job, CI:
-- Runs `flutter test integration_test -d emulator-5554`
+- Runs `flutter test integration_test -d emulator-5554` with
+  `AURA_RUN_BACKEND_E2E=true`
 - Installs `build/app/outputs/flutter-apk/app-debug.apk`
 - Launches `com.aura.aura_app/.MainActivity`
 - Waits 10 seconds
 - Checks `adb shell pidof com.aura.aura_app`
 - Dumps recent `logcat` output on failure
+- Uploads `backend/backend.log` as a short-retention artifact
 
 What this catches:
 - Flutter integration test failures from `frontend-app/integration_test/`
+- Student login regressions between the Flutter app and the real FastAPI backend
+- Mobile API base URL wiring failures
+- Backend seeded event visibility regressions in the Flutter schedule
+- Event-detail navigation failures after loading backend data
 - Android build failures
 - Gradle/native build failures
 - Flutter dependency/codegen issues
@@ -628,9 +663,9 @@ What this catches:
 - Immediate runtime crash after launch
 
 What it does not prove:
-- Full user login flow on a real backend
 - Every screen navigation path
 - Every workflow inside the separately installed smoke-test APK
+- Production deployed-server health
 
 ## Assistant CI
 
@@ -769,8 +804,8 @@ and Flutter APK build/launch.
 Current gaps:
 - No strict endpoint-by-endpoint API coverage audit.
 - Playwright E2E is skipped on `integrate/pilot-merge`.
-- Flutter integration tests run on the emulator with mocked providers; the
-  separate APK launch remains a smoke check, not a real-backend login test.
+- Flutter now has one real-backend mobile E2E smoke path, but it is not yet a
+  complete mobile workflow suite for every role and feature.
 
 ## Practical Interpretation
 

@@ -7,13 +7,22 @@
 **`.github/workflows/aura-app-ci.yml`**
 - Runs the Flutter app CI on pushes to `main`, `develop`, `feature/*`, and `integrate/pilot-merge`, with manual `workflow_dispatch` support.
 - Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, then `flutter test`.
+- Added real-backend setup to the Android job:
+  - Starts PostgreSQL with `pgvector/pgvector:pg15`.
+  - Starts Redis with `redis:7-alpine`.
+  - Installs backend Python dependencies.
+  - Creates `fastapi_db`.
+  - Runs Alembic migrations.
+  - Seeds the backend test data from `backend/tests/conftest.py`.
+  - Starts FastAPI on port `8000` for the emulator.
 - Extended the Android job after `flutter build apk --debug` with emulator-based integration and smoke checks:
   - Enables KVM permissions on the GitHub runner.
   - Starts an Android API 35 x86_64 emulator through `reactivecircus/android-emulator-runner@v2`.
-  - Runs `flutter test integration_test -d emulator-5554` on the connected emulator.
+  - Runs `flutter test integration_test -d emulator-5554` on the connected emulator with `AURA_RUN_BACKEND_E2E=true`.
   - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
   - Launches `com.aura.aura_app/.MainActivity`.
   - Waits briefly and fails with recent `logcat` output if the app process is not alive.
+  - Uploads `backend/backend.log` as a short-retention artifact for mobile E2E failures.
 - CD/deployment workflows remain manual-only through `workflow_dispatch`; pushing to `integrate/pilot-merge` runs CI, not deployment.
 
 ### Flutter App Test Coverage
@@ -24,6 +33,12 @@
 **`frontend-app/integration_test/app_e2e_test.dart`**
 - Added app-level Flutter integration coverage that boots `AuraApp()` with mocked Riverpod providers.
 - Covers signed-out login behavior, password visibility, required-login validation, student shell tab navigation, and event-editor save behavior.
+
+**`frontend-app/integration_test/real_backend_e2e_test.dart`**
+- Added a skipped-by-default mobile E2E smoke test that is enabled in CI with `AURA_RUN_BACKEND_E2E=true`.
+- Boots the actual Flutter app on the Android emulator while keeping test-only splash, beta-nav, token-store, and geofence overrides.
+- Logs in through the app UI as `student@test.com` / `TestPass123!` against the seeded FastAPI backend.
+- Verifies the student workspace loads, opens the Schedule tab, switches to Upcoming, finds `Seed Year Level Event`, and opens the real backend event detail showing `Seed Hall`.
 
 **`frontend-app/test/ui_quality_test.dart`**
 - Added Flutter-side UI/UX quality checks to mirror the intent of the web Playwright UI-quality suite.
