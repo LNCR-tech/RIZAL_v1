@@ -1,5 +1,13 @@
 # Changes
 
+## 2026-05-22 (Campus Admin Enhancements)
+
+### Frontend Changes
+- **iPhone Mockup & Custom Color Picker:** Redesigned the simulated phone preview into a high-fidelity, photorealistic iPhone 15 Pro mockup featuring a Titanium-look metallic chassis, rounded uniform bezels, Dynamic Island, top iOS status bar, and bottom home indicator. Replaced the restricted 6-color grid with an unlimited HSV color picker dialog, a SweepGradient rainbow swatch, presets, and real-time custom hex code input.
+- **School Settings Customization:** Redesigned `SchoolSettingsScreen` into an Apple-style preferences view with a Mini UI preview that reacts instantly to color and logo changes. Switched from multipart file upload to accepting direct image URLs for logos.
+- **Account Tab:** Updated the student `AccountTab` to display the school's custom logo adjacent to the school name, pulling directly from the updated session metadata.
+- **Student Management:** Refined `SchoolItUsersScreen` to remove the global student search bar, enforcing management strictly by college. Added both `Manual Add` and `Bulk Import` options directly within `CollegeStudentsScreen` for better organization.
+
 ## 2026-05-09 (Phase 12: Rejected Scan Audit Logging)
 
 ### Architecture Decision

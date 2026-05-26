@@ -71,6 +71,52 @@ class AuthRepository {
       rethrow;
     }
   }
+
+  /// Submit a password-reset request for admin approval
+  /// (`POST /auth/forgot-password`). Backend always returns a generic message
+  /// (no enumeration), which is the string we surface to the user verbatim.
+  Future<String> forgotPassword(String email) async {
+    final body = {'email': email.trim()};
+    Response<dynamic> res;
+    try {
+      res = await _client.post('/auth/forgot-password', data: body);
+    } on ApiException catch (e) {
+      if (e.isNotFound) {
+        res = await _client.post('/api/auth/forgot-password', data: body);
+      } else {
+        rethrow;
+      }
+    }
+    final data = (res.data as Map).cast<String, dynamic>();
+    return (data['message'] ?? 'Reset request submitted.').toString();
+  }
+
+  /// Exchange a Google ID token for an Aura access token + meta
+  /// (`POST /auth/google`). Backend errors:
+  /// 403 → Google login disabled, 401 → invalid token / unverified email,
+  /// 404 → email not registered. All surface as [ApiException].
+  Future<LoginResult> loginWithGoogle({required String idToken}) async {
+    final body = {'id_token': idToken};
+    Response<dynamic> res;
+    try {
+      res = await _client.post('/auth/google', data: body);
+    } on ApiException catch (e) {
+      if (e.isNotFound) {
+        res = await _client.post('/api/auth/google', data: body);
+      } else {
+        rethrow;
+      }
+    }
+    final data = (res.data as Map).cast<String, dynamic>();
+    final token = (data['access_token'] ?? '').toString();
+    if (token.isEmpty) {
+      throw ApiException(
+        'Signed in with Google, but the server did not return a token.',
+        statusCode: res.statusCode ?? 0,
+      );
+    }
+    return LoginResult(accessToken: token, meta: AuthMeta.fromJson(data));
+  }
 }
 
 final authRepositoryProvider =

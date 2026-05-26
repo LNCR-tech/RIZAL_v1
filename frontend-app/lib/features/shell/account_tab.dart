@@ -21,6 +21,7 @@ import '../auth/presentation/update_face_screen.dart';
 import '../events/application/auto_checkin_controller.dart';
 import '../gather/presentation/gather_screen.dart';
 import '../governance/application/governance_providers.dart';
+import '../help/presentation/help_center_screen.dart';
 import '../notifications/presentation/notifications_screen.dart';
 import '../student/presentation/edit_profile_screen.dart';
 import '../student/presentation/profile_screen.dart';
@@ -35,6 +36,7 @@ class AccountTab extends ConsumerWidget {
   static const _violet = Color(0xFF8B5CF6);
   static const _indigo = Color(0xFF6366F1);
   static const _teal = Color(0xFF14B8A6);
+  static const _rose = Color(0xFFEC4899);
 
   void _push(BuildContext context, Widget screen) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
@@ -270,6 +272,20 @@ class AccountTab extends ConsumerWidget {
                   ? 'Enrolled'
                   : 'Not enrolled',
               onTap: () => _push(context, const UpdateFaceScreen()),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: AppSpacing.x24),
+        SettingsSection(
+          header: 'Support',
+          tiles: [
+            SettingsTile(
+              icon: Icons.help_outline_rounded,
+              iconColor: _rose,
+              title: 'Help Center',
+              subtitle: 'Guides, FAQ, troubleshooting & contact',
+              onTap: () => _push(context, const HelpCenterScreen()),
             ),
           ],
         ),

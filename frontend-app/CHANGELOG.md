@@ -10,6 +10,50 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-05-26
+
+### Added
+- **In-app Help Center.** A new "Help Center" tile under Account → Support
+  opens a dedicated, searchable help surface that mirrors the
+  `docs/user-guide/` content. **9 categories, 45 articles** written as
+  step-by-step actions rather than prose: Getting started, Attendance &
+  events, Your account, Schedule & events, Aura AI assistant, For staff &
+  officers, Troubleshooting, Security & good practice, and About Aura.
+  - **Search** is the hero — a focus-animated pill that filters every
+    article live, with a 120-char snippet centred on the match and a
+    category-coloured badge above each result. Empty-state suggests common
+    queries (login, face, password, permissions, late, reset).
+  - **Quick-help chips** above the search field deep-link straight into
+    the top-asked articles (cannot log in, face scan failed, change
+    password, grant permissions).
+  - **Accordion category cards** with an animated chevron, tinted icon
+    tile, and a JetBrains Mono count pill. Tap → reveal the article list
+    via `AnimatedSize`/`ClipRect`; honours `MediaQuery.disableAnimations`.
+  - **Article bottom sheet** (`DraggableScrollableSheet`, initial 0.75,
+    drag 0.45–0.95) shows the category chip, headline-sized title, body,
+    numbered steps (mono numerals in a tinted square), and an optional
+    italic tip callout with a left accent bar.
+  - **Contact card** with three tap-to-copy rows — Campus Admin email, IT
+    support email, full documentation URL — using `Clipboard.setData` and
+    a confirmation snackbar.
+  - **Footer** prints `Aura v{version} · build {build} · powered by Jose
+    AI` in mono.
+  - Motion follows `AppMotion`: ease-out under 300ms, press scale 0.97,
+    50ms stagger entrance, reduced-motion respected. Manrope display +
+    body, JetBrains Mono for numerals.
+  - New files: `lib/features/help/data/help_content.dart` (pure-data
+    catalogue with `HelpCategory`, `HelpArticle`, `search()`,
+    `findArticle()`, `findCategory()`) and
+    `lib/features/help/presentation/help_center_screen.dart`.
+  - Wired into `account_tab.dart` as a new "Support" `SettingsSection`
+    between Security and Workspaces — rose-coloured
+    `Icons.help_outline_rounded` tile with subtitle "Guides, FAQ,
+    troubleshooting & contact".
+  - **12 new unit tests** in `test/unit/help_content_test.dart` lock the
+    catalogue's invariants: unique category and article IDs, non-empty
+    bodies and steps, case-insensitive search, keyword-list matching, and
+    quick-help link integrity. analyze clean, 54 tests.
+
 ## [1.24.0] - 2026-05-23
 ### Added
 - **Edit governance events.** The event monitor screen now has an Edit action
