@@ -10,54 +10,38 @@ def _future_event_payload(name="Edge Case Event", **overrides):
         "start_datetime": (now + timedelta(hours=2)).isoformat(),
         "end_datetime": (now + timedelta(hours=4)).isoformat(),
         "location": "Automation Hall",
-        "event_targets": [{"scope_type": "ALL"}],
+        # Post c2fc7ba the API takes `year_levels: List[int]` (1-5, or empty
+        # meaning "everyone"). The old per-target `event_targets: [{...}]`
+        # field is gone — department/course scope is now derived from the
+        # creator's governance position, never from the request body.
+        "year_levels": [],
     }
     payload.update(overrides)
     return payload
 
 
 @pytest.mark.parametrize(
-    ("target", "expected_detail"),
-    [
-        ({"scope_type": "YEAR_LEVEL"}, "YEAR_LEVEL scope requires year_level"),
-        ({"scope_type": "ALL", "year_level": 1}, "ALL scope cannot have year_level"),
-        ({"scope_type": "COURSE_YEAR", "year_level": 2}, "COURSE_YEAR scope requires both"),
-        (
-            {"scope_type": "DEPARTMENT_YEAR", "department_id": 1},
-            "DEPARTMENT_YEAR scope requires both",
-        ),
-    ],
+    "bad_year_levels",
+    [[0], [6], [-1], [3, 99], [10]],
 )
-def test_create_event_rejects_invalid_target_field_combinations(
+def test_create_event_rejects_invalid_year_levels(
     client,
     campus_admin_headers,
-    target,
-    expected_detail,
+    bad_year_levels,
 ):
-    # This protects event creation from accepting audience scopes with missing or contradictory fields.
-    response = client.post(
-        "/api/events/",
-        headers=campus_admin_headers,
-        json=_future_event_payload("Invalid Target Combination", event_targets=[target]),
-    )
-
-    assert response.status_code == 422
-    assert expected_detail in response.text
-
-
-def test_create_event_rejects_unknown_program_target(client, campus_admin_headers):
-    # This protects course-targeted events from referencing programs outside the school dataset.
+    # year_levels is validated by EventCreate.validate_year_levels — each entry
+    # must be between 1 and 5 inclusive.
     response = client.post(
         "/api/events/",
         headers=campus_admin_headers,
         json=_future_event_payload(
-            "Unknown Program Target",
-            event_targets=[{"scope_type": "COURSE", "course_id": 999999}],
+            "Invalid year_levels",
+            year_levels=bad_year_levels,
         ),
     )
 
-    assert response.status_code == 400
-    assert "Program ID 999999 not found" in response.text
+    assert response.status_code == 422, response.text
+    assert "year_levels" in response.text
 
 
 def test_create_event_rejects_incomplete_geofence_fields(client, campus_admin_headers):
@@ -92,23 +76,23 @@ def test_create_event_rejects_overlong_idempotency_key(client, campus_admin_head
     assert "must not exceed 128 characters" in response.text
 
 
-def test_update_event_rejects_empty_replacement_targets(client, campus_admin_headers):
-    # This protects event edits from accidentally clearing every target audience.
+def test_update_event_rejects_invalid_year_levels(client, campus_admin_headers):
+    # PATCH path also uses the year_levels validator — same 1–5 bounds.
     create_response = client.post(
         "/api/events/",
         headers=campus_admin_headers,
-        json=_future_event_payload("Empty Target Update Seed"),
+        json=_future_event_payload("Year-level Update Seed"),
     )
     assert create_response.status_code in (200, 201), create_response.text
 
     update_response = client.patch(
         f"/api/events/{create_response.json()['id']}",
         headers=campus_admin_headers,
-        json={"event_targets": []},
+        json={"year_levels": [99]},
     )
 
-    assert update_response.status_code == 400
-    assert "at least one target audience" in update_response.text
+    assert update_response.status_code == 422, update_response.text
+    assert "year_levels" in update_response.text
 
 
 def test_student_report_rejects_invalid_date_filter(client, campus_admin_headers, db_session):
