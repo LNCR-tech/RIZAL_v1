@@ -596,6 +596,7 @@ event_default_sign_out_grace_minutes=60
 - `primary_color` and `secondary_color` are stored in `school_branding` and read back from the same table in the response.
 - `logo` is an optional file upload; if omitted the existing logo URL is preserved.
 - Event default fields (`event_default_*`) update `school_event_policies`.
+- `school_event_policies` also stores three face feature flags (not settable via this endpoint, defaults to `TRUE`): `privileged_face_verification_enabled`, `attendance_face_recognition_enabled`, `first_time_face_registration_required`. These are read by event creation and attendance endpoints to control face scan behaviour.
 
 **Response 200:** `SchoolBrandingResponse`
 ```json
