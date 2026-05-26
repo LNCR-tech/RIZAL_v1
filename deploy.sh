@@ -211,16 +211,22 @@ compose up --abort-on-container-exit --exit-code-from migrate migrate
 compose up --abort-on-container-exit --exit-code-from bootstrap bootstrap
 
 log "restarting changed application containers"
+# --force-recreate is required: without it, `compose up -d` sometimes keeps
+# the old container alive when only the image content changed (image tag
+# stays as aura-backend:prod). The result was deploys that "succeeded"
+# while the live backend kept serving pre-fix code for ~50 minutes
+# (2026-05-26 token-500 incident). Force-recreate guarantees the freshly
+# built image actually runs.
 case "${DEPLOY_SCOPE}" in
   backend)
-    compose up -d --no-deps backend worker beat
+    compose up -d --force-recreate --no-deps backend worker beat
     ;;
   backend-assistant)
-    compose up -d --no-deps backend worker beat
-    compose up -d --no-deps assistant
+    compose up -d --force-recreate --no-deps backend worker beat
+    compose up -d --force-recreate --no-deps assistant
     ;;
   full)
-    compose up -d --remove-orphans backend worker beat assistant frontend
+    compose up -d --force-recreate --remove-orphans backend worker beat assistant frontend
     ;;
 esac
 
