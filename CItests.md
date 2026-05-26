@@ -10,9 +10,10 @@ repository, how each job tests the system, and which major workflows are covered
 Pushing this file on `integrate/pilot-merge` will run `.github/workflows/ci.yml`
 because that workflow runs on every push to `integrate/pilot-merge`.
 
-Pushing only this file will not run `.github/workflows/aura-app-ci.yml`, because
-the Flutter workflow only runs when files under `frontend-app/**` or the Flutter
-workflow file itself change.
+The Flutter workflow `.github/workflows/aura-app-ci.yml` also runs on normal
+pushes to `main`, `develop`, `feature/*`, and `integrate/pilot-merge`, so a
+docs-only push can be used to exercise the main CI plus Flutter CI without
+touching app code.
 
 ## Workflow Summary
 
@@ -34,9 +35,10 @@ Main jobs:
 ### `.github/workflows/aura-app-ci.yml` - Aura App Flutter CI
 
 Runs on:
-- Pushes that touch `frontend-app/**`
-- Pushes that touch `.github/workflows/aura-app-ci.yml`
+- Pushes to `main`, `develop`, `feature/*`, and `integrate/pilot-merge`
 - Pull requests that touch `frontend-app/**`
+- Pull requests that touch `.github/workflows/aura-app-ci.yml`
+- Manual `workflow_dispatch`
 
 Main jobs:
 - `analyze-test`
@@ -532,6 +534,7 @@ What it runs:
 ```bash
 flutter analyze
 flutter test
+flutter test integration_test
 ```
 
 What this catches:
@@ -543,6 +546,7 @@ What this catches:
 - Routing logic regressions
 - UI semantics/layout test failures
 - Shader compilation problems that appear during Flutter test loading
+- Flutter integration test failures from `frontend-app/integration_test/`
 
 ### Current Flutter Test Coverage
 
@@ -571,7 +575,7 @@ Files under `frontend-app/test/` cover:
 - Location display helpers
 - Color contrast helpers
 
-### Integration Tests Present But Not Currently Run In CI
+### Flutter Integration Tests
 
 File:
 - `frontend-app/integration_test/app_e2e_test.dart`
@@ -582,10 +586,9 @@ What it contains:
 - Event editor edit flow saves through the event repository
 
 Current CI behavior:
-- `flutter test integration_test` is currently not run in
-  `.github/workflows/aura-app-ci.yml`.
-- The workflow comments say integration tests need a connected device, but the
-  current emulator job only builds, installs, and launches the APK.
+- `flutter test integration_test` runs in the Flutter `analyze-test` job.
+- These tests use mocked app providers and verify app-level user flows without
+  depending on the real backend.
 
 ### Android APK Build And Launch Smoke
 
@@ -764,12 +767,10 @@ and Flutter APK build/launch.
 Current gaps:
 - No strict endpoint-by-endpoint API coverage audit.
 - Playwright E2E is skipped on `integrate/pilot-merge`.
-- Flutter `integration_test/app_e2e_test.dart` exists but is not currently run
-  by the Flutter CI workflow.
 - The Android emulator job launches the APK but does not run user-flow tests
   inside the installed app.
-- Pushing a docs-only file like this one runs the main CI workflow, but does not
-  run the path-filtered Flutter app workflow.
+- The Flutter integration tests run through `flutter test integration_test`;
+  the emulator job is still an APK build/install/launch smoke check.
 
 ## Practical Interpretation
 
@@ -781,8 +782,8 @@ reports, migrations, and database constraints.
 The frontend web CI covers static quality, type safety, and unit-level behavior.
 Full browser E2E exists but is not active on `integrate/pilot-merge`.
 
-The Flutter app CI covers static analysis, widget/unit tests, and APK
-build/install/launch. It does not currently run Flutter integration tests.
+The Flutter app CI covers static analysis, widget/unit tests, Flutter
+integration tests, and APK build/install/launch.
 
 The assistant CI covers service health, auth, conversations, streaming, tool
 events, deterministic data answers, chart payloads, and MCP safety.
