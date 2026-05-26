@@ -17,8 +17,9 @@
   - Starts FastAPI on port `8000` for the emulator.
 - Extended the Android job after `flutter build apk --debug` with emulator-based integration and smoke checks:
   - Enables KVM permissions on the GitHub runner.
-  - Starts an Android API 35 x86_64 emulator through `reactivecircus/android-emulator-runner@v2`.
-  - Runs `flutter test integration_test -d emulator-5554` on the connected emulator with `AURA_RUN_BACKEND_E2E=true`.
+  - Starts an Android API 33 x86_64 `google_apis` emulator through `reactivecircus/android-emulator-runner@v2`.
+  - Uses a lighter Pixel 2 profile, 2 GB RAM, explicit no-window/no-snapshot emulator options, and a 300-second boot timeout so emulator boot failures fail clearly instead of repeating indefinitely.
+  - Resolves the attached Android device from `adb devices` and runs `flutter test integration_test -d "$device"` with `AURA_RUN_BACKEND_E2E=true`.
   - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
   - Launches `com.aura.aura_app/.MainActivity`.
   - Waits briefly and fails with recent `logcat` output if the app process is not alive.

@@ -587,9 +587,10 @@ What it contains:
   opens the Schedule tab, loads the seeded backend event, and opens event detail
 
 Current CI behavior:
-- `flutter test integration_test -d emulator-5554` runs inside the Android
-  emulator job, because Flutter integration tests need a real connected device
-  and cannot run against the Linux runner's web device.
+- `flutter test integration_test -d "$device"` runs inside the Android
+  emulator job after resolving the attached device from `adb devices`, because
+  Flutter integration tests need a real connected device and cannot run against
+  the Linux runner's web device.
 - The mocked-provider integration tests still verify app-level user flows
   without depending on the backend.
 - The real-backend E2E test is skipped by default unless
@@ -635,12 +636,16 @@ flutter build apk --debug \
 ```
 
 Then it runs an Android emulator:
-- API level 35
+- API level 33
+- `google_apis` system image
 - x86_64
-- Pixel 6 profile
+- Pixel 2 profile
+- 2 GB RAM
+- 300-second boot timeout
 
 Inside the emulator job, CI:
-- Runs `flutter test integration_test -d emulator-5554` with
+- Resolves the attached Android device from `adb devices`
+- Runs `flutter test integration_test -d "$device"` with
   `AURA_RUN_BACKEND_E2E=true`
 - Installs `build/app/outputs/flutter-apk/app-debug.apk`
 - Launches `com.aura.aura_app/.MainActivity`
