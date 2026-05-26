@@ -1,14 +1,19 @@
 """Align legacy user_sessions runtime columns with the ORM.
 
-Revision ID: 0011_user_sessions_runtime_schema
+Revision ID: 0011_user_sessions_runtime
 Revises: 0010_user_sessions_jti_text
 Create Date: 2026-05-26 14:30:00.000000
+
+NOTE: revision id MUST fit in `alembic_version.version_num VARCHAR(32)`.
+The previous form `0011_user_sessions_runtime_schema` was 33 chars and
+crashed the upgrade with `StringDataRightTruncation` when alembic tried
+to record the new version. Keep new revision ids ≤32 characters.
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0011_user_sessions_runtime_schema"
+revision = "0011_user_sessions_runtime"
 down_revision = "0010_user_sessions_jti_text"
 branch_labels = None
 depends_on = None

@@ -29,7 +29,7 @@ Stop valid logins from returning `500 Internal Server Error` when optional login
 ### Main files
 
 - `Backend/app/services/auth_session.py`
-- `Backend/alembic/versions/0011_user_sessions_runtime_schema.py`
+- `Backend/alembic/versions/0011_user_sessions_runtime.py`
 - `Backend/docs/BACKEND_CHANGELOG.md`
 
 ### Runtime behavior
@@ -41,7 +41,7 @@ Stop valid logins from returning `500 Internal Server Error` when optional login
 
 ### Migration impact
 
-- run Alembic upgrade to apply `0011_user_sessions_runtime_schema`
+- run Alembic upgrade to apply `0011_user_sessions_runtime`
 - no broad `users.id` conversion is performed, avoiding dependent view breakage on older deployments
 
 ## 2026-04-30 - Align Docker default ports with pilot stack
