@@ -123,6 +123,7 @@
 **`frontend-app/third_party/liquid_glass_renderer`**
 - Vendored `liquid_glass_renderer` `0.2.0-dev.4`.
 - Patched the shader SDF helper to read `uShapeData` as a global uniform instead of passing uniform arrays through helper functions. This avoids the SkSL compiler generating unsupported array initializer code while preserving the renderer's behavior.
+- Replaced the remaining dynamic `uShapeData[baseIndex]` SDF lookup with fully unrolled literal uniform-array indices, because Impeller/SkSL rejects runtime uniform-array indexing.
 - Unrolled SDF shape merging to avoid SkSL `min(int,int)` and loop-initializer limitations.
 - Replaced derivative intrinsics with finite-difference normal sampling for runtime-effect compatibility.
 - Removed loops from the experimental arbitrary shader's center sampler and gradient helper so the file compiles under SkSL.
