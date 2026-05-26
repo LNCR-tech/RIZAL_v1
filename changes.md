@@ -15,15 +15,13 @@
   - Runs Alembic migrations.
   - Seeds the backend test data from `backend/tests/conftest.py`.
   - Starts FastAPI on port `8000` for the emulator.
-- Extended the Android job after `flutter build apk --debug` with emulator-based integration and smoke checks:
+- Kept the Android job focused on emulator-based integration checks:
   - Enables KVM permissions on the GitHub runner.
   - Starts an Android API 33 x86_64 `google_apis` emulator through `reactivecircus/android-emulator-runner@v2`.
   - Uses a lighter Pixel 2 profile, 2 GB RAM, explicit no-window/no-snapshot emulator options, and a 300-second boot timeout so emulator boot failures fail clearly instead of repeating indefinitely.
   - Resolves the attached Android device from `adb devices` and runs `flutter test integration_test -d "$device"` with `AURA_RUN_BACKEND_E2E=true`.
-  - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
-  - Launches `com.aura.aura_app/.MainActivity`.
-  - Waits briefly and fails with recent `logcat` output if the app process is not alive.
   - Uploads `backend/backend.log` as a short-retention artifact for mobile E2E failures.
+- Removed the separate `flutter build apk --debug`, ADB install, manual launch, and process-liveness smoke check from CI.
 - CD/deployment workflows remain manual-only through `workflow_dispatch`; pushing to `integrate/pilot-merge` runs CI, not deployment.
 
 ### Flutter App Test Coverage
@@ -165,7 +163,7 @@
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.
 - The web Playwright E2E job in `.github/workflows/ci.yml` is gated to run only on the `pilot` branch.
 - The Flutter UI-quality tests now run through `flutter test` on `frontend-app/**` pushes.
-- The Android emulator step now runs Flutter integration tests before the APK install/launch smoke check.
+- The Android emulator step now runs Flutter integration tests only; separate APK build/install/launch smoke is no longer part of Flutter CI.
 
 ## 2026-05-22 (Campus Admin Enhancements)
 

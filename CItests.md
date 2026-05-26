@@ -42,7 +42,7 @@ Runs on:
 
 Main jobs:
 - `analyze-test`
-- `build-android`
+- `mobile-e2e`
 
 ### CD Workflows
 
@@ -599,9 +599,9 @@ Current CI behavior:
   Alembic migrations, seeds the backend test data, starts FastAPI on port
   `8000`, then runs the Flutter app against `http://10.0.2.2:8000`.
 
-### Android APK Build And Launch Smoke
+### Android Emulator Integration Tests
 
-Workflow job: `build-android`
+Workflow job: `mobile-e2e`
 
 What it installs:
 - Python 3.12 and backend dependencies for the mobile E2E backend
@@ -630,9 +630,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 cd frontend-app
 flutter pub get
-flutter build apk --debug \
-  --dart-define=AURA_API_BASE_URL=http://10.0.2.2:8000 \
-  --dart-define=AURA_API_TIMEOUT_MS=30000
 ```
 
 Then it runs an Android emulator:
@@ -647,10 +644,6 @@ Inside the emulator job, CI:
 - Resolves the attached Android device from `adb devices`
 - Runs `flutter test integration_test -d "$device"` with
   `AURA_RUN_BACKEND_E2E=true`
-- Installs `build/app/outputs/flutter-apk/app-debug.apk`
-- Launches `com.aura.aura_app/.MainActivity`
-- Waits 10 seconds
-- Checks `adb shell pidof com.aura.aura_app`
 - Dumps recent `logcat` output on failure
 - Uploads `backend/backend.log` as a short-retention artifact
 
@@ -660,16 +653,13 @@ What this catches:
 - Mobile API base URL wiring failures
 - Backend seeded event visibility regressions in the Flutter schedule
 - Event-detail navigation failures after loading backend data
-- Android build failures
-- Gradle/native build failures
+- Android integration-test build failures
+- Gradle/native build failures reached by `flutter test integration_test`
 - Flutter dependency/codegen issues
-- APK install failures
-- App launch crashes
-- Immediate runtime crash after launch
 
 What it does not prove:
 - Every screen navigation path
-- Every workflow inside the separately installed smoke-test APK
+- Separate production/debug APK build, install, and manual launch behavior
 - Production deployed-server health
 
 ## Assistant CI
@@ -804,7 +794,7 @@ Production CD has its own quality gates before deployment:
 
 CI is strong on backend API behavior, backend migrations, frontend web unit
 tests, assistant behavior, Docker builds, Flutter analyzer/unit/widget tests,
-and Flutter APK build/launch.
+and Flutter emulator integration tests.
 
 Current gaps:
 - No strict endpoint-by-endpoint API coverage audit.
@@ -823,7 +813,7 @@ The frontend web CI covers static quality, type safety, and unit-level behavior.
 Full browser E2E exists but is not active on `integrate/pilot-merge`.
 
 The Flutter app CI covers static analysis, widget/unit tests, Flutter
-integration tests, and APK build/install/launch.
+integration tests, and one real-backend mobile E2E smoke path.
 
 The assistant CI covers service health, auth, conversations, streaming, tool
 events, deterministic data answers, chart payloads, and MCP safety.
