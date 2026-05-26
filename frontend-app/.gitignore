@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local cloud/endpoint config — keep backend URLs out of version control
+/config/cloud.json
+*.dart-defines.json

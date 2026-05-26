@@ -133,6 +133,9 @@ class SchoolEventPolicy(Base):
     default_early_check_in_minutes = Column(Integer, nullable=False, default=DEFAULT_EVENT_EARLY_CHECK_IN_MINUTES)
     default_late_threshold_minutes = Column(Integer, nullable=False, default=DEFAULT_EVENT_LATE_THRESHOLD_MINUTES)
     default_sign_out_grace_minutes = Column(Integer, nullable=False, default=DEFAULT_EVENT_SIGN_OUT_GRACE_MINUTES)
+    privileged_face_verification_enabled = Column(Boolean, nullable=False, default=True)
+    attendance_face_recognition_enabled = Column(Boolean, nullable=False, default=True)
+    first_time_face_registration_required = Column(Boolean, nullable=False, default=True)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
     updated_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 

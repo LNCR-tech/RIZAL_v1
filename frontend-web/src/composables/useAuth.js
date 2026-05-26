@@ -5,8 +5,8 @@ import {
     clearDashboardSession,
     getDefaultAuthenticatedRoute,
     initializeDashboardSession,
-    sessionNeedsFaceRegistration,
     sessionUsesLimitedMode,
+    sessionNeedsFaceRegistration,
 } from '@/composables/useDashboardSession.js'
 import { hasPrivilegedPendingFace, sanitizeToken, storeAuthMeta } from '@/services/localAuth.js'
 import { markCurrentRuntimeSession, readStoredSessionToken } from '@/services/sessionPersistence.js'

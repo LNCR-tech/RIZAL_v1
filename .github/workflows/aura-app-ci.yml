@@ -1,0 +1,98 @@
+name: Aura App (Flutter) CI
+
+# Gates for the Flutter client in frontend-app/. Mirrors the web CI's
+# analyze + test gates. Build is included to catch native/codegen breakage.
+
+on:
+  push:
+    paths:
+      - "frontend-app/**"
+      - ".github/workflows/aura-app-ci.yml"
+  pull_request:
+    paths:
+      - "frontend-app/**"
+
+jobs:
+  analyze-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      # Integration tests need a connected device (Android emulator or real
+      # device); they cannot run on the Linux runner with the web device.
+      # The build-android job runs them inside the emulator-runner action.
+
+  build-android:
+    runs-on: ubuntu-latest
+    needs: analyze-test
+    defaults:
+      run:
+        working-directory: frontend-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Endpoints are injected at build time; CI builds with the emulator default.
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Enable KVM group permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and launch debug APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          working-directory: frontend-app
+          script: |
+            apk="build/app/outputs/flutter-apk/app-debug.apk"
+            package="com.aura.aura_app"
+
+            dump_logs() {
+              adb logcat -d -t 300 || true
+            }
+
+            adb logcat -c || true
+            adb install -r -t -g "$apk" || {
+              dump_logs
+              exit 1
+            }
+            adb shell am start -W -n "$package/.MainActivity" || {
+              dump_logs
+              exit 1
+            }
+            sleep 10
+
+            adb shell pidof "$package" || {
+              dump_logs
+              exit 1
+            }

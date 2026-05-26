@@ -1,5 +1,14 @@
 # Run Aura's AI locally on jose.gguf — **no Docker**
 
+> **Architecture note (2026-05-25):** The model now lives in the separate
+> **centralized Jose** project (`centralized-jose/`, repo
+> `github.com/zannn123/centralized-jose`), which runs llama-server **+** a
+> gateway. The **canonical** setup is: this assistant is *solely Aura's app* and
+> just a **client** — point `AI_API_BASE` at the centralized gateway
+> (see `docs/jose/aura-uses-centralized-jose.md`). The steps below remain the
+> fully-local, offline dev path (you run your own llama-server) when you don't
+> want to depend on the centralized service.
+
 Goal: the Aura assistant answers from the **local** model `jose.gguf` — identity
 **"Aura, powered by Jose AI"** — and your Flutter app talks to it, for testing.
 No Docker, no Postgres.

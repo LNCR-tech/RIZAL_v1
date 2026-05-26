@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: {
@@ -19,6 +19,14 @@ import {
 describe("frontend URL resolution", () => {
   beforeEach(() => {
     delete window.__AURA_RUNTIME_CONFIG__;
+    // These fallback tests must simulate a build with no configured Vite env
+    // override, even if local .env files define localhost development URLs.
+    vi.stubEnv("VITE_API_BASE_URL", "");
+    vi.stubEnv("VITE_ASSISTANT_BASE_URL", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("falls back to the proxied backend path for web builds", () => {

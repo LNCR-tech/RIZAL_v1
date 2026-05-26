@@ -38,6 +38,20 @@ def _decode_jwt(token: str) -> Dict[str, Any]:
     if not token:
         raise HTTPException(status_code=401, detail="Missing token")
 
+    # DEV/LOCAL ONLY: accept the token WITHOUT verifying its signature, so the
+    # assistant can run against a token whose signing secret isn't available
+    # locally (e.g. testing with a cloud login). Enabled only by
+    # AUTH_DEV_SKIP_VERIFY=1 in the git-ignored .env — NEVER set in production.
+    # Claims are still decoded for user/role/school context.
+    if os.getenv("AUTH_DEV_SKIP_VERIFY") == "1":
+        try:
+            return jwt.decode(
+                token, "", algorithms=[JWT_ALGORITHM],
+                options={"verify_signature": False, "verify_aud": False, "verify_exp": False},
+            )
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Malformed token")
+
     if JWT_PUBLIC_KEY:
         try:
             return jwt.decode(token, JWT_PUBLIC_KEY, algorithms=[JWT_ALGORITHM])

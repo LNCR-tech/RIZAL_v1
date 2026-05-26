@@ -86,6 +86,53 @@ IP-based staging server is HTTP, so dev-only cleartext is enabled (Android
 `usesCleartextTraffic`, iOS ATS) — use HTTPS in production.
 
 ## Status
+**v1.26.0 — Google sign-in, real forgot-password, role-based Help, public help on login,
+dev-docs section for super admin, search-bar polish.** Login screen now drives an actual
+Google flow: `GoogleSignInService` (`features/auth/data/google_sign_in_service.dart`) reads
+`AURA_GOOGLE_WEB_CLIENT_ID` via `--dart-define`, calls the `google_sign_in` SDK (web +
+native via `serverClientId`), posts the ID token to `POST /auth/google`, and surfaces
+backend errors verbatim — disabled / unverified email / not-registered each become
+actionable copy. Cancelled sign-in is silent. "Forgot your password? Reset it in the web
+app" is replaced by `ForgotPasswordDialog` (`features/auth/presentation/forgot_password_dialog.dart`):
+Card-styled modal, email field, Cancel/Send, loading + error states; calls
+`AuthRepository.forgotPassword` → `POST /auth/forgot-password` → backend's
+admin-approval-pending generic message → snackbar. Help Center is now **role-based**:
+`HelpAudience` enum (`public`/`student`/`campusAdmin`/`governance`/`admin`) tags every
+category + article; `HelpContent.categoriesFor(viewer)` / `searchFor(viewer, q)` drive
+the screen. Students see attendance + AI + their workflow; campus admins see
+manage-users / imports / governance setup; governance officers see event-management;
+super admins see everything plus a new `developer-docs` category — 8 quick-reference
+articles (architecture, tech stack, API reference, database, deployment, dev setup,
+testing, billing) sourced from `docs/technical/`. Login screen exposes the public help
+catalogue via a "Need help?" link next to "Forgot your password?" — opens
+`HelpCenterScreen(audience: HelpAudience.public)`. New `ac-forgot-password` article
+(public-visible) walks through the admin-approval reset flow. Quick-help chips now
+include "Forgot password" + "Install the app" and are filtered to the viewer's tier.
+Search bar polished: light fill in idle, surface-white + accent ring + soft accent
+shadow on focus, scaling icon (1.08×) + brand-coloured cursor + AnimatedSwitcher
+fade-scale on the clear button. Bottom-nav `_NavButton`/`_NavItem` now wrap in
+`ExcludeSemantics` + `container: true` so `find.bySemanticsLabel('Home')` finds the
+parent node; the `ui_quality_test` semantics test disposes its handle in `try/finally`
+to beat `_endOfTestVerifications`. analyze clean, 120 tests.
+**v1.25.0 — in-app Help Center.** Account → Support → Help Center
+(`features/help/presentation/help_center_screen.dart`) opens a searchable surface
+faithfully sourced from `docs/user-guide/{faq,how-to-use,installation,apk_manual}.md`:
+9 categories / 45 articles, each written as numbered steps with optional italic
+tip callouts. The screen layers a focus-animated pill `_SearchField` (snippet
+matching, empty-state suggestion chips), a `_QuickHelpRow` of deep-link chips
+above the search, accordion `_CategoryCard`s (animated chevron + JetBrainsMono
+count pill, expand via `AnimatedSize`/`ClipRect`, reduced-motion honoured),
+article view via `DraggableScrollableSheet` (drag handle, category chip,
+mono-numbered steps in tinted squares, accent-bar tip callout), and a
+`_ContactCard` with tap-to-copy Campus Admin email, IT email, and docs URL
+(`Clipboard.setData` + snackbar). Footer prints `Aura v{version} · build
+{build} · powered by Jose AI` in mono. Content lives in
+`features/help/data/help_content.dart` as `const`-evaluable `HelpCategory` /
+`HelpArticle` (pure-data, no Flutter widget imports). Wired into
+`account_tab.dart` as a rose-coloured `Icons.help_outline_rounded` `SettingsTile`
+in a new "Support" section between Security and Workspaces. 12 new tests cover
+catalogue invariants (unique IDs, non-empty bodies/steps, case-insensitive
+search, keyword matching, quick-help integrity). analyze clean, 54 tests.
 **v1.24.0 — edit governance events + event-create 500 diagnosed (backend).** Event monitor
 (`governance_event_monitor_screen.dart`) gains an Edit action (gated by `manage_events`) →
 `EventEditorScreen(event:)` prefilled from the event, saving via `PATCH /api/events/{id}`

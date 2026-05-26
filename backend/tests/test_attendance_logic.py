@@ -47,23 +47,34 @@ def test_attendance_before_open_blocked(client, student_headers, test_event):
 
 def test_attendance_duplicate_sign_in_blocked(client, campus_admin_headers, db_session):
     now = datetime.now(timezone.utc)
-    event = create_test_event(db_session, 1, "Active Event", now - timedelta(minutes=10), now + timedelta(hours=1))
-    db_session.commit()
-    
-    # Get student ID
     from app.models.user import User, StudentProfile
+
     student = db_session.query(User).filter_by(email="student@test.com").first()
     profile = db_session.query(StudentProfile).filter_by(user_id=student.id).first()
+    event = create_test_event(
+        db_session,
+        profile.school_id,
+        "Active Event",
+        now - timedelta(minutes=10),
+        now + timedelta(hours=1),
+    )
+    db_session.commit()
     
     payload = {
         "event_id": event.id,
         "student_id": profile.student_id
     }
     
-    # First sign in (via admin or scanner)
-    r1 = client.post("/api/v1/attendance/manual", headers=campus_admin_headers, json=payload)
-    
-    # Second sign in should fail (if first succeeded or failed gracefully)
-    r2 = client.post("/api/v1/attendance/manual", headers=campus_admin_headers, json=payload)
-    # Backend treats second sign-in as a sign-out attempt (409) or rejects it (400/422)
-    assert r2.status_code in [400, 409, 422], "Should reject duplicate sign in"
+    try:
+        r1 = client.post("/api/v1/attendance/manual", headers=campus_admin_headers, json=payload)
+        assert r1.status_code == 200, r1.text
+
+        r2 = client.post("/api/v1/attendance/manual", headers=campus_admin_headers, json=payload)
+        # Backend treats the second scan as a sign-out attempt, which is blocked until sign-out opens.
+        assert r2.status_code in [400, 409, 422], "Should reject duplicate sign in"
+    finally:
+        db_session.rollback()
+        stored_event = db_session.query(Event).filter_by(id=event.id).first()
+        if stored_event is not None:
+            db_session.delete(stored_event)
+            db_session.commit()

@@ -1,5 +1,6 @@
 import os
 import pytest
+from datetime import timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -21,8 +22,10 @@ from app.models.user import User, UserRole, StudentProfile
 from app.models.school import School, SchoolBranding, SchoolEventPolicy
 from app.models.role import Role
 from app.models.department import Department
+from app.models.event import Event, EventStatus, EventTarget, EventTargetScope
 from app.models.program import Program
 from app.models.attendance import AttendanceMethodLookup, AttendanceStatusLookup
+from app.core.timezones import utc_now
 from app.utils.passwords import hash_password_bcrypt
 
 
@@ -48,7 +51,14 @@ def cleanup_test_data():
         if school:
             db.delete(school)
         from app.models.user import User
-        for email in ["admin@test.com", "campus_admin@test.com", "student@test.com", "newuser@test.com"]:
+        for email in [
+            "admin@test.com",
+            "campus_admin@test.com",
+            "student@test.com",
+            "student_year2@test.com",
+            "student_year5@test.com",
+            "newuser@test.com",
+        ]:
             u = db.query(User).filter_by(email=email).first()
             if u:
                 db.delete(u)
@@ -121,23 +131,80 @@ def _seed(db: Session):
                         password_hash=hash_password_bcrypt("TestPass123!"), must_change_password=False)
             db.add(user)
             db.flush()
-            db.add(UserRole(user_id=user.id, role_id=roles[role_code].id))
-            db.flush()
         else:
             # Always reset password and must_change_password to known state
             user.password_hash = hash_password_bcrypt("TestPass123!")
             user.must_change_password = False
+            user.school_id = school_id
+            db.flush()
+
+        if not db.query(UserRole).filter_by(user_id=user.id, role_id=roles[role_code].id).first():
+            db.add(UserRole(user_id=user.id, role_id=roles[role_code].id))
             db.flush()
         return user
 
     _make_user("admin@test.com", "admin", school_id=None)
     campus_admin = _make_user("campus_admin@test.com", "campus_admin", school_id=school.id)
     student_user = _make_user("student@test.com", "student", school_id=school.id)
+    student_year2_user = _make_user("student_year2@test.com", "student", school_id=school.id)
+    student_year5_user = _make_user("student_year5@test.com", "student", school_id=school.id)
 
-    # Student profile
-    if not db.query(StudentProfile).filter_by(user_id=student_user.id).first():
-        db.add(StudentProfile(user_id=student_user.id, school_id=school.id, student_id="STU-001",
-                              department_id=dept.id, program_id=prog.id, year_level=1))
+    def _make_student_profile(user, student_number, year_level):
+        profile = db.query(StudentProfile).filter_by(user_id=user.id).first()
+        if not profile:
+            profile = StudentProfile(
+                user_id=user.id,
+                school_id=school.id,
+                student_id=student_number,
+                department_id=dept.id,
+                program_id=prog.id,
+                year_level=year_level,
+            )
+            db.add(profile)
+        else:
+            profile.school_id = school.id
+            profile.student_number = student_number
+            profile.department_id = dept.id
+            profile.program_id = prog.id
+            profile.year_level = year_level
+        profile.student_status = "ACTIVE"
+        db.flush()
+        return profile
+
+    # Deterministic student profiles keep year-level and attendance tests from
+    # silently skipping because a seed profile is missing.
+    _make_student_profile(student_user, "STU-001", 1)
+    _make_student_profile(student_year2_user, "STU-002", 2)
+    _make_student_profile(student_year5_user, "STU-005", 5)
+
+    event = db.query(Event).filter_by(school_id=school.id, name="Seed Year Level Event").first()
+    if not event:
+        now = utc_now()
+        event = Event(
+            school_id=school.id,
+            created_by_user_id=campus_admin.id,
+            name="Seed Year Level Event",
+            location="Seed Hall",
+            start_datetime=now + timedelta(minutes=30),
+            end_datetime=now + timedelta(hours=2),
+            early_check_in_minutes=60,
+            late_threshold_minutes=10,
+            sign_out_grace_minutes=20,
+            sign_out_open_delay_minutes=0,
+            status=EventStatus.UPCOMING,
+        )
+        db.add(event)
+        db.flush()
+
+    if not event.event_targets:
+        db.add(
+            EventTarget(
+                event_id=event.id,
+                school_id=school.id,
+                scope_type=EventTargetScope.ALL,
+            )
+        )
+        db.flush()
 
     db.flush()
 

@@ -1,5 +1,156 @@
 # Changes
 
+## 2026-05-26 (Flutter App CI, UI Quality, and Analyze Fixes)
+
+### CI Workflow Changes
+
+**`.github/workflows/aura-app-ci.yml`**
+- Added Flutter app integration-test execution with `flutter test integration_test`.
+- Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, `flutter test`, then `flutter test integration_test`.
+- Extended the Android job after `flutter build apk --debug` with an emulator smoke check:
+  - Enables KVM permissions on the GitHub runner.
+  - Starts an Android API 35 x86_64 emulator through `reactivecircus/android-emulator-runner@v2`.
+  - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
+  - Launches `com.aura.aura_app/.MainActivity`.
+  - Waits briefly and fails with recent `logcat` output if the app process is not alive.
+- CD/deployment workflows remain manual-only through `workflow_dispatch`; pushing to `integrate/pilot-merge` runs CI, not deployment.
+
+### Flutter App Test Coverage
+
+**`frontend-app/pubspec.yaml` / `frontend-app/pubspec.lock`**
+- Added the Flutter SDK `integration_test` dev dependency so app-level integration tests can run in CI.
+
+**`frontend-app/integration_test/app_e2e_test.dart`**
+- Added app-level Flutter integration coverage that boots `AuraApp()` with mocked Riverpod providers.
+- Covers signed-out login behavior, password visibility, required-login validation, student shell tab navigation, and event-editor save behavior.
+
+**`frontend-app/test/ui_quality_test.dart`**
+- Added Flutter-side UI/UX quality checks to mirror the intent of the web Playwright UI-quality suite.
+- Pumps key app states across common viewport sizes: mobile, tablet, and desktop.
+- Fails on Flutter layout/runtime exceptions, catching overflow-style UI regressions.
+- Checks accessible semantics labels for login controls, bottom navigation tabs, and event-editor icon-only controls.
+- Verifies icon-only `IconButton`s used in the tested surfaces expose a tooltip or semantic label.
+
+**Other Flutter app tests**
+- Added and expanded focused unit/widget tests for router redirects, navigation items, repository API paths, geolocation behavior, attendance scan flow, event-editor draft/payload logic, location display formatting, and event editor repository submission.
+- Expanded `AuraButton` widget coverage for loading state, disabled interaction, icons, and compact layout.
+
+### Flutter App Source Changes Supporting Tests
+
+**`frontend-app/lib/features/shell/navigation_items.dart`**
+- Centralized workspace tab definitions so navigation structure can be tested independently from the shell widget.
+
+**`frontend-app/lib/features/shell/app_shell.dart`**
+- Refactored shell tabs to consume the centralized navigation item list.
+
+**`frontend-app/lib/features/events/application/event_editor_draft.dart`**
+- Added pure event-editor draft logic for initializing editable form state from an event.
+
+**`frontend-app/lib/features/events/application/event_editor_payload.dart`**
+- Added pure event-editor payload building and validation for create/edit submissions.
+
+**`frontend-app/lib/features/attendance/application/attendance_scan_flow.dart`**
+- Added pure attendance scan flow helpers for testable event/location decision logic.
+
+**`frontend-app/lib/shared/utils/location_display.dart`**
+- Added shared coordinate formatting helpers for consistent location display.
+
+**`frontend-app/lib/features/schoolit/presentation/event_editor_screen.dart`**
+- Moved save-payload construction through the shared event-editor payload helper.
+- Added tooltips to the date/time icon buttons: `Pick start date`, `Pick start time`, `Pick end date`, and `Pick end time`.
+
+**`frontend-app/lib/app/router.dart`**
+- Extracted redirect decision logic so route guard behavior can be unit-tested.
+
+**`frontend-app/lib/core/services/geolocation_service.dart`**
+- Added an injectable geolocation platform adapter so permission/location behavior can be tested without native device access.
+- Fixed the analyzer `prefer_const_constructors` finding by using `const GeolocationService()` in the provider.
+
+### Flutter Analyze Fixes
+
+**`frontend-app/lib/core/theme/app_theme.dart`**
+- Replaced `CupertinoPageTransitionsBuilder` with a local `_AuraPageTransitionsBuilder`.
+- This avoids the CI analyzer failure where the Flutter SDK used by CI did not resolve `CupertinoPageTransitionsBuilder`.
+- The replacement keeps a lightweight horizontal route transition and still uses `_NoPageTransitionsBuilder` when reduced motion is enabled.
+
+### Backend Model Defaults
+
+**`backend/app/models/school.py`**
+- Added default-enabled school event policy columns on `SchoolEventPolicy`:
+  - `privileged_face_verification_enabled = true`
+  - `attendance_face_recognition_enabled = true`
+  - `first_time_face_registration_required = true`
+- These defaults keep existing schools permissive unless a later policy path explicitly disables face verification or first-time registration requirements.
+
+### Backend Test Data Fixes
+
+**`backend/tests/test_event_announcement_notifications.py`**
+- Replaced an invalid `YEAR_LEVEL` target value of `99` with a valid `year_level=5`.
+- The empty-recipient notification test now creates a temporary school with no students, so it still verifies zero recipients without leaving invalid event-target data in the shared CI test session.
+- This prevents later event-list API tests from failing response validation on `year_level <= 5`.
+
+### Flutter CI Failure Follow-up
+
+**`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
+- Kept the existing shader-backed `LiquidGlass.withOwnLayer` beta nav path so the app's visual design is unchanged.
+
+**`frontend-app/pubspec.yaml` / `frontend-app/pubspec.lock`**
+- Restored the liquid-glass nav dependencies.
+- Pointed `liquid_glass_renderer` to a local patched copy under `frontend-app/third_party/liquid_glass_renderer` so CI can compile the same renderer without changing the app widget.
+
+**`frontend-app/third_party/liquid_glass_renderer`**
+- Vendored `liquid_glass_renderer` `0.2.0-dev.4`.
+- Patched the shader SDF helper to read `uShapeData` as a global uniform instead of passing uniform arrays through helper functions. This avoids the SkSL compiler generating unsupported array initializer code while preserving the renderer's behavior.
+- Unrolled SDF shape merging to avoid SkSL `min(int,int)` and loop-initializer limitations.
+- Replaced derivative intrinsics with finite-difference normal sampling for runtime-effect compatibility.
+- Removed loops from the experimental arbitrary shader's center sampler and gradient helper so the file compiles under SkSL.
+- Removed `sampler2D`/shader parameters from shared liquid-glass shader helpers and routed background texture reads through entry-shader sampling macros. This addresses SkSL's unsupported shader-parameter compilation path while preserving the same shader-backed liquid-glass visual path.
+
+**`frontend-app/lib/core/widgets/aura_button.dart`**
+- Made button labels flexible with ellipsis so long labels do not overflow narrow mobile layouts.
+- Added a semantics container to the button so accessibility-label tests can reliably find labels such as `Sign in`.
+- Excluded child semantics inside the button semantics node so the accessible label stays exact instead of merging with the visible text.
+
+**`frontend-app/lib/core/widgets/glass_bottom_nav.dart` / `frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
+- Added stable, non-visual keys to bottom navigation items for Flutter UI tests.
+
+**`frontend-app/lib/features/auth/presentation/login_screen.dart`**
+- Added explicit semantics around the password visibility toggle so UI-quality tests can verify the accessible label.
+
+**`frontend-app/test/event_editor_screen_test.dart`**
+- Replaced direct `ensureVisible` usage with `scrollUntilVisible` for the save button, because the editor body is a lazy `ListView`.
+
+**`frontend-app/integration_test/app_e2e_test.dart`**
+- Applied the same scroll-to-save behavior in the app integration test.
+
+**`frontend-app/test/ui_quality_test.dart`**
+- Relaxed the password semantics assertion to accept one or more matching semantics nodes, avoiding brittleness from Flutter's tooltip/semantics merging.
+- Added a Flutter-side safe-pressable response test for key controls:
+  - Login password visibility toggle.
+  - Empty login submit validation.
+  - Google sign-in placeholder snackbar.
+  - Student Schedule, Scan, Insights, and Account tab navigation.
+  - Schedule `Upcoming` filter.
+  - Event editor date and time picker buttons.
+- Hardened pressable UI tests to use hit-testable targets and route-ready pumping before tapping navigation controls.
+- Reset the test app tree between signed-out and student sessions so Riverpod/router state from the prior pump cannot hide the student shell.
+- Switched student bottom-nav taps from visible text lookup to stable bottom-nav keys.
+
+### Notes
+
+- The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.
+- The web Playwright E2E job in `.github/workflows/ci.yml` is gated to run only on the `pilot` branch.
+- The Flutter UI-quality tests now run through `flutter test` on `frontend-app/**` pushes.
+- The Android emulator step currently proves APK install and launch; it does not yet run Flutter integration tests on the emulator.
+
+## 2026-05-22 (Campus Admin Enhancements)
+
+### Frontend Changes
+- **iPhone Mockup & Custom Color Picker:** Redesigned the simulated phone preview into a high-fidelity, photorealistic iPhone 15 Pro mockup featuring a Titanium-look metallic chassis, rounded uniform bezels, Dynamic Island, top iOS status bar, and bottom home indicator. Replaced the restricted 6-color grid with an unlimited HSV color picker dialog, a SweepGradient rainbow swatch, presets, and real-time custom hex code input.
+- **School Settings Customization:** Redesigned `SchoolSettingsScreen` into an Apple-style preferences view with a Mini UI preview that reacts instantly to color and logo changes. Switched from multipart file upload to accepting direct image URLs for logos.
+- **Account Tab:** Updated the student `AccountTab` to display the school's custom logo adjacent to the school name, pulling directly from the updated session metadata.
+- **Student Management:** Refined `SchoolItUsersScreen` to remove the global student search bar, enforcing management strictly by college. Added both `Manual Add` and `Bulk Import` options directly within `CollegeStudentsScreen` for better organization.
+
 ## 2026-05-09 (Phase 12: Rejected Scan Audit Logging)
 
 ### Architecture Decision

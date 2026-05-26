@@ -10,6 +10,139 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-05-26
+
+### Added
+- **Real Google sign-in.** "Continue with Google" on the login screen is
+  now functional. New `GoogleSignInService` reads
+  `AURA_GOOGLE_WEB_CLIENT_ID` via `--dart-define`, drives the
+  `google_sign_in` SDK (web + native), and posts the resulting ID token to
+  `POST /auth/google`. Backend errors translate to actionable copy:
+  - 403 (Google login disabled) → "Google sign-in is disabled for this
+    deployment. Use your school email and password instead."
+  - 404 (email not registered) → "No Aura account is linked to that
+    Google email. Ask your Campus Admin to register your school email
+    first."
+  - 401 (invalid token / unverified email) → "Google could not verify
+    your account. Make sure your Google email is verified and try
+    again."
+  - Not configured (empty client ID) → "Sign in with Google isn't
+    enabled for this app yet." Service refuses to attempt sign-in.
+  - User cancels → silent (no error banner). `AppConfig` gains
+    `googleAndroidClientId` + `isGoogleSignInConfigured` helper.
+- **Real forgot-password flow.** Replaced "Reset it in the web app for
+  now" with a `ForgotPasswordDialog` (Card-styled modal with reset-icon
+  badge, email field, Cancel/Send actions, loading + error states). It
+  calls `AuthRepository.forgotPassword(email)` → `POST /auth/forgot-password`
+  → backend's generic admin-approval message → snackbar. Pre-fills the
+  email from the login form. Validates locally for empty/no-@ before
+  hitting the network.
+- **Public Help Center from the login screen.** New "Need help?" link
+  beside "Forgot your password?" opens
+  `HelpCenterScreen(audience: HelpAudience.public)` — a trimmed
+  catalogue (no privileged or dev-docs content) for unauthenticated
+  visitors.
+- **Role-based Help Center.** New `HelpAudience` enum
+  (`public`/`student`/`campusAdmin`/`governance`/`admin`) tagged on every
+  category and on individual articles. The screen derives the viewer
+  from the current session — students see attendance + AI + their own
+  workflow; campus admins see manage-users / imports / governance setup;
+  governance officers see event-management; super-admins see everything
+  plus the new Developer docs. Quick-help chips and search are filtered
+  to the viewer's tier.
+- **Developer docs section (admin-only).** New `developer-docs` category
+  visible only to platform admins, with 8 quick-reference articles
+  sourced from `docs/technical/`: architecture, tech stack, API
+  reference, database/migrations, deployment/CI/CD, local dev setup,
+  testing strategy, and SaaS billing + subscription state. Each article
+  points to the canonical source-of-truth in the in-repo docs tree.
+- **Forgot-password help article.** New `ac-forgot-password` article in
+  the Account category, public-visible, with step-by-step admin-approval
+  flow. Promoted to the first Quick-help chip ("Forgot password").
+- **Audience-aware screen UX.** `_IntroHeader` writes a per-tier
+  subtitle ("Attendance, schedule, your account…" for students,
+  "Operations, developer docs, and SaaS billing…" for admins).
+  `_QuickHelpRow` accepts a pre-filtered list of entries so chips never
+  link to articles the viewer can't see.
+
+### Changed
+- **Help search bar polish.** Surface-light fill in idle, surface-white
+  + accent ring + soft accent-tinted shadow on focus. Search icon
+  scales 1.08× when focused. Clear button is now a circular soft chip
+  with `AnimatedSwitcher` fade/scale entry. Cursor uses the brand
+  accent. Hint copy clarified to "Search guides, FAQ, troubleshooting…"
+- **Bottom nav semantics.** `_NavButton` in `glass_bottom_nav.dart` and
+  `_NavItem` in `liquid_glass_nav.dart` now wrap the inner button in
+  `ExcludeSemantics` and add `container: true` on the parent
+  `Semantics` so `find.bySemanticsLabel('Home' | 'Schedule' | …)`
+  returns the bottom-nav nodes cleanly (the prior tree merged the child
+  Text's label, masking the parent label and breaking
+  `ui_quality_test`).
+- **Quick-help line-up.** "Forgot password" and "Install the app" join
+  the chip row; "Change password" article remains in the Account
+  category but is no longer a chip (the forgot-password flow is what
+  users actually need pre-signin).
+- **Login screen layout.** Footer links use `Wrap` (instead of `Row`)
+  so the "Forgot your password? · Need help?" pair wraps to two lines
+  at mobile widths instead of overflowing.
+
+### Fixed
+- **`ui_quality_test.dart` semantics handle leak.** The
+  `key app controls expose accessible semantics labels` test now
+  disposes the `SemanticsHandle` via `try/finally` so dispose runs
+  before `_endOfTestVerifications` (addTearDown ordering left a stray
+  handle and tripped the "SemanticsHandle was active at end of test"
+  assertion once the body actually reached the end).
+
+### Verified
+- `flutter analyze` clean.
+- `flutter test` — 120 tests pass (115 existing + 5 new audience
+  filtering tests in `test/unit/help_content_test.dart`).
+
+## [1.25.0] - 2026-05-26
+
+### Added
+- **In-app Help Center.** A new "Help Center" tile under Account → Support
+  opens a dedicated, searchable help surface that mirrors the
+  `docs/user-guide/` content. **9 categories, 45 articles** written as
+  step-by-step actions rather than prose: Getting started, Attendance &
+  events, Your account, Schedule & events, Aura AI assistant, For staff &
+  officers, Troubleshooting, Security & good practice, and About Aura.
+  - **Search** is the hero — a focus-animated pill that filters every
+    article live, with a 120-char snippet centred on the match and a
+    category-coloured badge above each result. Empty-state suggests common
+    queries (login, face, password, permissions, late, reset).
+  - **Quick-help chips** above the search field deep-link straight into
+    the top-asked articles (cannot log in, face scan failed, change
+    password, grant permissions).
+  - **Accordion category cards** with an animated chevron, tinted icon
+    tile, and a JetBrains Mono count pill. Tap → reveal the article list
+    via `AnimatedSize`/`ClipRect`; honours `MediaQuery.disableAnimations`.
+  - **Article bottom sheet** (`DraggableScrollableSheet`, initial 0.75,
+    drag 0.45–0.95) shows the category chip, headline-sized title, body,
+    numbered steps (mono numerals in a tinted square), and an optional
+    italic tip callout with a left accent bar.
+  - **Contact card** with three tap-to-copy rows — Campus Admin email, IT
+    support email, full documentation URL — using `Clipboard.setData` and
+    a confirmation snackbar.
+  - **Footer** prints `Aura v{version} · build {build} · powered by Jose
+    AI` in mono.
+  - Motion follows `AppMotion`: ease-out under 300ms, press scale 0.97,
+    50ms stagger entrance, reduced-motion respected. Manrope display +
+    body, JetBrains Mono for numerals.
+  - New files: `lib/features/help/data/help_content.dart` (pure-data
+    catalogue with `HelpCategory`, `HelpArticle`, `search()`,
+    `findArticle()`, `findCategory()`) and
+    `lib/features/help/presentation/help_center_screen.dart`.
+  - Wired into `account_tab.dart` as a new "Support" `SettingsSection`
+    between Security and Workspaces — rose-coloured
+    `Icons.help_outline_rounded` tile with subtitle "Guides, FAQ,
+    troubleshooting & contact".
+  - **12 new unit tests** in `test/unit/help_content_test.dart` lock the
+    catalogue's invariants: unique category and article IDs, non-empty
+    bodies and steps, case-insensitive search, keyword-list matching, and
+    quick-help link integrity. analyze clean, 54 tests.
+
 ## [1.24.0] - 2026-05-23
 ### Added
 - **Edit governance events.** The event monitor screen now has an Edit action
