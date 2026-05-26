@@ -7,8 +7,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -87,6 +88,28 @@ if settings.trusted_hosts and settings.trusted_hosts != ["*"]:
 
 app.add_middleware(MaxRequestBodySizeMiddleware)
 app.add_middleware(MutationRateLimitMiddleware)
+
+
+# TEMPORARY DIAGNOSTIC — surface the real cause of uncaught 500s in the
+# response body so the failing /token call can be diagnosed from the client
+# without server SSH access. HTTPException, 4xx, and rate-limit responses
+# run their own handlers first and are untouched. Remove this block once the
+# root cause is fixed.
+@app.exception_handler(Exception)
+async def _diagnostic_500_handler(request: Request, exc: Exception):
+    import traceback
+    tb_tail = "".join(traceback.format_exception(exc)[-6:])
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"{type(exc).__name__}: {exc}",
+            "exc_type": type(exc).__name__,
+            "path": str(request.url.path),
+            "tb_tail": tb_tail,
+        },
+    )
+
 
 # CORS setup
 app.add_middleware(
