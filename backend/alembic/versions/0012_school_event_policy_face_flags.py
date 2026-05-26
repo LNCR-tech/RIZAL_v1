@@ -3,14 +3,14 @@
 Migration 0004 was inserted into the chain after this DB was already past
 that point, so ALTER TABLE never executed. This migration repairs the gap.
 
-Revision ID: 0012_school_event_policy_face_flags
+Revision ID: 0012_school_ep_face_flags
 Revises: 0011_user_sessions_runtime
 Create Date: 2026-05-27
 """
 
 from alembic import op
 
-revision = "0012_school_event_policy_face_flags"
+revision = "0012_school_ep_face_flags"
 down_revision = "0011_user_sessions_runtime"
 branch_labels = None
 depends_on = None
