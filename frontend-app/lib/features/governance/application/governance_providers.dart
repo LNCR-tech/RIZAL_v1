@@ -16,6 +16,20 @@ final governanceAccessProvider =
   return ref.watch(governanceRepositoryProvider).accessMe();
 });
 
+/// Current student's own sanction records (`GET /api/sanctions/students/me`).
+/// Returns an empty list when the student has no outstanding sanctions or
+/// when their role doesn't include student profile (officer-only accounts).
+final mySanctionsProvider =
+    FutureProvider.autoDispose<List<SanctionRecord>>((ref) async {
+  return ref.watch(sanctionsRepositoryProvider).mine();
+});
+
+/// School-wide active clearance deadline. Null when none is set.
+final activeClearanceDeadlineProvider =
+    FutureProvider.autoDispose<ClearanceDeadline?>((ref) async {
+  return ref.watch(sanctionsRepositoryProvider).activeClearanceDeadline();
+});
+
 /// Explicitly selected active unit (overrides the preferred default).
 class ActiveUnitController extends Notifier<GovUnitAccess?> {
   @override

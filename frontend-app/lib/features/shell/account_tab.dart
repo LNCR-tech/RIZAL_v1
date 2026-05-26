@@ -22,6 +22,7 @@ import '../events/application/auto_checkin_controller.dart';
 import '../gather/presentation/gather_screen.dart';
 import '../governance/application/governance_providers.dart';
 import '../help/presentation/help_center_screen.dart';
+import '../sanctions/presentation/my_sanctions_screen.dart';
 import '../notifications/presentation/notifications_screen.dart';
 import '../student/presentation/edit_profile_screen.dart';
 import '../student/presentation/profile_screen.dart';
@@ -275,6 +276,24 @@ class AccountTab extends ConsumerWidget {
             ),
           ],
         ),
+
+        // Students see "My sanctions" — every other role uses the governance
+        // dashboard for the same data so it's intentionally hidden there.
+        if (Roles.workspaceFor(meta?.roles ?? const []) == Workspace.student) ...[
+          const SizedBox(height: AppSpacing.x24),
+          SettingsSection(
+            header: 'Compliance',
+            tiles: [
+              SettingsTile(
+                icon: Icons.gavel_rounded,
+                iconColor: t.tardy,
+                title: 'My sanctions',
+                subtitle: 'Outstanding penalties & clearance deadline',
+                onTap: () => _push(context, const MySanctionsScreen()),
+              ),
+            ],
+          ),
+        ],
 
         const SizedBox(height: AppSpacing.x24),
         SettingsSection(

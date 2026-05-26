@@ -91,10 +91,20 @@ class SanctionsScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(e.eventName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: textTheme.titleLarge),
+                                Row(
+                                  children: [
+                                    if (e.ownerLevel != null) ...[
+                                      _OwnerLevelBadge(level: e.ownerLevel!),
+                                      const SizedBox(width: AppSpacing.x8),
+                                    ],
+                                    Expanded(
+                                      child: Text(e.eventName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: textTheme.titleLarge),
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 2),
                                 Text(
                                     '${e.absentCount} absent · ${e.participantCount} participants',
@@ -122,6 +132,49 @@ class SanctionsScreen extends ConsumerWidget {
                   ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tiny governance-tier badge surfaced on each event row. Colour comes
+/// from the existing brand tokens (`t.ssg` indigo / `t.sg` violet) so the
+/// hierarchy is recognisable everywhere it appears.
+class _OwnerLevelBadge extends StatelessWidget {
+  const _OwnerLevelBadge({required this.level});
+  final String level; // 'SSG' | 'SG' | 'ORG'
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final upper = level.toUpperCase();
+    final Color color;
+    switch (upper) {
+      case 'SSG':
+        color = t.ssg;
+        break;
+      case 'SG':
+        color = t.sg;
+        break;
+      case 'ORG':
+        color = t.tardy; // amber — distinguishable from SSG/SG without a new token
+        break;
+      default:
+        color = t.textMuted;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Text(
+        upper,
+        style: AppTypography.mono(
+          size: 10,
+          weight: FontWeight.w800,
+          color: color,
         ),
       ),
     );

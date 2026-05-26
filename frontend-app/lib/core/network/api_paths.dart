@@ -64,6 +64,11 @@ class Api {
 
   // Sanctions (verified under /api)
   static const String sanctionsDashboard = '$prefix/sanctions/dashboard';
+  // Student self-view: the signed-in student's own sanction records.
+  static const String sanctionsMine = '$prefix/sanctions/students/me';
+  // Active school-wide clearance deadline (null when none is set).
+  static const String sanctionsClearanceDeadline =
+      '$prefix/sanctions/clearance-deadline';
   static String sanctionEventStudents(int eventId) =>
       '$prefix/sanctions/events/$eventId/students';
   static String sanctionApprove(int eventId, int userId) =>

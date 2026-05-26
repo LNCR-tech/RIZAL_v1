@@ -137,6 +137,39 @@ class SanctionEventRow {
       );
 }
 
+class ClearanceDeadline {
+  const ClearanceDeadline({
+    required this.id,
+    required this.eventId,
+    required this.deadlineAt,
+    this.status = 'active',
+    this.message,
+  });
+
+  final int id;
+  final int eventId;
+  final DateTime deadlineAt;
+  final String status; // active | closed | expired
+  final String? message;
+
+  /// True when the deadline is in the future and status is `active`.
+  bool get isUpcoming =>
+      status == 'active' && deadlineAt.isAfter(DateTime.now());
+
+  /// Hours remaining until the deadline. Negative when already passed.
+  int get hoursRemaining =>
+      deadlineAt.difference(DateTime.now()).inHours;
+
+  factory ClearanceDeadline.fromJson(Map<String, dynamic> j) =>
+      ClearanceDeadline(
+        id: asInt(j['id']) ?? 0,
+        eventId: asInt(j['event_id']) ?? 0,
+        deadlineAt: asDate(j['deadline_at']) ?? DateTime.now(),
+        status: asStr(j['status']) ?? 'active',
+        message: asStr(j['message']),
+      );
+}
+
 class SanctionsDashboard {
   const SanctionsDashboard({
     this.totalEvents = 0,

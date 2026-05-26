@@ -10,6 +10,56 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-05-26
+
+### Added
+- **Student-facing "My sanctions" screen.** Surfaces
+  `GET /api/sanctions/students/me` data that the backend was already
+  exposing but had no Flutter UI for. Account → Compliance → My
+  sanctions (visible only to students). Summary chips for Pending /
+  Cleared counts, an opt-in clearance-deadline banner that intensifies
+  colour as the deadline approaches (`>72h` muted → `24–72h` tardy/amber
+  → `<24h` absent/red), and one card per sanction record with a 4px
+  coloured status bar at the top, status pill, and numbered penalty
+  rows. Cleared penalties strike through + show the clearance
+  timestamp.
+- **`SanctionsRepository.mine()`** — `GET /api/sanctions/students/me`,
+  returns the signed-in student's full sanction list.
+- **`SanctionsRepository.activeClearanceDeadline()`** —
+  `GET /api/sanctions/clearance-deadline`, returns the school-wide
+  active deadline (null when none set).
+- **`ClearanceDeadline` model** with `isUpcoming` + `hoursRemaining`
+  helpers used by the banner heat-up logic.
+- **`mySanctionsProvider` + `activeClearanceDeadlineProvider`** in
+  `governance_providers.dart` (auto-dispose Riverpod futures).
+- **API paths**: `Api.sanctionsMine`, `Api.sanctionsClearanceDeadline`.
+- **`_OwnerLevelBadge` on the officer dashboard** — every event row in
+  the governance Sanctions screen now shows an SSG / SG / ORG pill
+  coloured from the existing brand tokens (`t.ssg` indigo, `t.sg`
+  violet, `t.tardy` for ORG). Hierarchy is recognisable at a glance.
+- **Diagnostic Android-build script** (`scripts/diagnose-android-build.ps1`).
+  Runs `clean → pub get → analyze → build apk --debug` in sequence and
+  stops on the first real Flutter error instead of the Gradle wrapper
+  swallowing it.
+
+### Changed
+- **Gradle JVM heap dropped from 8G to 4G** in `android/gradle.properties`.
+  The previous 8G heap left ~5G on a 16GB Windows machine for the
+  Flutter Dart compiler + Defender + IDE; mid-build the OS swapped to
+  disk, `flutter.bat` timed out internally, and `compileFlutterBuildDebug`
+  exited 1 after ~34 minutes. 4G is plenty for our Gradle graph and
+  leaves room for the rest of the toolchain.
+
+### Design notes
+- Every colour comes from `AppTokens` — nothing hardcoded.
+- Status conveyed by colour + icon (per ui-ux-pro-max accessibility
+  rule); pending uses `t.tardy` + hourglass, cleared uses `t.present`
+  + check.
+- Stagger entrance via the existing `staggered()` helper (50ms,
+  ease-out), reduced motion respected by `RiseIn`.
+- Mono numerals (`AppTypography.mono`) for counts so data is distinct
+  from prose; matches the Help Center step style.
+
 ## [1.26.1] - 2026-05-26
 
 ### Security
