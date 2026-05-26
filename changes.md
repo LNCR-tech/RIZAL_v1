@@ -5,11 +5,12 @@
 ### CI Workflow Changes
 
 **`.github/workflows/aura-app-ci.yml`**
-- Added Flutter app integration-test execution with `flutter test integration_test`.
-- Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, `flutter test`, then `flutter test integration_test`.
-- Extended the Android job after `flutter build apk --debug` with an emulator smoke check:
+- Runs the Flutter app CI on pushes to `main`, `develop`, `feature/*`, and `integrate/pilot-merge`, with manual `workflow_dispatch` support.
+- Kept the fast Flutter gates in order: `flutter pub get`, `flutter analyze`, then `flutter test`.
+- Extended the Android job after `flutter build apk --debug` with emulator-based integration and smoke checks:
   - Enables KVM permissions on the GitHub runner.
   - Starts an Android API 35 x86_64 emulator through `reactivecircus/android-emulator-runner@v2`.
+  - Runs `flutter test integration_test -d emulator-5554` on the connected emulator.
   - Installs `build/app/outputs/flutter-apk/app-debug.apk`.
   - Launches `com.aura.aura_app/.MainActivity`.
   - Waits briefly and fails with recent `logcat` output if the app process is not alive.
@@ -89,6 +90,12 @@
 - The empty-recipient notification test now creates a temporary school with no students, so it still verifies zero recipients without leaving invalid event-target data in the shared CI test session.
 - This prevents later event-list API tests from failing response validation on `year_level <= 5`.
 
+### Backend CI Lint Fixes
+
+**`backend/app/services/centralized_ai_service.py`**
+- Removed the unused `full_tool_calls` name from a nested stream parser's `nonlocal` declaration.
+- This resolves the CI flake8 `F824` failure while preserving streamed tool-call accumulation through in-place dictionary mutation.
+
 ### Flutter CI Failure Follow-up
 
 **`frontend-app/lib/core/widgets/liquid_glass_nav.dart`**
@@ -141,7 +148,7 @@
 - The web UI/UX Playwright suite still lives under `frontend-web/e2e/workflows/`.
 - The web Playwright E2E job in `.github/workflows/ci.yml` is gated to run only on the `pilot` branch.
 - The Flutter UI-quality tests now run through `flutter test` on `frontend-app/**` pushes.
-- The Android emulator step currently proves APK install and launch; it does not yet run Flutter integration tests on the emulator.
+- The Android emulator step now runs Flutter integration tests before the APK install/launch smoke check.
 
 ## 2026-05-22 (Campus Admin Enhancements)
 
