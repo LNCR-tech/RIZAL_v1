@@ -152,31 +152,16 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           working-directory: frontend-app
-          script: |
-            device="$(adb devices | awk 'NR > 1 && $2 == "device" { print $1; exit }')"
-
-            dump_logs() {
-              if [ -n "$device" ]; then
-                adb -s "$device" logcat -d -t 300 || true
-              else
-                adb devices -l || true
-              fi
-            }
-
-            if [ -z "$device" ]; then
-              adb devices -l
-              exit 1
-            fi
-
-            adb -s "$device" logcat -c || true
-            flutter devices
-            flutter test integration_test -d "$device" \
-              --dart-define=AURA_RUN_BACKEND_E2E=true \
-              --dart-define=AURA_API_BASE_URL=http://10.0.2.2:8000 \
-              --dart-define=AURA_API_TIMEOUT_MS=30000 || {
-              dump_logs
-              exit 1
-            }
+          script: >
+            device="$(adb devices | awk 'NR > 1 && $2 == "device" { print $1; exit }')";
+            if [ -z "$device" ]; then adb devices -l; exit 1; fi;
+            adb -s "$device" logcat -c || true;
+            flutter devices;
+            flutter test integration_test -d "$device"
+            --dart-define=AURA_RUN_BACKEND_E2E=true
+            --dart-define=AURA_API_BASE_URL=http://10.0.2.2:8000
+            --dart-define=AURA_API_TIMEOUT_MS=30000
+            || { adb -s "$device" logcat -d -t 300 || true; exit 1; }
 
       - name: Upload mobile E2E backend logs
         if: always()

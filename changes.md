@@ -20,6 +20,7 @@
   - Starts an Android API 33 x86_64 `google_apis` emulator through `reactivecircus/android-emulator-runner@v2`.
   - Uses a lighter Pixel 2 profile, 2 GB RAM, explicit no-window/no-snapshot emulator options, and a 300-second boot timeout so emulator boot failures fail clearly instead of repeating indefinitely.
   - Resolves the attached Android device from `adb devices` and runs `flutter test integration_test -d "$device"` with `AURA_RUN_BACKEND_E2E=true`.
+  - Flattened the emulator runner shell script to a single command sequence so the action no longer trips on a multiline shell function definition.
   - Uploads `backend/backend.log` as a short-retention artifact for mobile E2E failures.
 - Removed the separate `flutter build apk --debug`, ADB install, manual launch, and process-liveness smoke check from CI.
 - CD/deployment workflows remain manual-only through `workflow_dispatch`; pushing to `integrate/pilot-merge` runs CI, not deployment.
