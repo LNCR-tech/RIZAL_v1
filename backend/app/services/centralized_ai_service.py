@@ -356,7 +356,7 @@ async def stream_chat(
     full_tool_calls: dict[int, dict[str, Any]] = {}
 
     async def _stream_response(response: httpx.Response) -> AsyncGenerator[dict[str, Any], None]:
-        nonlocal full_content, full_tool_calls
+        nonlocal full_content
         async for line in response.aiter_lines():
             if not line.startswith("data: "):
                 continue

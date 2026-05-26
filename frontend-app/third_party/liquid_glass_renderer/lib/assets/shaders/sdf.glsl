@@ -62,14 +62,22 @@ float getShapeSDF(float type, vec2 p, vec2 center, vec2 size, float r) {
     return 1e9; // none
 }
 
-float getShapeSDFFromArray(int index, vec2 p) {
-    int baseIndex = index * 6;
-    float type = uShapeData[baseIndex];
-    vec2 center = vec2(uShapeData[baseIndex + 1], uShapeData[baseIndex + 2]);
-    vec2 size = vec2(uShapeData[baseIndex + 3], uShapeData[baseIndex + 4]);
-    float cornerRadius = uShapeData[baseIndex + 5];
-
-    return getShapeSDF(type, p, center, size, cornerRadius);
+float getShapeSDFFromValues(
+    float type,
+    float centerX,
+    float centerY,
+    float sizeW,
+    float sizeH,
+    float cornerRadius,
+    vec2 p
+) {
+    return getShapeSDF(
+        type,
+        p,
+        vec2(centerX, centerY),
+        vec2(sizeW, sizeH),
+        cornerRadius
+    );
 }
 
 float sceneSDF(vec2 p, int numShapes, float blend) {
@@ -77,24 +85,25 @@ float sceneSDF(vec2 p, int numShapes, float blend) {
         return 1e9;
     }
 
-    float result = getShapeSDFFromArray(0, p);
+    float result = getShapeSDFFromValues(uShapeData[0], uShapeData[1], uShapeData[2], uShapeData[3], uShapeData[4], uShapeData[5], p);
 
-    // Fully unrolled to avoid SkSL rejecting dynamic int min()/loop forms.
-    if (numShapes >= 2) result = smoothUnion(result, getShapeSDFFromArray(1, p), blend);
-    if (numShapes >= 3) result = smoothUnion(result, getShapeSDFFromArray(2, p), blend);
-    if (numShapes >= 4) result = smoothUnion(result, getShapeSDFFromArray(3, p), blend);
-    if (numShapes >= 5) result = smoothUnion(result, getShapeSDFFromArray(4, p), blend);
-    if (numShapes >= 6) result = smoothUnion(result, getShapeSDFFromArray(5, p), blend);
-    if (numShapes >= 7) result = smoothUnion(result, getShapeSDFFromArray(6, p), blend);
-    if (numShapes >= 8) result = smoothUnion(result, getShapeSDFFromArray(7, p), blend);
-    if (numShapes >= 9) result = smoothUnion(result, getShapeSDFFromArray(8, p), blend);
-    if (numShapes >= 10) result = smoothUnion(result, getShapeSDFFromArray(9, p), blend);
-    if (numShapes >= 11) result = smoothUnion(result, getShapeSDFFromArray(10, p), blend);
-    if (numShapes >= 12) result = smoothUnion(result, getShapeSDFFromArray(11, p), blend);
-    if (numShapes >= 13) result = smoothUnion(result, getShapeSDFFromArray(12, p), blend);
-    if (numShapes >= 14) result = smoothUnion(result, getShapeSDFFromArray(13, p), blend);
-    if (numShapes >= 15) result = smoothUnion(result, getShapeSDFFromArray(14, p), blend);
-    if (numShapes >= 16) result = smoothUnion(result, getShapeSDFFromArray(15, p), blend);
+    // Fully unrolled with literal uniform-array indices. Flutter's SkSL
+    // compiler rejects dynamic uniform-array indexing in Impeller shaders.
+    if (numShapes >= 2) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[6], uShapeData[7], uShapeData[8], uShapeData[9], uShapeData[10], uShapeData[11], p), blend);
+    if (numShapes >= 3) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[12], uShapeData[13], uShapeData[14], uShapeData[15], uShapeData[16], uShapeData[17], p), blend);
+    if (numShapes >= 4) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[18], uShapeData[19], uShapeData[20], uShapeData[21], uShapeData[22], uShapeData[23], p), blend);
+    if (numShapes >= 5) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[24], uShapeData[25], uShapeData[26], uShapeData[27], uShapeData[28], uShapeData[29], p), blend);
+    if (numShapes >= 6) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[30], uShapeData[31], uShapeData[32], uShapeData[33], uShapeData[34], uShapeData[35], p), blend);
+    if (numShapes >= 7) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[36], uShapeData[37], uShapeData[38], uShapeData[39], uShapeData[40], uShapeData[41], p), blend);
+    if (numShapes >= 8) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[42], uShapeData[43], uShapeData[44], uShapeData[45], uShapeData[46], uShapeData[47], p), blend);
+    if (numShapes >= 9) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[48], uShapeData[49], uShapeData[50], uShapeData[51], uShapeData[52], uShapeData[53], p), blend);
+    if (numShapes >= 10) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[54], uShapeData[55], uShapeData[56], uShapeData[57], uShapeData[58], uShapeData[59], p), blend);
+    if (numShapes >= 11) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[60], uShapeData[61], uShapeData[62], uShapeData[63], uShapeData[64], uShapeData[65], p), blend);
+    if (numShapes >= 12) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[66], uShapeData[67], uShapeData[68], uShapeData[69], uShapeData[70], uShapeData[71], p), blend);
+    if (numShapes >= 13) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[72], uShapeData[73], uShapeData[74], uShapeData[75], uShapeData[76], uShapeData[77], p), blend);
+    if (numShapes >= 14) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[78], uShapeData[79], uShapeData[80], uShapeData[81], uShapeData[82], uShapeData[83], p), blend);
+    if (numShapes >= 15) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[84], uShapeData[85], uShapeData[86], uShapeData[87], uShapeData[88], uShapeData[89], p), blend);
+    if (numShapes >= 16) result = smoothUnion(result, getShapeSDFFromValues(uShapeData[90], uShapeData[91], uShapeData[92], uShapeData[93], uShapeData[94], uShapeData[95], p), blend);
 
     return result;
 }

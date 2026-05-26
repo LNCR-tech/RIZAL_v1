@@ -56,12 +56,41 @@
 		<string>location</string>
 		<string>fetch</string>
 	</array>
-	<!-- DEV ONLY: allow HTTP to the staging backend served over an IP.
-	     Use HTTPS in production and remove this exception. -->
+	<!--
+	  App Transport Security:
+	    NSAllowsArbitraryLoads is intentionally NOT set, so HTTPS is required
+	    by default — App Store also rejects builds that flip it on globally.
+	    NSExceptionDomains narrowly whitelists cleartext only for the known
+	    IP-based staging backend; every other HTTP request is blocked at the
+	    network stack before any code sees it.
+
+	    Once the production backend is reachable over HTTPS, delete the
+	    entire NSAppTransportSecurity dict so ATS is fully enforced.
+	-->
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>18.142.190.113</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+			</dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>127.0.0.1</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
 	</dict>
 </dict>
 </plist>

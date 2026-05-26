@@ -1,6 +1,11 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  # `third_party/liquid_glass_renderer/` is a vendored copy of an upstream
+  # package — patched for SkSL but otherwise out of scope for our lints.
+  # Exclude it so `flutter analyze` only reports issues in our own source.
+  exclude:
+    - "third_party/**"
   errors:
     # Color channel helpers (.red/.green/.blue/.value) are deprecated on the
     # newest Flutter but still compile; we use them for YIQ/contrast math.
