@@ -534,7 +534,6 @@ What it runs:
 ```bash
 flutter analyze
 flutter test
-flutter test integration_test
 ```
 
 What this catches:
@@ -546,7 +545,6 @@ What this catches:
 - Routing logic regressions
 - UI semantics/layout test failures
 - Shader compilation problems that appear during Flutter test loading
-- Flutter integration test failures from `frontend-app/integration_test/`
 
 ### Current Flutter Test Coverage
 
@@ -586,7 +584,9 @@ What it contains:
 - Event editor edit flow saves through the event repository
 
 Current CI behavior:
-- `flutter test integration_test` runs in the Flutter `analyze-test` job.
+- `flutter test integration_test -d emulator-5554` runs inside the Android
+  emulator job, because Flutter integration tests need a real connected device
+  and cannot run against the Linux runner's web device.
 - These tests use mocked app providers and verify app-level user flows without
   depending on the real backend.
 
@@ -611,6 +611,7 @@ Then it runs an Android emulator:
 - Pixel 6 profile
 
 Inside the emulator job, CI:
+- Runs `flutter test integration_test -d emulator-5554`
 - Installs `build/app/outputs/flutter-apk/app-debug.apk`
 - Launches `com.aura.aura_app/.MainActivity`
 - Waits 10 seconds
@@ -618,6 +619,7 @@ Inside the emulator job, CI:
 - Dumps recent `logcat` output on failure
 
 What this catches:
+- Flutter integration test failures from `frontend-app/integration_test/`
 - Android build failures
 - Gradle/native build failures
 - Flutter dependency/codegen issues
@@ -628,7 +630,7 @@ What this catches:
 What it does not prove:
 - Full user login flow on a real backend
 - Every screen navigation path
-- Integration tests running on the emulator
+- Every workflow inside the separately installed smoke-test APK
 
 ## Assistant CI
 
@@ -767,10 +769,8 @@ and Flutter APK build/launch.
 Current gaps:
 - No strict endpoint-by-endpoint API coverage audit.
 - Playwright E2E is skipped on `integrate/pilot-merge`.
-- The Android emulator job launches the APK but does not run user-flow tests
-  inside the installed app.
-- The Flutter integration tests run through `flutter test integration_test`;
-  the emulator job is still an APK build/install/launch smoke check.
+- Flutter integration tests run on the emulator with mocked providers; the
+  separate APK launch remains a smoke check, not a real-backend login test.
 
 ## Practical Interpretation
 
