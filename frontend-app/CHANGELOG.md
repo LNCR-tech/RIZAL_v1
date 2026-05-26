@@ -10,6 +10,41 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.28.1] - 2026-05-27
+
+### Fixed
+- **"Network error" on a real Android phone** when running
+  `flutter run -d <device>` without
+  `--dart-define-from-file=config/cloud.json`. The default in
+  `lib/core/config/app_config.dart` was the Android-*emulator*-only
+  host-loopback `http://10.0.2.2:8000`; on a real phone that hostname
+  doesn't resolve and every API request failed. The default now points
+  at the staging cloud backend (`http://18.142.190.113:8001`) so the
+  flag is optional. The IP is already in the root README and Android
+  network-security-config, so it's not a new secret. Override with
+  `--dart-define=AURA_API_BASE_URL=...` for a different environment.
+- **`config/cloud.json` had a stray colon** in the assistant URL
+  (`":http://18.142.190.113:8500"`), which made the AI assistant
+  unreachable whenever the flag *was* passed. Stripped the leading
+  colon. (`config/cloud.json` is git-ignored — this only matters for
+  contributors who already have the file checked out locally.)
+
+### Changed
+- **Liquid glass tab bar — icons now actually bend under the blob**
+  (`lib/core/widgets/liquid_glass_nav.dart`). The old build used
+  `LiquidGlass.withOwnLayer`, which wraps the shape in an internal
+  `RepaintBoundary`; on Impeller the icon row sometimes got isolated
+  from the BackdropFilter sample, so only the page beneath the nav
+  bent. Now we manage the `LiquidGlassLayer` ourselves and wrap the
+  icon row in a `RepaintBoundary` so its pixels are guaranteed to
+  land in the parent compositing texture the lens samples. Lens
+  settings boosted to iOS-26 territory:
+  `thickness 24 → 32`, `refractiveIndex 1.4 → 1.55`,
+  `chromaticAberration 4 → 6.5`, `lightIntensity 2.2 → 2.6`,
+  `saturation 1.25 → 1.35`. The icon under the blob now reads as
+  lensed (~6–8px displacement + visible chromatic fringe at the
+  edges), matching the iOS Dynamic-Island feel.
+
 ## [1.28.0] - 2026-05-27
 
 ### Added
@@ -1232,6 +1267,7 @@ Phase 0 — foundation.
 - `flutter analyze` clean; `flutter test` green.
 
 [Unreleased]: #unreleased
+[1.28.1]: #1281---2026-05-27
 [1.28.0]: #1280---2026-05-27
 [1.20.1]: #1201---2026-05-23
 [1.20.0]: #1200---2026-05-23

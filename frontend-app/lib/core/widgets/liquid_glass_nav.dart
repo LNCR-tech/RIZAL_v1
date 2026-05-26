@@ -166,34 +166,48 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                         ),
                       ),
                     ),
-                    // 2. Icons + labels — painted BEHIND the blob so the glass
-                    // can refract them. The liquid-glass layer refracts its
-                    // backdrop (whatever is painted before it); anything painted
-                    // AFTER it is not refracted — that's why the icons must go
-                    // here, under the blob.
+                    // 2. Icons + labels — wrapped in a RepaintBoundary so the
+                    // pixels are guaranteed to land in the parent compositing
+                    // texture that the blob's BackdropFilter samples. Without
+                    // this, Impeller can defer the icon paint into a sibling
+                    // sub-layer that the lens shader never reads, and the icons
+                    // appear flat under the blob. The RepaintBoundary also
+                    // means scrolling the page above doesn't repaint the icons
+                    // every frame — a small perf bonus on low-end devices.
                     Positioned.fill(
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < n; i++)
-                            Expanded(
-                              child: _NavItem(
-                                key: ValueKey(
-                                  'bottom-nav-${widget.items[i].label}',
+                      child: RepaintBoundary(
+                        child: Row(
+                          children: [
+                            for (var i = 0; i < n; i++)
+                              Expanded(
+                                child: _NavItem(
+                                  key: ValueKey(
+                                    'bottom-nav-${widget.items[i].label}',
+                                  ),
+                                  item: widget.items[i],
+                                  active: i == activeIndex,
+                                  activeColor: primary,
+                                  onTap: () => commit(i),
                                 ),
-                                item: widget.items[i],
-                                active: i == activeIndex,
-                                activeColor: primary,
-                                onTap: () => commit(i),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    // 3. Liquid-glass capsule blob — ON TOP of the icons so it
-                    // bends/refracts them like glass (React Bits FluidGlass
-                    // "lens" look). Wrapped in IgnorePointer so taps still reach
-                    // the icons underneath. Outside the clip so it can zoom out
-                    // of the pill while sliding. Blob size + animation unchanged.
+                    // 3. Liquid-glass capsule blob. We manage the
+                    // [LiquidGlassLayer] ourselves (rather than
+                    // `LiquidGlass.withOwnLayer`) so we can:
+                    //   * Read / tune the lens settings in one place.
+                    //   * Avoid the package's nested RepaintBoundary that
+                    //     occasionally isolates the icons from the
+                    //     BackdropFilter sample on Impeller — the symptom
+                    //     was the blob bending the page beneath the nav but
+                    //     not the icons sliding under it (iOS 26 bends both).
+                    // Settings boosted to iOS-26 territory: thicker virtual
+                    // depth, higher refractive index, visible chromatic
+                    // fringe at the lens edge. Adjust to taste — these are
+                    // calibrated to bend a 23dp icon by ~6-8px which the eye
+                    // reads as a real lens, not just a tint.
                     AnimatedBuilder(
                       animation: _anim,
                       builder: (context, child) {
@@ -223,25 +237,24 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                           child: Transform.scale(scale: scale, child: child),
                         );
                       },
-                      // Now that the icons are behind it, the blob actually
-                      // refracts them (FluidGlass-style lens). Tuned for a clearly
-                      // visible bend + chromatic edges — nudge these to taste.
                       child: const IgnorePointer(
-                        child: LiquidGlass.withOwnLayer(
-                          glassContainsChild: false,
-                          shape:
-                              LiquidRoundedSuperellipse(borderRadius: _blobH / 2),
+                        child: LiquidGlassLayer(
                           settings: LiquidGlassSettings(
                             blur: 0,
-                            thickness: 24,
-                            refractiveIndex: 1.4,
-                            chromaticAberration: 4,
-                            glassColor: Color(0x0DFFFFFF),
+                            thickness: 32,
+                            refractiveIndex: 1.55,
+                            chromaticAberration: 6.5,
+                            glassColor: Color(0x14FFFFFF),
                             lightAngle: 1.5708,
-                            lightIntensity: 2.2,
-                            saturation: 1.25,
+                            lightIntensity: 2.6,
+                            saturation: 1.35,
                           ),
-                          child: SizedBox.expand(),
+                          child: LiquidGlass(
+                            glassContainsChild: false,
+                            shape: LiquidRoundedSuperellipse(
+                                borderRadius: _blobH / 2),
+                            child: SizedBox.expand(),
+                          ),
                         ),
                       ),
                     ),

@@ -15,17 +15,24 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   AppConfig._();
 
-  /// Backend root (no trailing `/api`). Defaults to the Android emulator's
-  /// host-loopback for local dev; override with the cloud URL at run/build time.
+  /// Backend root (no trailing `/api`). Defaults to the staging cloud
+  /// backend so `flutter run -d <real-phone>` works without remembering
+  /// `--dart-define-from-file=config/cloud.json` — real phones can't resolve
+  /// the emulator-only `10.0.2.2` address, so a 10.0.2.2 default made every
+  /// API call fail with "Network error" on hardware. Override with
+  /// `--dart-define=AURA_API_BASE_URL=...` for a different environment.
+  /// The IP is already in the project README + AndroidManifest network
+  /// security config, so it's not a secret.
   static const String apiBaseUrl = String.fromEnvironment(
     'AURA_API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000',
+    defaultValue: 'http://18.142.190.113:8001',
   );
 
-  /// AI assistant service root.
+  /// AI assistant service root. Same reasoning as [apiBaseUrl] for the
+  /// staging-cloud default.
   static const String assistantBaseUrl = String.fromEnvironment(
     'AURA_ASSISTANT_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8500',
+    defaultValue: 'http://18.142.190.113:8500',
   );
 
   static const int apiTimeoutMs =
