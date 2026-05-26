@@ -10,6 +10,38 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.28.2] - 2026-05-27
+
+### Changed
+- **App appearance moved out of the Account tab and onto its own
+  screen.** The inline section (preview card + two `SegmentedButton`
+  rows + footnote, all stacked in one `AuraCard`) was eating
+  ~360px of scroll height on the Account tab — long page, busy
+  visually. The Account tab now exposes a thin one-line `SettingsTile`
+  in a new "Personalization" section, with a compact summary
+  ("Aura defaults" / "School logo" / "School code" / "School logo &
+  code") as the subtitle. Tap → opens
+  `AppAppearanceScreen` (`lib/features/shell/app_appearance_screen.dart`).
+- **The dedicated screen replaces SegmentedButtons with visual
+  option cards.** Each choice (Aura · School logo, Default · School
+  code) renders the actual artwork at 64dp so the user picks by
+  *seeing* the result, not by reading a label. Selected card gets
+  an accent ring + slightly bolder label; press scale `0.97`,
+  selection cross-fade `220ms` ease-out. The school-code option
+  uses `AppTypography.mono` so codes like `JRMSU` read as data,
+  not prose. Disabled cards (school hasn't uploaded a logo / set a
+  code) dim to 55% with a one-line "School hasn't…" hint instead
+  of just locking.
+- **Hero preview at the top of the screen** is now bigger and
+  framed with a subtle border so it reads as a card, not just a
+  tinted block. `AnimatedSwitcher` fade+scale on both the brand
+  mark and the wordmark when the user flips a choice — calm,
+  honoring reduced-motion.
+
+### Removed
+- `lib/features/shell/app_appearance_section.dart` (rolled into the
+  new screen).
+
 ## [1.28.1] - 2026-05-27
 
 ### Fixed
@@ -1267,6 +1299,7 @@ Phase 0 — foundation.
 - `flutter analyze` clean; `flutter test` green.
 
 [Unreleased]: #unreleased
+[1.28.2]: #1282---2026-05-27
 [1.28.1]: #1281---2026-05-27
 [1.28.0]: #1280---2026-05-27
 [1.20.1]: #1201---2026-05-23

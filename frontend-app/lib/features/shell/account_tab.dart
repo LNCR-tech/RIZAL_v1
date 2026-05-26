@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/role.dart';
 import '../../core/auth/session_controller.dart';
+import '../../core/theme/app_branding_controller.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/beta_controller.dart';
@@ -26,7 +27,7 @@ import '../sanctions/presentation/my_sanctions_screen.dart';
 import '../notifications/presentation/notifications_screen.dart';
 import '../student/presentation/edit_profile_screen.dart';
 import '../student/presentation/profile_screen.dart';
-import 'app_appearance_section.dart';
+import 'app_appearance_screen.dart';
 import 'app_shell.dart';
 
 /// Account & settings — an iOS-style grouped surface with soft colored icon
@@ -54,6 +55,19 @@ class AccountTab extends ConsumerWidget {
     final autoCheckIn = ref.watch(autoCheckInProvider);
     final autoCheckFull = ref.watch(autoCheckFullProvider);
     final govAccess = ref.watch(governanceAccessProvider).valueOrNull;
+    final branding = ref.watch(appBrandingProvider);
+
+    // Compact one-liner that summarizes the current branding choice for the
+    // Account tile — keeps the row terse while still telling the user what's
+    // on without opening the screen.
+    String brandingSummary() {
+      final logoOn = branding.effectiveUseSchoolLogo;
+      final codeOn = branding.useSchoolCodeAsName && branding.hasCode;
+      if (logoOn && codeOn) return 'School logo & code';
+      if (logoOn) return 'School logo';
+      if (codeOn) return 'School code';
+      return 'Aura defaults';
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -176,7 +190,18 @@ class AccountTab extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.x24),
-        const AppAppearanceSection(),
+        SettingsSection(
+          header: 'Personalization',
+          tiles: [
+            SettingsTile(
+              icon: Icons.palette_outlined,
+              iconColor: _violet,
+              title: 'App appearance',
+              subtitle: brandingSummary(),
+              onTap: () => _push(context, const AppAppearanceScreen()),
+            ),
+          ],
+        ),
         const SizedBox(height: AppSpacing.x24),
         SettingsSection(
           header: 'Beta features',
