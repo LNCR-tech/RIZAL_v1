@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Network Security Config.
+
+  Default for the whole app: HTTPS-only. Plain HTTP is refused even if the
+  code asks for it. The narrow `<domain-config>` exceptions below allow
+  cleartext for known dev backends only, so the production release build
+  cannot be tricked into talking to an arbitrary HTTP host.
+
+  Remove the dev exceptions once the production backend is reachable over
+  HTTPS; then this config becomes "HTTPS or nothing" with no escape hatch.
+
+  Refs: https://developer.android.com/training/articles/security-config
+-->
+<network-security-config>
+    <!-- Refuse all cleartext traffic by default. -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Only system CAs. No user-installed certs, no debug overrides
+                 (debug-overrides is intentionally omitted so a MITM proxy
+                 can't inject its CA on a developer device by accident). -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Cleartext allowed ONLY for the known IP-based staging backend +
+         the Android emulator host-loopback (10.0.2.2). Real production
+         deployments must use HTTPS — the app refuses HTTP to any other
+         host. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">18.142.190.113</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

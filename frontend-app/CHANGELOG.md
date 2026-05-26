@@ -10,6 +10,81 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-05-26
+
+### Security
+Client-side hardening of every Flutter-controllable surface while the
+backend still runs HTTP. Wire traffic remains cleartext to the IP-based
+staging backend (only HTTPS deployment closes that hole) — everything
+else tightens.
+
+#### Network
+- **Android Network Security Config**
+  (`android/app/src/main/res/xml/network_security_config.xml`).
+  Base policy: `cleartextTrafficPermitted="false"`. A narrow
+  `<domain-config>` whitelists HTTP only for `18.142.190.113`, `10.0.2.2`,
+  `127.0.0.1`, `localhost`. Any other HTTP destination is rejected at the
+  network stack. `<debug-overrides>` intentionally omitted so a MITM CA
+  can't be installed on a dev device by accident.
+- **iOS App Transport Security** rewritten. `NSAllowsArbitraryLoads`
+  removed (App Store would reject it anyway). Replaced with
+  `NSExceptionDomains` scoped to `18.142.190.113` /
+  `localhost` / `127.0.0.1` only; the staging exception requires
+  `NSExceptionMinimumTLSVersion = TLSv1.2`.
+- **`android:usesCleartextTraffic="true"`** removed from
+  `AndroidManifest.xml` (superseded by the network security config).
+- **Application-layer HTTPS guard** in `DioClient`
+  (`_assertSecureInRelease`). Release builds compiled with a plain-HTTP
+  base URL throw `StateError` before the first request fires. Debug
+  builds remain permissive for development.
+- **TLS certificate-pinning hook** wired as `_pinTlsCertificates` —
+  currently a no-op (no HTTPS to pin against yet); flips to enforce a
+  SHA-256 SPKI pin the moment the backend ships HTTPS. Code + docs
+  ready.
+
+#### Data at rest
+- **Android backups disabled.** `AndroidManifest.xml` sets
+  `android:allowBackup="false"`, `android:fullBackupContent="false"`,
+  and `android:dataExtractionRules="@xml/data_extraction_rules"`. New
+  `data_extraction_rules.xml` excludes every path from both
+  `cloud-backup` and `device-transfer`, so `adb backup` and Android 12+
+  flows cannot pull the EncryptedSharedPreferences blob holding the
+  access token.
+- Existing JWT storage already used `flutter_secure_storage` with
+  `encryptedSharedPreferences: true` (Keystore-backed on Android,
+  Keychain on iOS) — unchanged.
+
+#### Reverse-engineering
+- **Release-build script for Android**
+  (`scripts/build-release-android.ps1`) invokes `flutter build apk` with
+  `--obfuscate --split-debug-info=build/symbols/<version>
+  --tree-shake-icons`. Dart symbols are replaced with short tokens in
+  the APK; the symbol map ships out-of-band so a crash stack trace from
+  the wild can't be symbolicated without it.
+- **Release-build script for iOS** (`scripts/build-release-ios.ps1`)
+  mirrors the Android flags for `flutter build ipa`.
+
+#### Request hygiene
+- `X-Requested-With: AuraApp` sent on every request so the backend can
+  distinguish app traffic from browser-form-style POSTs if it ever adds
+  CSRF heuristics.
+- No `User-Agent` override (custom UAs are a fingerprinting hint —
+  let Dart's default speak for itself).
+
+### Fixed
+- `analysis_options.yaml` excludes `third_party/**` so `flutter analyze`
+  no longer reports the vendored `liquid_glass_renderer` package's
+  upstream lint findings (it would otherwise show ~9k issues from the
+  vendored shader code; none in app source).
+
+### Notes — what this does NOT fix
+- The base URL in `cloud.json` is embedded in the compiled binary;
+  with HTTPS deployed, leaking the URL is harmless because bytes on
+  the wire are encrypted. **Production HTTPS is still required.**
+- TLS certificate pinning is wired but disabled until the backend
+  ships HTTPS. Flip `_pinTlsCertificates` live once a real cert is
+  reachable.
+
 ## [1.26.0] - 2026-05-26
 
 ### Added

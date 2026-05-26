@@ -1,9 +1,17 @@
+import 'package:flutter/foundation.dart';
+
 /// Compile-time configuration, supplied via `--dart-define`.
 ///
 /// Example (run against the cloud backend):
 ///   flutter run \
 ///     --dart-define=AURA_API_BASE_URL=https://api.yourdomain.com \
 ///     --dart-define=AURA_ASSISTANT_BASE_URL=https://assistant.yourdomain.com
+///
+/// Security note: the values come from `--dart-define-from-file=config/cloud.json`
+/// (git-ignored). They're embedded into the compiled binary, NOT read from disk
+/// at run time — so reverse-engineering the APK can reveal them. Use HTTPS
+/// for both backend + assistant in production so the bytes on the wire are
+/// encrypted regardless of whether the URLs are leaked.
 class AppConfig {
   AppConfig._();
 
@@ -43,4 +51,17 @@ class AppConfig {
   /// Without this the backend cannot validate the returned ID token.
   static bool get isGoogleSignInConfigured =>
       googleWebClientId.trim().isNotEmpty;
+
+  /// True when the *production* (release) build was compiled pointing at a
+  /// plain-HTTP backend. Used by [DioClient] and the splash screen to refuse
+  /// to send credentials over the wire in clear text.
+  ///
+  /// Debug builds are intentionally allowed to talk HTTP to the IP-based
+  /// staging backend during development.
+  static bool get isInsecureInRelease {
+    if (kDebugMode) return false;
+    final api = apiBaseUrl.trim().toLowerCase();
+    final assistant = assistantBaseUrl.trim().toLowerCase();
+    return api.startsWith('http://') || assistant.startsWith('http://');
+  }
 }
