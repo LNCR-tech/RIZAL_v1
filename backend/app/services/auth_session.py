@@ -250,6 +250,14 @@ def issue_full_access_token_response(
         data=token_payload,
         expires_delta=timedelta(minutes=resolved_expires_minutes),
     )
+
+    # Capture user id now (already loaded during token_payload building above).
+    # Then force a clean transaction so that any error silently absorbed by the
+    # optional-context helpers (governance, school, face) cannot poison the
+    # INSERT that follows.
+    _user_id = user.id
+    db.rollback()
+
     try:
         create_user_session(
             db,
@@ -260,25 +268,17 @@ def issue_full_access_token_response(
             request=request,
         )
     except Exception:
-        # CRITICAL: the access_token was already minted by this point. If
-        # we swallow the session-creation failure silently, the client gets
-        # a JWT whose `jti` is never stored in `user_sessions`, and the
-        # next request fails `assert_session_valid` → 401 → client logs
-        # out → "dashboard flashes then login screen" symptom.
-        #
-        # Don't swallow: roll back the request transaction AND log the
-        # exception so the real cause (constraint violation, schema drift,
-        # DB pool issue, etc.) is visible in server logs. The caller will
-        # see the original exception and propagate a 500 to the client,
-        # which the Flutter login screen surfaces as an error banner —
-        # vastly better UX than the silent-logout loop.
+        # The access_token was already minted. Issuing it without a session row
+        # would let the JWT through but fail assert_session_valid on the next
+        # request → 401 → silent logout loop. Raise instead so the client sees
+        # a clear 500 rather than a confusing immediate logout.
+        db.rollback()
         import logging
         logging.getLogger(__name__).exception(
             "create_user_session failed for user_id=%s; refusing to issue "
             "a token without a session row.",
-            getattr(user, "id", None),
+            _user_id,
         )
-        db.rollback()
         raise
 
     return {
