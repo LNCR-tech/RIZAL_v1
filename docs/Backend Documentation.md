@@ -53,6 +53,78 @@ For file uploads use `Content-Type: multipart/form-data`.
 2. Include `Authorization: Bearer <token>` on every subsequent request
 3. Token contains: `email`, `roles`, `school_id`, `user_id`, `must_change_password`, `face_verification_required`, `face_reference_enrolled`
 
+### Session Lifetime
+
+Session duration is controlled by the `platform` field sent at login:
+
+| Platform | `remember_me` | Session duration |
+|----------|---------------|-----------------|
+| `"mobile"` | any | **365 days** — token stays valid for 1 year (no auto-logout) |
+| `"web"` | `false` | **60 minutes** — default web session |
+| `"web"` | `true` | **trusted_device_days × 24 h** — "remember me" web session (default 14 days) |
+
+Mobile clients should always send `"platform": "mobile"` in the login body. This mirrors how apps like Facebook keep users logged in indefinitely until they explicitly sign out.
+
+Web clients that omit `platform` (or send `"web"`) get a standard 60-minute session. Web clients that want a longer session (e.g. a "Remember me" checkbox) can send `remember_me: true`.
+
+### Implementing Login — Vue.js Web App
+
+The web app calls `loginForAccessToken` in `frontend-web/src/services/backendApi.js`, which uses `POST /token` (form-encoded, OAuth2). That endpoint always issues a 60-minute web session — no change needed on the web side.
+
+If you want to use the `POST /login` JSON endpoint instead (e.g. to support `remember_me`), replace the `loginForAccessToken` call in `useAuth.js` with:
+
+```js
+// frontend-web/src/services/backendApi.js  (or inline in useAuth.js)
+const tokenPayload = await fetch(`${apiBaseUrl}/login`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: email,
+    password: password,
+    platform: 'web',       // explicit — 60-minute session
+    remember_me: false,    // set true to extend to trusted_device_days (default 14 days)
+  }),
+}).then(r => r.json())
+```
+
+The web app currently does **not** need any change for the 60-minute behavior — that is already the default.
+
+---
+
+### Implementing Login — Flutter Mobile App
+
+The Flutter app currently uses `POST /token` (form-encoded). To get the 365-day session, switch to `POST /login` (JSON body) and send `platform: "mobile"`.
+
+In the login service (wherever `DioClient` is used to authenticate), change the call to:
+
+```dart
+// In your login repository / auth service
+Future<Map<String, dynamic>> login({
+  required String email,
+  required String password,
+}) async {
+  final response = await _dioClient.post(
+    '/login',
+    data: {
+      'email': email,
+      'password': password,
+      'platform': 'mobile',   // <-- issues a 365-day token
+    },
+  );
+  return response.data as Map<String, dynamic>;
+}
+```
+
+`DioClient.post` already sets `Content-Type: application/json` via Dio defaults, so no extra headers are needed.
+
+The response shape is identical to the current `/token` response — same fields (`access_token`, `roles`, `school_id`, `primary_color`, etc.) — so no changes are needed to the token parsing or `TokenStore` logic.
+
+**Why use `POST /login` instead of `POST /token` for mobile?**
+
+`POST /token` is form-encoded and does not accept a `platform` field, so it always issues a 60-minute web session. `POST /login` is JSON and is the correct endpoint for both mobile and web frontends that need session control.
+
+---
+
 ### Password Change Gate
 
 If `must_change_password = true` in the token response, the user **cannot access any endpoint** until they change their password via `POST /auth/change-password`. Only these endpoints are exempt:
@@ -201,7 +273,7 @@ Kubernetes-style readiness probe. Returns `200` if ready, `503` if not.
 
 ### POST `/token`
 
-OAuth2-compatible token endpoint (used by Swagger UI / API clients that follow the OAuth2 standard).
+OAuth2-compatible token endpoint (used by Swagger UI / API clients that follow the OAuth2 standard). Always issues a web session (60-minute default). Use `POST /login` for mobile.
 
 **Request (form data):**
 ```
@@ -247,9 +319,22 @@ Extended login endpoint. Preferred for mobile and web frontends.
 {
   "email": "student@school.edu",
   "password": "secretpassword",
-  "remember_me": false
+  "remember_me": false,
+  "platform": "web"
 }
 ```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `email` | string | required | User email |
+| `password` | string | required | User password |
+| `remember_me` | boolean | `false` | Web only: extend session to `trusted_device_days` (default 14 days) |
+| `platform` | string | `"web"` | `"web"` = 60-minute session; `"mobile"` = 365-day session (never auto-logout) |
+
+**Session duration rules:**
+- `platform: "mobile"` → 365 days (token valid for 1 year; configurable via `mobile_token_expire_days`)
+- `platform: "web"` + `remember_me: false` → 60 minutes
+- `platform: "web"` + `remember_me: true` → `trusted_device_days × 24 × 60` minutes
 
 **Response:** Same as `/token` above.
 

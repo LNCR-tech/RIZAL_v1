@@ -165,7 +165,12 @@ def _resolve_session_duration_minutes(
     db: Session,
     user: User,
     remember_me: bool,
+    platform: str = "web",
 ) -> int:
+    if platform == "mobile":
+        mobile_days = max(1, int(get_settings().mobile_token_expire_days or 365))
+        return mobile_days * 24 * 60
+
     if not remember_me:
         return ACCESS_TOKEN_EXPIRE_MINUTES
 
@@ -328,6 +333,7 @@ def issue_login_token_response(
     user: User,
     request: Request | None = None,
     remember_me: bool = False,
+    platform: str = "web",
 ) -> dict[str, object | None]:
     validate_login_account_state(db, user)
     role_names = get_user_role_names(user)
@@ -335,6 +341,7 @@ def issue_login_token_response(
         db=db,
         user=user,
         remember_me=remember_me,
+        platform=platform,
     )
 
     if _should_require_face_scan_mfa(db, user, role_names):

@@ -16,7 +16,8 @@ class BackendAppSettings:
     db_max_overflow: int = 10
     db_pool_timeout_seconds: int = 15
     db_pool_recycle_seconds: int = 1800
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 60
+    mobile_token_expire_days: int = 365
 
     face_scan_bypass_all: bool = False
     face_scan_bypass_emails: tuple[str, ...] = ()
