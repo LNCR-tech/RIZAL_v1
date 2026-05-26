@@ -93,8 +93,9 @@ def _school_to_response(school: School) -> SchoolBrandingResponse:
         school_name=getattr(school, 'school_name', None) or getattr(school, 'display_name', None) or getattr(school, 'legal_name', None),
         school_code=school.school_code,
         logo_url=getattr(school, 'logo_url', None) or getattr(branding, 'logo_url', None),
-        primary_color=(getattr(school, 'primary_color', None) or getattr(branding, 'primary_color', None) or "#162F65"),
-        secondary_color=(getattr(school, 'secondary_color', None) or getattr(branding, 'secondary_color', None)),
+        primary_color=(getattr(branding, 'primary_color', None) or "#162F65"),
+        secondary_color=(getattr(branding, 'secondary_color', None)),
+        accent_color=(getattr(branding, 'accent_color', None)),
         event_default_early_check_in_minutes=event_default_early_check_in_minutes,
         event_default_late_threshold_minutes=event_default_late_threshold_minutes,
         event_default_sign_out_grace_minutes=event_default_sign_out_grace_minutes,
@@ -111,9 +112,6 @@ def _sync_school_settings(db: Session, school: School, updated_by_user_id: int) 
         settings = SchoolSetting(school_id=school.id)
         db.add(settings)
 
-    settings.primary_color = school.primary_color
-    settings.secondary_color = school.secondary_color or "#2C5F9E"
-    settings.accent_color = school.secondary_color or school.primary_color
     settings.updated_by_user_id = updated_by_user_id
     school.settings = settings
 
@@ -716,7 +714,7 @@ async def update_school(
         school.name = payload.school_name
     if payload.primary_color is not None:
         school.primary_color = payload.primary_color
-    if secondary_color is not None:
+    if payload.secondary_color is not None:
         school.secondary_color = payload.secondary_color
     if school_code is not None:
         school.school_code = payload.school_code
@@ -728,11 +726,11 @@ async def update_school(
         settings = db.query(SchoolSetting).filter(SchoolSetting.school_id == school.id).first()
     if settings is not None:
         if payload.event_default_early_check_in_minutes is not None:
-            settings.event_default_early_check_in_minutes = payload.event_default_early_check_in_minutes
+            settings.default_early_check_in_minutes = payload.event_default_early_check_in_minutes
         if payload.event_default_late_threshold_minutes is not None:
-            settings.event_default_late_threshold_minutes = payload.event_default_late_threshold_minutes
+            settings.default_late_threshold_minutes = payload.event_default_late_threshold_minutes
         if payload.event_default_sign_out_grace_minutes is not None:
-            settings.event_default_sign_out_grace_minutes = payload.event_default_sign_out_grace_minutes
+            settings.default_sign_out_grace_minutes = payload.event_default_sign_out_grace_minutes
         school.settings = settings
     _write_audit(
         db,

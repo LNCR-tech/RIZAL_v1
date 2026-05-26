@@ -12,7 +12,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.rate_limit import build_face_rule, enforce_rate_limit, user_identity
+from app.core.rate_limit import (
+    build_face_rule,
+    check_rate_limit,
+    enforce_rate_limit,
+    record_rate_limit_failure,
+    user_identity,
+)
 from app.core.security import (
     get_current_application_user,
     get_current_student_user,
@@ -63,6 +69,16 @@ face_service = FaceRecognitionService()
 
 def _enforce_face_endpoint_rate_limit(request: Request, current_user: UserModel, action: str) -> None:
     enforce_rate_limit(build_face_rule(), f"{user_identity(current_user)}:{action}", request=request)
+
+
+def _check_face_failure_limit(request: Request, current_user: UserModel, action: str) -> None:
+    """Check failure counter only — does not count this attempt."""
+    check_rate_limit(build_face_rule(), f"{user_identity(current_user)}:{action}:fail", request=request)
+
+
+def _record_face_failure(current_user: UserModel, action: str) -> None:
+    """Increment failure counter. Call only when the face scan fails."""
+    record_rate_limit_failure(build_face_rule(), f"{user_identity(current_user)}:{action}:fail")
 
 
 def _validate_face_upload(file: UploadFile, image_bytes: bytes) -> None:
@@ -118,6 +134,8 @@ def _serialize_attendance_decision(decision) -> dict[str, object]:
     for key, value in list(payload.items()):
         if isinstance(value, datetime):
             payload[key] = value.isoformat()
+    # "message" conflicts with the explicit message= kwarg in _attendance_scan_error_detail
+    payload.pop("message", None)
     return payload
 
 
@@ -337,7 +355,7 @@ def record_attendance_from_face_scan(
     db: Session = Depends(get_db),
 ):
     """Run a student self-scan attendance flow, bound to the signed-in student account."""
-    _enforce_face_endpoint_rate_limit(request, current_user, "face-attendance")
+    _check_face_failure_limit(request, current_user, "face-attendance")
     actor_is_student_self_scan = has_any_role(current_user, ["student"])
     if not actor_is_student_self_scan:
         raise HTTPException(
@@ -420,8 +438,10 @@ def record_attendance_from_face_scan(
         except HTTPException as exc:
             normalized_error = resolve_face_verification_error_message(exc.detail)
             if normalized_error is None:
+                _record_face_failure(current_user, "face-attendance")
                 raise
             status_code, message = normalized_error
+            _record_face_failure(current_user, "face-attendance")
             raise HTTPException(status_code=status_code, detail=message) from exc
         try:
             reference_encoding = face_service.encoding_from_bytes(
@@ -446,6 +466,7 @@ def record_attendance_from_face_scan(
             mode="single",
         )
         if not match.matched:
+            _record_face_failure(current_user, "face-attendance")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Face not match.",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
@@ -74,6 +74,16 @@ class StudentProfile(Base):
     promotion_locked = Column(Boolean, nullable=False, default=False)
     section = Column(Text, nullable=True, index=True)
     rfid_tag = Column(Text, unique=True, nullable=True)
+    # Face recognition columns (written by face-registration flow)
+    face_encoding = Column(LargeBinary, nullable=True)
+    embedding_provider = Column(String(32), nullable=True)
+    embedding_dtype = Column(String(16), nullable=True)
+    embedding_dimension = Column(Integer, nullable=True)
+    embedding_normalized = Column(Boolean, nullable=False, default=True)
+    is_face_registered = Column(Boolean, nullable=True, index=True)
+    face_image_url = Column(String(500), nullable=True)
+    registration_complete = Column(Boolean, nullable=True, index=True)
+    last_face_update = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
@@ -82,6 +92,23 @@ class StudentProfile(Base):
     department = relationship("Department")
     program = relationship("Program")
     attendance_records = relationship("AttendanceRecord", back_populates="student", cascade="all, delete-orphan")
+
+    def update_face_encoding(
+        self,
+        encoding_bytes: bytes,
+        *,
+        provider: str,
+        dtype: str,
+        dimension: int,
+        normalized: bool = True,
+    ) -> None:
+        self.face_encoding = encoding_bytes
+        self.embedding_provider = provider
+        self.embedding_dtype = dtype
+        self.embedding_dimension = dimension
+        self.embedding_normalized = normalized
+        self.is_face_registered = True
+        self.last_face_update = utc_now()
 
     # Compatibility property — old code used student_id, new schema uses student_number
     @hybrid_property

@@ -16,7 +16,8 @@ class BackendAppSettings:
     db_max_overflow: int = 10
     db_pool_timeout_seconds: int = 15
     db_pool_recycle_seconds: int = 1800
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 60
+    mobile_token_expire_days: int = 365
 
     face_scan_bypass_all: bool = False
     face_scan_bypass_emails: tuple[str, ...] = ()
@@ -27,8 +28,8 @@ class BackendAppSettings:
     face_warmup_on_startup: bool = True
     face_embedding_dim: int = 512
     face_embedding_dtype: str = "float32"
-    liveness_threshold: float = 0.75
-    public_attendance_liveness_threshold: float = 0.82
+    liveness_threshold: float = 0.85
+    public_attendance_liveness_threshold: float = 0.92
     allow_liveness_bypass_when_model_missing: bool = False
     anti_spoof_scale: float = 2.7
     anti_spoof_model_path: str = ""

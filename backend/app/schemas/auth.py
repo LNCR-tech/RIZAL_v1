@@ -45,6 +45,7 @@ class LoginRequest(BaseModel):
     email: EmailStr  # More strict validation
     password: str
     remember_me: bool = False
+    platform: str = "web"
 
 
 class ChangePasswordRequest(BaseModel):

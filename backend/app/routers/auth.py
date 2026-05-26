@@ -178,6 +178,7 @@ def login_with_email(
         user=user,
         request=request,
         remember_me=login_data.remember_me,
+        platform=login_data.platform,
     )
     _try_record_login_history(
         db,

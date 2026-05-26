@@ -234,9 +234,10 @@ class LivenessChecker:
             crop = self._expand_crop_with_context(crop)
 
         input_height, input_width = self._input_size or (80, 80)
-        crop_bgr = crop[:, :, ::-1].copy()
+        # Model expects BGR input, raw float32 (0-255), class 1 = real/live
+        crop_bgr = np.asarray(crop, dtype=np.uint8)[:, :, ::-1]
         resized = cv2.resize(crop_bgr, (input_width, input_height))
-        model_input = resized.astype(np.float32) / 255.0
+        model_input = resized.astype(np.float32)
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
 
@@ -245,8 +246,7 @@ class LivenessChecker:
             {self._input_name: model_input},
         )[0]
         probabilities = self._softmax(logits)
-        if probabilities.shape[1] >= 3:
-            return float(1.0 - probabilities[0, 1:].sum())
+        # 3-class model: index 0 = print-spoof, index 1 = real/live, index 2 = video-spoof
         if probabilities.shape[1] >= 2:
             return float(probabilities[0, 1])
-        return float(probabilities[0, 0])
+        return 0.0

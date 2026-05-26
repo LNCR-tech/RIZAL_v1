@@ -117,11 +117,7 @@ services:
   worker:
     image: aura-backend:${APP_ENV:-prod}
     restart: unless-stopped
-    command: >-
-      sh -c 'exec celery -A app.workers.celery_app.celery_app worker
-      --loglevel="$${CELERY_LOGLEVEL:-info}"
-      --pool "$${CELERY_WORKER_POOL:-solo}"
-      --concurrency "$${CELERY_WORKER_CONCURRENCY:-1}"'
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=INFO --pool=solo --concurrency=1
     <<: *app-env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
@@ -139,10 +135,7 @@ services:
   beat:
     image: aura-backend:${APP_ENV:-prod}
     restart: unless-stopped
-    command: >-
-      sh -c 'exec celery -A app.workers.celery_app.celery_app beat
-      --loglevel="$${CELERY_LOGLEVEL:-info}"
-      --schedule /tmp/celerybeat-schedule'
+    command: celery -A app.workers.celery_app.celery_app beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
     <<: *app-env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/fastapi_db}
@@ -230,7 +223,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10

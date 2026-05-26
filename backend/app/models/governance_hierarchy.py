@@ -157,6 +157,7 @@ class GovernanceMemberPermission(Base):
     permission_id = Column(BigInteger, ForeignKey("governance_permissions.id", ondelete="CASCADE"), primary_key=True)
     granted_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     granted_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     governance_member = relationship("GovernanceMember", back_populates="member_permissions")
     permission = relationship("GovernancePermission", back_populates="member_permissions")
@@ -166,10 +167,6 @@ class GovernanceMemberPermission(Base):
     def id(self):
         # Compatibility for API schemas that expect an `id` field on relation rows.
         return self.permission_id
-
-    @property
-    def created_at(self):
-        return self.granted_at
 
 
 class GovernanceAnnouncement(Base):

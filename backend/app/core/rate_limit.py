@@ -113,6 +113,113 @@ def _consume_redis(rule: RateLimitRule, identity: str) -> tuple[bool, int]:
     return count <= rule.limit, retry_after
 
 
+def _check_redis(rule: RateLimitRule, identity: str) -> tuple[bool, int]:
+    """Read current count without incrementing."""
+    now = int(time.time())
+    window_id = now // max(1, rule.window_seconds)
+    key_identity = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    key = f"rate-limit:{rule.name}:{window_id}:{key_identity}"
+    client = _get_redis_client()
+    count_str = client.get(key)
+    count = int(count_str) if count_str else 0
+    ttl = int(client.ttl(key))
+    retry_after = ttl if ttl > 0 else rule.window_seconds
+    return count < rule.limit, retry_after
+
+
+def _record_redis(rule: RateLimitRule, identity: str) -> None:
+    """Increment failure counter without checking."""
+    now = int(time.time())
+    window_id = now // max(1, rule.window_seconds)
+    key_identity = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    key = f"rate-limit:{rule.name}:{window_id}:{key_identity}"
+    client = _get_redis_client()
+    count = int(client.incr(key))
+    if count == 1:
+        client.expire(key, rule.window_seconds + 1)
+
+
+def _check_memory(rule: RateLimitRule, identity: str) -> tuple[bool, int]:
+    """Read current in-memory count without incrementing."""
+    now = time.monotonic()
+    key = f"{rule.name}:{identity}"
+    with _memory_lock:
+        count, expires_at = _memory_counters.get(key, (0, now + rule.window_seconds))
+        if expires_at <= now:
+            count = 0
+        retry_after = max(1, int(expires_at - now))
+        return count < rule.limit, retry_after
+
+
+def _record_memory(rule: RateLimitRule, identity: str) -> None:
+    """Increment failure counter in memory without checking."""
+    now = time.monotonic()
+    key = f"{rule.name}:{identity}"
+    with _memory_lock:
+        count, expires_at = _memory_counters.get(key, (0, now + rule.window_seconds))
+        if expires_at <= now:
+            count = 0
+            expires_at = now + rule.window_seconds
+        count += 1
+        _memory_counters[key] = (count, expires_at)
+
+
+def check_rate_limit(
+    rule: RateLimitRule,
+    identity: str,
+    *,
+    request: Request | None = None,
+) -> None:
+    """Check the failure counter and raise 429 if the limit is exceeded.
+    Does NOT increment — use record_rate_limit_failure() on failed attempts."""
+    settings = get_settings()
+    if settings.test_mode:
+        return
+    if not settings.rate_limit_enabled:
+        return
+    if rule.limit <= 0 or rule.window_seconds <= 0:
+        return
+
+    try:
+        allowed, retry_after = _check_redis(rule, identity)
+    except RedisError:
+        allowed, retry_after = _check_memory(rule, identity)
+
+    if allowed:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "code": "rate_limit_exceeded",
+            "message": "Too many failed attempts. Please wait before trying again.",
+            "limit": rule.limit,
+            "window_seconds": rule.window_seconds,
+            "retry_after_seconds": retry_after,
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def record_rate_limit_failure(
+    rule: RateLimitRule,
+    identity: str,
+) -> None:
+    """Increment the failure counter for this identity. Call only when an attempt fails."""
+    settings = get_settings()
+    if settings.test_mode:
+        return
+    if not settings.rate_limit_enabled:
+        return
+    if rule.limit <= 0 or rule.window_seconds <= 0:
+        return
+
+    try:
+        _record_redis(rule, identity)
+    except RedisError:
+        _record_memory(rule, identity)
+
+
 def enforce_rate_limit(
     rule: RateLimitRule,
     identity: str,

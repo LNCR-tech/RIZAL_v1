@@ -231,7 +231,7 @@ def _future_event_payload(name="Audit Test Event"):
         "end_datetime": (now + timedelta(hours=3)).isoformat(),
         "location": "Test Hall",
         "early_check_in_minutes": 60,
-        "event_targets": [{"scope_type": "YEAR_LEVEL", "year_level": 5}],
+        "year_levels": [5],
     }
 
 
@@ -344,7 +344,7 @@ def test_accepted_scan_behavior_unchanged(client, campus_admin_headers, db_sessi
         "end_datetime": (now + timedelta(hours=3)).isoformat(),
         "location": "Test Hall",
         "early_check_in_minutes": 60,
-        "event_targets": [{"scope_type": "ALL"}],
+        "year_levels": [],
     })
     assert r.status_code in (200, 201), r.text
     event_id = r.json()["id"]
