@@ -262,9 +262,10 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   -- moment after sign-in, then every authed request 401s with
   -- "Session is not valid" and the client logs back out. Migration
   -- 0010 fixes existing deployments — this keeps fresh bootstraps
-  -- aligned with the ORM. (Comment must contain no ';' — the
-  -- baseline migration runs `schema.sql.split(';')`, so a stray
-  -- semicolon inside prose would cut the CREATE TABLE in half.)
+  -- aligned with the ORM. NOTE: keep this comment free of the
+  -- statement-terminator character — baseline migration 0001 runs
+  -- the schema by splitting on it, so one in prose would cut the
+  -- CREATE TABLE in half.
   token_jti TEXT NOT NULL UNIQUE,
   ip_address TEXT,
   user_agent TEXT,
