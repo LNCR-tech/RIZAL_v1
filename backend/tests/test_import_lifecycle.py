@@ -7,8 +7,8 @@ def _make_valid_xlsx():
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
-    ws.append(["Student_ID", "Email", "Last Name", "First Name", "Middle Name", "Department", "Course"])
-    ws.append(["STU-IMPORT-001", "importtest001@test.com", "Import", "Test", "", "Test Department", "Test Program"])
+    ws.append(["Student_ID", "Email", "Last Name", "First Name", "Middle Name", "Department", "Course", "Year Level", "Status"])
+    ws.append(["STU-IMPORT-001", "importtest001@test.com", "Import", "Test", "", "Test Department", "Test Program", 1, "ACTIVE"])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -28,9 +28,9 @@ def preview_token(client, campus_admin_headers, db_session):
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
-    ws.append(["Student_ID", "Email", "Last Name", "First Name", "Middle Name", "Department", "Course"])
+    ws.append(["Student_ID", "Email", "Last Name", "First Name", "Middle Name", "Department", "Course", "Year Level", "Status"])
     unique = int(time.time())
-    ws.append([f"STU-IMPORT-{unique}", f"importtest{unique}@test.com", "Import", "Test", "", dept.name, prog.name])
+    ws.append([f"STU-IMPORT-{unique}", f"importtest{unique}@test.com", "Import", "Test", "", dept.name, prog.name, 1, "ACTIVE"])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

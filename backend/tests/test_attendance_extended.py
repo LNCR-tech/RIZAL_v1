@@ -4,7 +4,18 @@ import pytest
 @pytest.fixture(scope="module")
 def event_id(client, campus_admin_headers, db_session):
     from app.models.event import Event
-    event = db_session.query(Event).first()
+    from app.models.school import School
+
+    school = db_session.query(School).filter_by(school_code="TEST-001").first()
+    if school is None:
+        pytest.skip("No TEST-001 school in test DB")
+
+    event = (
+        db_session.query(Event)
+        .filter(Event.school_id == school.id)
+        .order_by(Event.id.asc())
+        .first()
+    )
     if event is None:
         pytest.skip("No events in test DB")
     return event.id
@@ -12,8 +23,14 @@ def event_id(client, campus_admin_headers, db_session):
 
 @pytest.fixture(scope="module")
 def student_number(db_session):
-    from app.models.user import StudentProfile
-    profile = db_session.query(StudentProfile).first()
+    from app.models.user import StudentProfile, User
+
+    profile = (
+        db_session.query(StudentProfile)
+        .join(User, StudentProfile.user_id == User.id)
+        .filter(User.email == "student@test.com")
+        .first()
+    )
     if profile is None:
         pytest.skip("No student profiles in test DB")
     return profile.student_number
@@ -71,8 +88,14 @@ def test_event_attendance_report(client, campus_admin_headers, event_id):
 
 
 def test_student_attendance_report(client, campus_admin_headers, db_session):
-    from app.models.user import StudentProfile
-    profile = db_session.query(StudentProfile).first()
+    from app.models.user import StudentProfile, User
+
+    profile = (
+        db_session.query(StudentProfile)
+        .join(User, StudentProfile.user_id == User.id)
+        .filter(User.email == "student@test.com")
+        .first()
+    )
     if profile is None:
         pytest.skip("No student profiles in test DB")
     r = client.get(f"/api/attendance/students/{profile.id}/report", headers=campus_admin_headers)
@@ -80,8 +103,14 @@ def test_student_attendance_report(client, campus_admin_headers, db_session):
 
 
 def test_student_attendance_stats(client, campus_admin_headers, db_session):
-    from app.models.user import StudentProfile
-    profile = db_session.query(StudentProfile).first()
+    from app.models.user import StudentProfile, User
+
+    profile = (
+        db_session.query(StudentProfile)
+        .join(User, StudentProfile.user_id == User.id)
+        .filter(User.email == "student@test.com")
+        .first()
+    )
     if profile is None:
         pytest.skip("No student profiles in test DB")
     r = client.get(f"/api/attendance/students/{profile.id}/stats", headers=campus_admin_headers)
