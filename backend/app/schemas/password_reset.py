@@ -14,11 +14,23 @@ class ForgotPasswordRequestResponse(BaseModel):
     message: str
 
 
-class PasswordResetVerifyRequest(BaseModel):
+class VerifyResetCodeRequest(BaseModel):
     email: EmailStr
     code: str
+
+
+class VerifyResetCodeResponse(BaseModel):
+    reset_token: str
+
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
     new_password: str
 
 
 class PasswordResetCodeResponse(BaseModel):
     message: str
+
+
+# Legacy alias kept for any internal references
+PasswordResetVerifyRequest = VerifyResetCodeRequest

@@ -41,7 +41,9 @@ from app.schemas.password_reset import (
     ForgotPasswordRequestCreate,
     ForgotPasswordRequestResponse,
     PasswordResetCodeResponse,
-    PasswordResetVerifyRequest,
+    ResetPasswordRequest,
+    VerifyResetCodeRequest,
+    VerifyResetCodeResponse,
 )
 from app.models.password_reset_token import PasswordResetToken
 from app.models.school import School
@@ -383,10 +385,10 @@ def request_forgot_password(
     return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
 
-@router.post("/auth/reset-password", response_model=PasswordResetCodeResponse)
-def reset_password_with_code(
+@router.post("/auth/verify-reset-code", response_model=VerifyResetCodeResponse)
+def verify_reset_code(
     request: Request,
-    payload: PasswordResetVerifyRequest,
+    payload: VerifyResetCodeRequest,
     db: Session = Depends(get_db),
 ):
     normalized_email = payload.email.strip().lower()
@@ -416,12 +418,51 @@ def reset_password_with_code(
             PasswordResetToken.code_hash == submitted_hash,
             PasswordResetToken.expires_at > now,
             PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.reset_token.is_(None),
         )
         .first()
     )
 
     if not token:
         raise HTTPException(status_code=400, detail="Invalid or expired reset code.")
+
+    reset_token = secrets.token_urlsafe(32)
+    token.reset_token = reset_token
+    db.commit()
+
+    return VerifyResetCodeResponse(reset_token=reset_token)
+
+
+@router.post("/auth/reset-password", response_model=PasswordResetCodeResponse)
+def reset_password_with_token(
+    request: Request,
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    now = utc_now()
+
+    token = (
+        db.query(PasswordResetToken)
+        .filter(
+            PasswordResetToken.reset_token == payload.reset_token,
+            PasswordResetToken.expires_at > now,
+            PasswordResetToken.used_at.is_(None),
+        )
+        .first()
+    )
+
+    if not token:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    target_user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(UserRole.role))
+        .filter(User.id == token.user_id)
+        .first()
+    )
+
+    if not target_user or not _can_submit_public_password_reset_request(target_user):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
 
     token.used_at = now
     target_user.set_password(payload.new_password)

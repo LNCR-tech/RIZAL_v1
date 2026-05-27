@@ -418,15 +418,41 @@ Only works for non-admin school users with an active account. Platform admins an
 
 ---
 
-### POST `/auth/reset-password`
+### POST `/auth/verify-reset-code`
 
-Verify the 6-digit code and set a new password. The code must be unused and not expired (15-minute window).
+Step 2 of the forgot-password flow. Validates the 6-digit code and returns a short-lived `reset_token`. The code must be unused and not expired (15-minute window from when it was issued). The returned `reset_token` must be passed to `POST /auth/reset-password` to set the new password.
 
 **Request body:**
 ```json
 {
   "email": "student@school.edu",
-  "code": "123456",
+  "code": "123456"
+}
+```
+
+**Response 200:**
+```json
+{
+  "reset_token": "<opaque URL-safe token>"
+}
+```
+
+**Errors:**
+- `400` — Invalid or expired reset code
+- `429` — Rate limit exceeded
+
+**Rate limited:** same rule as forgot-password.
+
+---
+
+### POST `/auth/reset-password`
+
+Step 3 of the forgot-password flow. Sets the new password using the `reset_token` returned by `POST /auth/verify-reset-code`. The token expires at the same time as the original code (15-minute window) and is single-use.
+
+**Request body:**
+```json
+{
+  "reset_token": "<token from verify-reset-code>",
   "new_password": "NewSecurePassword123"
 }
 ```
@@ -439,10 +465,7 @@ Verify the 6-digit code and set a new password. The code must be unused and not 
 ```
 
 **Errors:**
-- `400` — Invalid or expired reset code (also returned for unknown email to prevent enumeration)
-- `429` — Rate limit exceeded
-
-**Rate limited:** same rule as forgot-password.
+- `400` — Invalid or expired reset token
 
 ---
 
