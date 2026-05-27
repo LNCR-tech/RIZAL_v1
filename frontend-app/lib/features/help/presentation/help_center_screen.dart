@@ -833,13 +833,31 @@ class _EmptyResults extends StatelessWidget {
 // Contact card + footer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ContactCard extends StatelessWidget {
+/// Dynamic contact card. The Campus Admin row is per-school (uses the
+/// signed-in user's `schoolName` from the session) and is hidden for
+/// platform admins (no school) and for campus admins themselves (self-
+/// referential). The platform's own contact email is always shown.
+class _ContactCard extends ConsumerWidget {
   const _ContactCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final session = ref.watch(sessionControllerProvider);
+    final meta = session.meta;
+    final workspace = session.workspace;
+    final schoolName = meta?.schoolName?.trim();
+    // Show the school's campus-admin affordance only when the user IS
+    // under a school AND isn't the campus admin themselves / a platform
+    // admin. The row points users to their school's channels — there's
+    // no actual email here because the API doesn't surface it; copying
+    // a school name has no value, so the tap opens a hint snackbar.
+    final showCampusAdmin = schoolName != null &&
+        schoolName.isNotEmpty &&
+        (workspace == Workspace.student ||
+            workspace == Workspace.governance);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -854,18 +872,35 @@ class _ContactCard extends StatelessWidget {
           padding: EdgeInsets.zero,
           child: Column(
             children: [
+              if (showCampusAdmin) ...[
+                _ContactRow(
+                  icon: Icons.support_agent_rounded,
+                  iconColor: const Color(0xFF6366F1),
+                  label: 'Campus Admin',
+                  value: schoolName,
+                  isMono: false,
+                  trailingIcon: Icons.info_outline_rounded,
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Reach your campus admin at $schoolName in '
+                          "person or through your school's official "
+                          'email.',
+                        ),
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  },
+                ),
+                Divider(
+                    height: 1, thickness: 1, indent: 64, color: t.border),
+              ],
               const _ContactRow(
                 icon: Icons.support_agent_rounded,
-                iconColor: Color(0xFF6366F1),
-                label: 'Campus Admin',
-                value: HelpContent.supportEmail,
-              ),
-              Divider(height: 1, thickness: 1, indent: 64, color: t.border),
-              const _ContactRow(
-                icon: Icons.terminal_rounded,
                 iconColor: Color(0xFF14B8A6),
-                label: 'IT support',
-                value: HelpContent.itEmail,
+                label: 'Aura support',
+                value: HelpContent.auraSupportEmail,
               ),
               Divider(height: 1, thickness: 1, indent: 64, color: t.border),
               const _ContactRow(
@@ -888,6 +923,9 @@ class _ContactRow extends StatelessWidget {
     required this.iconColor,
     required this.label,
     required this.value,
+    this.isMono = true,
+    this.trailingIcon,
+    this.onTap,
   });
 
   final IconData icon;
@@ -895,19 +933,33 @@ class _ContactRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Whether the [value] is rendered in JetBrains Mono — true for emails
+  /// / URLs (default), false for plain prose like a school name.
+  final bool isMono;
+
+  /// Optional override for the trailing affordance icon. Defaults to a
+  /// copy icon, matching the default copy-to-clipboard [onTap] behaviour.
+  final IconData? trailingIcon;
+
+  /// Optional override for tap behaviour. When null the row copies
+  /// [value] to the clipboard and shows a "Copied X" snackbar — useful
+  /// for email / URL rows. Override for info-only rows.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
     return Pressable(
       scale: 0.99,
-      onTap: () async {
-        await Clipboard.setData(ClipboardData(text: value));
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Copied $value')),
-        );
-      },
+      onTap: onTap ??
+          () async {
+            await Clipboard.setData(ClipboardData(text: value));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Copied $value')),
+            );
+          },
       child: Padding(
         padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.x16, vertical: AppSpacing.x12),
@@ -934,13 +986,14 @@ class _ContactRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.bodySmall?.copyWith(
                         color: t.textSecondary,
-                        fontFamily: 'JetBrainsMono',
+                        fontFamily: isMono ? 'JetBrainsMono' : null,
                       )),
                 ],
               ),
             ),
             const SizedBox(width: AppSpacing.x8),
-            Icon(Icons.copy_rounded, color: t.textMuted, size: 18),
+            Icon(trailingIcon ?? Icons.copy_rounded,
+                color: t.textMuted, size: 18),
           ],
         ),
       ),

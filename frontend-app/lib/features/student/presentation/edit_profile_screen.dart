@@ -10,7 +10,11 @@ import '../../../core/widgets/aura_button.dart';
 import '../../../core/widgets/aura_text_field.dart';
 import '../data/profile_repository.dart';
 
-/// Edit the signed-in user's own account (name + email) via PATCH /users/{id}.
+/// Edit the signed-in user's own account (name only) via PATCH /users/{id}.
+/// Email is shown for reference but is intentionally **not editable** —
+/// account email changes must go through the user's campus admin so the
+/// audit trail stays intact. The field is rendered disabled and the email
+/// value is never sent in the PATCH payload.
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -58,7 +62,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       await ref.read(profileRepositoryProvider).updateUser(uid, {
         if (_first.text.trim().isNotEmpty) 'first_name': _first.text.trim(),
         if (_last.text.trim().isNotEmpty) 'last_name': _last.text.trim(),
-        if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
+        // Email is intentionally omitted — the field is read-only in the
+        // UI and must be changed through the user's campus admin.
       });
       if (mounted) setState(() => _ok = 'Saved — updates apply on next sign-in.');
     } on ApiException catch (e) {
@@ -85,9 +90,20 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           AuraTextField(label: 'Last name', controller: _last),
           const SizedBox(height: AppSpacing.x16),
           AuraTextField(
-              label: 'Email',
-              controller: _email,
-              keyboardType: TextInputType.emailAddress),
+            label: 'Email',
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            enabled: false,
+          ),
+          const SizedBox(height: AppSpacing.x4),
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.x4),
+            child: Text(
+              "Email can't be changed here. Contact your campus admin if "
+              "it's wrong.",
+              style: textTheme.bodySmall?.copyWith(color: t.textMuted),
+            ),
+          ),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.x16),
             Text(_error!, style: textTheme.bodySmall?.copyWith(color: t.absent)),

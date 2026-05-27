@@ -111,8 +111,10 @@ class HelpCategory {
 class HelpContent {
   HelpContent._();
 
-  static const String supportEmail = 'support@aura.school';
-  static const String itEmail = 'it@aura.school';
+  /// Aura platform support inbox. School-specific issues (account access,
+  /// password resets you can't self-serve) go to the user's campus admin —
+  /// see the Contact card on the Help Center.
+  static const String auraSupportEmail = 'auraautomessage@gmail.com';
   static const String appVersion = '1.24.0';
   static const String appBuild = '55';
   static const String docsHomepage = 'https://docs.aura.school';

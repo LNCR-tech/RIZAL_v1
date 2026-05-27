@@ -10,6 +10,47 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.32.1] - 2026-05-27
+
+### Changed
+- **Email is no longer editable in the profile screen** for any role.
+  `features/student/presentation/edit_profile_screen.dart` renders the
+  Email `AuraTextField` with `enabled: false` and a small inline hint
+  ("Email can't be changed here. Contact your campus admin if it's
+  wrong."). The PATCH payload to `/users/{id}` no longer includes
+  `email` — even if a stale controller still held a value. Email
+  changes must go through a campus admin so the audit trail stays
+  intact.
+- **Help Center "Contact Support" card is now dynamic per school.**
+  `features/help/presentation/help_center_screen.dart` `_ContactCard`
+  is a `ConsumerWidget`; it reads the signed-in user's `schoolName` and
+  workspace from `sessionControllerProvider` and shows the **Campus
+  Admin** row only for students and governance officers. The row
+  surfaces the user's school name (not a hardcoded email — the API
+  doesn't expose the school's campus-admin email and the Flutter app
+  must not change the backend); tapping the row opens a snackbar
+  hint: "Reach your campus admin at {schoolName} in person or through
+  your school's official email." Platform admins (no school) and
+  campus admins themselves don't see the row — self-referential or
+  not actionable. The row uses the body font, not mono, with an
+  info-icon trailing affordance instead of the copy icon.
+- **Replaced the hardcoded "IT support: it@aura.school" row** with a
+  new **"Aura support"** row that points to
+  `auraautomessage@gmail.com`. Documentation row unchanged.
+
+### Added
+- **`HelpContent.auraSupportEmail`** constant
+  (`auraautomessage@gmail.com`) — single source of truth for the Aura
+  platform inbox.
+- **`_ContactRow`** now takes optional `isMono` (default true) for
+  plain-prose values like a school name, `trailingIcon` for the row's
+  trailing affordance, and `onTap` override so info-only rows can
+  surface a hint instead of copying to the clipboard.
+
+### Removed
+- **`HelpContent.itEmail`** constant — its only consumer (the IT
+  support contact row) was replaced by the Aura support row above.
+
 ## [1.32.0] - 2026-05-27
 
 ### Changed
