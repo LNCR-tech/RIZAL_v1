@@ -3,7 +3,6 @@ from __future__ import annotations
 from enum import Enum
 
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Text, UniqueConstraint
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from app.core.timezones import utc_now
@@ -182,22 +181,11 @@ class GovernanceAnnouncement(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
+    school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+
     governance_unit = relationship("GovernanceUnit", back_populates="announcements")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
-
-    @hybrid_property
-    def school_id(self):
-        return self.governance_unit.school_id if self.governance_unit else None
-
-    @school_id.expression
-    def school_id(cls):
-        from app.models.governance_hierarchy import GovernanceUnit
-        return GovernanceUnit.school_id
-
-    @school_id.setter
-    def school_id(self, value):
-        pass  # school_id is derived from governance_unit; ignore direct assignment
 
     @property
     def author_name(self) -> str | None:
