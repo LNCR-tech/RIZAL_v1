@@ -1291,6 +1291,26 @@ export async function forgotPassword(baseUrl, email) {
     })
 }
 
+export async function verifyResetCode(baseUrl, email, code) {
+    return request(baseUrl, '/auth/verify-reset-code', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code }),
+    })
+}
+
+export async function resetPassword(baseUrl, resetToken, newPassword) {
+    return request(baseUrl, '/auth/reset-password', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }),
+    })
+}
+
 function normalizeStudentAttendanceResponsePayload(payload = []) {
     if (!Array.isArray(payload)) return []
 

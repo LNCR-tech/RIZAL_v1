@@ -1,15 +1,17 @@
 import { ref, computed, onMounted, onBeforeMount } from 'vue'
 import { useRouter } from 'vue-router'
 import { applyTheme, loadUnbrandedTheme } from '@/config/theme.js'
-import { forgotPassword, resolveApiBaseUrl } from '@/services/backendApi.js'
+import { verifyResetCode, resolveApiBaseUrl } from '@/services/backendApi.js'
 
-export function useForgotPasswordViewModel() {
-  const email = ref('')
+export function useVerifyResetCodeViewModel() {
+  const code = ref('')
   const isLoading = ref(false)
   const message = ref('')
   const isSuccess = ref(false)
   const isMounted = ref(false)
   const router = useRouter()
+
+  const email = sessionStorage.getItem('reset_email') || ''
 
   const messageClass = computed(() => {
     return isSuccess.value
@@ -18,6 +20,10 @@ export function useForgotPasswordViewModel() {
   })
 
   onBeforeMount(() => {
+    if (!email) {
+      router.replace({ name: 'ForgotPassword' })
+      return
+    }
     applyTheme(loadUnbrandedTheme())
   })
 
@@ -28,8 +34,9 @@ export function useForgotPasswordViewModel() {
   })
 
   async function handleSubmit() {
-    if (!email.value.trim()) {
-      message.value = 'Please enter your email address'
+    const trimmed = code.value.trim()
+    if (!trimmed) {
+      message.value = 'Please enter the code sent to your email'
       isSuccess.value = false
       return
     }
@@ -39,12 +46,14 @@ export function useForgotPasswordViewModel() {
     isSuccess.value = false
 
     try {
-      await forgotPassword(resolveApiBaseUrl(), email.value.trim())
-      sessionStorage.setItem('reset_email', email.value.trim())
-      router.push({ name: 'VerifyResetCode' })
+      const response = await verifyResetCode(resolveApiBaseUrl(), email, trimmed)
+      sessionStorage.setItem('reset_token', response.reset_token)
+      router.push({ name: 'ResetPassword' })
     } catch (error) {
       if (error?.status === 429) {
         message.value = 'Too many requests. Please try again later.'
+      } else if (error?.status === 400) {
+        message.value = 'Invalid or expired code. Please check and try again.'
       } else {
         message.value = error?.message || 'An error occurred. Please try again.'
       }
@@ -55,10 +64,11 @@ export function useForgotPasswordViewModel() {
   }
 
   function goBack() {
-    router.push({ name: 'Login' })
+    router.push({ name: 'ForgotPassword' })
   }
 
   return {
+    code,
     email,
     isLoading,
     message,
