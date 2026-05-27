@@ -396,7 +396,9 @@ Dismiss the password change reminder without changing it. Clears `should_prompt_
 
 ### POST `/auth/forgot-password`
 
-Request a password reset. An admin must approve it.
+Request a self-service password reset. Generates a 6-digit code (valid 15 minutes) and emails it to the user via Resend. Always returns the same message regardless of whether the email exists (prevents enumeration).
+
+Only works for non-admin school users with an active account. Platform admins and campus admins use the admin-approval flow.
 
 **Request body:**
 ```json
@@ -405,12 +407,42 @@ Request a password reset. An admin must approve it.
 }
 ```
 
-**Response 200** (always returns success to prevent email enumeration):
+**Response 200:**
 ```json
 {
-  "message": "If an account with that email exists, a password reset request has been submitted for approval."
+  "message": "If an account with that email exists, a reset code has been sent."
 }
 ```
+
+**Rate limited:** same rule as login (per IP + email).
+
+---
+
+### POST `/auth/reset-password`
+
+Verify the 6-digit code and set a new password. The code must be unused and not expired (15-minute window).
+
+**Request body:**
+```json
+{
+  "email": "student@school.edu",
+  "code": "123456",
+  "new_password": "NewSecurePassword123"
+}
+```
+
+**Response 200:**
+```json
+{
+  "message": "Password has been reset successfully."
+}
+```
+
+**Errors:**
+- `400` — Invalid or expired reset code (also returned for unknown email to prevent enumeration)
+- `429` — Rate limit exceeded
+
+**Rate limited:** same rule as forgot-password.
 
 ---
 

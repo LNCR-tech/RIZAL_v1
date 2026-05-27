@@ -211,6 +211,7 @@ class Settings:
     google_login_enabled: bool
     google_web_client_id: str
     google_android_client_id: str
+    resend_api_key: str
     centralized_ai_api_key: str
     ai_provider: str
     ai_api_key: str
@@ -432,6 +433,7 @@ def get_settings() -> Settings:
         google_login_enabled=_as_bool(os.getenv("GOOGLE_LOGIN_ENABLED"), True),
         google_web_client_id=os.getenv("GOOGLE_WEB_CLIENT_ID", "").strip(),
         google_android_client_id=os.getenv("GOOGLE_ANDROID_CLIENT_ID", "").strip(),
+        resend_api_key=os.getenv("RESEND_API_KEY", "").strip(),
         centralized_ai_api_key=os.getenv("CENTRALIZED_AI_API_KEY", "").strip(),
         ai_provider=(os.getenv("AI_PROVIDER") or "openai").strip(),
         ai_api_key=(

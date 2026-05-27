@@ -99,6 +99,38 @@ def build_import_onboarding_email_content(
     )
 
 
+def build_password_reset_code_email_content(
+    *,
+    first_name: str,
+    code: str,
+    system_name: str,
+) -> tuple[str, str, str]:
+    return (
+        f"{system_name} - Password Reset Code",
+        (
+            f"Dear {first_name},\n\n"
+            "We received a request to reset your password.\n\n"
+            "Your 6-digit reset code is:\n\n"
+            f"    {code}\n\n"
+            "This code expires in 15 minutes. Enter it on the password reset page.\n\n"
+            "If you did not request a password reset, you can safely ignore this email. "
+            "Your password will not be changed.\n\n"
+            "Best regards,\n"
+            f"{system_name} Team\n"
+        ),
+        (
+            f"<p>Dear {html.escape(first_name)},</p>"
+            "<p>We received a request to reset your password.</p>"
+            f"<p><strong>Your 6-digit reset code is:</strong></p>"
+            f"<p style=\"font-size:2em;letter-spacing:0.3em;font-weight:bold\">{html.escape(code)}</p>"
+            "<p>This code expires in <strong>15 minutes</strong>. Enter it on the password reset page.</p>"
+            "<p>If you did not request a password reset, you can safely ignore this email. "
+            "Your password will not be changed.</p>"
+            f"<p>Best regards,<br>{html.escape(system_name)} Team</p>"
+        ),
+    )
+
+
 def build_password_reset_email_content(
     *,
     recipient_email: str,

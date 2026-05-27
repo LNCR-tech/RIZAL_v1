@@ -11,7 +11,7 @@ from email_validator import EmailNotValidError, validate_email as validate_email
 from app.core.config import Settings
 
 MAILJET_API_HOST = "api.mailjet.com"
-ALLOWED_EMAIL_TRANSPORTS = {"disabled", "mailjet_api", "smtp"}
+ALLOWED_EMAIL_TRANSPORTS = {"disabled", "mailjet_api", "smtp", "resend"}
 TEMPORARY_MAILJET_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
@@ -195,6 +195,27 @@ def validate_email_delivery_settings(settings: Settings | None = None) -> Resolv
             resolved_settings,
             transport=transport,
             auth_mode="basic",
+        )
+
+    if transport == "resend":
+        missing_fields = [
+            field_name
+            for field_name, value in [
+                ("EMAIL_SENDER_EMAIL", resolved_settings.email_sender_email),
+                ("EMAIL_SENDER_NAME", resolved_settings.email_sender_name),
+                ("RESEND_API_KEY", resolved_settings.resend_api_key),
+            ]
+            if not (value or "").strip()
+        ]
+        if missing_fields:
+            raise EmailConfigurationError(
+                "Missing Resend settings: " + ", ".join(missing_fields)
+            )
+
+        return _resolve_sender_settings(
+            resolved_settings,
+            transport=transport,
+            auth_mode="bearer",
         )
 
     raise EmailConfigurationError(f"Unsupported EMAIL_TRANSPORT value: {transport}")

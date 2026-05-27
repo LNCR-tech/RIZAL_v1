@@ -137,6 +137,67 @@ def _open_smtp_connection(settings: Settings) -> smtplib.SMTP:
         raise EmailDeliveryError(f"SMTP connection failed: {exc}") from exc
 
 
+RESEND_SEND_URL = "https://api.resend.com/emails"
+RESEND_DOMAINS_URL = "https://api.resend.com/domains"
+
+
+def _send_via_resend(
+    *,
+    settings,
+    resolved_delivery,
+    recipient_email: str,
+    subject: str,
+    text_body: str,
+    html_body: str | None = None,
+) -> None:
+    from . import httpx
+
+    payload: dict[str, object] = {
+        "from": resolved_delivery.from_header,
+        "to": [recipient_email],
+        "subject": subject,
+        "text": text_body,
+    }
+    if html_body:
+        payload["html"] = html_body
+    if resolved_delivery.reply_to:
+        payload["reply_to"] = [resolved_delivery.reply_to]
+
+    try:
+        response = httpx.post(
+            RESEND_SEND_URL,
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=float(settings.email_timeout_seconds),
+        )
+    except httpx.TimeoutException as exc:
+        raise EmailDeliveryError(
+            "Timed out while calling the Resend API. Check outbound HTTPS access from the deployment host."
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise EmailDeliveryError(
+            "Could not reach the Resend API. Check outbound HTTPS access from the deployment host."
+        ) from exc
+
+    if response.status_code >= 300:
+        try:
+            detail = response.json().get("message") or response.text or response.reason_phrase
+        except ValueError:
+            detail = response.text or response.reason_phrase
+        if response.status_code in {401, 403}:
+            raise EmailDeliveryError(
+                "Resend rejected the configured API key. Check RESEND_API_KEY."
+            )
+        if response.status_code == 422:
+            raise EmailDeliveryError(f"Resend rejected the email request: {detail}")
+        raise EmailDeliveryError(
+            f"Resend send failed with status {response.status_code}: {detail}"
+        )
+
+
 def _send_via_smtp(
     *,
     settings: Settings,
@@ -320,12 +381,29 @@ def send_transactional_email(
         logger,
         validate_email_delivery_settings,
     )
+    from .config import _normalize_runtime_email
 
     settings = get_settings()
     resolved_delivery = validate_email_delivery_settings(settings)
 
     for warning in resolved_delivery.warnings:
         logger.warning(warning)
+
+    if resolved_delivery.transport == "resend":
+        validated_recipient = _normalize_runtime_email(recipient_email, "recipient_email")
+        if not subject.strip():
+            raise EmailDeliveryError("Email subject cannot be blank.")
+        if not text_body.strip():
+            raise EmailDeliveryError("Email body cannot be blank.")
+        _send_via_resend(
+            settings=settings,
+            resolved_delivery=resolved_delivery,
+            recipient_email=validated_recipient,
+            subject=subject,
+            text_body=text_body,
+            html_body=html_body,
+        )
+        return
 
     msg = _build_message(
         resolved_delivery=resolved_delivery,
@@ -396,6 +474,47 @@ def check_email_delivery_connection(
             reply_to=resolved_delivery.reply_to,
             warnings=resolved_delivery.warnings,
         )
+
+    if resolved_delivery.transport == "resend":
+        from . import httpx
+
+        try:
+            response = httpx.get(
+                RESEND_DOMAINS_URL,
+                headers={
+                    "Authorization": f"Bearer {resolved_settings.resend_api_key}",
+                    "Accept": "application/json",
+                },
+                timeout=float(resolved_settings.email_timeout_seconds),
+            )
+        except httpx.TimeoutException as exc:
+            raise EmailDeliveryError(
+                "Timed out while calling the Resend API. Check outbound HTTPS access from the deployment host."
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise EmailDeliveryError(
+                "Could not reach the Resend API. Check outbound HTTPS access from the deployment host."
+            ) from exc
+
+        if response.status_code >= 300:
+            if response.status_code in {401, 403}:
+                raise EmailDeliveryError(
+                    "Resend rejected the configured API key. Check RESEND_API_KEY."
+                )
+            raise EmailDeliveryError(
+                f"Resend connection verification failed with status {response.status_code}."
+            )
+
+        return EmailConnectionStatus(
+            host="api.resend.com",
+            port=443,
+            transport=resolved_delivery.transport,
+            auth_mode=resolved_delivery.auth_mode,
+            sender=resolved_delivery.sender_email,
+            reply_to=resolved_delivery.reply_to,
+            warnings=resolved_delivery.warnings,
+        )
+
     if resolved_delivery.transport != "mailjet_api":
         raise EmailDeliveryError(
             f"Unsupported email transport configured: {resolved_delivery.transport}"
@@ -456,6 +575,16 @@ def get_email_delivery_summary(settings: Settings | None = None) -> dict[str, ob
             "transport": resolved_delivery.transport,
             "host": _smtp_host(resolved_settings),
             "port": _smtp_port(resolved_settings),
+            "auth_mode": resolved_delivery.auth_mode,
+            "sender": resolved_delivery.sender_email,
+            "reply_to": resolved_delivery.reply_to,
+            "warnings": list(resolved_delivery.warnings),
+        }
+    if resolved_delivery.transport == "resend":
+        return {
+            "transport": resolved_delivery.transport,
+            "host": "api.resend.com",
+            "port": 443,
             "auth_mode": resolved_delivery.auth_mode,
             "sender": resolved_delivery.sender_email,
             "reply_to": resolved_delivery.reply_to,

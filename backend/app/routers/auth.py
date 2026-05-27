@@ -3,6 +3,10 @@ Where to use: Use this through the FastAPI app when the frontend or an API clien
 Role: Router layer. It receives HTTP requests, checks access rules, and returns API responses.
 """
 
+import hashlib
+import secrets
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -37,12 +41,19 @@ from app.schemas.password_reset import (
     ForgotPasswordRequestCreate,
     ForgotPasswordRequestResponse,
     PasswordResetApprovalResponse,
+    PasswordResetCodeResponse,
     PasswordResetRequestItem,
+    PasswordResetVerifyRequest,
 )
 from app.models.password_reset_request import PasswordResetRequest
+from app.models.password_reset_token import PasswordResetToken
 from app.models.school import School
 from app.models.user import User, UserRole
-from app.services.email_service import EmailDeliveryError, send_password_reset_email
+from app.services.email_service import (
+    EmailDeliveryError,
+    send_password_reset_code_email,
+    send_password_reset_email,
+)
 from app.services.auth_session import (
     issue_login_token_response,
     validate_login_account_state,
@@ -56,8 +67,9 @@ from app.utils.passwords import generate_secure_password
 
 router = APIRouter(tags=["authentication"])
 FORGOT_PASSWORD_GENERIC_MESSAGE = (
-    "If the account exists, a password reset request has been submitted for administrator approval."
+    "If an account with that email exists, a reset code has been sent."
 )
+RESET_CODE_EXPIRY_MINUTES = 15
 
 
 def _is_platform_admin_account(user: User | None) -> bool:
@@ -347,34 +359,97 @@ def request_forgot_password(
         .first()
     )
 
-    if not target_user:
+    if not target_user or not _can_submit_public_password_reset_request(target_user):
         return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
-    if not _can_submit_public_password_reset_request(target_user):
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+    expires_at = utc_now() + timedelta(minutes=RESET_CODE_EXPIRY_MINUTES)
+
+    db.add(
+        PasswordResetToken(
+            user_id=target_user.id,
+            code_hash=code_hash,
+            expires_at=expires_at,
+        )
+    )
+
+    school = db.query(School).filter(School.id == target_user.school_id).first()
+    system_name = (school.school_name or school.name) if school else None
+
+    try:
+        send_password_reset_code_email(
+            recipient_email=target_user.email,
+            code=code,
+            first_name=target_user.first_name,
+            system_name=system_name,
+        )
+    except EmailDeliveryError:
+        db.rollback()
         return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
-    existing_pending = (
-        db.query(PasswordResetRequest)
+    db.commit()
+    return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
+
+
+@router.post("/auth/reset-password", response_model=PasswordResetCodeResponse)
+def reset_password_with_code(
+    request: Request,
+    payload: PasswordResetVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    normalized_email = payload.email.strip().lower()
+    enforce_rate_limit(
+        build_forgot_password_rule(),
+        _login_rate_limit_identity(request, normalized_email),
+        request=request,
+    )
+
+    target_user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(UserRole.role))
+        .filter(User.email == normalized_email)
+        .first()
+    )
+
+    if not target_user or not _can_submit_public_password_reset_request(target_user):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code.")
+
+    submitted_hash = hashlib.sha256(payload.code.strip().encode()).hexdigest()
+    now = utc_now()
+
+    token = (
+        db.query(PasswordResetToken)
         .filter(
-            PasswordResetRequest.user_id == target_user.id,
-            PasswordResetRequest.status == "pending",
+            PasswordResetToken.user_id == target_user.id,
+            PasswordResetToken.code_hash == submitted_hash,
+            PasswordResetToken.expires_at > now,
+            PasswordResetToken.used_at.is_(None),
         )
         .first()
     )
-    if existing_pending:
-        return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
 
-    db.add(
-        PasswordResetRequest(
-            user_id=target_user.id,
-            school_id=target_user.school_id,
-            requested_email=target_user.email.lower(),
-            status="pending",
+    if not token:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code.")
+
+    token.used_at = now
+    target_user.set_password(payload.new_password)
+    target_user.must_change_password = False
+    target_user.should_prompt_password_change = False
+
+    try:
+        send_account_security_notification(
+            db,
+            user=target_user,
+            subject="Password Reset",
+            message="Your password was reset using a self-service reset code.",
+            metadata_json={"event": "password_reset_code"},
         )
-    )
-    db.commit()
+    except Exception:
+        pass
 
-    return ForgotPasswordRequestResponse(message=FORGOT_PASSWORD_GENERIC_MESSAGE)
+    db.commit()
+    return PasswordResetCodeResponse(message="Password has been reset successfully.")
 
 
 @router.get("/auth/password-reset-requests", response_model=list[PasswordResetRequestItem])

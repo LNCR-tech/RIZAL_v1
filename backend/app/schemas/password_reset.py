@@ -33,3 +33,13 @@ class PasswordResetApprovalResponse(BaseModel):
     status: str
     resolved_at: datetime
     message: str
+
+
+class PasswordResetVerifyRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+
+class PasswordResetCodeResponse(BaseModel):
+    message: str
