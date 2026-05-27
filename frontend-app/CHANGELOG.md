@@ -10,6 +10,80 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-05-27
+
+### Added
+- **Responsive app shell — sidebar at tablet/desktop sizes.** `AppShell`
+  now branches on `BreakpointContext.breakpoint`:
+    * `Breakpoint.compact` (< 600 dp) — unchanged mobile path with the
+      glass / liquid bottom-nav, byte-identical to the prior build.
+    * `Breakpoint.medium` / `Breakpoint.expanded` (≥ 600 dp) — new
+      `DesktopShell` (`features/shell/desktop_shell.dart`) with a
+      vertical `SidebarNav` rail on the start side and the same tab
+      content on the trailing side. Selected-tab state lives in the
+      parent so the choice of layout is purely visual: resizing across
+      a breakpoint (tablet rotation, desktop window resize) keeps the
+      user on the same tab.
+- **`lib/core/layout/breakpoints.dart`** — `Breakpoint` enum, threshold
+  constants (`Breakpoints.mediumMin=600`, `expandedMin=1024`), sidebar
+  widths (`sidebarCollapsedWidth=76`, `sidebarExpandedWidth=264`), a
+  pure `Breakpoints.fromWidth` resolver (unit-testable without a
+  widget tree), and a `BreakpointContext` extension that reads from
+  `MediaQuery.sizeOf`.
+- **`SidebarNav`** (`features/shell/sidebar_nav.dart`) — vertical nav
+  rail with three zones: brand header (school logo + name from login
+  meta), nav list with a single sliding active pill
+  (`AnimatedPositioned`, `AppMotion.modal` + `easeOut`), and an
+  account card that taps into the Account tab. Rail width animates
+  via `AnimatedContainer` when the breakpoint changes mid-session.
+  Active pill paints the school's brand accent via `AppTokens.accent`
+  — never hardcoded.
+- **`AnimatedTabStack`** (`features/shell/animated_tab_stack.dart`) —
+  the cross-fade tab transition extracted from `AppShell` into its
+  own widget so the mobile shell and the new desktop shell render tab
+  switches identically.
+- **`test/unit/breakpoints_test.dart`** — pure-function coverage on
+  `Breakpoints.fromWidth`, `BreakpointHelpers.sidebarWidth`,
+  `isCompact / isMedium / isExpanded`, and the `BreakpointContext`
+  extension across the three viewports.
+
+### Changed
+- **`scripts/run-web-dev.ps1`** — replaces `flutter run -d chrome`
+  with `-d web-server` plus a manual Chrome spawn driven by a polling
+  `Start-Job`. **Why:** Chrome 130+/Windows intermittently never
+  completes the DevTools handshake when another Chrome session is
+  already running, so Flutter's `chrome_device` fails after three
+  retries (`Failed to launch browser after 3 tries`). The new
+  approach has Flutter bind the port without auto-launching anything,
+  and we own the Chrome spawn:
+    * Prunes stale `flutter_tools.*` temp dirs older than 24 h
+      (these accumulated ~7 GB before this cleanup).
+    * Clears `Singleton*` lock files in the Chrome profile from
+      crashed / killed prior runs so re-launching the same
+      `--user-data-dir` doesn't refuse.
+    * Frees `:5174` by stopping only the process bound to that exact
+      port (not all dart processes — your IDE / a second project
+      may legitimately have its own running).
+    * Spawns Chrome from a `Start-Job` that polls the port (180 s
+      deadline) and only opens once Flutter is actually serving —
+      avoids `ERR_CONNECTION_REFUSED` from racing the compile.
+    * Cleans up the launcher job in a `finally` so Ctrl-C / `q`
+      exits don't leave the job around.
+- **`web/index.html`** — title and metadata `aura_app` → `Aura` so
+  the Chrome tab + iOS web-app title read correctly. Description
+  bumped from the Flutter starter placeholder to a real one-liner.
+- **`features/shell/app_shell.dart`** — branches on
+  `context.breakpoint.hasSidebar` to pick the desktop or mobile path.
+  The mobile path is byte-identical to before; the inline
+  `_AnimatedTabStack` moved to its own file so both shells use it.
+
+### Verified
+- `flutter analyze` clean.
+- End-to-end run of `scripts/run-web-dev.ps1` confirmed: Flutter
+  compiles, binds `:5174`, the polling job spawns Chrome at the
+  right moment with the right profile, `main.dart.js` serves 200.
+  No console errors in Flutter stdout.
+
 ## [1.30.0] - 2026-05-27
 
 ### Added

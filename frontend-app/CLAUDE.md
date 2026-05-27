@@ -86,6 +86,36 @@ IP-based staging server is HTTP, so dev-only cleartext is enabled (Android
 `usesCleartextTraffic`, iOS ATS) — use HTTPS in production.
 
 ## Status
+**v1.31.0 — responsive shell with sidebar + Chrome web launcher rework.** The
+role-based `AppShell` now branches on `BreakpointContext.breakpoint`: at
+**compact** (< 600 dp) the existing mobile shell with the glass / liquid
+bottom nav runs unchanged; at **medium** (≥ 600 dp) and **expanded** (≥ 1024 dp)
+a new `DesktopShell` (`features/shell/desktop_shell.dart`) renders a vertical
+`SidebarNav` rail on the start side and the same tab content on the trailing
+side. Selected-tab state lives in `AppShell._index`, so resizing across a
+breakpoint (tablet rotation, desktop window resize) keeps the user on the same
+tab. `SidebarNav` (`features/shell/sidebar_nav.dart`) is three zones: brand
+header (school logo + name from login meta), nav list with a single
+**sliding** active pill (`AnimatedPositioned`, `AppMotion.modal` + `easeOut`)
+painting the school's brand accent via `AppTokens.accent`, and an account card
+that taps into the Account tab; rail width interpolates via `AnimatedContainer`
+when the breakpoint changes mid-session. The cross-fade tab transition
+extracted into `AnimatedTabStack` (`features/shell/animated_tab_stack.dart`) is
+shared by both shells. New `lib/core/layout/breakpoints.dart` owns the
+`Breakpoint` enum, `mediumMin=600` / `expandedMin=1024` thresholds,
+`sidebarCollapsedWidth=76` / `sidebarExpandedWidth=264`, a pure
+`Breakpoints.fromWidth` (unit-testable, covered in
+`test/unit/breakpoints_test.dart`), and a `BreakpointContext` extension on
+`BuildContext` reading from `MediaQuery.sizeOf`. **Chrome web launcher** —
+`scripts/run-web-dev.ps1` replaces `flutter run -d chrome` (whose
+`chrome_device` flakes on Chrome 130+/Windows when another Chrome session is
+running) with `-d web-server` + a polling `Start-Job` that spawns Chrome only
+once Flutter is actually serving, with cleanup of stale `flutter_tools.*`
+temp dirs, profile `Singleton*` lock files, and the dev-port if held. End-to-end
+verified: Flutter compiles, port 5174 binds, the launcher job opens Chrome at
+the right moment with the right profile; `main.dart.js` serves 200, no console
+errors in Flutter stdout. `web/index.html` title `aura_app` → `Aura` so the
+Chrome tab + iOS web-app title read correctly.
 **v1.30.0 — self-service forgot-password screen (6-digit email code).** Backend
 moved to a Resend-based code flow (`POST /auth/forgot-password` → emailed 6-digit
 code, 15-minute expiry → `POST /auth/reset-password` with `{email, code, new_password}`).
