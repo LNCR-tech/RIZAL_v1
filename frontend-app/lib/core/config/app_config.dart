@@ -59,6 +59,13 @@ class AppConfig {
   static bool get isGoogleSignInConfigured =>
       googleWebClientId.trim().isNotEmpty;
 
+  /// Enables the debug-only DevicePreview wrapper. Screenshot and local browser
+  /// runs can set this false to render the app directly in the viewport.
+  static const bool devicePreviewEnabled = bool.fromEnvironment(
+    'AURA_DEVICE_PREVIEW_ENABLED',
+    defaultValue: true,
+  );
+
   /// True when the *production* (release) build was compiled pointing at a
   /// plain-HTTP backend. Used by [DioClient] and the splash screen to refuse
   /// to send credentials over the wire in clear text.
