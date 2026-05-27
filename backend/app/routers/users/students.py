@@ -2,6 +2,7 @@
 
 from .shared import *  # noqa: F403
 from app.models.user import StudentProfile
+from app.utils.passwords import hash_password_bcrypt
 
 router = APIRouter()
 
@@ -47,10 +48,10 @@ def create_student_account(
             first_name=student.first_name,
             middle_name=student.middle_name,
             last_name=student.last_name,
+            password_hash=hash_password_bcrypt(issued_password),
             must_change_password=must_change_password_for_new_account(),
             should_prompt_password_change=should_prompt_password_change_for_new_account(),
         )
-        db_user.set_password(issued_password)
         db.add(db_user)
         db.flush()
 
