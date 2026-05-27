@@ -293,11 +293,12 @@ def _get_actor_student_profile(db: Session, current_user: UserModel) -> Optional
 def _event_is_visible_to_student_profile(
     event: EventModel,
     student_profile: Optional[StudentProfileModel],
+    db: Session = None,
 ) -> bool:
     if student_profile is None:
         return False
 
-    eligible, _, _ = is_student_eligible_for_event(student_profile, event)
+    eligible, _, _ = is_student_eligible_for_event(student_profile, event, db=db)
     return eligible
 
 
@@ -305,13 +306,14 @@ def _filter_events_to_student_scope(
     events: list[EventModel],
     *,
     student_profile: Optional[StudentProfileModel],
+    db: Session = None,
 ) -> list[EventModel]:
     if student_profile is None:
         return []
     return [
         event
         for event in events
-        if _event_is_visible_to_student_profile(event, student_profile)
+        if _event_is_visible_to_student_profile(event, student_profile, db=db)
     ]
 
 
@@ -337,6 +339,7 @@ def _filter_events_for_actor(
     return _filter_events_to_student_scope(
         filtered_events,
         student_profile=_get_actor_student_profile(db, current_user),
+        db=db,
     )
 
 
@@ -528,7 +531,7 @@ def _ensure_event_is_visible_for_actor(
     if has_any_role(current_user, ["admin", "campus_admin"]):
         return
 
-    if not _event_is_visible_to_student_profile(event, _get_actor_student_profile(db, current_user)):
+    if not _event_is_visible_to_student_profile(event, _get_actor_student_profile(db, current_user), db=db):
         raise HTTPException(status_code=404, detail="Event not found")
 
 
