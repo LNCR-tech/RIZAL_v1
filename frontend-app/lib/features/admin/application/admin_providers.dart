@@ -15,11 +15,6 @@ final adminAccountsProvider =
   return ref.watch(adminRepositoryProvider).accounts();
 });
 
-final pendingResetsProvider =
-    FutureProvider.autoDispose<List<PasswordResetRequest>>((ref) {
-  return ref.watch(adminRepositoryProvider).pendingResets();
-});
-
 final subscriptionProvider =
     FutureProvider.autoDispose.family<SchoolSubscription, int>((ref, schoolId) {
   return ref.watch(adminRepositoryProvider).subscription(schoolId);

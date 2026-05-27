@@ -10,6 +10,43 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.31.2] - 2026-05-27
+
+### Removed
+- **Admin-approval password-reset surface.** Backend dropped
+  `GET /auth/password-reset-requests` and
+  `POST /auth/password-reset-requests/{id}/approve` (commit `f29fc56`);
+  the client-side admin approval queue would just 404 forever. Mirroring
+  the official Frontend Implementation Guide:
+    * `lib/shared/models/admin.dart` — `PasswordResetRequest` class.
+    * `lib/core/network/api_paths.dart` — `passwordResetRequests` constant
+      and `approvePasswordReset(id)` builder.
+    * `lib/features/admin/data/admin_repository.dart` — `pendingResets()`
+      and `approveReset(id)` methods.
+    * `lib/features/admin/application/admin_providers.dart` —
+      `pendingResetsProvider`.
+    * `lib/features/admin/presentation/admin_home_screen.dart` —
+      `_approving` set, `_approve` handler, `pendingAsync` watch, the
+      `invalidate(pendingResetsProvider)` calls inside pull-to-refresh,
+      the paired "Pending resets" metric card, and the entire
+      "Pending password resets" section (`AuraCard` queue + Approve
+      buttons). Converted `ConsumerStatefulWidget` → `ConsumerWidget`
+      since no local state remained; pruned now-unused imports
+      (`aura_button.dart`, `widgets/states.dart`, `utils/formatting.dart`,
+      `data/admin_repository.dart`).
+    * `lib/features/help/data/help_content.dart` —
+      `ac-forgot-password` tip line that pointed Admins and Campus
+      Admins at the admin-approval flow. Self-service applies to
+      students and campus admins; platform admins reset out-of-band.
+    * `test/unit/admin_test.dart` — `PasswordResetRequest parses` case
+      (the only test of the now-deleted model).
+
+### Changed
+- **Admin Home metric row → single full-width Campus admins card.** The
+  Row that paired "Campus admins" with "Pending resets" is now a single
+  card. Subscription breakdown and Create-school action below it are
+  unchanged.
+
 ## [1.31.1] - 2026-05-27
 
 ### Fixed

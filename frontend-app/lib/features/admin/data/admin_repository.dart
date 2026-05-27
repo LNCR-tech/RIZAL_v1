@@ -70,14 +70,6 @@ class AdminRepository {
     return d is Map ? asStr(d['temporary_password']) : null;
   }
 
-  Future<List<PasswordResetRequest>> pendingResets() async {
-    final r = await _client.get(Api.passwordResetRequests);
-    return asMapList(r.data).map(PasswordResetRequest.fromJson).toList();
-  }
-
-  Future<void> approveReset(int id) =>
-      _client.post(Api.approvePasswordReset(id));
-
   // ── Subscription (per-school plan / capability lever) ──
   Future<SchoolSubscription> subscription(int schoolId) async {
     final r =

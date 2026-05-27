@@ -6,61 +6,30 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/aura_button.dart';
 import '../../../core/widgets/aura_card.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/rise_in.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/stat_ring.dart';
-import '../../../core/widgets/states.dart';
 import '../../../shared/models/admin.dart';
-import '../../../shared/utils/formatting.dart';
 import '../application/admin_providers.dart';
-import '../data/admin_repository.dart';
 import 'create_school_screen.dart';
 
-/// Platform Admin "Overview" — a chart-led dashboard: active-schools hero ring,
-/// metric cards, a subscription breakdown chart, and pending approvals.
-class AdminHomeScreen extends ConsumerStatefulWidget {
+/// Platform Admin "Overview" — a chart-led dashboard: active-schools hero
+/// ring, a Campus-admins metric, and a subscription breakdown chart.
+class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
-
-  @override
-  ConsumerState<AdminHomeScreen> createState() => _AdminHomeScreenState();
-}
-
-class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
-  final Set<int> _approving = {};
 
   static const _pad =
       EdgeInsets.fromLTRB(AppSpacing.x20, AppSpacing.x20, AppSpacing.x20, 130);
 
-  Future<void> _approve(int id) async {
-    setState(() => _approving.add(id));
-    try {
-      await ref.read(adminRepositoryProvider).approveReset(id);
-      ref.invalidate(pendingResetsProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Password reset approved.')));
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not approve. Try again.')));
-      }
-    } finally {
-      if (mounted) setState(() => _approving.remove(id));
-    }
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
     final meta = ref.watch(sessionControllerProvider).meta;
     final schools = ref.watch(adminSchoolsProvider).valueOrNull;
     final accounts = ref.watch(adminAccountsProvider).valueOrNull;
-    final pendingAsync = ref.watch(pendingResetsProvider);
 
     final list = schools ?? const <SchoolSummary>[];
     final total = list.length;
@@ -77,7 +46,6 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
       onRefresh: () async {
         ref.invalidate(adminSchoolsProvider);
         ref.invalidate(adminAccountsProvider);
-        ref.invalidate(pendingResetsProvider);
         await ref.read(adminSchoolsProvider.future);
       },
       child: ListView(
@@ -108,26 +76,11 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
           const SizedBox(height: AppSpacing.x20),
           _HeroCard(total: total, active: active, ready: schools != null),
           const SizedBox(height: AppSpacing.x12),
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.admin_panel_settings_rounded,
-                  label: 'Campus admins',
-                  value: accounts?.length.toString() ?? '—',
-                  tint: t.ssg,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.x12),
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.lock_reset_rounded,
-                  label: 'Pending resets',
-                  value: pendingAsync.valueOrNull?.length.toString() ?? '—',
-                  tint: t.tardy,
-                ),
-              ),
-            ],
+          _MetricCard(
+            icon: Icons.admin_panel_settings_rounded,
+            label: 'Campus admins',
+            value: accounts?.length.toString() ?? '—',
+            tint: t.ssg,
           ),
           const SizedBox(height: AppSpacing.x12),
           _SubsChart(counts: subs, ready: schools != null),
@@ -139,73 +92,6 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
             subtitle: 'Onboard a school + its campus admin',
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const CreateSchoolScreen())),
-          ),
-          const SizedBox(height: AppSpacing.x24),
-          const SectionHeader(title: 'Pending password resets'),
-          pendingAsync.when(
-            loading: () => const LoadingCardList(count: 2),
-            error: (_, __) => Text('Could not load requests.',
-                style: textTheme.bodySmall?.copyWith(color: t.textMuted)),
-            data: (reqs) {
-              if (reqs.isEmpty) {
-                return const EmptyState(
-                  icon: Icons.verified_user_outlined,
-                  title: 'All caught up',
-                  message: 'No pending password-reset requests.',
-                );
-              }
-              return Column(
-                children: [
-                  for (final r in reqs)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.x12),
-                      child: AuraCard(
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: t.surfaceAlt,
-                              child: Icon(Icons.lock_reset_rounded,
-                                  color: t.textSecondary, size: 20),
-                            ),
-                            const SizedBox(width: AppSpacing.x12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(r.displayName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: textTheme.titleLarge),
-                                  Text(
-                                    [
-                                      if (r.email != null) r.email!,
-                                      if (r.requestedAt != null)
-                                        fmtFullDate(r.requestedAt),
-                                    ].join(' · '),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: textTheme.bodySmall
-                                        ?.copyWith(color: t.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.x8),
-                            AuraButton(
-                              label: 'Approve',
-                              variant: AuraButtonVariant.tonal,
-                              expand: false,
-                              loading: _approving.contains(r.id),
-                              onPressed: () => _approve(r.id),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
           ),
         ]),
       ),

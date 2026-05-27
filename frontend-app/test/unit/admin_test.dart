@@ -30,19 +30,6 @@ void main() {
     expect(a.isActive, isTrue);
   });
 
-  test('PasswordResetRequest parses', () {
-    final r = PasswordResetRequest.fromJson({
-      'id': 2,
-      'user_id': 9,
-      'email': 'x@y.com',
-      'roles': ['student'],
-      'status': 'pending',
-    });
-    expect(r.id, 2);
-    expect(r.roles, ['student']);
-    expect(r.displayName, 'x@y.com');
-  });
-
   test('CreateSchoolResult parses nested school + temp password', () {
     final c = CreateSchoolResult.fromJson({
       'school': {'school_id': 1, 'school_name': 'Acme'},

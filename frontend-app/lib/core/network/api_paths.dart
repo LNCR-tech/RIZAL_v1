@@ -90,11 +90,6 @@ class Api {
   static const String auditLogs = '$prefix/audit-logs';
   static const String notificationLogs = '$prefix/notifications/logs';
 
-  // Oversight — auth routes are mounted at the root (no /api prefix).
-  static const String passwordResetRequests = '/auth/password-reset-requests';
-  static String approvePasswordReset(int id) =>
-      '/auth/password-reset-requests/$id/approve';
-
   // Public attendance (kiosk) — mounted at root, no prefix.
   static const String publicNearby = '/public-attendance/events/nearby';
   static String publicMultiScan(int eventId) =>

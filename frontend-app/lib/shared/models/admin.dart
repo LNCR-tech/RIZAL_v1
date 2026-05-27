@@ -64,48 +64,6 @@ class SchoolItAccount {
       );
 }
 
-class PasswordResetRequest {
-  const PasswordResetRequest({
-    required this.id,
-    this.userId,
-    this.email,
-    this.firstName,
-    this.lastName,
-    this.roles = const [],
-    this.status = 'pending',
-    this.requestedAt,
-  });
-  final int id;
-  final int? userId;
-  final String? email;
-  final String? firstName;
-  final String? lastName;
-  final List<String> roles;
-  final String status;
-  final DateTime? requestedAt;
-
-  String get displayName {
-    final n = [firstName, lastName]
-        .where((e) => e != null && e.trim().isNotEmpty)
-        .join(' ')
-        .trim();
-    return n.isNotEmpty ? n : (email ?? 'User');
-  }
-
-  factory PasswordResetRequest.fromJson(Map<String, dynamic> j) =>
-      PasswordResetRequest(
-        id: asInt(j['id']) ?? 0,
-        userId: asInt(j['user_id']),
-        email: asStr(j['email']),
-        firstName: asStr(j['first_name']),
-        lastName: asStr(j['last_name']),
-        roles: j['roles'] is List
-            ? (j['roles'] as List).map((e) => e.toString()).toList()
-            : const [],
-        status: asStr(j['status']) ?? 'pending',
-        requestedAt: asDate(j['requested_at']),
-      );
-}
 
 class CreateSchoolResult {
   const CreateSchoolResult({

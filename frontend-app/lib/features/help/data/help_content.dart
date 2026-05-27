@@ -483,7 +483,7 @@ const HelpCategory _account = HelpCategory(
         'Sign in with your school email and the new password.',
       ],
       tip:
-          'If the code expires (15 minutes) or never arrives, use "Resend code" — it unlocks after a short cooldown. Admins and Campus Admins still go through the admin-approval flow, not this one.',
+          'If the code expires (15 minutes) or never arrives, use "Resend code" — it unlocks after a short cooldown.',
       keywords: [
         'forgot password',
         'forgot',
