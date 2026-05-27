@@ -931,11 +931,13 @@ Create a student account with profile in one request.
 }
 ```
 
+> **student_id:** Optional. Alphanumeric with hyphens, 3–50 characters. Can be omitted and assigned later via `PATCH /api/users/student-profiles/{profile_id}`.
+>
 > **student_status values:** `ACTIVE`, `GRADUATED`, `INACTIVE`, `TRANSFERRED`, `ARCHIVED`
 >
 > **year_level:** 1 to 5
 >
-> A temporary password is auto-generated. It will be in `generated_temporary_password`.
+> A temporary password is auto-generated from the student's last name (lowercased). It will be returned in `generated_temporary_password`.
 
 **Response 201:** `UserCreateResponse` including `student_profile`
 

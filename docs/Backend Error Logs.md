@@ -192,3 +192,29 @@ Also added `from app.utils.passwords import hash_password_bcrypt` import to `stu
 **If This Recurs:** Go to Resend dashboard → Domains → verify that `EMAIL_SENDER_EMAIL`'s domain has DNS records added and shows "Verified" status. Until verified, only the Resend account email receives messages.
 
 ---
+
+## ERR-008 — POST /api/users/students/ Returns 500 When student_id Is Omitted
+
+**Date:** 2026-05-27  
+**Context:** Campus admin creates a student account without providing a `student_id` (the field is optional in the request schema).
+
+**Error:**
+```
+HTTP 500: Failed to create student account: (psycopg2.errors.NotNullViolation)
+null value in column "student_number" of relation "student_profiles" violates not-null constraint
+```
+
+**Cause:** `StudentAccountCreate.student_id` is `str | None = Field(None, ...)` — optional with a `None` default. The route passes `student_number=student.student_id` directly to the `StudentProfile` constructor. When `student_id` is `None`, SQLAlchemy attempts to INSERT NULL into `student_profiles.student_number` which is defined `NOT NULL` without a server default. The `NotNullViolation` is caught by the generic `except Exception` block and returned as a 500.
+
+The companion test (`test_create_student_account`) always provides `student_id: "STU-NEW-001"` so CI was green despite the production bug.
+
+**Fix Applied:**
+1. New Alembic migration `0014_student_number_nullable` — `ALTER COLUMN student_number DROP NOT NULL`.
+2. Updated `StudentProfile` model: `nullable=True` on `student_number`.
+3. Added `logger.exception(...)` before the 500 raise in `create_student_account` so future unexpected exceptions appear in docker logs.
+
+**Files changed:** `backend/alembic/versions/0014_student_number_nullable.py`, `backend/app/models/user.py`, `backend/app/routers/users/students.py`
+
+**If This Recurs:** Any route that maps an optional schema field to a `NOT NULL` DB column will fail silently this way. Always ensure schema defaults align with DB column constraints. Check with `NULLABLE?` when adding new `StudentProfile` / model inserts.
+
+---

@@ -84,6 +84,7 @@ def create_student_account(
         raise
     except Exception as exc:
         db.rollback()
+        logger.exception("create_student_account failed for email=%s", student.email)
         raise HTTPException(status_code=500, detail=f"Failed to create student account: {exc}")
 
 
