@@ -122,7 +122,7 @@ def build_event_geolocation_error_detail(
         "message": message,
     }
     if response is not None:
-        detail.update(response.model_dump())
+        detail.update(response.model_dump(mode="json"))
     detail.update(extra)
     return detail
 
