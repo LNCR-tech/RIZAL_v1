@@ -10,6 +10,7 @@ class AuraTextField extends StatelessWidget {
     this.label,
     this.hint,
     this.controller,
+    this.focusNode,
     this.obscure = false,
     this.keyboardType,
     this.textInputAction,
@@ -24,6 +25,7 @@ class AuraTextField extends StatelessWidget {
   final String? label;
   final String? hint;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final bool obscure;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
@@ -50,6 +52,7 @@ class AuraTextField extends StatelessWidget {
           ),
         TextField(
           controller: controller,
+          focusNode: focusNode,
           obscureText: obscure,
           keyboardType: keyboardType,
           textInputAction: textInputAction,

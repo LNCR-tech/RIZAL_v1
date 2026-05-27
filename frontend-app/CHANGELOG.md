@@ -10,6 +10,58 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-05-27
+
+### Changed
+- **Forgot-password flow is now three stages** to match the new backend
+  contract (commit `154c815`): `/auth/forgot-password` → mails a 6-digit
+  code; `/auth/verify-reset-code` → returns a short-lived `reset_token`;
+  `/auth/reset-password` → consumes `{reset_token, new_password}`. The
+  user only sees the new-password form *after* the code is verified —
+  no more typing a password against an invalid code, and stage 3 is
+  unreachable without a server-returned token.
+- **`forgot_password_screen.dart` rewritten** around a `_Stage` enum
+  (`email` / `code` / `password`) with three private stage builders and
+  a single `AnimatedSwitcher` driving the transitions. Asymmetric cross-
+  fade per emil-design-eng: outgoing drops 12 dp + fades; incoming lifts
+  8 dp + fades. `AppMotion.modal` (260 ms) / `AppMotion.easeOut`
+  throughout — never ease-in. Honours `MediaQuery.disableAnimations`.
+- **Three-segment progress strip** (`_StageProgress`) sits above the
+  IconBadge so the user always knows where they are in the journey.
+  Active segment paints `t.accent`, completed segments paint accent at
+  50 % opacity, upcoming segments paint a softened `t.border`; each
+  segment's colour animates 240 ms ease-out on stage advance.
+- **Inline `email` echo on the code stage** rendered in
+  `AppTypography.mono` so the user can sanity-check what they typed
+  without scrolling back.
+- **Error banner now reveals via `AnimatedSwitcher`** (200 ms fade +
+  6 dp downward slide), via a new `_ErrorBanner.show()` helper that
+  collapses cleanly when `error == null` — no conditional wrappers in
+  the stage builders.
+- **Back button is stage-aware.** Stage 1 → pop route. Stage 2 →
+  back to stage 1, clears the code. Stage 3 → back to stage 2, clears
+  the new-password fields AND drops the reset token (the token is
+  single-use and time-bound, so re-verification is the safer recovery
+  path).
+
+### Added
+- **`auth_repository.verifyResetCode({email, code})`** — `POST
+  /auth/verify-reset-code`, returns the opaque `reset_token` string;
+  surfaces 400 / 429 as `ApiException`. Includes the standard
+  `/api/auth/...` fallback for deployments that mount auth under
+  `/api`.
+- **`auth_repository.resetPassword({resetToken, newPassword})`** —
+  `POST /auth/reset-password` with the new payload shape (token, no
+  longer email + code).
+- **`AuraTextField` now accepts a `focusNode`** so callers can drive
+  focus programmatically. Used to focus the new-password field on the
+  password stage advance.
+
+### Removed
+- **`auth_repository.resetPasswordWithCode({email, code, newPassword})`**
+  — the old 2-step combined endpoint signature. Replaced by the
+  `verifyResetCode` + `resetPassword` pair above.
+
 ## [1.31.2] - 2026-05-27
 
 ### Removed

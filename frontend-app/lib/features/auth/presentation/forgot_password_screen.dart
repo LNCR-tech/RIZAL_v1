@@ -14,17 +14,30 @@ import '../../../core/widgets/aura_text_field.dart';
 import '../../../core/widgets/pressable.dart';
 import '../data/auth_repository.dart';
 
-/// Self-service password reset (`POST /auth/forgot-password` →
-/// `POST /auth/reset-password`). Backend mails a 6-digit code via Resend
-/// (15-min expiry); this screen owns the two-stage flow that replaces the
-/// previous admin-approval dialog.
+/// Self-service password reset — three-stage flow matching the backend
+/// contract (commit 154c815):
 ///
-/// Motion (emil-design-eng / flutter-animations):
-/// - Stage transition: cross-fade + small lift, 260ms, `AppMotion.easeOut`
-///   (under the 300ms UI ceiling; never ease-in).
-/// - OTP cell pop on digit entry: 80ms scale-up + 120ms settle (asymmetric:
-///   feedback enters fast, settles gently).
-/// - Both motion paths skip when `MediaQuery.disableAnimations` is true.
+///   1. `POST /auth/forgot-password`     → emails a 6-digit code.
+///   2. `POST /auth/verify-reset-code`   → returns a short-lived reset_token.
+///   3. `POST /auth/reset-password`      → consumes the token + new password.
+///
+/// The user only sees the new-password form *after* the code is verified —
+/// stage 3 is unreachable without a valid reset_token. Anti-enumeration is
+/// preserved at stage 1 (always-generic response).
+///
+/// Motion (flutter-animations + emil-design-eng):
+///   - Stage transition: `AppMotion.modal` (260ms) cross-fade with
+///     asymmetric lift — outgoing drops 12 dp, incoming lifts 8 dp.
+///     `AppMotion.easeOut` only; never ease-in for UI.
+///   - OTP cell pop on digit entry: 80 ms scale up, 140 ms settle —
+///     asymmetric, feedback-first.
+///   - Error banner: 200 ms fade + 6 dp downward slide via
+///     `AnimatedSwitcher`.
+///   - Stage-progress strip: per-segment colour animated 240 ms ease-out
+///     on stage advance. Active = brand accent, completed = accent 50 %,
+///     upcoming = border tint.
+///   - All paths gated on `MediaQuery.disableAnimations` →
+///     `Duration.zero`.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key, this.initialEmail});
 
@@ -43,7 +56,7 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
       _ForgotPasswordScreenState();
 }
 
-enum _Stage { request, verify }
+enum _Stage { email, code, password }
 
 const int _kResendCooldownSeconds = 45;
 const int _kCodeLength = 6;
@@ -56,8 +69,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final TextEditingController _password = TextEditingController();
   final TextEditingController _confirm = TextEditingController();
   final FocusNode _codeFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
 
-  _Stage _stage = _Stage.request;
+  _Stage _stage = _Stage.email;
   bool _loading = false;
   String? _error;
   bool _obscurePassword = true;
@@ -65,6 +79,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Timer? _cooldownTimer;
   int _cooldown = 0;
+
+  /// Short-lived token returned by `/auth/verify-reset-code`. Present only
+  /// between successful code verification and a successful (or failed)
+  /// password reset.
+  String? _resetToken;
 
   @override
   void dispose() {
@@ -74,8 +93,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     _password.dispose();
     _confirm.dispose();
     _codeFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
+
+  // -- cooldown ----------------------------------------------------------
 
   void _startCooldown() {
     _cooldownTimer?.cancel();
@@ -94,6 +116,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       });
     });
   }
+
+  // -- network handlers --------------------------------------------------
 
   Future<void> _sendCode({bool isResend = false}) async {
     final email = _email.text.trim();
@@ -116,7 +140,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       final messenger = isResend ? ScaffoldMessenger.of(context) : null;
       setState(() {
         _loading = false;
-        if (!isResend) _stage = _Stage.verify;
+        if (!isResend) _stage = _Stage.code;
       });
       if (isResend) {
         messenger?.showSnackBar(
@@ -143,12 +167,58 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
   }
 
-  Future<void> _verifyAndReset() async {
+  Future<void> _verifyCode() async {
     final code = _code.text;
-    final pw = _password.text;
     if (code.length != _kCodeLength) {
       setState(() =>
           _error = 'Enter the $_kCodeLength-digit code from your email.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final token = await ref.read(authRepositoryProvider).verifyResetCode(
+            email: _email.text.trim(),
+            code: code,
+          );
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _resetToken = token;
+        _stage = _Stage.password;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _passwordFocus.requestFocus();
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error =
+            "Couldn't reach the server. Check your connection and try again.";
+      });
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final pw = _password.text;
+    final token = _resetToken;
+    if (token == null || token.isEmpty) {
+      // Defensive: unreachable in normal flow — stage 3 is gated on a
+      // non-null token. Surface a recovery path instead of silently
+      // failing.
+      setState(() {
+        _error = 'Verify your code first.';
+        _stage = _Stage.code;
+      });
       return;
     }
     if (pw.length < _kMinPasswordLength) {
@@ -165,14 +235,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).resetPasswordWithCode(
-            email: _email.text.trim(),
-            code: code,
+      await ref.read(authRepositoryProvider).resetPassword(
+            resetToken: token,
             newPassword: pw,
           );
       if (!mounted) return;
-      // Capture the messenger before popping — after pop, the local context
-      // is detached, but the ancestor's messenger still resolves correctly.
+      // Capture the messenger before popping — after pop, the local
+      // context is detached, but the ancestor's messenger still resolves.
       final messenger = ScaffoldMessenger.of(context);
       HapticFeedback.lightImpact();
       Navigator.of(context).pop();
@@ -197,28 +266,47 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
   }
 
+  // -- back navigation ---------------------------------------------------
+
   void _backOrCancel() {
     if (_loading) return;
-    if (_stage == _Stage.verify) {
-      setState(() {
-        _stage = _Stage.request;
-        _code.clear();
-        _password.clear();
-        _confirm.clear();
-        _error = null;
-      });
-    } else {
-      Navigator.of(context).pop();
+    switch (_stage) {
+      case _Stage.email:
+        Navigator.of(context).pop();
+        break;
+      case _Stage.code:
+        setState(() {
+          _stage = _Stage.email;
+          _code.clear();
+          _error = null;
+        });
+        break;
+      case _Stage.password:
+        // The token is single-use and time-bound; once we've moved off the
+        // password stage we drop it so the user re-verifies — keeps the
+        // server-side guarantee honest.
+        setState(() {
+          _stage = _Stage.code;
+          _password.clear();
+          _confirm.clear();
+          _resetToken = null;
+          _error = null;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _codeFocus.requestFocus();
+        });
+        break;
     }
   }
+
+  // -- build -------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final transitionDuration =
-        reduceMotion ? Duration.zero : const Duration(milliseconds: 260);
+    final transition = reduceMotion ? Duration.zero : AppMotion.modal;
 
     return Scaffold(
       backgroundColor: t.bg,
@@ -237,37 +325,63 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             horizontal: AppSpacing.x20,
             vertical: AppSpacing.x8,
           ),
-          child: AnimatedSwitcher(
-            duration: transitionDuration,
-            switchInCurve: AppMotion.easeOut,
-            switchOutCurve: AppMotion.easeOut,
-            transitionBuilder: (child, anim) {
-              final slide = Tween<Offset>(
-                begin: const Offset(0, 0.04),
-                end: Offset.zero,
-              ).animate(anim);
-              return FadeTransition(
-                opacity: anim,
-                child: SlideTransition(position: slide, child: child),
-              );
-            },
-            child: _stage == _Stage.request
-                ? _buildRequestStage(context)
-                : _buildVerifyStage(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _StageProgress(stage: _stage, reduceMotion: reduceMotion),
+              const SizedBox(height: AppSpacing.x24),
+              AnimatedSwitcher(
+                duration: transition,
+                switchInCurve: AppMotion.easeOut,
+                switchOutCurve: AppMotion.easeOut,
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.topCenter,
+                    children: [
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                transitionBuilder: _stageTransition,
+                child: switch (_stage) {
+                  _Stage.email => _buildEmailStage(context),
+                  _Stage.code => _buildCodeStage(context),
+                  _Stage.password => _buildPasswordStage(context),
+                },
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildRequestStage(BuildContext context) {
+  /// Asymmetric stage transition: outgoing drops 12 dp + fades; incoming
+  /// lifts 8 dp + fades. Feedback-first per emil-design-eng — the user's
+  /// eyes track upward to the next form before the outgoing one is gone.
+  Widget _stageTransition(Widget child, Animation<double> anim) {
+    final entering = anim.status == AnimationStatus.forward ||
+        anim.status == AnimationStatus.completed;
+    final slide = Tween<Offset>(
+      begin: Offset(0, entering ? 0.04 : -0.06),
+      end: Offset.zero,
+    ).animate(anim);
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(position: slide, child: child),
+    );
+  }
+
+  // -- stage builders ----------------------------------------------------
+
+  Widget _buildEmailStage(BuildContext context) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
     return Column(
-      key: const ValueKey<_Stage>(_Stage.request),
+      key: const ValueKey<_Stage>(_Stage.email),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: AppSpacing.x8),
         const _IconBadge(icon: Icons.lock_reset_rounded),
         const SizedBox(height: AppSpacing.x20),
         Text('Reset your password', style: textTheme.headlineSmall),
@@ -293,10 +407,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           enabled: !_loading,
           onSubmitted: (_) => _sendCode(),
         ),
-        if (_error != null) ...[
-          const SizedBox(height: AppSpacing.x12),
-          _ErrorBanner(message: _error!),
-        ],
+        _ErrorBanner.show(error: _error),
         const SizedBox(height: AppSpacing.x20),
         AuraButton(
           label: 'Send reset code',
@@ -317,7 +428,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               ),
               child: RichText(
                 text: TextSpan(
-                  style: textTheme.bodyMedium?.copyWith(color: t.textSecondary),
+                  style: textTheme.bodyMedium
+                      ?.copyWith(color: t.textSecondary),
                   children: [
                     const TextSpan(text: 'Remember your password? '),
                     TextSpan(
@@ -337,15 +449,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     );
   }
 
-  Widget _buildVerifyStage(BuildContext context) {
+  Widget _buildCodeStage(BuildContext context) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
     final canResend = _cooldown <= 0 && !_loading;
     return Column(
-      key: const ValueKey<_Stage>(_Stage.verify),
+      key: const ValueKey<_Stage>(_Stage.code),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: AppSpacing.x8),
         const _IconBadge(icon: Icons.mark_email_read_rounded),
         const SizedBox(height: AppSpacing.x20),
         Text('Check your inbox', style: textTheme.headlineSmall),
@@ -358,9 +469,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               const TextSpan(text: 'We sent a 6-digit code to '),
               TextSpan(
                 text: _email.text.trim(),
-                style: TextStyle(color: t.ink, fontWeight: FontWeight.w600),
+                style: AppTypography.mono(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: t.ink,
+                ),
               ),
-              const TextSpan(text: '. Enter it below with your new password.'),
+              const TextSpan(text: '. Enter it below to continue.'),
             ],
           ),
         ),
@@ -370,49 +485,15 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           focusNode: _codeFocus,
           enabled: !_loading,
           length: _kCodeLength,
-          onSubmitted: _verifyAndReset,
+          onSubmitted: _verifyCode,
         ),
-        const SizedBox(height: AppSpacing.x20),
-        AuraTextField(
-          label: 'New password',
-          hint: 'At least $_kMinPasswordLength characters',
-          controller: _password,
-          obscure: _obscurePassword,
-          textInputAction: TextInputAction.next,
-          prefixIcon: Icons.lock_outline_rounded,
-          autofillHints: const [AutofillHints.newPassword],
-          enabled: !_loading,
-          suffix: _ObscureToggle(
-            obscured: _obscurePassword,
-            onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.x16),
-        AuraTextField(
-          label: 'Confirm new password',
-          hint: 'Re-type the new password',
-          controller: _confirm,
-          obscure: _obscureConfirm,
-          textInputAction: TextInputAction.done,
-          prefixIcon: Icons.lock_outline_rounded,
-          autofillHints: const [AutofillHints.newPassword],
-          enabled: !_loading,
-          onSubmitted: (_) => _verifyAndReset(),
-          suffix: _ObscureToggle(
-            obscured: _obscureConfirm,
-            onTap: () => setState(() => _obscureConfirm = !_obscureConfirm),
-          ),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: AppSpacing.x12),
-          _ErrorBanner(message: _error!),
-        ],
-        const SizedBox(height: AppSpacing.x20),
+        _ErrorBanner.show(error: _error, topSpacing: AppSpacing.x16),
+        const SizedBox(height: AppSpacing.x24),
         AuraButton(
-          label: 'Reset password',
-          icon: Icons.lock_open_rounded,
+          label: 'Verify code',
+          icon: Icons.arrow_forward_rounded,
           loading: _loading,
-          onPressed: _loading ? null : _verifyAndReset,
+          onPressed: _loading ? null : _verifyCode,
         ),
         const SizedBox(height: AppSpacing.x12),
         Center(
@@ -456,12 +537,149 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       ],
     );
   }
+
+  Widget _buildPasswordStage(BuildContext context) {
+    final t = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      key: const ValueKey<_Stage>(_Stage.password),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _IconBadge(icon: Icons.lock_open_rounded),
+        const SizedBox(height: AppSpacing.x20),
+        Text('Set a new password', style: textTheme.headlineSmall),
+        const SizedBox(height: AppSpacing.x8),
+        Text(
+          'Use at least $_kMinPasswordLength characters. We recommend a '
+          "phrase you don't use elsewhere.",
+          style: textTheme.bodyMedium
+              ?.copyWith(color: t.textSecondary, height: 1.5),
+        ),
+        const SizedBox(height: AppSpacing.x24),
+        AuraTextField(
+          label: 'New password',
+          hint: 'At least $_kMinPasswordLength characters',
+          controller: _password,
+          focusNode: _passwordFocus,
+          obscure: _obscurePassword,
+          textInputAction: TextInputAction.next,
+          prefixIcon: Icons.lock_outline_rounded,
+          autofillHints: const [AutofillHints.newPassword],
+          enabled: !_loading,
+          suffix: _ObscureToggle(
+            obscured: _obscurePassword,
+            onTap: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.x16),
+        AuraTextField(
+          label: 'Confirm new password',
+          hint: 'Re-type the new password',
+          controller: _confirm,
+          obscure: _obscureConfirm,
+          textInputAction: TextInputAction.done,
+          prefixIcon: Icons.lock_outline_rounded,
+          autofillHints: const [AutofillHints.newPassword],
+          enabled: !_loading,
+          onSubmitted: (_) => _resetPassword(),
+          suffix: _ObscureToggle(
+            obscured: _obscureConfirm,
+            onTap: () => setState(() => _obscureConfirm = !_obscureConfirm),
+          ),
+        ),
+        _ErrorBanner.show(error: _error),
+        const SizedBox(height: AppSpacing.x20),
+        AuraButton(
+          label: 'Reset password',
+          icon: Icons.lock_open_rounded,
+          loading: _loading,
+          onPressed: _loading ? null : _resetPassword,
+        ),
+      ],
+    );
+  }
 }
 
 String _formatCooldown(int seconds) {
   final m = seconds ~/ 60;
   final s = seconds % 60;
   return '$m:${s.toString().padLeft(2, '0')}';
+}
+
+// -- stage progress ------------------------------------------------------
+
+/// Three-segment progress strip above the stage IconBadge. The active
+/// segment paints `t.accent`; completed segments paint `t.accent` at 50 %
+/// opacity; upcoming segments paint a softened `t.border`. Each segment's
+/// colour animates 240 ms ease-out on stage advance, honouring reduced
+/// motion.
+class _StageProgress extends StatelessWidget {
+  const _StageProgress({required this.stage, required this.reduceMotion});
+  final _Stage stage;
+  final bool reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final idx = _Stage.values.indexOf(stage);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x4),
+      child: Row(
+        children: [
+          for (var i = 0; i < _Stage.values.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.x8),
+            Expanded(
+              child: _StageSegment(
+                status: i < idx
+                    ? _SegmentStatus.completed
+                    : i == idx
+                        ? _SegmentStatus.active
+                        : _SegmentStatus.upcoming,
+                accent: t.accent,
+                border: t.border,
+                reduceMotion: reduceMotion,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+enum _SegmentStatus { completed, active, upcoming }
+
+class _StageSegment extends StatelessWidget {
+  const _StageSegment({
+    required this.status,
+    required this.accent,
+    required this.border,
+    required this.reduceMotion,
+  });
+  final _SegmentStatus status;
+  final Color accent;
+  final Color border;
+  final bool reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      _SegmentStatus.completed => accent.withOpacity(0.5),
+      _SegmentStatus.active => accent,
+      _SegmentStatus.upcoming => border.withOpacity(0.6),
+    };
+    return AnimatedContainer(
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 240),
+      curve: AppMotion.easeOut,
+      height: 4,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
 }
 
 // -- sub-widgets ---------------------------------------------------------
@@ -513,32 +731,70 @@ class _ObscureToggle extends StatelessWidget {
   }
 }
 
+/// Animated wrapper around the visible error banner: 200 ms fade + 6 dp
+/// downward slide on appearance (via [AnimatedSwitcher]). When [error] is
+/// null this collapses to nothing, including the prepended top spacer —
+/// the caller doesn't need a conditional in the parent column.
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+  const _ErrorBanner._({
+    super.key,
+    required this.message,
+    required this.topSpacing,
+  });
   final String message;
+  final double topSpacing;
+
+  static Widget show({String? error, double topSpacing = AppSpacing.x12}) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: AppMotion.easeOut,
+      switchOutCurve: AppMotion.easeOut,
+      transitionBuilder: (child, anim) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, -0.18),
+          end: Offset.zero,
+        ).animate(anim);
+        return FadeTransition(
+          opacity: anim,
+          child: SlideTransition(position: slide, child: child),
+        );
+      },
+      child: error == null
+          ? const SizedBox(key: ValueKey('no-error'), height: 0)
+          : _ErrorBanner._(
+              key: ValueKey(error),
+              message: error,
+              topSpacing: topSpacing,
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.x12),
-      decoration: BoxDecoration(
-        color: t.absent.withOpacity(0.12),
-        borderRadius: AppRadii.rControl,
-        border: Border.all(color: t.absent.withOpacity(0.35)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.error_outline_rounded, size: 18, color: t.absent),
-          const SizedBox(width: AppSpacing.x8),
-          Expanded(
-            child: Text(
-              message,
-              style: textTheme.bodyMedium?.copyWith(color: t.absent),
+    return Padding(
+      padding: EdgeInsets.only(top: topSpacing),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.x12),
+        decoration: BoxDecoration(
+          color: t.absent.withOpacity(0.12),
+          borderRadius: AppRadii.rControl,
+          border: Border.all(color: t.absent.withOpacity(0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 18, color: t.absent),
+            const SizedBox(width: AppSpacing.x8),
+            Expanded(
+              child: Text(
+                message,
+                style: textTheme.bodyMedium?.copyWith(color: t.absent),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -546,8 +802,8 @@ class _ErrorBanner extends StatelessWidget {
 
 /// Six-cell numeric input. A single hidden TextField captures input
 /// (digit-only, length-limited, supports paste + iOS/Android SMS autofill),
-/// while six visible cells mirror its content. The hidden field sits on top
-/// so tapping any cell focuses the same controller.
+/// while six visible cells mirror its content. The hidden field sits on
+/// top so tapping any cell focuses the same controller.
 class _OtpField extends StatefulWidget {
   const _OtpField({
     required this.controller,
@@ -652,7 +908,7 @@ class _OtpCellState extends State<_OtpCell>
     _pop = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 80),
-      reverseDuration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 140),
     );
     _scale = Tween<double>(begin: 1.0, end: 1.06).animate(
       CurvedAnimation(parent: _pop, curve: AppMotion.easeOut),

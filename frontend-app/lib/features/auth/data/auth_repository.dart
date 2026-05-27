@@ -94,18 +94,50 @@ class AuthRepository {
     return (data['message'] ?? 'Reset request submitted.').toString();
   }
 
-  /// Verify the emailed 6-digit code and set a new password
-  /// (`POST /auth/reset-password`). Backend returns 400 for invalid/expired/
-  /// used codes and for unknown emails (anti-enumeration), 429 when rate
-  /// limited — both surface as [ApiException].
-  Future<String> resetPasswordWithCode({
+  /// Verify the emailed 6-digit code (`POST /auth/verify-reset-code`) and
+  /// return the short-lived `reset_token`. The token is single-use and
+  /// expires at the same time as the original code (15-minute window). On
+  /// failure the backend returns 400 (invalid/expired code) or 429 (rate
+  /// limited); both surface as [ApiException].
+  Future<String> verifyResetCode({
     required String email,
     required String code,
-    required String newPassword,
   }) async {
     final body = {
       'email': email.trim(),
       'code': code.trim(),
+    };
+    Response<dynamic> res;
+    try {
+      res = await _client.post('/auth/verify-reset-code', data: body);
+    } on ApiException catch (e) {
+      if (e.isNotFound) {
+        res = await _client.post('/api/auth/verify-reset-code', data: body);
+      } else {
+        rethrow;
+      }
+    }
+    final data = (res.data as Map).cast<String, dynamic>();
+    final token = (data['reset_token'] ?? '').toString();
+    if (token.isEmpty) {
+      throw ApiException(
+        'Code verified, but the server did not return a reset token.',
+        statusCode: res.statusCode ?? 0,
+      );
+    }
+    return token;
+  }
+
+  /// Consume the short-lived `reset_token` from [verifyResetCode] and set
+  /// the new password (`POST /auth/reset-password`). The token is
+  /// single-use; the backend returns 400 if it is invalid, expired, or
+  /// already spent — surfaces as [ApiException].
+  Future<String> resetPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    final body = {
+      'reset_token': resetToken,
       'new_password': newPassword,
     };
     Response<dynamic> res;
@@ -119,7 +151,8 @@ class AuthRepository {
       }
     }
     final data = (res.data as Map).cast<String, dynamic>();
-    return (data['message'] ?? 'Password has been reset successfully.').toString();
+    return (data['message'] ?? 'Password has been reset successfully.')
+        .toString();
   }
 
   /// Exchange a Google credential for an Aura access token + meta
