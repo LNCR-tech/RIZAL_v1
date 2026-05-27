@@ -106,8 +106,8 @@ class UserCreate(UserBase):
 
 class StudentAccountCreate(UserBase):
     email: EmailStr
-    student_id: str = Field(
-        ...,
+    student_id: str | None = Field(
+        None,
         min_length=3,
         max_length=50,
         pattern=r"^[A-Za-z0-9-]+$",
@@ -139,8 +139,8 @@ class StudentAccountCreate(UserBase):
 
     @field_validator("student_id")
     @classmethod
-    def validate_student_id_format(cls, value: str) -> str:
-        """Normalize and validate the campus-admin student ID."""
+    def validate_student_id_format(cls, value: str | None) -> str | None:
+        """Normalize and validate the campus-admin student ID when provided."""
         return _normalize_student_id_or_raise(value)
 
 

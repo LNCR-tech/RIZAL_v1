@@ -66,7 +66,7 @@ class StudentProfile(Base):
     id = Column(BigInteger, primary_key=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=True)
     school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), index=True, nullable=False)
-    student_number = Column(Text, nullable=False, index=True)
+    student_number = Column(Text, nullable=True, index=True)
     department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="RESTRICT"), index=True, nullable=True)
     program_id = Column(BigInteger, ForeignKey("programs.id", ondelete="RESTRICT"), index=True, nullable=True)
     year_level = Column(BigInteger, nullable=False, default=1)
