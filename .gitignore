@@ -41,6 +41,7 @@ logs/
 .env.development.local
 .env.backup.*
 *.env
+client_secret_*.json
 
 # Database / local artifacts
 *.db
@@ -86,3 +87,5 @@ push_changes.ps1
 # Misc local
 .agent/
 test-results/
+
+frontend-app/

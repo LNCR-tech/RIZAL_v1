@@ -21,8 +21,12 @@ After every backend change, update `docs/Backend Documentation.md` in the same c
 **Never modify any frontend code.**
 
 - No changes to `frontend-app/` (Flutter mobile app)
-- No changes to `frontend-web/` (Vue.js SPA)
 - Backend changes only
+
+**Never push any changes in frontend code**
+
+- No changes push to `frontend-app/` (Flutter mobile app)
+- Backend changes only push
 
 ## General
 

@@ -55,6 +55,51 @@
 
 ---
 
+## Attendance Timing Windows (Sign-In & Sign-Out)
+
+When an event is created, the system calculates precise times for when attendance (sign-in and sign-out) is open, late, absent, or closed based on the event's start/end times and the window configuration fields.
+
+### Formula & Timing Statuses
+
+| Event Status | Time Range | Result / Check-In Eligibility |
+| :--- | :--- | :--- |
+| **`before_check_in`** | Before `check_in_opens_at` | Check-in is **closed**. |
+| **`early_check_in`** | `check_in_opens_at` to `start_datetime` | Check-in is **open**. Marked as **`present`**. |
+| **`late_check_in`** | `start_datetime` to `late_threshold_time` | Check-in is **open**. Marked as **`late`**. |
+| **`absent_check_in`** | `late_threshold_time` to `end_datetime` | Check-in is **open**. Marked as **`absent`**. |
+| **`sign_out_pending`** | `end_datetime` to `sign_out_opens_at` | Check-in is **closed**; sign-out not yet open. |
+| **`sign_out_open`** | `sign_out_opens_at` to `effective_sign_out_closes_at` | Check-in is **closed**. Sign-out is **open**. |
+| **`closed`** | After `effective_sign_out_closes_at` | All attendance windows are **closed**. |
+
+### Key Boundaries Calculation
+
+*   **`check_in_opens_at`** = `start_datetime - early_check_in_minutes`
+*   **`late_threshold_time`** = `start_datetime + late_threshold_minutes`
+*   **`sign_out_opens_at`** = `end_datetime + sign_out_open_delay_minutes`
+*   **`effective_sign_out_closes_at`** = `end_datetime + sign_out_grace_minutes` (capped by any active `sign_out_override_until` datetime, if set)
+
+---
+
+### Timing Example
+
+Let's say an event has:
+*   **`start_datetime`**: `09:00 AM`
+*   **`end_datetime`**: `11:00 AM`
+*   **`early_check_in_minutes`**: `30`
+*   **`late_threshold_minutes`**: `10`
+*   **`sign_out_open_delay_minutes`**: `0`
+*   **`sign_out_grace_minutes`**: `20`
+
+Here is the exact schedule generated:
+
+*   **`08:30 AM`**: Sign-in **opens** (`09:00 AM - 30 minutes`). Status is `early_check_in` (marked **`present`**).
+*   **`09:00 AM`**: Event starts. Status changes to `late_check_in` (marked **`late`**).
+*   **`09:10 AM`**: Late threshold passed (`09:00 AM + 10 minutes`). Status changes to `absent_check_in` (marked **`absent`**).
+*   **`11:00 AM`**: Event ends. Sign-in closes. Sign-out **opens** immediately. Status is `sign_out_open`.
+*   **`11:20 AM`**: Sign-out **closes** (`11:00 AM + 20 minutes`). Status is `closed`. All windows are now shut.
+
+---
+
 ## Audience Targeting
 
 ### For Campus Admins (no governance context)
