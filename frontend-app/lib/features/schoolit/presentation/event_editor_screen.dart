@@ -47,6 +47,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
   double? _geoLat;
   double? _geoLng;
   double _geoRadius = 100;
+  bool _membersOnly = true;
   bool _busy = false;
   String? _error;
 
@@ -76,6 +77,9 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
         _geoLng = e.geoLongitude;
         _geoRadius = (e.geoRadiusM ?? 100).clamp(25, 500).toDouble();
       }
+      _membersOnly = e.governanceUnitId != null;
+    } else {
+      _membersOnly = widget.governanceContext != null;
     }
   }
 
@@ -158,11 +162,13 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
     });
     try {
       final repo = ref.read(eventsRepositoryProvider);
+      final effectiveContext =
+          _membersOnly ? widget.governanceContext : null;
       if (_isEdit) {
         await repo.update(widget.event!.id, body,
-            governanceContext: widget.governanceContext);
+            governanceContext: effectiveContext);
       } else {
-        await repo.create(body, governanceContext: widget.governanceContext);
+        await repo.create(body, governanceContext: effectiveContext);
       }
       if (widget.governanceContext != null) {
         ref.invalidate(governanceEventsProvider(widget.governanceContext!));
@@ -337,6 +343,15 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
               ],
             ),
           ),
+          if (widget.governanceContext != null) ...[
+            const SizedBox(height: AppSpacing.x24),
+            const SectionHeader(title: 'Audience'),
+            _AudienceCard(
+              governanceContext: widget.governanceContext!,
+              membersOnly: _membersOnly,
+              onChanged: (v) => setState(() => _membersOnly = v),
+            ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.x16),
             Text(_error!,
@@ -347,6 +362,81 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
               label: _isEdit ? 'Save changes' : 'Create event',
               loading: _busy,
               onPressed: _save),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudienceCard extends StatelessWidget {
+  const _AudienceCard({
+    required this.governanceContext,
+    required this.membersOnly,
+    required this.onChanged,
+  });
+
+  final String governanceContext;
+  final bool membersOnly;
+  final ValueChanged<bool> onChanged;
+
+  String get _unitLabel {
+    switch (governanceContext.toUpperCase()) {
+      case 'SSG':
+        return 'SSG';
+      case 'SG':
+        return 'SG';
+      case 'ORG':
+        return 'ORG';
+      default:
+        return governanceContext;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return AuraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$_unitLabel members only',
+                        style: textTheme.titleLarge),
+                    Text(
+                      membersOnly
+                          ? 'Only active $_unitLabel members can see and attend'
+                          : 'All students in scope can see and attend',
+                      style:
+                          textTheme.bodySmall?.copyWith(color: t.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(value: membersOnly, onChanged: onChanged),
+            ],
+          ),
+          if (!membersOnly) ...[
+            const SizedBox(height: AppSpacing.x8),
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    size: 14, color: t.textMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Event will be visible to all students targeted by the event scope.',
+                    style: textTheme.bodySmall?.copyWith(color: t.textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

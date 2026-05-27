@@ -26,6 +26,7 @@ class AppEvent {
     this.eventTypeName,
     this.departmentIds = const [],
     this.programIds = const [],
+    this.governanceUnitId,
   });
 
   final int id;
@@ -50,6 +51,7 @@ class AppEvent {
   final String? eventTypeName;
   final List<int> departmentIds;
   final List<int> programIds;
+  final int? governanceUnitId;
 
   bool get hasGeo => geoLatitude != null && geoLongitude != null;
   bool get isOngoing => status.toLowerCase() == 'ongoing';
@@ -84,6 +86,7 @@ class AppEvent {
       eventTypeName: eventType is Map ? asStr(eventType['name']) : null,
       departmentIds: ids(j['department_ids']),
       programIds: ids(j['program_ids']),
+      governanceUnitId: asInt(j['governance_unit_id']),
     );
   }
 }
