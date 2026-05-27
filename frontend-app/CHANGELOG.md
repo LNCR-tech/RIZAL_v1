@@ -10,6 +10,24 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.31.1] - 2026-05-27
+
+### Fixed
+- **UI-quality tests now actually exercise their intended viewport.**
+  `tester.binding.setSurfaceSize` was silently a no-op in this Flutter
+  version — `tester.view.physicalSize` retained the default 800 × 600
+  logical surface, so every iteration of the multi-viewport test ran at
+  the medium breakpoint. After the v1.31.0 responsive shell that meant
+  `DesktopShell` (not the bottom nav) was rendered for *every* viewport,
+  including "mobile". `_withViewport` now drives `tester.view.physicalSize`
+  / `devicePixelRatio` directly (and resets in `finally`), and the
+  layout-exception test only runs the bottom-nav tap loop at
+  `Breakpoint.compact` (the bottom nav is *correctly* absent at
+  medium/expanded — that's the new design). The two mobile-only tests
+  (semantics labels, pressable responses) call a new `_forceMobileViewport`
+  helper so they pin to compact regardless of the host's default view.
+  Suite back to all green: **142 / 142**, analyze clean.
+
 ## [1.31.0] - 2026-05-27
 
 ### Added

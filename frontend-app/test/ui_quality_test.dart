@@ -2,6 +2,7 @@ import 'package:aura_app/app/app.dart';
 import 'package:aura_app/app/splash_gate.dart';
 import 'package:aura_app/core/auth/auth_meta.dart';
 import 'package:aura_app/core/auth/session_controller.dart';
+import 'package:aura_app/core/layout/breakpoints.dart';
 import 'package:aura_app/core/theme/beta_controller.dart';
 import 'package:aura_app/features/events/application/events_providers.dart';
 import 'package:aura_app/features/events/application/geofence_background.dart';
@@ -160,17 +161,33 @@ Future<void> _pumpEventEditor(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
+/// Pin tests that exercise the *mobile* shell at the compact breakpoint.
+/// Tests 2 & 3 below check bottom-nav and mobile-only semantics labels; the
+/// default test view is 800×600 logical, which is medium → DesktopShell.
+/// Without this, both tests would (correctly) miss the mobile-only widgets.
+void _forceMobileViewport(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = _viewports.first.size; // mobile (390×844)
+  addTearDown(tester.view.reset);
+}
+
+/// Drive the test view's logical size + DPR directly so [MediaQuery.sizeOf]
+/// (and therefore [BreakpointContext]) sees `viewport.size`. We previously
+/// used `tester.binding.setSurfaceSize`, but it does not propagate to
+/// `tester.view.physicalSize` in this Flutter version — the responsive
+/// `AppShell` would always read the default 800×600 (medium) viewport.
 Future<void> _withViewport(
   WidgetTester tester,
   _QualityViewport viewport,
   Future<void> Function() body,
 ) async {
-  await tester.binding.setSurfaceSize(viewport.size);
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = viewport.size;
   try {
     await body();
   } finally {
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.binding.setSurfaceSize(null);
+    tester.view.reset();
   }
 }
 
@@ -245,17 +262,25 @@ void main() {
           await _pumpAuraApp(tester, session: _studentSession);
           _expectNoFlutterExceptions(tester, 'student home at ${viewport.name}');
 
-          for (final label in ['Schedule', 'Scan', 'Insights']) {
-            final target = _bottomNavTab(label);
-            if (target.evaluate().isEmpty) {
-              fail('student $label tab target is missing at ${viewport.name}');
+          // The bottom-nav surface only renders at the compact breakpoint;
+          // at medium / expanded the sidebar shell is used instead. Tab-tap
+          // exercise is mobile-only here — sidebar coverage lives in a
+          // separate test below.
+          if (Breakpoints.fromWidth(viewport.size.width) ==
+              Breakpoint.compact) {
+            for (final label in ['Schedule', 'Scan', 'Insights']) {
+              final target = _bottomNavTab(label);
+              if (target.evaluate().isEmpty) {
+                fail('student $label tab target is missing at '
+                    '${viewport.name}');
+              }
+              await tester.tap(target.first);
+              await tester.pump(const Duration(milliseconds: 500));
+              _expectNoFlutterExceptions(
+                tester,
+                'student $label tab at ${viewport.name}',
+              );
             }
-            await tester.tap(target.first);
-            await tester.pump(const Duration(milliseconds: 500));
-            _expectNoFlutterExceptions(
-              tester,
-              'student $label tab at ${viewport.name}',
-            );
           }
 
           await _pumpEventEditor(tester);
@@ -271,6 +296,7 @@ void main() {
   testWidgets(
     'key app controls expose accessible semantics labels',
     (tester) async {
+      _forceMobileViewport(tester);
       // Dispose via try/finally rather than addTearDown so the handle is
       // released *before* _endOfTestVerifications inspects the count.
       final semantics = tester.ensureSemantics();
@@ -308,6 +334,7 @@ void main() {
   testWidgets(
     'key safe pressables produce expected UI responses',
     (tester) async {
+      _forceMobileViewport(tester);
       await _pumpAuraApp(tester, session: _signedOutSession);
 
       await _tapAndExpectUiResponse(
