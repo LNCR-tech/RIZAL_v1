@@ -1609,6 +1609,36 @@ Verify a face for privileged operations (security-level MFA).
 
 ---
 
+### GET `/face/runtime-status`
+
+Get detailed face recognition engine runtime status for debugging. Returns readiness of the single-face detection model and the anti-spoof liveness model, plus key configuration thresholds.
+
+**Auth:** Any authenticated user
+
+**Response 200:**
+```json
+{
+  "single_mode": {
+    "ready": true,
+    "state": "ready",
+    "reason": null,
+    "last_error": null
+  },
+  "liveness": {
+    "ready": true,
+    "reason": null
+  },
+  "settings": {
+    "face_threshold_single": 0.5,
+    "liveness_threshold": 0.5,
+    "face_embedding_dim": 512,
+    "face_embedding_dtype": "float32"
+  }
+}
+```
+
+---
+
 ### GET `/face/status`
 
 Get current face verification status for the logged-in user.
