@@ -18,6 +18,10 @@ void main() {
         geoLongitude: 123.8421,
         geoRadiusM: 149.6,
         isEdit: false,
+        yearLevels: const [3, 1, 1],
+        earlyCheckInMinutes: 30,
+        lateThresholdMinutes: 10,
+        signOutGraceMinutes: 15,
       );
 
       expect(payload, {
@@ -26,11 +30,75 @@ void main() {
         'description': 'Welcome program',
         'start_datetime': start.toIso8601String(),
         'end_datetime': end.toIso8601String(),
+        'year_levels': [1, 3],
+        'early_check_in_minutes': 30,
+        'late_threshold_minutes': 10,
+        'sign_out_grace_minutes': 15,
         'geo_required': true,
         'geo_latitude': 8.1552,
         'geo_longitude': 123.8421,
         'geo_radius_m': 150,
       });
+    });
+
+    test('always sends year_levels (empty list = open to all)', () {
+      final start = DateTime.utc(2099, 1, 1, 9);
+      final end = DateTime.utc(2099, 1, 1, 11);
+
+      final payload = buildEventEditorPayload(
+        name: 'Assembly',
+        location: 'Main Hall',
+        start: start,
+        end: end,
+        geoRequired: false,
+        isEdit: false,
+      );
+
+      expect(payload['year_levels'], const <int>[]);
+    });
+
+    test('rejects out-of-range year levels and minute fields', () {
+      final start = DateTime.utc(2099, 1, 1, 9);
+      final end = DateTime.utc(2099, 1, 1, 11);
+
+      expect(
+        () => buildEventEditorPayload(
+          name: 'A',
+          location: 'B',
+          start: start,
+          end: end,
+          geoRequired: false,
+          isEdit: false,
+          yearLevels: const [6],
+        ),
+        throwsA(isA<EventEditorPayloadError>()),
+      );
+
+      expect(
+        () => buildEventEditorPayload(
+          name: 'A',
+          location: 'B',
+          start: start,
+          end: end,
+          geoRequired: false,
+          isEdit: false,
+          earlyCheckInMinutes: -1,
+        ),
+        throwsA(isA<EventEditorPayloadError>()),
+      );
+
+      expect(
+        () => buildEventEditorPayload(
+          name: 'A',
+          location: 'B',
+          start: start,
+          end: end,
+          geoRequired: false,
+          isEdit: false,
+          lateThresholdMinutes: 2000,
+        ),
+        throwsA(isA<EventEditorPayloadError>()),
+      );
     });
 
     test('omits empty descriptions and disables geofence on edit', () {

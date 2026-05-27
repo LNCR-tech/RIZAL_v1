@@ -26,6 +26,8 @@ class AppEvent {
     this.eventTypeName,
     this.departmentIds = const [],
     this.programIds = const [],
+    this.governanceUnitId,
+    this.yearLevels = const [],
   });
 
   final int id;
@@ -50,6 +52,20 @@ class AppEvent {
   final String? eventTypeName;
   final List<int> departmentIds;
   final List<int> programIds;
+
+  /// FK to the governance unit (SSG / SG / ORG) that owns this event,
+  /// when it was created with `governance_context`. Non-null = the event
+  /// is officers-only: only active members of that unit see / attend.
+  final int? governanceUnitId;
+
+  /// Year levels (1–5) this event targets. Empty list = open to all
+  /// year levels in the event's audience scope. The backend rejects
+  /// values outside 1–5.
+  final List<int> yearLevels;
+
+  /// True when the event is restricted to active members of its
+  /// governance unit (the "officers only" toggle).
+  bool get isOfficersOnly => governanceUnitId != null;
 
   bool get hasGeo => geoLatitude != null && geoLongitude != null;
   bool get isOngoing => status.toLowerCase() == 'ongoing';
@@ -84,6 +100,30 @@ class AppEvent {
       eventTypeName: eventType is Map ? asStr(eventType['name']) : null,
       departmentIds: ids(j['department_ids']),
       programIds: ids(j['program_ids']),
+      governanceUnitId: asInt(j['governance_unit_id']),
+      yearLevels: () {
+        final raw = j['year_levels'];
+        if (raw is List) {
+          return raw
+              .map(asInt)
+              .whereType<int>()
+              .where((y) => y >= 1 && y <= 5)
+              .toList()
+            ..sort();
+        }
+        final targets = j['event_targets'];
+        if (targets is List) {
+          final years = <int>{};
+          for (final t in targets) {
+            if (t is Map) {
+              final y = asInt(t['year_level']);
+              if (y != null && y >= 1 && y <= 5) years.add(y);
+            }
+          }
+          return years.toList()..sort();
+        }
+        return const <int>[];
+      }(),
     );
   }
 }

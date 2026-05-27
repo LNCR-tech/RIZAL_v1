@@ -47,3 +47,10 @@ app.*.map.json
 # Local cloud/endpoint config — keep backend URLs out of version control
 /config/cloud.json
 *.dart-defines.json
+
+# Release signing — NEVER commit these. The .jks IS the app identity:
+# anyone with the file + passwords can sign updates as us on Aptoide /
+# Play Store. Back them up offline, separately from this repo.
+/android/key.properties
+/android/*.jks
+/android/*.keystore

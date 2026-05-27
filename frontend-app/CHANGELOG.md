@@ -10,6 +10,81 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-05-28
+
+### Added
+- **Event editor now covers every backend knob, in plain English.** The
+  form is sectioned for breathing room (one job per card) and no
+  longer asks the user to learn jargon. Sections, top to bottom:
+    * **About** — name, venue, description.
+    * **When** — start / end pickers.
+    * **Who can attend** — `Officers only` switch (governance context
+      only) + `Year levels` chips. When the switch is on, year chips
+      are hidden via `AnimatedSize` (260 ms ease-out) and the audience
+      is the governance unit's active members. When off (or outside a
+      governance context), the chips are shown with the hint "Leave
+      empty to invite every year." Empty selection always sends
+      `year_levels: []` — the backend sentinel for "all years".
+    * **Timing** — three `_MinuteStepper` rows for **Check-in opens**,
+      **Marked late after start**, **Sign-out window after end**. Each
+      row has a dynamic plain-English subtitle ("$x minutes before
+      start", "Late immediately", "Closes at end time" for the zero
+      case). Steppers move in 5-minute steps from 0 → 120; the value
+      animates via `AnimatedSwitcher` cross-fade.
+    * **Where** — existing geofence section. The map / radius slider
+      now lives inside an `AnimatedSize` so toggling location-required
+      reveals / hides the map with a smooth height tween.
+- **Initial timing values come from `SchoolBranding`**, not hardcoded.
+  `_applySchoolDefaultsIfFresh` reads the school's defaults once after
+  `schoolProvider` resolves and seeds the three minute fields. Existing
+  events preload from the event's per-event override.
+- **`AppEvent.governanceUnitId`** (`shared/models/event.dart`) — FK to
+  the governance unit when the event was created with
+  `governance_context`. Drives the "Officers only" switch in edit mode.
+- **`AppEvent.yearLevels`** — parses both the canonical `year_levels`
+  list and falls back to deriving from `event_targets[].year_level` so
+  existing events created via the legacy shape still light up the
+  right chips on edit.
+- **`AppEvent.isOfficersOnly`** convenience getter.
+
+### Changed
+- **`buildEventEditorPayload`** (`features/events/application/
+  event_editor_payload.dart`) now also accepts `yearLevels`,
+  `earlyCheckInMinutes`, `lateThresholdMinutes`, `signOutGraceMinutes`.
+  `year_levels` is **always** sent (empty list when the user picked no
+  chips); the three minute fields are sent when non-null. Out-of-range
+  values throw `EventEditorPayloadError` with a plain-English message.
+- **Save handler** drops the `governance_context` query param when the
+  user turns "Officers only" off — preventing the backend from
+  scoping the event to a unit that has no audience. The repository
+  `create` / `update` calls receive `null` for `governanceContext` in
+  that case.
+- **`event_editor_payload_test.dart`** — snapshot updated to include
+  `year_levels`, `early_check_in_minutes`, `late_threshold_minutes`,
+  `sign_out_grace_minutes`. Added two new cases: "always sends
+  year_levels (empty list = open to all)" and "rejects out-of-range
+  year levels and minute fields".
+
+### Notes
+- Out of scope for this commit, deliberately deferred to keep the diff
+  reviewable: an Event Type picker (would need a new repo + provider
+  for `GET /api/event-types`), the `notes` / `banner_url` / `venue-vs-
+  location` distinction, `geo_max_accuracy_m`, and
+  `sign_out_open_delay_minutes`. These can land as separate small
+  diffs once the foundation here is verified on a device.
+
+### Build
+- **Release signing wired up** in `android/app/build.gradle.kts`. The
+  release `signingConfig` now loads credentials from `key.properties`
+  (git-ignored) via the standard Gradle pattern. With no
+  `key.properties` the release build fails loudly instead of silently
+  falling back to the debug keystore — preventing accidental shipping
+  of debug-signed artifacts. The `.jks` and `key.properties` are added
+  to `.gitignore`.
+- The release APK + per-ABI APKs build successfully with `flutter
+  build apk --release --dart-define-from-file=config/cloud.json
+  --obfuscate --split-debug-info=build/symbols`.
+
 ## [1.32.1] - 2026-05-27
 
 ### Changed
