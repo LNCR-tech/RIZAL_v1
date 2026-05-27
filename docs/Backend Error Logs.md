@@ -218,3 +218,51 @@ The companion test (`test_create_student_account`) always provides `student_id: 
 **If This Recurs:** Any route that maps an optional schema field to a `NOT NULL` DB column will fail silently this way. Always ensure schema defaults align with DB column constraints. Check with `NULLABLE?` when adding new `StudentProfile` / model inserts.
 
 ---
+
+## ERR-009 — POST /api/governance/units/{id}/announcements Returns 500 (school_id NOT NULL Violation)
+
+**Date:** 2026-05-27  
+**Context:** Campus admin or governance officer creates an announcement under any governance unit.
+
+**Error:**
+```
+psycopg2.errors.NotNullViolation: null value in column "school_id" of relation
+"governance_announcements" violates not-null constraint
+DETAIL: Failing row contains (9, 5, null, Hello, Everyonee.., published, ...)
+[SQL: INSERT INTO governance_announcements (governance_unit_id, title, body, status,
+created_by_user_id, updated_by_user_id, created_at, updated_at) VALUES (...)]
+```
+
+**Cause:** Two compounding issues:
+
+1. **Model mismatch:** `GovernanceAnnouncement` defined `school_id` as a `@hybrid_property` with a no-op setter (`pass`). The production DB has a physical `school_id NOT NULL` column. SQLAlchemy never included `school_id` in INSERT statements because it was not mapped as a real `Column`. The service code passed `school_id=school_id` to the constructor, which the setter silently discarded.
+
+2. **Missing migration:** The `school_id` column existed in production but was never added via an Alembic migration. CI test DBs (built from migrations) did not have the column at all, causing a secondary error: `column "school_id" of relation "governance_announcements" does not exist`.
+
+**Fix Applied:**
+1. Replaced the `@hybrid_property` block with a real ORM Column in `GovernanceAnnouncement` (`backend/app/models/governance_hierarchy.py`):
+   ```python
+   # Before — silently ignored on INSERT:
+   @hybrid_property
+   def school_id(self):
+       return self.governance_unit.school_id if self.governance_unit else None
+   @school_id.setter
+   def school_id(self, value):
+       pass
+
+   # After — proper column mapping:
+   school_id = Column(BigInteger, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+   ```
+2. Added Alembic migration `0017_gov_ann_school_id` using `ADD COLUMN IF NOT EXISTS` (idempotent on production) to add the column to fresh DBs built from migrations.
+
+**Root deploy issue discovered:** Rebuilding via `docker compose build backend` did nothing — the `backend` service in `docker-compose.prod.yml` has no `build:` section. The correct target is `migrate`, which produces the shared `aura-backend:prod` image used by all services. Always use:
+```
+docker compose -f docker-compose.prod.yml build migrate && \
+docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend worker beat
+```
+
+**Files changed:** `backend/app/models/governance_hierarchy.py`, `backend/alembic/versions/0017_gov_ann_school_id.py`
+
+**If This Recurs:** If a `@hybrid_property` shadows a real DB column, SQLAlchemy omits the field from INSERT/UPDATE statements. Always map physical columns as `Column(...)`. When debugging a NOT NULL violation where the column is absent from the SQL log, run `\d <table>` in psql and compare against the ORM model to find the mismatch.
+
+---
