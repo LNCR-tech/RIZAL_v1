@@ -16,16 +16,6 @@ def test_forgot_password(client):
     assert r.status_code in (200, 202, 404)
 
 
-def test_password_reset_requests_requires_auth(client):
-    r = client.get("/auth/password-reset-requests")
-    assert r.status_code == 401
-
-
-def test_password_reset_requests_admin(client, campus_admin_headers):
-    r = client.get("/auth/password-reset-requests", headers=campus_admin_headers)
-    assert r.status_code == 200
-    assert isinstance(r.json(), list)
-
 
 def test_password_change_prompt_dismiss(client, student_headers):
     r = client.post("/auth/password-change-prompt/dismiss", headers=student_headers)

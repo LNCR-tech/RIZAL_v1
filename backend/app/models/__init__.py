@@ -13,7 +13,6 @@ from app.models.event_type import EventType
 from app.models.school import School, SchoolSetting, SchoolAuditLog
 from app.models.subscription import SubscriptionPlan, SchoolSubscription, SchoolSubscriptionReminder
 from app.models.import_job import BulkImportJob, BulkImportError, BulkImportErrorCell, EmailDeliveryLog
-from app.models.password_reset_request import PasswordResetRequest
 from app.models.password_reset_token import PasswordResetToken
 from app.models.notifications import (
     NotificationChannel,
@@ -78,7 +77,6 @@ __all__ = [
     "BulkImportError",
     "BulkImportErrorCell",
     "EmailDeliveryLog",
-    "PasswordResetRequest",
     "PasswordResetToken",
     "NotificationChannel",
     "NotificationTopic",

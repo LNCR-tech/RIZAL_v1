@@ -40,19 +40,15 @@ from app.schemas.common import MessageResponse
 from app.schemas.password_reset import (
     ForgotPasswordRequestCreate,
     ForgotPasswordRequestResponse,
-    PasswordResetApprovalResponse,
     PasswordResetCodeResponse,
-    PasswordResetRequestItem,
     PasswordResetVerifyRequest,
 )
-from app.models.password_reset_request import PasswordResetRequest
 from app.models.password_reset_token import PasswordResetToken
 from app.models.school import School
 from app.models.user import User, UserRole
 from app.services.email_service import (
     EmailDeliveryError,
     send_password_reset_code_email,
-    send_password_reset_email,
 )
 from app.services.auth_session import (
     issue_login_token_response,
@@ -63,7 +59,6 @@ from app.services.password_change_policy import must_change_password_for_tempora
 from app.services.security_service import (
     record_login_history,
 )
-from app.utils.passwords import generate_secure_password
 
 router = APIRouter(tags=["authentication"])
 FORGOT_PASSWORD_GENERIC_MESSAGE = (
@@ -74,10 +69,6 @@ RESET_CODE_EXPIRY_MINUTES = 15
 
 def _is_platform_admin_account(user: User | None) -> bool:
     return bool(user) and has_any_role(user, ["admin"]) and getattr(user, "school_id", None) is None
-
-
-def _requires_platform_admin_password_reset_approval(user: User | None) -> bool:
-    return bool(user) and has_any_role(user, ["admin", "campus_admin"])
 
 
 def _can_submit_public_password_reset_request(user: User | None) -> bool:
@@ -451,130 +442,4 @@ def reset_password_with_code(
     db.commit()
     return PasswordResetCodeResponse(message="Password has been reset successfully.")
 
-
-@router.get("/auth/password-reset-requests", response_model=list[PasswordResetRequestItem])
-def list_password_reset_requests(
-    current_user: User = Depends(get_current_admin_or_campus_admin),
-    db: Session = Depends(get_db),
-):
-    is_platform_admin = _is_platform_admin_account(current_user)
-
-    query = (
-        db.query(PasswordResetRequest)
-        .options(joinedload(PasswordResetRequest.user).joinedload(User.roles).joinedload(UserRole.role))
-        .filter(PasswordResetRequest.status == "pending")
-        .order_by(PasswordResetRequest.requested_at.asc())
-    )
-
-    if not is_platform_admin:
-        actor_school_id = getattr(current_user, "school_id", None)
-        if actor_school_id is None:
-            raise HTTPException(status_code=403, detail="User is not assigned to a school")
-        query = query.filter(PasswordResetRequest.school_id == actor_school_id)
-
-    requests = query.all()
-    if not is_platform_admin:
-        requests = [
-            item
-            for item in requests
-            if item.user is not None
-            and not _requires_platform_admin_password_reset_approval(item.user)
-        ]
-
-    return [
-        PasswordResetRequestItem(
-            id=item.id,
-            user_id=item.user.id,
-            email=item.user.email,
-            first_name=item.user.first_name,
-            last_name=item.user.last_name,
-            roles=[role.role.name for role in item.user.roles if getattr(role, "role", None)],
-            status=item.status,
-            requested_at=item.requested_at,
-        )
-        for item in requests
-        if item.user is not None
-    ]
-
-
-@router.post("/auth/password-reset-requests/{request_id}/approve", response_model=PasswordResetApprovalResponse)
-def approve_password_reset_request(
-    request_id: int,
-    current_user: User = Depends(get_current_admin_or_campus_admin),
-    db: Session = Depends(get_db),
-):
-    request_item = (
-        db.query(PasswordResetRequest)
-        .options(joinedload(PasswordResetRequest.user).joinedload(User.roles).joinedload(UserRole.role))
-        .filter(
-            PasswordResetRequest.id == request_id,
-            PasswordResetRequest.status == "pending",
-        )
-        .first()
-    )
-
-    if not request_item or not request_item.user:
-        raise HTTPException(status_code=404, detail="Pending password reset request not found")
-
-    is_platform_admin = _is_platform_admin_account(current_user)
-    if not is_platform_admin:
-        actor_school_id = getattr(current_user, "school_id", None)
-        if actor_school_id is None or actor_school_id != request_item.school_id:
-            raise HTTPException(status_code=404, detail="Password reset request not found")
-
-    target_user = request_item.user
-    if not getattr(target_user, "is_active", True):
-        raise HTTPException(status_code=400, detail="Target user is inactive")
-
-    if has_any_role(current_user, ["campus_admin"]) and not has_any_role(current_user, ["admin"]):
-        if _requires_platform_admin_password_reset_approval(target_user):
-            raise HTTPException(
-                status_code=403,
-                detail="Campus Admin cannot reset admin or Campus Admin accounts.",
-            )
-        if current_user.id == target_user.id:
-            raise HTTPException(status_code=403, detail="Campus Admin cannot approve their own reset request.")
-
-    temporary_password = generate_secure_password(min_length=10, max_length=14)
-    target_user.set_password(temporary_password)
-    target_user.must_change_password = must_change_password_for_temporary_reset()
-    target_user.should_prompt_password_change = False
-
-    request_item.status = "approved"
-    request_item.resolved_at = utc_now()
-    request_item.reviewed_by_user_id = current_user.id
-
-    school = db.query(School).filter(School.id == request_item.school_id).first()
-    system_name = (school.school_name or school.name) if school else None
-
-    try:
-        send_password_reset_email(
-            recipient_email=target_user.email,
-            temporary_password=temporary_password,
-            first_name=target_user.first_name,
-            system_name=system_name,
-        )
-        try:
-            send_account_security_notification(
-                db,
-                user=target_user,
-                subject="Password Reset Approved",
-                message="Your password reset request was approved. Use your temporary password to log in.",
-                metadata_json={"event": "password_reset_approved", "request_id": request_item.id},
-            )
-        except Exception:
-            pass
-    except EmailDeliveryError as exc:
-        db.rollback()
-        raise HTTPException(status_code=502, detail=f"Failed to send password reset email: {exc}") from exc
-
-    db.commit()
-
-    return PasswordResetApprovalResponse(
-        id=request_item.id,
-        user_id=target_user.id,
-        status=request_item.status,
-        resolved_at=request_item.resolved_at or utc_now(),
-        message="Password reset approved and temporary password emailed.",
-    )
 
