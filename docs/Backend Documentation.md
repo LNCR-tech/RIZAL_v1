@@ -1218,7 +1218,6 @@ Create a new event.
   "geo_max_accuracy_m": 30,
   "year_levels": [1, 2],
   "event_type_id": 1,
-  "members_only": false,
   "status": "upcoming"
 }
 ```
@@ -1233,7 +1232,7 @@ Create a new event.
 >
 > `sign_out_open_delay_minutes` cannot exceed `sign_out_grace_minutes`.
 >
-> **`members_only`** (bool, default `false`) — When `true`, only students who are active members of the governance unit that created the event can attend. The governance unit is automatically derived from the creator's role (SSG → SSG, SG → that department's SG, ORG → that course's ORG). Setting `members_only: true` without a governance context returns 400.
+> **Governance membership restriction** — When an event is created within a governance context (`governance_context=SSG|SG|ORG`), it is automatically linked to that unit (`governance_unit_id`). During attendance check-in, the backend verifies the student is an active member of that unit. SSG events → SSG members only; SG events → that SG's members; ORG events → that ORG's members. Events with no `governance_unit_id` have no membership restriction.
 
 **Response 201:** `Event`
 
@@ -1300,7 +1299,6 @@ Get full event details including attendances and related data.
   "banner_url": null,
   "event_type": null,
   "governance_unit_id": null,
-  "members_only": false,
   "departments": [],
   "programs": [],
   "event_targets": [],
@@ -1333,16 +1331,13 @@ Update an event.
   "name": "Updated Event Name",
   "year_levels": [1, 2, 3],
   "start_datetime": "2024-06-15T09:00:00+08:00",
-  "end_datetime": "2024-06-15T13:00:00+08:00",
-  "members_only": true
+  "end_datetime": "2024-06-15T13:00:00+08:00"
 }
 ```
 
-> Setting `members_only: true` is only valid on events that belong to a governance unit (i.e., created by SSG, SG, or ORG). Returns 400 if the event has no `governance_unit_id`.
-
 **Response 200:** `Event`
 
-> The `Event` response now includes `governance_unit_id` (int | null) and `members_only` (bool).
+> The `Event` response includes `governance_unit_id` (int | null). When set, attendance is restricted to active members of that governance unit.
 
 ---
 

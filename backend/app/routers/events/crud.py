@@ -160,18 +160,11 @@ def create_event(
             current_time=now_local,
         )
 
-        if event.members_only and resolved_governance_unit is None:
-            raise HTTPException(
-                status_code=400,
-                detail="members_only can only be set on events created within a governance context.",
-            )
-
         db_event = EventModel(
             school_id=school_id,
             created_by_user_id=current_user.id,
             create_idempotency_key=normalized_idempotency_key,
             governance_unit_id=resolved_governance_unit.id if resolved_governance_unit else None,
-            members_only=event.members_only,
             name=event.name,
             location=event.location,
             geo_latitude=event.geo_latitude,
@@ -431,14 +424,6 @@ def update_event(
                 school_id=school_id,
                 event_type_id=event_type_id,
             )
-        if event_update.members_only is not None:
-            if event_update.members_only and db_event.governance_unit_id is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="members_only can only be set on events linked to a governance unit.",
-                )
-            db_event.members_only = event_update.members_only
-
         _, scoped_department_ids, scoped_program_ids = _resolve_governance_event_write_unit_and_scope(
             db,
             current_user=current_user,

@@ -68,7 +68,6 @@ class Event(Base):
     event_type_id = Column(BigInteger, ForeignKey("event_types.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     governance_unit_id = Column(BigInteger, ForeignKey("governance_units.id", ondelete="SET NULL"), nullable=True, index=True)
-    members_only = Column(Boolean, nullable=False, default=False)
     create_idempotency_key = Column(Text, nullable=True)
     name = Column(Text, nullable=False)
     location = Column(Text, nullable=True)

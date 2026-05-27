@@ -36,8 +36,10 @@ def is_student_eligible_for_event(
             f"Only ACTIVE students can participate. Current status: {student.student_status}"
         )
 
-    # 3. Governance members-only check
-    if getattr(event, "members_only", False) and getattr(event, "governance_unit_id", None):
+    # 3. Governance membership check — if the event is tied to a governance unit,
+    # only active members of that unit may attend.
+    governance_unit_id = getattr(event, "governance_unit_id", None)
+    if governance_unit_id is not None:
         if db is None:
             return (
                 False,
@@ -47,7 +49,7 @@ def is_student_eligible_for_event(
         is_member = (
             db.query(GovernanceMember)
             .filter(
-                GovernanceMember.governance_unit_id == event.governance_unit_id,
+                GovernanceMember.governance_unit_id == governance_unit_id,
                 GovernanceMember.user_id == student.user_id,
                 GovernanceMember.is_active.is_(True),
             )
