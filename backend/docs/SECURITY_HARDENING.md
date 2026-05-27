@@ -1,4 +1,4 @@
-﻿# ðŸ” Aura Security Hardening Guide
+# ðŸ” Aura Security Hardening Guide
 
 <!--nav-->
 [Previous](runtime-behavior.md) | [Next](TESTING.md) | [Home](/README.md)
@@ -36,7 +36,7 @@ This document outlines the security measures implemented in Aura and provides gu
 
 #### Implemented Rate Limits
 - **Login Attempts**: 10 attempts per 5 minutes per IP+email
-- **Password Reset**: 5 attempts per 5 minutes per IP+email
+- **Password Reset**: 3 attempts per 5 minutes per IP+email
 - **Authenticated Mutations**: 120 requests per minute per user
 - **Face Recognition**: 20 requests per minute per user
 - **Public Endpoints**: 30 requests per minute per IP
