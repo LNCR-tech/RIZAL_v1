@@ -72,9 +72,11 @@ class AuthRepository {
     }
   }
 
-  /// Submit a password-reset request for admin approval
-  /// (`POST /auth/forgot-password`). Backend always returns a generic message
-  /// (no enumeration), which is the string we surface to the user verbatim.
+  /// Request a self-service password reset (`POST /auth/forgot-password`).
+  /// Backend mails a 6-digit code (15-minute expiry) via Resend and always
+  /// returns the same generic message regardless of whether the email exists
+  /// (no enumeration) — surface it verbatim. The companion step is
+  /// [resetPasswordWithCode].
   Future<String> forgotPassword(String email) async {
     final body = {'email': email.trim()};
     Response<dynamic> res;
@@ -89,6 +91,34 @@ class AuthRepository {
     }
     final data = (res.data as Map).cast<String, dynamic>();
     return (data['message'] ?? 'Reset request submitted.').toString();
+  }
+
+  /// Verify the emailed 6-digit code and set a new password
+  /// (`POST /auth/reset-password`). Backend returns 400 for invalid/expired/
+  /// used codes and for unknown emails (anti-enumeration), 429 when rate
+  /// limited — both surface as [ApiException].
+  Future<String> resetPasswordWithCode({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final body = {
+      'email': email.trim(),
+      'code': code.trim(),
+      'new_password': newPassword,
+    };
+    Response<dynamic> res;
+    try {
+      res = await _client.post('/auth/reset-password', data: body);
+    } on ApiException catch (e) {
+      if (e.isNotFound) {
+        res = await _client.post('/api/auth/reset-password', data: body);
+      } else {
+        rethrow;
+      }
+    }
+    final data = (res.data as Map).cast<String, dynamic>();
+    return (data['message'] ?? 'Password has been reset successfully.').toString();
   }
 
   /// Exchange a Google ID token for an Aura access token + meta

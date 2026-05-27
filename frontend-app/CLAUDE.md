@@ -86,6 +86,25 @@ IP-based staging server is HTTP, so dev-only cleartext is enabled (Android
 `usesCleartextTraffic`, iOS ATS) — use HTTPS in production.
 
 ## Status
+**v1.30.0 — self-service forgot-password screen (6-digit email code).** Backend
+moved to a Resend-based code flow (`POST /auth/forgot-password` → emailed 6-digit
+code, 15-minute expiry → `POST /auth/reset-password` with `{email, code, new_password}`).
+The old admin-approval `ForgotPasswordDialog` is deleted; the login link now pushes
+`ForgotPasswordScreen` (`features/auth/presentation/forgot_password_screen.dart`):
+two stages in one route. **Stage 1 (request)** = single email field + "Send reset
+code" CTA, anti-enumeration generic copy. **Stage 2 (verify)** = six mono OTP cells
+backed by one hidden digit-only `TextField` (paste-friendly,
+`AutofillHints.oneTimeCode` for iOS/Android SMS autofill), new-password + confirm
+fields with eye toggles, a primary "Reset password" CTA, and a "Resend code" link
+gated by a 45-second mono countdown (`AppTypography.mono`) that keeps users under
+the backend's 5-per-5-min rate limit. Stage transition = cross-fade + small upward
+lift (`AppMotion.easeOut`, 260 ms — under the 300 ms UI ceiling). Each OTP cell
+pop-scales when its digit appears (80 ms scale-up + 120 ms settle — asymmetric,
+feedback-first per emil-design-eng). Both motion paths skip when
+`MediaQuery.disableAnimations` is true. `AuthRepository` gains
+`resetPasswordWithCode({email, code, newPassword})` mirroring the other helpers
+(`/auth/reset-password` with `/api/auth/reset-password` fallback). Help article
+`ac-forgot-password` rewritten for the new flow.
 **v1.26.0 — Google sign-in, real forgot-password, role-based Help, public help on login,
 dev-docs section for super admin, search-bar polish.** Login screen now drives an actual
 Google flow: `GoogleSignInService` (`features/auth/data/google_sign_in_service.dart`) reads

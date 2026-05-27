@@ -10,7 +10,61 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
-## [1.29.0] - 2026-05-27
+## [1.30.0] - 2026-05-27
+
+### Added
+- **Self-service forgot-password screen** with a 6-digit emailed code
+  (`lib/features/auth/presentation/forgot_password_screen.dart`).
+  Backend now mails a code via Resend (`POST /auth/forgot-password`,
+  15-minute expiry) and accepts it back at `POST /auth/reset-password` —
+  no Campus Admin in the loop for student / governance users. The
+  screen owns a two-stage flow:
+    1. **Request** — single email field, "Send reset code" CTA, anti-
+       enumeration generic copy. Submitting fires the existing
+       `AuthRepository.forgotPassword(email)` call.
+    2. **Verify** — six mono OTP cells over a single hidden TextField
+       (digit-only, length-limited, supports paste + iOS/Android SMS
+       autofill via `AutofillHints.oneTimeCode`), a new-password field,
+       confirm-password field, and a "Resend code" link gated by a
+       45-second mono countdown (`AppTypography.mono`) to keep users
+       under the backend's 5-per-5-min rate limit. Submits to the new
+       `AuthRepository.resetPasswordWithCode({email, code, newPassword})`
+       and on success pops back to login with a snackbar.
+  Stage transition is a cross-fade + small upward lift (`AppMotion.easeOut`,
+  260 ms — under the 300 ms UI ceiling). Each OTP cell pop-scales when its
+  digit appears (80 ms scale-up, 120 ms settle — asymmetric, feedback-first
+  per emil-design-eng). All motion honors `MediaQuery.disableAnimations`.
+  Colors and typography come exclusively from `AppTokens` and the textTheme.
+- **`AuthRepository.resetPasswordWithCode({email, code, newPassword})`**
+  (`lib/features/auth/data/auth_repository.dart`). Mirrors the other auth
+  helpers: posts to `/auth/reset-password` with a `/api/auth/reset-password`
+  fallback for deployments that mount auth under `/api`. Returns the
+  backend's success message. Backend 400 (invalid / expired / used code,
+  or unknown email) and 429 (rate-limited) surface as `ApiException`.
+
+### Changed
+- **Login screen "Forgot your password?" link** now pushes the new screen
+  via `ForgotPasswordScreen.push(context, initialEmail: …)` instead of
+  opening the old dialog (`login_screen.dart:16,205`). Behavior preserved:
+  pre-fills the email currently typed in the sign-in field, no-ops while
+  the sign-in form is loading.
+- **Help-center article `ac-forgot-password`** rewritten to describe the
+  self-service code flow (6 steps + a tip about resend / admin-only
+  carve-out). Keywords gained `6-digit code`, `verification code`,
+  `email code`, `resend code`. The article keeps the same `id`, parent
+  category, and audience flags, so `quickHelp` chips and the public help
+  view continue to work.
+- **`AuthRepository.forgotPassword` doc comment** rewritten — no longer
+  says "admin-approval"; references `resetPasswordWithCode` as the
+  companion step.
+
+### Removed
+- **Old `ForgotPasswordDialog`** (`forgot_password_dialog.dart`) deleted.
+  Its only callsite was the login screen, now migrated. The dialog
+  described the admin-approval flow that the backend has moved away from
+  for non-admin users; keeping it would be a footgun.
+
+
 
 ### Added
 - **First-login face-registration gate for students.** Any signed-in

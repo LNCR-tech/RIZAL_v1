@@ -473,25 +473,27 @@ const HelpCategory _account = HelpCategory(
       // actually be hunting for.
       audiences: allAudiences,
       body:
-          'Aura uses an admin-approval reset flow — there is no self-serve "click this link" reset. You submit a request from the login screen, then your Campus Admin approves it and gives you a temporary password.',
+          'Aura sends you a 6-digit code by email so you can reset your password yourself — no admin approval needed. The code is good for 15 minutes from the moment it is sent.',
       steps: [
         'On the Sign in screen, tap "Forgot your password?" under the buttons.',
-        'Enter your school email and tap Send request.',
-        'Aura confirms the request was submitted. The response is intentionally generic — no account enumeration.',
-        'Your Campus Admin reviews pending requests under their admin panel and approves yours.',
-        'They share a temporary password with you (in person, via your school\'s usual channel).',
-        'Sign in with that temporary password. Aura immediately walks you through setting a permanent one.',
+        'Enter your school email and tap Send reset code. The response is intentionally generic — Aura never confirms whether an account exists.',
+        'Check your email for the 6-digit code from Aura. It can take a minute to arrive — also check Spam/Junk.',
+        'Back in the app, type the 6 digits into the code field, then set a new password (at least 8 characters) and re-type it to confirm.',
+        'Tap Reset password. Aura signs you out and returns you to the Sign in screen.',
+        'Sign in with your school email and the new password.',
       ],
       tip:
-          'If you do not get a response within a day, contact your Campus Admin directly. There is no automatic email.',
+          'If the code expires (15 minutes) or never arrives, use "Resend code" — it unlocks after a short cooldown. Admins and Campus Admins still go through the admin-approval flow, not this one.',
       keywords: [
         'forgot password',
         'forgot',
         'reset',
         'password reset',
         'cannot sign in',
-        'admin approval',
-        'temporary password',
+        '6-digit code',
+        'verification code',
+        'email code',
+        'resend code',
       ],
     ),
     HelpArticle(

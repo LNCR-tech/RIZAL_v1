@@ -13,7 +13,7 @@ import '../../help/data/help_content.dart';
 import '../../help/presentation/help_center_screen.dart';
 import '../data/auth_repository.dart';
 import '../data/google_sign_in_service.dart';
-import 'forgot_password_dialog.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -204,7 +204,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           haptic: false,
                           onTap: _loading
                               ? null
-                              : () => ForgotPasswordDialog.show(
+                              : () => ForgotPasswordScreen.push(
                                     context,
                                     initialEmail: _email.text.trim().isEmpty
                                         ? null
