@@ -10,6 +10,21 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.33.1] - 2026-05-28
+
+### Added
+- **"Learn about Aura" link on the login footer.** Sits next to the
+  existing "Forgot your password?" and "Need help?" pressables. Opens
+  `https://aura-test.coeofjrmsu.com/` in the user's default browser
+  via `url_launcher` (`LaunchMode.externalApplication`). The label
+  carries a small `open_in_new_rounded` icon (14 sp, muted) so it's
+  obviously an external link before the user taps. Disabled while the
+  login form is submitting; surfaces a snackbar if no browser handler
+  is available rather than failing silently.
+- **`url_launcher: ^6.3.1`** as a direct dependency. Previously only
+  pulled in transitively by other plugins, which left the public
+  `launchUrl` API unavailable to our code.
+
 ## [1.33.0] - 2026-05-28
 
 ### Added

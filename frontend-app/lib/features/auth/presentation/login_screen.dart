@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/api_exception.dart';
@@ -14,6 +15,12 @@ import '../../help/presentation/help_center_screen.dart';
 import '../data/auth_repository.dart';
 import '../data/google_sign_in_service.dart';
 import 'forgot_password_screen.dart';
+
+/// Public marketing / overview site for Aura. Linked from the login
+/// footer so prospective users can read about the platform before
+/// signing in — they don't need an account just to find out what the
+/// app does.
+const String _kAuraSiteUrl = 'https://aura-test.coeofjrmsu.com/';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -34,6 +41,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _email.dispose();
     _password.dispose();
     super.dispose();
+  }
+
+  /// Opens the public Aura site in the user's default browser. Falls
+  /// back to a snackbar if no browser is available (e.g. a stripped-
+  /// down Android build that has no default handler) — never silently
+  /// swallow the failure.
+  Future<void> _openAuraSite() async {
+    final uri = Uri.parse(_kAuraSiteUrl);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text("Couldn't open the link.")),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Couldn't open the link.")),
+      );
+    }
   }
 
   Future<void> _submit() async {
@@ -244,6 +273,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: t.textSecondary,
                                 fontWeight: FontWeight.w600,
                               ),
+                            ),
+                          ),
+                        ),
+                        Pressable(
+                          scale: 0.99,
+                          haptic: false,
+                          onTap: _loading ? null : _openAuraSite,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.x8,
+                                horizontal: AppSpacing.x12),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Learn about Aura',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: t.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.open_in_new_rounded,
+                                  size: 14,
+                                  color: t.textSecondary,
+                                ),
+                              ],
                             ),
                           ),
                         ),
