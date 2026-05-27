@@ -931,7 +931,7 @@ Create a student account with profile in one request.
 }
 ```
 
-> **student_id:** Optional. Alphanumeric with hyphens, 3–50 characters. Can be omitted and assigned later via `PATCH /api/users/student-profiles/{profile_id}`.
+> **student_id:** Required. Alphanumeric with hyphens, 3–50 characters (e.g. `CS-2023-001`).
 >
 > **student_status values:** `ACTIVE`, `GRADUATED`, `INACTIVE`, `TRANSFERRED`, `ARCHIVED`
 >
