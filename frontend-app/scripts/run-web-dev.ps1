@@ -116,10 +116,22 @@ $null = Start-Job -Name 'aura-chrome-launcher' -ScriptBlock {
 
 try {
     # web-server: no auto-launch, hot-reload via stdin still works (r / R / q).
+    #
+    # --no-web-resources-cdn: serve CanvasKit from the local Flutter SDK
+    # instead of fetching it from gstatic.com. Without this, modern
+    # Flutter web's default CanvasKit renderer fails its initial
+    # `import("https://www.gstatic.com/.../canvaskit.js")` whenever the
+    # network can't reach the CDN (corporate firewall, flaky DNS, slow
+    # link, offline) - and Flutter cannot render at all when that import
+    # rejects: the body stays empty, Chrome shows pure white, and the
+    # only symptom in DevTools is a single TypeError far from any app
+    # code. Serving CanvasKit from the dev server itself is fast and has
+    # no offline failure mode.
     & flutter run `
         --dart-define-from-file=config/cloud.json `
         -d web-server `
-        --web-port $port
+        --web-port $port `
+        --no-web-resources-cdn
 } finally {
     Get-Job -Name 'aura-chrome-launcher' -ErrorAction SilentlyContinue |
         Remove-Job -Force -ErrorAction SilentlyContinue

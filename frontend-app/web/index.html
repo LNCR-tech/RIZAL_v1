@@ -34,5 +34,54 @@
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (function () {
+      // `flutter run -d web-server` can load DDC modules without the Dart
+      // Debug Chrome extension, leaving `$dartRunMain` registered but unused.
+      // In release/AOT builds this symbol does not exist, so this is a no-op.
+      var attempts = 0;
+      var maxAttempts = 3000;
+      var readyAt = 0;
+      var timer;
+
+      function stop() {
+        if (timer) {
+          clearInterval(timer);
+        }
+      }
+
+      function startIfReady() {
+        attempts += 1;
+
+        if (window.$dartMainExecuted) {
+          stop();
+          return;
+        }
+
+        if (typeof window.$dartRunMain === 'function') {
+          if (!readyAt) {
+            readyAt = Date.now();
+          }
+
+          if (Date.now() - readyAt >= 1500) {
+            try {
+              window.$dartRunMain();
+            } catch (error) {
+              console.error('Flutter web startup failed.', error);
+            }
+            stop();
+          }
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          stop();
+        }
+      }
+
+      timer = setInterval(startIfReady, 100);
+      startIfReady();
+    })();
+  </script>
 </body>
 </html>
