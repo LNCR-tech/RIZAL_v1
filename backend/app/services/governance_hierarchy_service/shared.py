@@ -506,6 +506,11 @@ def _can_manage_members(db: Session, *, current_user: User, governance_unit: Gov
     if governance_unit.unit_type == GovernanceUnitType.SSG:
         return False
 
+    # Own-unit officers with MANAGE_MEMBERS can manage their own unit's membership.
+    own_membership = _find_active_member(db, governance_unit_id=governance_unit.id, user_id=current_user.id)
+    if own_membership and _membership_has_any_permission(own_membership, {PermissionCode.MANAGE_MEMBERS}):
+        return True
+
     return _actor_has_parent_permissions(
         db,
         current_user=current_user,
@@ -521,6 +526,11 @@ def _can_assign_permissions(db: Session, *, current_user: User, governance_unit:
 
     if governance_unit.unit_type == GovernanceUnitType.SSG:
         return False
+
+    # Own-unit officers with ASSIGN_PERMISSIONS can grant permissions within their own unit.
+    own_membership = _find_active_member(db, governance_unit_id=governance_unit.id, user_id=current_user.id)
+    if own_membership and _membership_has_any_permission(own_membership, {PermissionCode.ASSIGN_PERMISSIONS}):
+        return True
 
     return _actor_has_parent_permissions(
         db,
