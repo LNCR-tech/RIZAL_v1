@@ -138,6 +138,7 @@ class TestEnsureStudentIsEventParticipantWithAudit:
         event = MagicMock(spec=Event)
         event.id = 10
         event.school_id = school_id
+        event.governance_unit_id = None
         target = MagicMock()
         target.scope_type = scope
         target.year_level = None
