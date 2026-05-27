@@ -174,20 +174,42 @@ class DioClient {
   }
 
   /// Application-layer HTTPS guard. Release builds that were compiled with a
-  /// plain-HTTP base URL refuse to talk to it — credentials never leave the
-  /// device over clear text in production no matter what `cloud.json` said.
-  /// Debug builds still allow HTTP for development against IP-based dev
-  /// backends.
+  /// plain-HTTP base URL **to an arbitrary host** refuse to talk to it —
+  /// credentials never leave the device over clear text in production no
+  /// matter what `cloud.json` said.
+  ///
+  /// Exception: the same allow-list as
+  /// `android/app/src/main/res/xml/network_security_config.xml` — the
+  /// IP-based staging backend, the Android emulator host-loopback, and
+  /// localhost. These are the dev / staging targets we intentionally hit
+  /// over HTTP during development and during pre-production Aptoide
+  /// builds; rejecting them here would silently brick every release APK
+  /// pointed at staging, with the user seeing only "Unexpected error" in
+  /// the UI. Real production builds use HTTPS and pass the
+  /// `startsWith('https://')` short-circuit.
+  ///
+  /// Debug builds skip this check entirely.
+  static const _kAllowedCleartextHosts = <String>{
+    '18.142.190.113', // RIZAL/Aura staging
+    '10.0.2.2',       // Android emulator loopback
+    '127.0.0.1',
+    'localhost',
+  };
+
   static void _assertSecureInRelease(String baseUrl) {
     if (kDebugMode) return;
-    if (baseUrl.toLowerCase().startsWith('http://')) {
-      throw StateError(
-        'Aura was built in release mode with a non-HTTPS base URL '
-        '("$baseUrl"). Refusing to send requests over cleartext. Rebuild '
-        'with `--dart-define=AURA_API_BASE_URL=https://...` once your '
-        'backend is reachable over HTTPS.',
-      );
-    }
+    final lower = baseUrl.toLowerCase().trim();
+    if (!lower.startsWith('http://')) return; // HTTPS or empty — fine.
+    final host = Uri.tryParse(baseUrl)?.host.toLowerCase();
+    if (host != null && _kAllowedCleartextHosts.contains(host)) return;
+    throw StateError(
+      'Aura was built in release mode with a non-HTTPS base URL '
+      '("$baseUrl") that is not on the allow-list. Refusing to send '
+      'requests over cleartext. Rebuild with '
+      '`--dart-define=AURA_API_BASE_URL=https://...` once your backend '
+      'is reachable over HTTPS, or extend `_kAllowedCleartextHosts` if '
+      'this is a new staging environment.',
+    );
   }
 
   /// TLS certificate pinning hook. Disabled until the backend ships HTTPS —

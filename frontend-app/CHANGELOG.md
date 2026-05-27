@@ -10,6 +10,22 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.33.2] - 2026-05-28
+
+### Fixed
+- **Release APKs pointed at the HTTP staging backend no longer brick
+  every request with a generic "Unexpected error" / "Couldn't reach
+  the server" message.** `DioClient._assertSecureInRelease` previously
+  threw a `StateError` unconditionally for any release build with an
+  `http://` base URL, so the Dio instance never finished constructing
+  and every login / forgot-password call fell into the screens'
+  catch-all error blocks. The guard now uses the same allow-list as
+  `network_security_config.xml` — the staging IP `18.142.190.113`,
+  the Android emulator loopback `10.0.2.2`, `127.0.0.1`, and
+  `localhost`. Cleartext to any other host still aborts loudly, so
+  the original defence-in-depth posture is preserved for genuine
+  production builds.
+
 ## [1.33.1] - 2026-05-28
 
 ### Added
