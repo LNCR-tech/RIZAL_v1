@@ -56,7 +56,7 @@ class BackendAppSettings:
     rate_limit_fail_open: bool = False
     rate_limit_login_count: int = 10
     rate_limit_login_window_seconds: int = 300
-    rate_limit_forgot_password_count: int = 5
+    rate_limit_forgot_password_count: int = 3
     rate_limit_forgot_password_window_seconds: int = 300
     rate_limit_authenticated_mutation_count: int = 120
     rate_limit_authenticated_mutation_window_seconds: int = 60
