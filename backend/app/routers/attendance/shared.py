@@ -233,9 +233,9 @@ def _log_rejected_scan_attempt(
         )
 
 
-def _ensure_student_is_event_participant(student: StudentProfile, event: Event) -> None:
+def _ensure_student_is_event_participant(student: StudentProfile, event: Event, db=None) -> None:
     """Confirm the selected student actually belongs to the event's allowed audience."""
-    eligible, code, message = is_student_eligible_for_event(student, event)
+    eligible, code, message = is_student_eligible_for_event(student, event, db=db)
     if not eligible:
         raise HTTPException(
             status_code=403,
@@ -260,7 +260,7 @@ def _ensure_student_is_event_participant_with_audit(
     Accepted scans are not logged here — only rejections are recorded for audit.
     The HTTP 403 is always re-raised so the caller's response is unchanged.
     """
-    eligible, code, message = is_student_eligible_for_event(student, event)
+    eligible, code, message = is_student_eligible_for_event(student, event, db=db)
     if not eligible:
         _log_rejected_scan_attempt(
             db,

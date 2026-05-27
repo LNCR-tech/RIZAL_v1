@@ -34,6 +34,7 @@ from app.services.google_auth_service import (
     GoogleAuthDisabledError,
     GoogleAuthInvalidTokenError,
     GoogleEmailNotVerifiedError,
+    verify_google_access_token,
     verify_google_id_token,
 )
 from app.schemas.common import MessageResponse
@@ -212,7 +213,10 @@ def login_with_google(
     )
 
     try:
-        google_payload = verify_google_id_token(payload.id_token)
+        if payload.id_token:
+            google_payload = verify_google_id_token(payload.id_token)
+        else:
+            google_payload = verify_google_access_token(payload.access_token)
     except GoogleAuthDisabledError:
         record_login_history(
             db,

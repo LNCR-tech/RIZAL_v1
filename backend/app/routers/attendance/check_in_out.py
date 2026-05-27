@@ -341,7 +341,7 @@ def record_bulk_attendance(
             results.append({"student_id": record.student_id, "status": "student_not_in_scope"})
             continue
         try:
-            _ensure_student_is_event_participant(student, event)
+            _ensure_student_is_event_participant(student, event, db=db)
         except HTTPException:
             results.append({"student_id": record.student_id, "status": "student_not_in_event_scope"})
             continue
@@ -462,7 +462,7 @@ def record_face_scan_timeout(
     if not student:
         raise HTTPException(404, f"Student {data.student_id} not found")
     _ensure_student_in_attendance_scope(student, governance_units)
-    _ensure_student_is_event_participant(student, event)
+    _ensure_student_is_event_participant(student, event, db=db)
 
     attendance = db.query(AttendanceModel).filter(
         AttendanceModel.student_id == student.id,

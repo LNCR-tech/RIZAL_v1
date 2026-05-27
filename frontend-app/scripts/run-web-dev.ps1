@@ -131,7 +131,8 @@ try {
         --dart-define-from-file=config/cloud.json `
         -d web-server `
         --web-port $port `
-        --no-web-resources-cdn
+        --no-web-resources-cdn `
+        --web-header "Cross-Origin-Opener-Policy=same-origin-allow-popups"
 } finally {
     Get-Job -Name 'aura-chrome-launcher' -ErrorAction SilentlyContinue |
         Remove-Job -Force -ErrorAction SilentlyContinue

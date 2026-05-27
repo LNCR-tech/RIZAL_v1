@@ -14,6 +14,15 @@ class GoogleSignInError implements Exception {
   String toString() => 'GoogleSignInError: $message';
 }
 
+/// Holds whichever credential Google returned. On Android/native the SDK
+/// always provides [idToken]. On web (implicit flow) only [accessToken] is
+/// available; the backend accepts both via its /auth/google endpoint.
+class GoogleToken {
+  const GoogleToken({this.idToken, this.accessToken});
+  final String? idToken;
+  final String? accessToken;
+}
+
 /// Thin wrapper around the `google_sign_in` package. Reads the web/server
 /// client ID from [AppConfig.googleWebClientId] (set via
 /// `--dart-define=AURA_GOOGLE_WEB_CLIENT_ID=...`). If the ID isn't set the
@@ -38,7 +47,7 @@ class GoogleSignInService {
       clientId: kIsWeb ? webClientId : null,
       // `serverClientId` makes the native SDK fetch a server-validatable
       // ID token (the same client ID the backend verifies against).
-      serverClientId: kIsWeb ? null : webClientId,
+      serverClientId: webClientId,
     );
   }
 
@@ -51,10 +60,14 @@ class GoogleSignInService {
   /// sign-in.
   bool get isConfigured => _client != null;
 
-  /// Drives the Google sign-in sheet and returns the resulting ID token.
+  /// Drives the Google sign-in sheet and returns the available credential.
   /// Returns `null` when the user cancels the picker. Throws
   /// [GoogleSignInError] for any other failure path.
-  Future<String?> signInAndGetIdToken() async {
+  ///
+  /// On Android/native [GoogleToken.idToken] is always populated.
+  /// On web (implicit OAuth2 flow) only [GoogleToken.accessToken] is returned;
+  /// the backend accepts both.
+  Future<GoogleToken?> signIn() async {
     final client = _client;
     if (client == null) {
       throw GoogleSignInError(
@@ -63,18 +76,19 @@ class GoogleSignInService {
       );
     }
     try {
-      // Try silent sign-in first so returning users don't see the picker.
       GoogleSignInAccount? account = await client.signInSilently();
       account ??= await client.signIn();
       if (account == null) return null; // user dismissed the picker
       final auth = await account.authentication;
-      final token = auth.idToken;
-      if (token == null || token.isEmpty) {
+      final idToken = auth.idToken;
+      final accessToken = auth.accessToken;
+      if ((idToken == null || idToken.isEmpty) &&
+          (accessToken == null || accessToken.isEmpty)) {
         throw GoogleSignInError(
-          'Google did not return an ID token. Please try again.',
+          'Google did not return a token. Please try again.',
         );
       }
-      return token;
+      return GoogleToken(idToken: idToken, accessToken: accessToken);
     } on GoogleSignInError {
       rethrow;
     } catch (e) {

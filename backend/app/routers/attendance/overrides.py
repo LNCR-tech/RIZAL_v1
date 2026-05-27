@@ -32,7 +32,7 @@ def mark_excused_attendance(
 
     for student in students:
         _ensure_student_in_attendance_scope(student, governance_units)
-        _ensure_student_is_event_participant(student, event)
+        _ensure_student_is_event_participant(student, event, db=db)
         attendance = db.query(AttendanceModel).filter(
             AttendanceModel.student_id == student.id,
             AttendanceModel.event_id == event_id

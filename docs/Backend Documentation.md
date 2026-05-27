@@ -342,21 +342,31 @@ Extended login endpoint. Preferred for mobile and web frontends.
 
 ### POST `/auth/google`
 
-Login with a Google ID token (Google Sign-In).
+Login with a Google credential. Accepts either an ID token (Android/native) or an access token (web implicit flow — `google_sign_in` 6.x returns only an access token on web).
 
-**Request body:**
+**Request body — Android / native (ID token):**
 ```json
 {
   "id_token": "<google_id_token>"
 }
 ```
 
+**Request body — Web (access token):**
+```json
+{
+  "access_token": "<google_access_token>"
+}
+```
+
+Exactly one of `id_token` or `access_token` must be present. The backend verifies an ID token locally (JWT); an access token is verified by calling Google's `/oauth2/v3/userinfo` endpoint.
+
 **Response:** Same as `/token` above.
 
 **Errors:**
 - `403` — Google login is disabled for this school
-- `401` — Token invalid or unverified
+- `401` — Token invalid, expired, or email unverified
 - `404` — No account registered with that Google email
+- `422` — Neither `id_token` nor `access_token` provided
 
 ---
 
@@ -1208,6 +1218,7 @@ Create a new event.
   "geo_max_accuracy_m": 30,
   "year_levels": [1, 2],
   "event_type_id": 1,
+  "members_only": false,
   "status": "upcoming"
 }
 ```
@@ -1221,6 +1232,8 @@ Create a new event.
 > All datetimes are stored in Philippine Time (UTC+8). Include timezone info in ISO 8601 format.
 >
 > `sign_out_open_delay_minutes` cannot exceed `sign_out_grace_minutes`.
+>
+> **`members_only`** (bool, default `false`) — When `true`, only students who are active members of the governance unit that created the event can attend. The governance unit is automatically derived from the creator's role (SSG → SSG, SG → that department's SG, ORG → that course's ORG). Setting `members_only: true` without a governance context returns 400.
 
 **Response 201:** `Event`
 
@@ -1286,6 +1299,8 @@ Get full event details including attendances and related data.
   "geo_max_accuracy_m": 30,
   "banner_url": null,
   "event_type": null,
+  "governance_unit_id": null,
+  "members_only": false,
   "departments": [],
   "programs": [],
   "event_targets": [],
@@ -1318,11 +1333,16 @@ Update an event.
   "name": "Updated Event Name",
   "year_levels": [1, 2, 3],
   "start_datetime": "2024-06-15T09:00:00+08:00",
-  "end_datetime": "2024-06-15T13:00:00+08:00"
+  "end_datetime": "2024-06-15T13:00:00+08:00",
+  "members_only": true
 }
 ```
 
+> Setting `members_only: true` is only valid on events that belong to a governance unit (i.e., created by SSG, SG, or ORG). Returns 400 if the event has no `governance_unit_id`.
+
 **Response 200:** `Event`
+
+> The `Event` response now includes `governance_unit_id` (int | null) and `members_only` (bool).
 
 ---
 

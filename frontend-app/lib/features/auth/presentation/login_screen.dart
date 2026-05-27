@@ -71,17 +71,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      final idToken = await ref
+      final token = await ref
           .read(googleSignInServiceProvider)
-          .signInAndGetIdToken();
-      if (idToken == null) {
+          .signIn();
+      if (token == null) {
         // User cancelled the picker — silently restore the form.
         if (mounted) setState(() => _loading = false);
         return;
       }
       final result = await ref
           .read(authRepositoryProvider)
-          .loginWithGoogle(idToken: idToken);
+          .loginWithGoogle(token: token);
       await ref.read(sessionControllerProvider.notifier).completeLogin(
             accessToken: result.accessToken,
             meta: result.meta,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_meta.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/dio_client.dart';
+import 'google_sign_in_service.dart' show GoogleToken;
 
 class LoginResult {
   const LoginResult({required this.accessToken, required this.meta});
@@ -121,12 +122,15 @@ class AuthRepository {
     return (data['message'] ?? 'Password has been reset successfully.').toString();
   }
 
-  /// Exchange a Google ID token for an Aura access token + meta
-  /// (`POST /auth/google`). Backend errors:
+  /// Exchange a Google credential for an Aura access token + meta
+  /// (`POST /auth/google`). Sends [id_token] when available (Android/native),
+  /// falls back to [access_token] for web implicit flow. Backend errors:
   /// 403 → Google login disabled, 401 → invalid token / unverified email,
   /// 404 → email not registered. All surface as [ApiException].
-  Future<LoginResult> loginWithGoogle({required String idToken}) async {
-    final body = {'id_token': idToken};
+  Future<LoginResult> loginWithGoogle({required GoogleToken token}) async {
+    final body = token.idToken != null
+        ? {'id_token': token.idToken}
+        : {'access_token': token.accessToken};
     Response<dynamic> res;
     try {
       res = await _client.post('/auth/google', data: body);
@@ -138,14 +142,14 @@ class AuthRepository {
       }
     }
     final data = (res.data as Map).cast<String, dynamic>();
-    final token = (data['access_token'] ?? '').toString();
-    if (token.isEmpty) {
+    final accessToken = (data['access_token'] ?? '').toString();
+    if (accessToken.isEmpty) {
       throw ApiException(
         'Signed in with Google, but the server did not return a token.',
         statusCode: res.statusCode ?? 0,
       );
     }
-    return LoginResult(accessToken: token, meta: AuthMeta.fromJson(data));
+    return LoginResult(accessToken: accessToken, meta: AuthMeta.fromJson(data));
   }
 }
 

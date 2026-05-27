@@ -223,6 +223,7 @@ class EventBase(BaseModel):
 
 class EventCreate(EventBase):
     year_levels: List[int] = Field(default_factory=list)
+    members_only: bool = Field(default=False, description="Restrict attendance to governance unit members only.")
 
     @field_validator("year_levels")
     @classmethod
@@ -259,6 +260,7 @@ class EventUpdate(BaseModel):
     end_datetime: Optional[datetime] = None
     status: Optional[EventStatus] = None
     year_levels: Optional[List[int]] = None
+    members_only: Optional[bool] = None
 
     @field_validator("year_levels")
     @classmethod
@@ -294,6 +296,8 @@ class EventUpdate(BaseModel):
 class Event(EventBase):
     id: int
     school_id: int
+    governance_unit_id: Optional[int] = None
+    members_only: bool = False
     present_until_override_at: Optional[datetime] = None
     late_until_override_at: Optional[datetime] = None
     sign_out_override_until: Optional[datetime] = None

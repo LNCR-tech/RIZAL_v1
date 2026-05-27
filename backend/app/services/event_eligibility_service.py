@@ -1,11 +1,13 @@
 from typing import Optional, Tuple
 from app.models.user import StudentProfile
 from app.models.event import Event, EventTargetScope
+from app.models.governance_hierarchy import GovernanceMember
 from app.schemas.user import StudentStatus
 
 def is_student_eligible_for_event(
-    student: StudentProfile, 
-    event: Event
+    student: StudentProfile,
+    event: Event,
+    db=None,
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """Determine if a student is eligible to participate in an event.
     
@@ -34,7 +36,31 @@ def is_student_eligible_for_event(
             f"Only ACTIVE students can participate. Current status: {student.student_status}"
         )
 
-    # 3. Targeted Audience check
+    # 3. Governance members-only check
+    if getattr(event, "members_only", False) and getattr(event, "governance_unit_id", None):
+        if db is None:
+            return (
+                False,
+                "MEMBERS_ONLY_CHECK_UNAVAILABLE",
+                "Cannot verify governance membership without a database session.",
+            )
+        is_member = (
+            db.query(GovernanceMember)
+            .filter(
+                GovernanceMember.governance_unit_id == event.governance_unit_id,
+                GovernanceMember.user_id == student.user_id,
+                GovernanceMember.is_active.is_(True),
+            )
+            .first()
+        ) is not None
+        if not is_member:
+            return (
+                False,
+                "NOT_A_GOVERNANCE_MEMBER",
+                "This event is restricted to governance unit members only.",
+            )
+
+    # 4. Targeted Audience check
     event_targets = getattr(event, "event_targets", [])
     
     if event_targets:
