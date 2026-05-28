@@ -424,16 +424,28 @@ def update_event(
                 school_id=school_id,
                 event_type_id=event_type_id,
             )
-        resolved_gov_unit_update, scoped_department_ids, scoped_program_ids = _resolve_governance_event_write_unit_and_scope(
-            db,
-            current_user=current_user,
-            governance_context=governance_context,
-        )
-        # Sync governance_unit_id with the toggle state:
-        # - governance_context sent   → set governance_unit_id (officers-only ON)
-        # - governance_context omitted → clear governance_unit_id (officers-only OFF)
-        # Admins/campus_admins are skipped — their governance resolution returns None
-        # and we must not silently wipe a unit set by a governance officer.
+        # When governance_context is None the user is saving with officers-only OFF,
+        # so we still need the department/program scope for year-level targeting —
+        # call the resolver but ignore the returned unit for the id assignment.
+        # We derive scoped_department_ids / scoped_program_ids from the resolver
+        # only when governance_context is explicitly provided (toggle ON).
+        if governance_context is not None:
+            resolved_gov_unit_update, scoped_department_ids, scoped_program_ids = (
+                _resolve_governance_event_write_unit_and_scope(
+                    db,
+                    current_user=current_user,
+                    governance_context=governance_context,
+                )
+            )
+        else:
+            resolved_gov_unit_update = None
+            scoped_department_ids = []
+            scoped_program_ids = []
+
+        # Sync governance_unit_id directly from whether the caller sent
+        # governance_context (toggle ON) or omitted it (toggle OFF).
+        # Admins/campus_admins are skipped — they never go through governance
+        # unit resolution and must not accidentally lose this field.
         if not has_any_role(current_user, ["admin", "campus_admin"]):
             db_event.governance_unit_id = (
                 resolved_gov_unit_update.id if resolved_gov_unit_update else None
