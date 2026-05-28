@@ -243,7 +243,12 @@ class _LiquidGlassNavState extends State<LiquidGlassNav>
                             blur: 0,
                             thickness: 32,
                             refractiveIndex: 1.55,
-                            chromaticAberration: 6.5,
+                            // Subtle hint of chromatic aberration — the
+                            // refraction/bending was the wanted effect; the
+                            // strong colour fringing at 6.5 read as gritty
+                            // up close. 1.5 keeps a tasteful glass-edge
+                            // shimmer without the rainbow smear.
+                            chromaticAberration: 1.5,
                             glassColor: Color(0x14FFFFFF),
                             lightAngle: 1.5708,
                             lightIntensity: 2.6,
