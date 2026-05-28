@@ -1,4 +1,4 @@
-﻿# Backend Face Engine Migration Guide
+# Backend Face Engine Migration Guide
 
 <!--nav-->
 [Previous](BACKEND_FACE_ATTENDANCE_MODE_POLICY.md) | [Next](BACKEND_RAILWAY_DEPLOYMENT_GUIDE.md) | [Home](/README.md)
@@ -161,6 +161,36 @@ Note:
 - The repo keeps the checked-in `Backend/models/MiniFASNetV2.onnx` model as the runtime artifact instead of depending on a package literally named `silent-face-anti-spoofing`.
 - `ANTI_SPOOF_SCALE` now adds surrounding context padding before liveness inference so preprocessing stays closer to the upstream Silent-Face patch-style flow.
 - MiniFASNet now crops from the original detector frame plus the detected bbox and scale, instead of scoring a face-only crop with synthetic edge padding. This matches the upstream Silent-Face patch flow more closely and fixes common false spoof detections on live webcam faces.
+
+### ⚠️ Mobile Camera False-Spoof Issue & Fix
+
+**Symptom**: Real faces from mobile cameras consistently score near `0.0` (e.g., `0.044`, `0.008`) and are rejected with `Spoof detected: label=Fake`.
+
+**Root Cause**: The MiniFASNet model was trained on the OULU-NPU and CASIA-FASD datasets using ImageNet-style mean/std normalization. Without proper normalization, mobile camera images (which have different brightness, color temperature, and saturation curves than training data) produce near-zero liveness scores for completely real faces.
+
+**Fix (applied in `liveness.py`)**: The preprocessing pipeline now divides pixel values by 255 and applies ImageNet mean/std normalization in BGR channel order before feeding the model:
+```python
+# BGR-order ImageNet normalization
+mean = [0.406, 0.456, 0.485]
+std  = [0.225, 0.224, 0.229]
+model_input = (float32_image / 255.0 - mean) / std
+```
+
+**Recommended thresholds for mobile deployments**:
+
+| Config | Default | Recommended (mobile) | Notes |
+|--------|---------|---------------------|-------|
+| `LIVENESS_THRESHOLD` | `0.85` | `0.55`–`0.65` | After fix, real mobile faces score `0.6–0.9`. Start at `0.55` and tune upward. |
+| `PUBLIC_ATTENDANCE_LIVENESS_THRESHOLD` | `0.92` | `0.65`–`0.75` | Public kiosk captures are more variable. |
+| `ANTI_SPOOF_SCALE` | `2.7` | `2.0`–`2.5` | Lower scale avoids over-padding that confuses the model. |
+
+To quickly adjust without redeploying, update the server `.env` file and restart the container:
+```env
+LIVENESS_THRESHOLD=0.55
+PUBLIC_ATTENDANCE_LIVENESS_THRESHOLD=0.65
+ANTI_SPOOF_SCALE=2.0
+```
+
 
 ## Route behavior changes
 

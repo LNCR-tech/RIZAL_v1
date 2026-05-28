@@ -234,10 +234,16 @@ class LivenessChecker:
             crop = self._expand_crop_with_context(crop)
 
         input_height, input_width = self._input_size or (80, 80)
-        # Model expects BGR input, raw float32 (0-255), class 1 = real/live
+        # MiniFASNet expects BGR input normalized with ImageNet mean/std.
+        # Training pipeline: BGR float32 in [0,1] then subtract mean, divide by std.
+        # Without this normalization, mobile camera images (different brightness/color
+        # temperature from OULU-NPU/CASIA training data) score near 0 for real faces.
+        _IMAGENET_MEAN = np.array([0.406, 0.456, 0.485], dtype=np.float32)  # BGR order
+        _IMAGENET_STD  = np.array([0.225, 0.224, 0.229], dtype=np.float32)  # BGR order
         crop_bgr = np.asarray(crop, dtype=np.uint8)[:, :, ::-1]
         resized = cv2.resize(crop_bgr, (input_width, input_height))
-        model_input = resized.astype(np.float32)
+        model_input = resized.astype(np.float32) / 255.0
+        model_input = (model_input - _IMAGENET_MEAN) / _IMAGENET_STD
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
 
