@@ -91,8 +91,14 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  integration_test:
-    sdk: flutter
+  # integration_test is intentionally NOT listed: there are no
+  # integration_test/ tests in this project, and including it leaks the
+  # `dev.flutter.plugins.integration_test.IntegrationTestPlugin` reference
+  # into GeneratedPluginRegistrant.java which breaks `flutter build apk
+  # --release` ("package dev.flutter.plugins.integration_test does not
+  # exist"). Re-add when an integration_test/ directory actually appears.
+  # integration_test:
+  #   sdk: flutter
   flutter_lints: ^4.0.0
 
 flutter:
