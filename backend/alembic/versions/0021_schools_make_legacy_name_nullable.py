@@ -23,24 +23,39 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Backfill: copy legal_name → name where name is already null (safety net)
+    # On a fresh database (CI / new install) the legacy `name` and `school_name`
+    # columns were never created by the baseline migration, so we must guard every
+    # operation with an existence check.  On live databases both columns exist and
+    # will be backfilled then made nullable as before.
     op.execute("""
-        UPDATE schools
-        SET name = COALESCE(legal_name, display_name, school_name, 'Unknown')
-        WHERE name IS NULL
-    """)
+        DO $$
+        BEGIN
+            -- Backfill name if column exists and has NULL rows
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'schools' AND column_name = 'name'
+            ) THEN
+                UPDATE schools
+                SET name = COALESCE(legal_name, display_name, school_name, 'Unknown')
+                WHERE name IS NULL;
 
-    # Backfill: copy display_name → school_name where school_name is null
-    op.execute("""
-        UPDATE schools
-        SET school_name = COALESCE(display_name, legal_name, name, 'Unknown')
-        WHERE school_name IS NULL
-    """)
+                ALTER TABLE schools ALTER COLUMN name DROP NOT NULL;
+            END IF;
 
-    # Now make both legacy columns nullable — new INSERTs will leave them NULL
-    # and the application reads display_name / legal_name instead.
-    op.alter_column("schools", "name", nullable=True)
-    op.alter_column("schools", "school_name", nullable=True)
+            -- Backfill school_name if column exists and has NULL rows
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'schools' AND column_name = 'school_name'
+            ) THEN
+                UPDATE schools
+                SET school_name = COALESCE(display_name, legal_name, name, 'Unknown')
+                WHERE school_name IS NULL;
+
+                ALTER TABLE schools ALTER COLUMN school_name DROP NOT NULL;
+            END IF;
+        END
+        $$;
+    """)
 
 
 def downgrade() -> None:
