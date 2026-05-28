@@ -1,7 +1,7 @@
 name: aura_app
 description: "Aura (RIZAL) — school attendance & governance. Flutter client for Android & iOS."
 publish_to: "none"
-version: 1.33.2+75
+version: 1.35.2+79
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -35,6 +35,25 @@ dependencies:
   # ── Phase 1 capabilities ──
   camera: ^0.11.0+2
   geolocator: ^13.0.1
+  # Keep the screen awake while the multi-face kiosk loop is running (the
+  # device sits on a counter pointing at the room — sleeping mid-event would
+  # break attendance). Used only in GatherScanScreen; restored on dispose.
+  wakelock_plus: ^1.2.5
+  # On-device passive liveness defence (Silent-Face-Anti-Spoofing / MiniFASNet
+  # — same model the backend runs server-side). Used as a fast-feedback /
+  # fast-reject layer; backend stays authoritative. Plugin maturity is low
+  # (v0.0.x at time of integration), so `LivenessService` degrades gracefully
+  # when init/detect fails: backend-only flow continues unchanged.
+  face_anti_spoofing_detector: ^0.0.4
+  # ML Kit on-device face detection — feeds face contours into the liveness
+  # plugin and gives us multi-face frames for the kiosk. Bundles ~20MB of
+  # native libs on Android (acceptable for an attendance product).
+  google_mlkit_face_detection: ^0.12.0
+  # YUV→RGB→JPEG encoding for kiosk POSTs when the camera is in image-stream
+  # mode (we can't call takePicture concurrently with a live stream on
+  # Android). Pure-Dart and runs inside `compute()` so the camera thread is
+  # never stalled.
+  image: ^4.3.0
 
   # ── Phase 3 capabilities ──
   file_picker: ^8.1.4
@@ -62,8 +81,6 @@ dependencies:
   google_sign_in: ^6.2.2
 
   # ── Later phases (uncomment when implementing; need native setup) ──
-  # google_mlkit_face_detection: ^0.12.0   # on-device face framing/liveness cue
-  # flutter_local_notifications: ^17.2.4
   # hive_flutter: ^1.1.0
 
 dev_dependencies:

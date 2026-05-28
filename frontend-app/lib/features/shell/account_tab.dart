@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/role.dart';
 import '../../core/auth/session_controller.dart';
+import '../../core/data/school_directory_repository.dart';
 import '../../core/theme/app_branding_controller.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/theme/app_typography.dart';
 import '../../core/theme/beta_controller.dart';
 import '../../core/theme/motion_controller.dart';
 import '../../core/theme/theme_controller.dart';
@@ -15,6 +18,7 @@ import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rise_in.dart';
 import '../../core/widgets/school_badge.dart';
 import '../../core/widgets/settings_tile.dart';
+import '../student/application/student_providers.dart';
 import '../assistant/presentation/chat_screen.dart';
 import '../auth/presentation/change_password_screen.dart';
 import '../auth/presentation/security_screen.dart';
@@ -114,6 +118,7 @@ class AccountTab extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.bodyMedium
                                 ?.copyWith(color: t.textSecondary)),
+                      const _AcademicSubtitle(),
                       if (meta?.schoolName != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
@@ -494,6 +499,97 @@ class _BetaSwitchTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// One-line academic summary under the email on the account-tab profile
+/// card — e.g. `BSCS · 2nd year`. Only renders when the signed-in user has
+/// a student profile AND at least one of (program short code, year level)
+/// resolves. No placeholder while loading; the line just fades in once the
+/// directory lookup lands, so the header doesn't reflow or flicker.
+class _AcademicSubtitle extends ConsumerWidget {
+  const _AcademicSubtitle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppTokens.of(context);
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    final profile = ref.watch(myProfileProvider).valueOrNull;
+    final sp = profile?.studentProfile;
+    if (sp == null) return const SizedBox.shrink();
+
+    final yearOrdinal =
+        sp.yearLevel != null ? _ordinalYear(sp.yearLevel!) : null;
+
+    String? programCode;
+    if (sp.programId != null) {
+      final p = ref.watch(programByIdProvider(sp.programId!)).valueOrNull;
+      if (p != null && p.name.isNotEmpty) {
+        programCode = _programShortCode(p.name);
+      }
+    }
+
+    final parts = <String>[
+      if (programCode != null && programCode.isNotEmpty) programCode,
+      if (yearOrdinal != null) yearOrdinal,
+    ];
+    if (parts.isEmpty) return const SizedBox.shrink();
+    final text = parts.join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: AnimatedSwitcher(
+        duration:
+            reduce ? Duration.zero : const Duration(milliseconds: 220),
+        switchInCurve: AppMotion.easeOut,
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: child,
+        ),
+        child: Text(
+          text,
+          key: ValueKey(text),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.mono(
+            size: 12,
+            weight: FontWeight.w600,
+            color: t.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "BS Computer Science" → "BSCS"; "BS Information Technology" → "BSIT".
+/// All-caps tokens (acronyms like "BS", "BSIT") are kept verbatim;
+/// title-case words contribute their first letter; lowercase tokens like
+/// "of" / "in" are dropped. Returns the input verbatim when no
+/// abbreviation is derivable (e.g. an all-lowercase name).
+String _programShortCode(String name) {
+  final buf = StringBuffer();
+  for (final word in name.split(RegExp(r'\s+'))) {
+    final letters = word.replaceAll(RegExp(r'[^A-Za-z]'), '');
+    if (letters.isEmpty) continue;
+    if (letters == letters.toUpperCase()) {
+      buf.write(letters);
+    } else if (letters[0] == letters[0].toUpperCase()) {
+      buf.write(letters[0]);
+    }
+  }
+  final out = buf.toString();
+  return out.isEmpty ? name : out;
+}
+
+String _ordinalYear(int year) {
+  final suffix = switch (year) {
+    1 => 'st',
+    2 => 'nd',
+    3 => 'rd',
+    _ => 'th',
+  };
+  return '$year$suffix year';
 }
 
 /// Small "BETA" pill used to flag experimental settings.

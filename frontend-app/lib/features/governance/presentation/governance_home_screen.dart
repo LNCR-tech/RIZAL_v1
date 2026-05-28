@@ -20,6 +20,7 @@ import '../../../core/widgets/states.dart';
 import '../../../shared/models/event.dart';
 import '../../../shared/models/governance.dart';
 import '../../../shared/utils/formatting.dart';
+import '../../gather/presentation/gather_screen.dart';
 import '../../reports/export_sheet.dart';
 import '../../shell/app_shell.dart';
 import '../application/governance_providers.dart';
@@ -364,6 +365,16 @@ class _Dashboard extends ConsumerWidget {
                   enabled: unit.can('manage_members'),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const GovernanceMembersScreen())),
+                ),
+              ),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.center_focus_strong_rounded,
+                  label: 'Kiosk',
+                  color: t.accent,
+                  enabled: unit.can('manage_events'),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const GatherScreen())),
                 ),
               ),
             ],

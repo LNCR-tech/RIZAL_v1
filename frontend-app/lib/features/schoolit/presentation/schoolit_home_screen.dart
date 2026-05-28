@@ -9,6 +9,7 @@ import '../../../core/widgets/dashboard.dart';
 import '../../../core/widgets/rise_in.dart';
 import '../../../core/widgets/school_badge.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../gather/presentation/gather_screen.dart';
 import '../application/schoolit_providers.dart';
 import 'campus_governance_screen.dart';
 import 'import_students_screen.dart';
@@ -34,9 +35,15 @@ class SchoolItHomeScreen extends ConsumerWidget {
     final depts = ref.watch(departmentsProvider).valueOrNull;
     final progs = ref.watch(programsProvider).valueOrNull;
 
-    final total = students?.length;
-    final enrolled = students
-        ?.where((u) => u.studentProfile?.isFaceRegistered ?? false)
+    // Only accounts with a student_profile are "students" — faculty / admin /
+    // school-IT accounts come back from `/users/` too and would otherwise
+    // inflate the card labelled "Students". Matches the filter used by
+    // schoolit_users_screen.dart so both screens agree.
+    final studentList =
+        students?.where((u) => u.studentProfile != null).toList();
+    final total = studentList?.length;
+    final enrolled = studentList
+        ?.where((u) => u.studentProfile!.isFaceRegistered)
         .length;
     final pct = (total != null && total > 0 && enrolled != null)
         ? enrolled / total * 100
@@ -44,7 +51,7 @@ class SchoolItHomeScreen extends ConsumerWidget {
 
     final deptName = {for (final d in depts ?? []) d.id: d.name};
     final counts = <int, int>{};
-    for (final u in students ?? []) {
+    for (final u in studentList ?? const []) {
       final did = u.studentProfile?.departmentId;
       if (did != null) counts[did] = (counts[did] ?? 0) + 1;
     }
@@ -135,6 +142,16 @@ class SchoolItHomeScreen extends ConsumerWidget {
               ),
             ),
           ],
+          const SizedBox(height: AppSpacing.x24),
+          const SectionHeader(title: 'Run'),
+          DashboardActionRow(
+            icon: Icons.center_focus_strong_rounded,
+            label: 'Gather kiosk',
+            subtitle: 'Multi-face check-in for an event',
+            tint: t.accent,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const GatherScreen())),
+          ),
           const SizedBox(height: AppSpacing.x24),
           const SectionHeader(title: 'Manage'),
           DashboardActionRow(

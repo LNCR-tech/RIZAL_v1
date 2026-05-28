@@ -13,24 +13,27 @@ class SchoolItRepository {
   SchoolItRepository(this._client);
   final DioClient _client;
 
-  /// Loads ALL users. The backend paginates by **page** (it ignores `skip`) and
-  /// caps a page at 500, so we walk `page=1..total_pages` and de-duplicate by id.
+  /// Loads ALL users. `GET /api/users/` returns a **bare list** (not the
+  /// `{data,total_pages}` envelope) and paginates by **`skip`+`limit`** with
+  /// `limit` capped at 500 server-side; the `page` query param is ignored.
+  /// We walk `skip=0,500,1000,…` and stop when a page returns fewer than
+  /// `limit` items (the standard "last page" signal). De-dup by id is kept as
+  /// a belt-and-suspenders against any future envelope change.
   Future<List<UserProfile>> students() async {
+    const limit = 500;
+    const maxSkip = 25000; // 50 pages × 500 — same effective ceiling as before
     final all = <UserProfile>[];
     final seen = <int>{};
-    var page = 1;
-    while (page <= 50) {
+    var skip = 0;
+    while (skip <= maxSkip) {
       final r =
-          await _client.get(Api.users, query: {'page': page, 'limit': 500});
+          await _client.get(Api.users, query: {'skip': skip, 'limit': limit});
       final data = r.data;
       final List rawItems;
-      final int totalPages;
-      if (data is Map) {
-        rawItems = (data['data'] as List?) ?? const [];
-        totalPages = asInt(data['total_pages']) ?? 1;
-      } else if (data is List) {
+      if (data is List) {
         rawItems = data;
-        totalPages = 1;
+      } else if (data is Map) {
+        rawItems = (data['data'] as List?) ?? const [];
       } else {
         break;
       }
@@ -40,8 +43,8 @@ class SchoolItRepository {
           if (seen.add(u.id)) all.add(u);
         }
       }
-      if (page >= totalPages || rawItems.isEmpty) break;
-      page += 1;
+      if (rawItems.length < limit) break;
+      skip += limit;
     }
     return all;
   }

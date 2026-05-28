@@ -10,6 +10,345 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+### Added
+- **Student profile shows college and program.** The Profile screen
+  (`features/student/presentation/profile_screen.dart`) is split into
+  two cards along a clean axis — **Academics** on top (Program,
+  College, Year level), **Identity** underneath (Student number,
+  Status, Face ID).
+  - Program and College names resolve asynchronously from the new
+    directory providers (below) and cross-fade in from a skeleton
+    placeholder — 220 ms fade + scale 0.96 → 1.0 (never `scale(0)`;
+    honors reduced motion). No `—` placeholder snap-to-text.
+  - Year level renders immediately in mono (e.g. `2nd year`) — no
+    network needed, the value is in `/users/me`.
+  - Each row has a tinted icon chip (book / tree / school) +
+    uppercase label + value; consistent with the rest of the app's
+    bento system.
+- **Status row is a colour-coded chip with an icon** (Active /
+  Inactive / Graduated / Withdrawn / Suspended / Unknown) instead
+  of plain text — same colour + icon rule the rest of the app uses
+  for a11y.
+- **Face ID is also a chip** (Enrolled vs Not enrolled) so the
+  identity card reads as a vertical list of binary states at a
+  glance.
+- **Student number is now tap-to-copy.** The whole row is pressable
+  (Pressable with scale-on-press + selection haptic), the copy
+  icon hints discoverability, and a snackbar confirms the copy
+  with the value verbatim. Empty / unassigned student numbers fall
+  back to a muted "Not assigned" with no copy affordance.
+- **Subtle academic line on the Account tab profile card.** Under
+  the email, students now see one mono dot-separated line like
+  `BSCS · 2nd year` (program short-code + year ordinal). Renders
+  only when at least one piece resolves; hidden silently otherwise
+  (no placeholder flicker). Program short-code is derived locally
+  (`"BS Computer Science"` → `"BSCS"`, all-caps acronyms kept
+  verbatim, lowercase tokens like "of" / "in" dropped).
+
+### Added (data layer)
+- **New `core/data/school_directory_repository.dart`.** Read-only
+  surface over `/api/departments/` and `/api/programs/` — both
+  open to any authenticated user (Backend Documentation lines
+  1049 / 1129), so the student app calls them directly. Mutating
+  endpoints (create / update / delete) stay in
+  `SchoolItRepository`.
+- **Session-cached providers:** `allDepartmentsProvider`,
+  `allProgramsProvider` (not `autoDispose` — directory is small,
+  refetching on every screen mount would be wasteful) +
+  `departmentByIdProvider(int)` / `programByIdProvider(int)`
+  family providers that resolve one name from the cached list.
+  Pull-to-refresh on Profile invalidates both directory caches
+  alongside `/users/me`.
+
+### Notes
+- Google Sign-In `DEVELOPER_ERROR(10)` on release builds is a
+  Google Cloud Console configuration issue, not a code one. Fix
+  is to add the release keystore's SHA-1 fingerprint to an
+  Android OAuth client in the Cloud project that owns
+  `AURA_GOOGLE_WEB_CLIENT_ID`. Package name `com.aura.aura_app`.
+  No Flutter or backend code change required.
+
+## [1.35.2] - 2026-05-28
+
+### Added
+- **Credentials-reveal bottom sheet after manual student creation.** The
+  School-IT "Manual Add" flow used to end with a tiny "Student added."
+  snackbar, leaving the IT admin with no way to tell the new student how
+  to sign in (the backend `create_student_account` path doesn't send a
+  welcome email — only the generic `create_user` path does). The flow now
+  ends with a polished bottom sheet that surfaces both pieces:
+  - **Email** rendered in JetBrains Mono with a one-tap copy button.
+  - **Temporary password** rendered in mono with a one-tap copy button.
+    The password is computed client-side from the typed last name
+    (`lastName.trim().toLowerCase()`, fallback `"password"` if empty) —
+    the **same rule** the backend uses in
+    `backend/app/routers/users/students.py:42`. Zero extra round-trips,
+    backend stays authoritative on the hash.
+  - Inline note explains the convention and that the student will be
+    forced to change it on first sign-in (`must_change_password=true`).
+  - "Add another" keeps the IT admin on the form with the college /
+    program / year / status pre-selected and only the name+email cleared
+    — typical bulk-add ergonomics.
+- **Emil-style polish on the sheet.** Drag handle, `AppRadii.rSheet`
+  rounded top, surface-token background, soft `AppElevation.card`
+  shadow, stagger-50ms entrance via the existing `staggered()` helper,
+  press-scale 0.97 via `Pressable`, copy → 200 ms scale+fade cross-fade
+  to a green check that auto-resets after 1.4 s, mono numerals with
+  tabular figures so passwords like `o0o0` can't be misread,
+  reduced-motion fully honored.
+
+## [1.35.1] - 2026-05-28
+
+### Fixed
+- **School-IT dashboard now shows accurate, growing student counts.** The
+  user-listing pagination in `SchoolItRepository.students()` was sending
+  `?page=N` to `GET /api/users/`, which the backend silently ignores — it
+  paginates by `skip`+`limit` and returns a **bare list**, not the
+  `{data,total_pages}` envelope the Flutter code assumed. Because the
+  `List` branch hard-set `totalPages = 1`, the loop exited after one
+  iteration and the app only ever saw the **first 500 users** ordered by
+  id ASC. Now walks `skip=0,500,1000,…` and stops when a page returns
+  `< limit` items.
+- **"Manually added student doesn't appear" was the same bug.** New
+  accounts get the highest id, so on schools with >500 user rows they sat
+  past the truncated first page and never showed up after the success
+  snackbar. The POST always succeeded; the refetch was just returning the
+  same first-500 list. Fixed by the pagination change above.
+- **Dashboard "Students" card no longer counts faculty / admin / school-IT
+  accounts.** `schoolit_home_screen.dart` was using `students.length`,
+  which counts every account `/users/` returns. Now filters to
+  `studentProfile != null` to match `schoolit_users_screen.dart` so the
+  dashboard and the Users-by-College screen agree.
+- **Add-student flow awaits the refetch before popping.** The previous
+  invalidate-then-pop left a single-frame flash of the old count;
+  `add_student_screen.dart` now `await`s `ref.read(studentsProvider.future)`
+  so the new student is already in the list when the snackbar appears.
+
+## [1.35.0] - 2026-05-28
+
+### Added
+- **On-device passive liveness defence in front of every face scan.** Both
+  the student self-scan (`features/attendance/presentation/attendance_screen.dart`)
+  and the multi-face Gather kiosk
+  (`features/gather/presentation/gather_scan_screen.dart`) now hard-gate
+  spoof attempts **before** they leave the device. Photos, screen
+  replays, and printed faces are rejected without a backend round-trip.
+  Backend MiniFASNet (the same Silent-Face-Anti-Spoofing model) stays the
+  authoritative check — this is a fast-feedback / fast-reject defence
+  layer on top, not a replacement.
+- **Self-scan preflight gate.** The capture button is **disabled** while
+  the on-device model says the framed face is a spoof. A real-time pill
+  above the button cross-fades through `Verifying…` → `Looking for your
+  face` → `Real face — ready to scan` → `Possible spoof — adjust`
+  (220 ms scale + fade, never `scale(0)`, never ease-in). The face
+  framing ring tints green / red to match. Camera runs in image-stream
+  mode (NV21) at ~6 fps; when the operator taps capture we stop the
+  stream and `takePicture` for a clean JPEG to send.
+- **Kiosk per-frame gate.** Every cooldown the kiosk takes the latest
+  NV21 frame, runs ML Kit face detection + the anti-spoof model on the
+  **largest** face (fastest path, strongest spoof signal — a held-up
+  phone or printed photo fills more of the frame than legitimate
+  bystanders), and:
+  - **Skips the POST entirely** when the largest face is a spoof —
+    bumps a local `spoofs` counter, flips the `GatherStatusChip` to
+    "Spoof rejected", plays the alert system sound + heavy haptic, and
+    inserts a synthetic `liveness_failed` outcome with `reason_code:
+    spoof_detected_on_device` into the live log so the operator sees
+    it in the bento.
+  - **Skips the POST when no face is detected** — no point hitting the
+    backend with an empty room.
+  - **Encodes the NV21 frame to JPEG** in a `compute()` isolate (so
+    the camera thread never stalls) and sends to backend on success.
+- **`features/liveness/`** new module:
+  - `domain/liveness_models.dart` — `FaceCheck`, `LivenessFrameResult`
+    (`unavailable` / `empty` / `transientError` / live verdict),
+    `Nv21Frame`. The `isSpoof` getter is the canonical hard-gate
+    signal: it's `true` only when `usable == true` AND at least one
+    face is present AND no face passes the threshold. `usable == false`
+    NEVER reads as spoof — callers fall through to backend-only.
+  - `application/liveness_service.dart` — single owner of both
+    plugins. `LivenessBackend` interface (production
+    `PluginLivenessBackend` + an injection point for tests).
+    Idempotent `initialize()` that swallows platform errors and
+    returns false rather than throwing. `analyze(Nv21Frame)` never
+    throws — every failure path returns a `LivenessFrameResult` the
+    caller can branch on. `dispose()` is safe without prior init.
+    Exposed via `livenessServiceProvider` (Riverpod), session-scoped
+    so the ~10 MB native model only loads once.
+  - `application/nv21_codec.dart` — `buildNv21FrameFromCamera`
+    safely packs a two-plane NV21 `CameraImage` into the single
+    `width * height * 3 / 2` buffer the plugin expects (returns null
+    when the device handed us a different format, so the caller can
+    gracefully disable the gate). `encodeNv21ToJpeg` does
+    NV21 → BT.601 RGB → rotated JPEG inside `compute()`; the RGB
+    conversion uses integer math (12-bit shifts) so it's ~3× faster
+    than a float pipeline and visually indistinguishable.
+
+### Added (deps)
+- **`face_anti_spoofing_detector: ^0.0.4`** — Silent-Face-Anti-Spoofing
+  (MiniFASNet) on-device model. **Android-only at v0.0.4** — the iOS
+  plugin is a stub that only implements `getPlatformVersion`. The
+  service detects this at runtime and degrades to `usable=false` on
+  iOS without surfacing a `FlutterMethodNotImplemented` error to the
+  user.
+- **`google_mlkit_face_detection: ^0.12.0`** — feeds bounding boxes
+  to the anti-spoof model. Configured in `fast` mode with no
+  landmarks / contours / tracking / classification (we only need
+  bounding boxes for the gate — pulling everything would burn 2–3×
+  the per-frame budget).
+- **`image: ^4.3.0`** — promoted from transitive to direct so we can
+  use it explicitly for the NV21 → JPEG path in the kiosk.
+
+### Added (tests)
+- **`test/unit/liveness_service_test.dart`** — 14 cases covering the
+  contract: idempotent init, empty-frame defence, multi-face largest
+  selection (single liveness call regardless of face count),
+  threshold comparison (`>=`), null-score handling (treated as
+  unknown — hard-gate, since the model gave no signal), transient
+  errors flip `usable=false` so the caller doesn't gate on stale
+  data, and dispose-without-init safety.
+
+### Changed
+- **Attendance camera mode.** Was `takePicture`-only with
+  `ImageFormatGroup.jpeg`. Now image-stream mode with NV21 (Android,
+  liveness usable) or unchanged JPEG (iOS, liveness unavailable —
+  identical behaviour to before this release). The change is invisible
+  to backend-only flows.
+- **Kiosk camera mode.** Was `ImageFormatGroup.jpeg` +
+  `ResolutionPreset.high` + `takePicture` per cooldown. Now image-
+  stream mode with NV21 + `ResolutionPreset.medium` when liveness is
+  usable (the backend auto-downscales to 1280 px regardless, so high
+  was already overkill). When liveness is unusable, falls back to the
+  previous behaviour. Stream lifecycle is owned by the kiosk —
+  `_stopStreamIfRunning()` is called in dispose so the camera releases
+  cleanly when the operator backs out.
+
+### Defence-in-depth posture
+The backend's MiniFASNet remains the source of truth — every frame
+that gets sent is re-verified server-side at the stricter
+`public_attendance_liveness_threshold = 0.92`. The new client-side
+gate sits at `0.85` (matching the backend's `liveness_threshold` for
+self-scan). If the on-device model ever produces a false positive,
+the server's stricter check still catches it. If the device's plugin
+init or per-frame detect throws, we fall through to backend-only —
+behaviour is then exactly what it was before this release.
+
+## [1.34.0] - 2026-05-28
+
+### Added
+- **Gather kiosk — full production pass.** The public, unauthenticated
+  multi-face check-in kiosk (anyone standing near a geofenced event
+  can point a back camera at the room and record attendance for up to
+  10 faces per frame) is now production-grade across both screens.
+  **Discovery**
+  (`features/gather/presentation/gather_screen.dart`) rebuilt:
+  header card explains kiosk mode in plain English; events sort into
+  "open near you" vs "waiting for window"; each card carries a phase
+  pill (Sign-in / Sign-out / Closed, colour + icon), a colour-coded
+  distance badge with accuracy (`±NN m`), a venue + time-window line,
+  the backend's `phase_message` ("Early check-in opens in 12 min"),
+  and a scope chip (Campus-wide, department, or program — collapses
+  to `+N` on overflow). Out-of-range state explains why and prompts a
+  refresh after moving. **Scan kiosk**
+  (`features/gather/presentation/gather_scan_screen.dart`) rebuilt as
+  a full-bleed dark surface: top status row (back, event, phase
+  pill); camera with calm pulsing two-ring scan overlay + corner
+  framing brackets; top-centre live status chip that cross-fades
+  through Standby → Looking → Verified / Spoof rejected / Liveness
+  bypassed / Out of scope on every frame (220 ms ease-out, never
+  from `scale(0)` — emil); top-right geofence + accuracy badge
+  reading from the server's `geo` block; bottom-left "last
+  recognized" card with name + confidence; bottom bento with mono
+  session count, breakdown chips (checked in / signed out / spoofs
+  caught / rejected), and a scrollable recent-outcome list. Stop now
+  opens a polished `GatherSummarySheet` with the total, breakdown,
+  runtime, last five recognitions, and Resume / Done actions.
+
+### Added (new widgets)
+- `features/gather/presentation/widgets/gather_phase_pill.dart` —
+  reusable phase pill and scope chip used by both the discovery
+  cards and the kiosk header. Always colour + icon (a11y).
+- `features/gather/presentation/widgets/gather_scanning_ring.dart`
+  — calm pulsing two-ring overlay (two ripples 180° out of phase,
+  scale 0.85 → 1.10, opacity 0.55 → 0; reduced-motion renders a
+  single static outline), corner framing brackets `CustomPainter`,
+  and the "Scanning…" capsule.
+- `features/gather/presentation/widgets/gather_status_chip.dart` —
+  `GatherStatus` enum + animated chip with a 220 ms scale + fade
+  swap (asymmetric 140 ms exit). Pulsing dot in the Looking state.
+- `features/gather/presentation/widgets/gather_outcome_tile.dart`
+  — one outcome row with action-coloured leading chip (success /
+  info / warning / danger / neutral via `OutcomeIntent`), display
+  name, action label, optional liveness badge (Real / Spoof /
+  Bypassed), and mono confidence. One-shot pop on mount (scale 0.94
+  → 1.0 + fade, 260 ms ease-out) and a damped 320 ms horizontal
+  shake on hard liveness failures.
+- `features/gather/presentation/widgets/gather_summary_sheet.dart`
+  — end-of-session bottom sheet: mono total, duration chip,
+  breakdown chips, last five recognitions, Resume + Done.
+
+### Added (wiring)
+- **Entry on the workspaces that run kiosks.** School-IT home
+  (`features/schoolit/presentation/schoolit_home_screen.dart`) gains
+  a new "Run" section above "Manage" with a single accent-tinted
+  `Gather kiosk` `DashboardActionRow`. Governance home
+  (`features/governance/presentation/governance_home_screen.dart`)
+  gains a fifth `_QuickAction` tile (brand accent), gated by
+  `manage_events` (locked + tooltip otherwise). Both push
+  `GatherScreen`.
+
+### Added (capabilities)
+- **`wakelock_plus: ^1.2.5`** — keeps the screen awake while the
+  loop is running. Enabled on Start, disabled on Stop and in
+  `dispose()`. The `android.permission.WAKE_LOCK` permission was
+  already in the manifest. Errors are swallowed (screen-unavailable
+  scenarios shouldn't fail a scan).
+- **Audio + haptic feedback** — every successful recognition fires
+  `SystemSound.click` + `HapticFeedback.lightImpact`; every spoof
+  fires `SystemSound.alert` + `HapticFeedback.heavyImpact`. Both
+  skipped when `MediaQuery.disableAnimations` is true. No plugin
+  needed — built-in `flutter/services` only.
+- **Backgrounding pauses the loop.** `WidgetsBindingObserver` stops
+  the loop on any non-resumed lifecycle state; the operator taps
+  Start again on return. Keeps the camera from running unobserved
+  and lets the OS reclaim it cleanly.
+
+### Added (models)
+- **`NearbyEvent`** gains `effectiveDistanceM`, `accuracyM`,
+  `departments`, `programs`, plus `phaseLabel`, `isSignIn`, `isOpen`,
+  and `insideGeofence` getters.
+- **`Liveness`** new — `{label, score?, reason?}` with `isReal`
+  / `isFake` / `isBypassed` getters. Parsed from the backend's
+  per-face `liveness` block.
+- **`GeoStatus`** new — geolocation verification block from the
+  multi-scan response (`ok`, `reason`, `distance_m`,
+  `effective_distance_m`, `radius_m`, `accuracy_m`).
+- **`ScanOutcome`** gains `reasonCode`, `distance`, `confidence`,
+  `threshold`, `liveness`, `timeIn`, `timeOut`, `durationMinutes`,
+  plus `isSignIn` / `isSignOut` / `isAlreadyRecorded` /
+  `isLivenessFailed` / `isOutOfScope` / `isNoMatch` / `isDuplicate`
+  / `isCooldownSkipped` / `isRejected` / `isHardFailure` getters,
+  `displayName` fallback, and a human `actionLabel`. The new
+  `ScanOutcomeIntent` extension maps each action to an
+  `OutcomeIntent` and a Material rounded icon — same mapping reused
+  by every surface (chip, tile, summary).
+- **`MultiScanResult`** gains `geo` (the `GeoStatus` block).
+- **`shared/utils/json.dart`** gains `asStrList()` for the
+  `departments` / `programs` arrays.
+
+### Changed
+- **Failures are now visible.** The previous loop only logged
+  successes — spoofs, no-match frames, and out-of-scope hits were
+  invisible to the operator (the camera "appeared to do nothing"
+  while actually rejecting frames). The kiosk now logs every
+  meaningful outcome (suppressing only `duplicate_face` and
+  `cooldown_skipped` — frame-internal noise) and counts spoofs and
+  out-of-scope rejections in the bottom bento.
+- **Per-frame status decision** — the live status chip picks the
+  most important state from the frame: a verified real match beats
+  a spoof attempt in the same frame (the attendance landed
+  successfully), bypassed beats spoof beats out-of-scope.
+
 ## [1.33.2] - 2026-05-28
 
 ### Fixed

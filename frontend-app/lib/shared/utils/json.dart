@@ -25,3 +25,15 @@ DateTime? asDate(dynamic v) {
 List<Map<String, dynamic>> asMapList(dynamic v) => v is List
     ? v.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList()
     : const [];
+
+/// Coerce a dynamic into a `List<String>`, dropping nulls/empties and
+/// stringifying numeric entries.
+List<String> asStrList(dynamic v) {
+  if (v is! List) return const [];
+  final out = <String>[];
+  for (final e in v) {
+    final s = asStr(e);
+    if (s != null) out.add(s);
+  }
+  return out;
+}
