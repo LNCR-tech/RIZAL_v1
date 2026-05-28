@@ -92,10 +92,15 @@ class EventWindowScheduler {
 
   final FlutterLocalNotificationsPlugin _plugin;
 
-  static const String channelId = 'event_window';
+  // Channel bumped to `_v2` when the importance was upgraded to
+  // [Importance.max] + alarm-stream audio. Channels are immutable from
+  // code once created on the device, so the bump is necessary; the old
+  // channel is deleted in `GeofenceBackground.initNotifications`.
+  static const String channelId = 'event_window_v2';
   static const String channelName = 'Event window reminders';
   static const String channelDescription =
-      'Reminders when check-in or sign-out opens for events you can attend.';
+      'Alarm-style reminders when check-in or sign-out opens. Plays even '
+      'in silent mode.';
 
   /// Cancel any stale `event_window`-owned notifications, then schedule the
   /// next batch. [slotsByEvent] is the desired state for every tracked event.
@@ -155,15 +160,34 @@ class EventWindowScheduler {
     return phaseIndex >= 0 && phaseIndex < SchedulePhase.values.length;
   }
 
+  // Alarm-grade notification:
+  //   * Importance.max + Priority.max + category=alarm:
+  //       Bypasses Do Not Disturb (when the user grants the channel that
+  //       privilege in Android settings) and lands in the device's top
+  //       priority bucket.
+  //   * audioAttributesUsage: AudioAttributesUsage.alarm:
+  //       Plays on the alarm stream instead of the notification stream,
+  //       so even if notification volume is 0 the reminder still rings —
+  //       matching the alarm-clock UX the user asked for.
+  //   * playSound / enableVibration: explicit `true`.
+  //   * iOS interruptionLevel: timeSensitive (bypasses Focus modes).
   NotificationDetails _details() => const NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
           channelName,
           channelDescription: channelDescription,
-          importance: Importance.high,
-          priority: Priority.high,
+          importance: Importance.max,
+          priority: Priority.max,
+          category: AndroidNotificationCategory.alarm,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
+          playSound: true,
+          enableVibration: true,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          interruptionLevel: InterruptionLevel.timeSensitive,
+          presentAlert: true,
+          presentSound: true,
+        ),
       );
 
   String _titleFor(SchedulePhase p, String name) {

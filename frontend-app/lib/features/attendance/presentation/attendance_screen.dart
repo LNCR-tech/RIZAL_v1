@@ -10,10 +10,13 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/states.dart';
 import '../../../shared/models/event.dart';
+import '../../../shared/utils/formatting.dart';
+import '../../events/application/events_providers.dart';
 import '../../liveness/application/liveness_service.dart';
 import '../../liveness/application/nv21_codec.dart';
 import '../../liveness/domain/liveness_models.dart';
 import '../application/attendance_scan_flow.dart';
+import '../application/event_attendance_provider.dart';
 import '../data/attendance_repository.dart';
 import 'attendance_result_sheet.dart';
 
@@ -248,11 +251,23 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           );
       if (!mounted) return;
       HapticFeedback.mediumImpact();
+      // Force the per-event attendance cache to re-read so the next entry
+      // into this screen sees the fresh record without waiting for the
+      // 15s live ticker to fire. Also invalidate the time-status so a
+      // sign-out window opening between the scan and now is reflected.
+      ref.invalidate(eventAttendanceProvider(widget.event.id));
+      ref.invalidate(eventTimeStatusProvider(widget.event.id));
+      final ts = ref.read(eventTimeStatusProvider(widget.event.id)).valueOrNull;
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => AttendanceResultSheet(result: result),
+        builder: (_) => AttendanceResultSheet(
+          result: result,
+          // Surface "Sign-out opens at HH:MM" after a fresh check-in so
+          // the student knows when to come back.
+          signOutOpensAt: ts?.signOutOpensAt,
+        ),
       );
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
@@ -304,6 +319,32 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     }
 
     final t = AppTokens.of(context);
+    // Resolve what this scan SHOULD do (check in / sign out / blocked).
+    // `valueOrNull` so we don't block the screen while these refetch in the
+    // background — render with what we know and let the live ticker keep
+    // it fresh.
+    final ts = ref
+        .watch(eventTimeStatusProvider(widget.event.id))
+        .valueOrNull;
+    final record = ref
+        .watch(eventAttendanceProvider(widget.event.id))
+        .valueOrNull;
+    final scanState = resolveAttendanceScanState(
+      record: record,
+      checkInOpen: ts?.checkInOpen ?? false,
+      signOutOpen: ts?.signOutOpen ?? false,
+      checkInOpensAt: ts?.checkInOpensAt,
+      signOutOpensAt: ts?.signOutOpensAt,
+      signOutClosesAt: ts?.effectiveSignOutClosesAt,
+    );
+
+    final canScan =
+        scanState is CanCheckIn || scanState is CanSignOut;
+    final actionColor = switch (scanState) {
+      CanSignOut() => t.sg,
+      _ => t.accent,
+    };
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -318,7 +359,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(150),
               border: Border.all(
-                color: _ringColor(t),
+                color: _ringColor(t, scanState, actionColor),
                 width: 3,
               ),
             ),
@@ -337,23 +378,35 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                     _ErrorPill(_error!),
                     const SizedBox(height: AppSpacing.x16),
                   ],
-                  if (_livenessUsable) ...[
+                  // ── BIG action label — the headline fix for "doesn't show
+                  // if check in or check out" ──
+                  _ActionBanner(state: scanState),
+                  const SizedBox(height: AppSpacing.x12),
+                  if (_livenessUsable && canScan) ...[
                     _LivenessStatusPill(check: _lastCheck),
                     const SizedBox(height: AppSpacing.x12),
                   ],
                   Text(
-                    _livenessUsable
-                        ? 'Hold steady — we verify before sending'
-                        : 'Center your face, then tap to scan',
+                    _instructionFor(scanState, _livenessUsable),
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white, fontSize: 15),
                   ),
                   const SizedBox(height: AppSpacing.x16),
                   _CaptureButton(
-                    accent: t.accent,
+                    accent: actionColor,
                     busy: _submitting,
-                    disabled: _blockedBySpoof,
-                    onTap: _capture,
+                    disabled: !canScan || _blockedBySpoof,
+                    onTap: () {
+                      if (!canScan) {
+                        HapticFeedback.lightImpact();
+                        return;
+                      }
+                      _capture();
+                    },
+                    actionIcon: switch (scanState) {
+                      CanSignOut() => Icons.logout_rounded,
+                      _ => Icons.camera_alt_rounded,
+                    },
                   ),
                 ],
               ),
@@ -364,14 +417,188 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     );
   }
 
-  Color _ringColor(AppTokens t) {
+  String _instructionFor(AttendanceScanState s, bool livenessUsable) {
+    return switch (s) {
+      CanCheckIn() => livenessUsable
+          ? 'Hold steady — verifying you, then tap to check in'
+          : 'Center your face, then tap to check in',
+      CanSignOut() => livenessUsable
+          ? 'Hold steady — verifying you, then tap to sign out'
+          : 'Center your face, then tap to sign out',
+      AlreadyCheckedIn() => 'No scan needed right now.',
+      AttendanceComplete() => 'You already finished this event.',
+      WindowsClosed() => 'Attendance isn\'t open at the moment.',
+    };
+  }
+
+  Color _ringColor(AppTokens t, AttendanceScanState s, Color actionColor) {
+    // Disabled scan states get a muted ring so the camera oval doesn't
+    // shout "ready" when actually the student can't scan right now.
+    if (s is! CanCheckIn && s is! CanSignOut) {
+      return Colors.white.withOpacity(0.30);
+    }
     if (!_livenessUsable || !_lastCheck.usable) {
       return Colors.white.withOpacity(0.85);
     }
     if (!_lastCheck.hasAnyFace) return Colors.white.withOpacity(0.5);
-    if (_lastCheck.anyReal) return t.present;
+    if (_lastCheck.anyReal) return actionColor;
     return t.absent;
   }
+}
+
+// ─── State-aware action banner (the headline UX fix) ─────────────────
+/// Big, unmistakable label above the capture button telling the student
+/// EXACTLY what this scan will do — "CHECK IN", "SIGN OUT", or why no
+/// scan is available right now. Cross-fades between states (220ms
+/// ease-out, never scale(0) — emil) so the label feels responsive
+/// without flickering.
+class _ActionBanner extends StatelessWidget {
+  const _ActionBanner({required this.state});
+  final AttendanceScanState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final spec = _spec(t, state);
+
+    final body = Container(
+      key: ValueKey(spec.title),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.x16, vertical: AppSpacing.x12),
+      decoration: BoxDecoration(
+        color: spec.bg,
+        borderRadius: BorderRadius.circular(AppRadii.control),
+        border: Border.all(color: spec.border, width: 1.5),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(spec.icon, size: 20, color: spec.fg),
+              const SizedBox(width: 8),
+              Text(
+                spec.title,
+                style: TextStyle(
+                  color: spec.fg,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+          if (spec.subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              spec.subtitle!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: spec.fg.withOpacity(0.85),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return AnimatedSwitcher(
+      duration: reduce ? Duration.zero : const Duration(milliseconds: 220),
+      switchInCurve: AppMotion.easeOut,
+      transitionBuilder: (child, anim) => FadeTransition(
+        opacity: anim,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1.0).animate(anim),
+          child: child,
+        ),
+      ),
+      child: body,
+    );
+  }
+
+  _BannerSpec _spec(AppTokens t, AttendanceScanState s) {
+    switch (s) {
+      case CanCheckIn():
+        return _BannerSpec(
+          title: 'CHECK IN',
+          subtitle: null,
+          icon: Icons.login_rounded,
+          fg: Colors.white,
+          bg: t.present.withOpacity(0.78),
+          border: t.present,
+        );
+      case CanSignOut(:final checkedInAt):
+        return _BannerSpec(
+          title: 'SIGN OUT',
+          subtitle: 'You checked in at ${fmtTime(checkedInAt)}',
+          icon: Icons.logout_rounded,
+          fg: Colors.white,
+          bg: t.sg.withOpacity(0.85),
+          border: t.sg,
+        );
+      case AlreadyCheckedIn(:final checkedInAt, :final signOutOpensAt):
+        final subtitle = signOutOpensAt != null
+            ? 'Sign-out opens at ${fmtTime(signOutOpensAt)}'
+            : 'Come back when sign-out opens';
+        return _BannerSpec(
+          title: 'Already checked in at ${fmtTime(checkedInAt)}',
+          subtitle: subtitle,
+          icon: Icons.task_alt_rounded,
+          fg: Colors.white,
+          bg: Colors.black.withOpacity(0.55),
+          border: Colors.white.withOpacity(0.18),
+        );
+      case AttendanceComplete(:final checkedInAt, :final signedOutAt):
+        return _BannerSpec(
+          title: 'Attendance complete',
+          subtitle:
+              '${fmtTime(checkedInAt)}  →  ${fmtTime(signedOutAt)}',
+          icon: Icons.verified_rounded,
+          fg: Colors.white,
+          bg: t.accentDark.withOpacity(0.80),
+          border: t.accentDark,
+        );
+      case WindowsClosed(:final checkInOpensAt, :final signOutClosedAt):
+        String subtitle;
+        if (checkInOpensAt != null && checkInOpensAt.isAfter(DateTime.now())) {
+          subtitle = 'Check-in opens at ${fmtTime(checkInOpensAt)}';
+        } else if (signOutClosedAt != null) {
+          subtitle = 'Sign-out closed at ${fmtTime(signOutClosedAt)}';
+        } else {
+          subtitle = 'Attendance windows are not open right now';
+        }
+        return _BannerSpec(
+          title: 'Closed',
+          subtitle: subtitle,
+          icon: Icons.lock_clock_rounded,
+          fg: Colors.white,
+          bg: Colors.black.withOpacity(0.55),
+          border: Colors.white.withOpacity(0.18),
+        );
+    }
+  }
+}
+
+class _BannerSpec {
+  const _BannerSpec({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.fg,
+    required this.bg,
+    required this.border,
+  });
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final Color fg;
+  final Color bg;
+  final Color border;
 }
 
 class _CameraFill extends StatelessWidget {
@@ -502,11 +729,13 @@ class _CaptureButton extends StatelessWidget {
     required this.busy,
     required this.disabled,
     required this.onTap,
+    this.actionIcon = Icons.camera_alt_rounded,
   });
   final Color accent;
   final bool busy;
   final bool disabled;
   final VoidCallback onTap;
+  final IconData actionIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -520,7 +749,9 @@ class _CaptureButton extends StatelessWidget {
         opacity: isBlocked ? 0.55 : 1.0,
         child: GestureDetector(
           onTap: busy ? null : onTap,
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: AppMotion.easeOut,
             width: 78,
             height: 78,
             decoration: BoxDecoration(
@@ -538,9 +769,7 @@ class _CaptureButton extends StatelessWidget {
                         strokeWidth: 3, color: accent),
                   )
                 : Icon(
-                    isBlocked
-                        ? Icons.lock_outline_rounded
-                        : Icons.camera_alt_rounded,
+                    isBlocked ? Icons.lock_outline_rounded : actionIcon,
                     color: Colors.black,
                     size: 30,
                   ),

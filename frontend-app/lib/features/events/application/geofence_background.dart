@@ -87,17 +87,27 @@ class GeofenceBackground {
     final android = _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await android?.requestNotificationsPermission();
-    // Pre-register the event-window channel so it appears in Android
-    // settings even before the first scheduled fire. The legacy
-    // nearby_checkin channel is created implicitly when the geofence
-    // callback first posts to it — left untouched.
+    // iOS uses a separate permission flow. Request alert + sound (the two
+    // we actually use); skip badge since we don't paint one.
+    final ios = _notifications.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    await ios?.requestPermissions(alert: true, sound: true);
+    // Tear down the legacy `event_window` channel (which Android pins at
+    // its original `Importance.high` — you can't upgrade an existing
+    // channel's importance from code). The current channel `event_window_v2`
+    // re-creates it at `Importance.max` with alarm-stream audio so the
+    // reminder rings even when the phone is in silent mode.
+    await android?.deleteNotificationChannel(channelId: 'event_window');
     await android?.createNotificationChannel(
       const AndroidNotificationChannel(
-        'event_window',
+        'event_window_v2',
         'Event window reminders',
-        description:
-            'Reminders when check-in or sign-out opens for events you can attend.',
-        importance: Importance.high,
+        description: 'Alarm-style reminders when check-in or sign-out opens. '
+            'Plays even in silent mode.',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        audioAttributesUsage: AudioAttributesUsage.alarm,
       ),
     );
     // Cold start: app launched by tapping a notification.
