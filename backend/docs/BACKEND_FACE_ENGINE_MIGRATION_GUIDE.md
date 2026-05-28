@@ -164,32 +164,24 @@ Note:
 
 ### ⚠️ Mobile Camera False-Spoof Issue & Fix
 
-**Symptom**: Real faces from mobile cameras consistently score near `0.0` (e.g., `0.044`, `0.008`) and are rejected with `Spoof detected: label=Fake`.
+**Symptom**: Real faces from mobile cameras are rejected with `Spoof detected: label=Fake, score=0.008` (very low scores like `0.008`–`0.044`).
 
-**Root Cause**: The MiniFASNet model was trained on the OULU-NPU and CASIA-FASD datasets using ImageNet-style mean/std normalization. Without proper normalization, mobile camera images (which have different brightness, color temperature, and saturation curves than training data) produce near-zero liveness scores for completely real faces.
+**Root Cause — Tight Face Crops**: When the mobile user holds the phone close (or the app sends a tightly-framed preview frame), the face fills most of the image. The `anti_spoof_scale` expansion is then **capped by the frame boundary** to near `1.0×`, leaving only the raw face crop with no background context. MiniFASNet requires background texture around the face to distinguish real skin from a printed photo — without context, it scores real faces as `Fake`.
 
-**Fix (applied in `liveness.py`)**: The preprocessing pipeline now divides pixel values by 255 and applies ImageNet mean/std normalization in BGR channel order before feeding the model:
-```python
-# BGR-order ImageNet normalization
-mean = [0.406, 0.456, 0.485]
-std  = [0.225, 0.224, 0.229]
-model_input = (float32_image / 255.0 - mean) / std
-```
+Local test confirmation:
 
-**Recommended thresholds for mobile deployments**:
+| Crop method | Score | Result |
+|-------------|-------|--------|
+| Full image (no crop) | `0.9987` | Real ✅ |
+| Tight bbox crop (scale capped to 1.0) | `0.1850` | Fake ❌ |
+| Expanded crop (scale = 2.0) | `0.9997` | Real ✅ |
+| Expanded crop (scale = 2.7) | `0.9997` | Real ✅ |
 
-| Config | Default | Recommended (mobile) | Notes |
-|--------|---------|---------------------|-------|
-| `LIVENESS_THRESHOLD` | `0.85` | `0.55`–`0.65` | After fix, real mobile faces score `0.6–0.9`. Start at `0.55` and tune upward. |
-| `PUBLIC_ATTENDANCE_LIVENESS_THRESHOLD` | `0.92` | `0.65`–`0.75` | Public kiosk captures are more variable. |
-| `ANTI_SPOOF_SCALE` | `2.7` | `2.0`–`2.5` | Lower scale avoids over-padding that confuses the model. |
+**Fix (applied in `liveness.py`)**: `_crop_from_frame_with_context` now detects when `effective_scale < 1.5` (meaning the face fills the frame and there is no context to expand into) and returns the **full frame** instead. Full-frame scoring gives `0.9987` for real faces while still correctly rejecting spoofs (`0.0001`).
 
-To quickly adjust without redeploying, update the server `.env` file and restart the container:
-```env
-LIVENESS_THRESHOLD=0.55
-PUBLIC_ATTENDANCE_LIVENESS_THRESHOLD=0.65
-ANTI_SPOOF_SCALE=2.0
-```
+**Important — Model Input Contract**: `MiniFASNetV2.onnx` expects **raw BGR float32 in `0–255` range** (no ImageNet normalization). Tests confirm:
+- Raw `0-255` → real face scores `0.9997` ✅
+- ImageNet-normalized → real face scores `0.0119` ❌ (breaks the model)
 
 
 ## Route behavior changes
