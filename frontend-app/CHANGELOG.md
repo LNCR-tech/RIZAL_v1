@@ -10,6 +10,66 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 
 ## [Unreleased]
 
+## [1.36.1] - 2026-05-28
+
+### Highlights (what changed since v1.36.0+80)
+
+- **Alarm-style event notifications.** Reminders now ring on the alarm
+  volume stream and bypass silent / Do Not Disturb (where the user has
+  granted that channel privilege). Channel bumped to `event_window_v2`
+  with `Importance.max`, `audioAttributesUsage: AudioAttributesUsage.alarm`,
+  category `AndroidNotificationCategory.alarm`. iOS interruption level
+  raised to `timeSensitive` so it bypasses Focus modes. iOS permission
+  request added to `initNotifications`. Old `event_window` channel is
+  deleted on first launch after this update so the user doesn't see two
+  channels in Android settings.
+- **Scan UI no longer ambiguous.** A big colour-coded banner sits above
+  the capture button telling the student EXACTLY what this scan will
+  do: **CHECK IN** (green), **SIGN OUT** (purple, with "You checked in
+  at HH:MM"), or a muted variant explaining why no scan is possible
+  ("Already checked in at 09:14 · Sign-out opens 15:00",
+  "Attendance complete (09:14 → 16:32)", "Closed · Check-in opens
+  at HH:MM"). Capture button is disabled with a lock icon when scan
+  isn't valid — no more accidental duplicate check-ins. Camera oval
+  ring tints muted when scan is unavailable.
+- **Result sheet labels every time.** After-scan bottom sheet now
+  shows `CHECK-IN TIME` and `CHECK-OUT TIME` rows in JetBrainsMono with
+  explicit labels (instead of one unlabeled timestamp). After a fresh
+  check-in, a "SIGN-OUT OPENS" hint shows the upcoming window. After a
+  sign-out, a "Total time: 6h 18m" pill appears. Large colour-coded
+  action title — "Checked in" / "Signed out" / "Already recorded" —
+  instead of the old ambiguous "Recorded". Staggered RiseIn entrance,
+  TweenAnimationBuilder settle on the action icon (scale 0.92 → 1.0,
+  never `scale(0)`; reduced-motion honoured).
+- **Real-time data without manual refresh.** Six high-value providers
+  auto-refetch on a lifecycle-aware timer while the screen is
+  foregrounded: `myProfileProvider`, `notificationsProvider`,
+  `ongoingEventsProvider`, `scheduleEventsProvider` (medium 30s cadence),
+  `studentsProvider`, `mySanctionsProvider` (slow 60s cadence). All
+  polling stops when the app is backgrounded (zero battery / network
+  drain); every live provider refetches **immediately** on resume.
+  Silent-fail on transient errors so a brief offline hiccup doesn't
+  splash error banners across every screen.
+- **Schoolit users — search + filter chips.** Top-level Users tab gains
+  a search field; typing cross-fades the colleges grid to a flat student
+  result list. College detail keeps its search and gains a filter bar:
+  Program / Year / Status / Face enrolled chips. All filters compose
+  with AND. Pure-Dart `StudentFilter` (14 unit tests).
+- **Login redesign.** Centered brand hero in a soft accent halo, "or"
+  divider between Sign in and Google, inline Forgot link next to the
+  password label, condensed 2-item footer, full staggered entrance.
+  No longer crowded.
+- **Build unblocker.** Release APK build is back to green —
+  `integration_test` removed from `dev_dependencies` to stop it from
+  leaking into the release `GeneratedPluginRegistrant.java` (it was
+  causing `package dev.flutter.plugins.integration_test does not
+  exist` at compile time). `flutter test` (unit + widget) is
+  unaffected.
+- **Per-ABI APK splits.** Release APK is now built with
+  `--split-per-abi` so each variant is ~38–45 MB instead of one
+  ~105 MB fat APK that bundled all three architectures. Ship just
+  `app-arm64-v8a-release.apk` to ~95% of phones.
+
 ### Added
 - **Event window reminders (v1.36.0).** Notifies the user when an event's
   check-in or sign-out window opens, aligned to the backend's
