@@ -1798,8 +1798,26 @@ def search_governance_student_candidates(
     else:
         query = query.join(User, StudentProfile.user_id == User.id)
 
+    # Exclude users already in this unit (existing behaviour)
     if active_membership_user_ids:
         query = query.filter(~StudentProfile.user_id.in_(list(active_membership_user_ids)))
+
+    # --- 1-user-1-governance filter ---
+    # Additionally exclude users who have an active membership in ANY other
+    # governance unit.  This prevents the same user from appearing as a
+    # candidate when they are already an active member elsewhere, closing the
+    # gap that allowed a user to end up in two governance units.
+    already_assigned_subquery = (
+        db.query(GovernanceMember.user_id)
+        .filter(GovernanceMember.is_active.is_(True))
+    )
+    if governance_unit_id is not None:
+        already_assigned_subquery = already_assigned_subquery.filter(
+            GovernanceMember.governance_unit_id != governance_unit_id
+        )
+    query = query.filter(
+        ~StudentProfile.user_id.in_(already_assigned_subquery.scalar_subquery())
+    )
 
     student_profiles = (
         query.filter(User.is_active.is_(True))
@@ -1822,6 +1840,29 @@ def search_governance_student_candidates(
     ]
 
 
+def _get_active_membership_in_any_other_unit(
+    db: Session,
+    *,
+    user_id: int,
+    exclude_governance_unit_id: int | None = None,
+) -> GovernanceMember | None:
+    """Return the first active governance membership the user holds in any unit
+    other than *exclude_governance_unit_id* (use ``None`` to exclude no unit).
+
+    Used to enforce the 1-user-1-governance rule without requiring additional tables.
+    """
+    query = (
+        db.query(GovernanceMember)
+        .filter(
+            GovernanceMember.user_id == user_id,
+            GovernanceMember.is_active.is_(True),
+        )
+    )
+    if exclude_governance_unit_id is not None:
+        query = query.filter(GovernanceMember.governance_unit_id != exclude_governance_unit_id)
+    return query.first()
+
+
 def assign_governance_member(
     db: Session,
     *,
@@ -1829,7 +1870,12 @@ def assign_governance_member(
     governance_unit_id: int,
     payload: GovernanceMemberAssign,
 ) -> GovernanceMember:
-    """Add or reactivate a student as an officer/member of a governance unit."""
+    """Add or reactivate a student as an officer/member of a governance unit.
+
+    Enforces the 1-user-1-governance rule: a user may be an *active* member of
+    at most one governance unit at a time.  Inactive (past) memberships are
+    allowed so historical records are preserved.
+    """
     school_id = get_school_id_or_403(current_user)
     governance_unit = _get_unit_in_school_or_404(
         db,
@@ -1861,6 +1907,24 @@ def assign_governance_member(
         user_id=payload.user_id,
         governance_unit=governance_unit,
     )
+
+    # --- 1-user-1-governance enforcement ---
+    existing_active_membership = _get_active_membership_in_any_other_unit(
+        db,
+        user_id=payload.user_id,
+        exclude_governance_unit_id=governance_unit_id,
+    )
+    if existing_active_membership is not None:
+        other_unit = existing_active_membership.governance_unit
+        other_unit_label = f"{other_unit.unit_name} ({other_unit.unit_type})"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"This user is already an active member of '{other_unit_label}'. "
+                "A user can only belong to one governance unit at a time. "
+                "Remove them from the other unit first."
+            ),
+        )
 
     normalized_position_title = _normalize_position_title(payload.position_title)
     if normalized_position_title is None:
@@ -1966,6 +2030,24 @@ def update_governance_member(
         )
         if duplicate_member is not None:
             raise HTTPException(status_code=400, detail="That student already has a membership record in this governance unit")
+
+        # 1-user-1-governance enforcement for member reassignment
+        existing_active_membership = _get_active_membership_in_any_other_unit(
+            db,
+            user_id=payload.user_id,
+            exclude_governance_unit_id=governance_unit.id,
+        )
+        if existing_active_membership is not None:
+            other_unit = existing_active_membership.governance_unit
+            other_unit_label = f"{other_unit.unit_name} ({other_unit.unit_type})"
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"This user is already an active member of '{other_unit_label}'. "
+                    "A user can only belong to one governance unit at a time. "
+                    "Remove them from the other unit first."
+                ),
+            )
 
         target_user = _validate_student_governance_candidate(
             db,
