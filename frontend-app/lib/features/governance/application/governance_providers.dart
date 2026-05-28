@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/realtime/live_ticker.dart';
+import '../../../core/realtime/polling_pace.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/models/event.dart';
 import '../../../shared/models/governance.dart';
@@ -30,6 +32,7 @@ final governanceAccessProvider =
 /// render a real, retryable error with the actual status code visible.
 final mySanctionsProvider =
     FutureProvider.autoDispose<List<SanctionRecord>>((ref) async {
+  ref.watch(livePollingTickerProvider(PollingPace.slow));
   try {
     return await ref.watch(sanctionsRepositoryProvider).mine();
   } on ApiException catch (e) {
