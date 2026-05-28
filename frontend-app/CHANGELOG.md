@@ -11,7 +11,64 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 ## [Unreleased]
 
 ### Added
-- **Event window reminders (v1.36.0).** Notifies the user when an event's
+- **Campus admin can edit a student.** New
+  `features/schoolit/presentation/edit_student_screen.dart` pushed from a
+  pencil action in the student detail screen's app bar. Two independent
+  save sections — **Identity** (first / middle / last name, email →
+  `PATCH /api/users/{id}`) and **Academics** (student number, college,
+  program, year level, status, promotion lock → `PATCH
+  /api/users/student-profiles/{profile_id}`) — so a 400 on one section
+  doesn't lose the other's edits. Each section has its own loading +
+  error pill and its Save button is disabled until that section is
+  dirty.
+- **Status is now editable.** Five chips (Active, Graduated, Inactive,
+  Transferred, Archived) with colour + icon (a11y). Transitioning
+  **into** INACTIVE / TRANSFERRED / ARCHIVED requires an explicit
+  confirm dialog ("This will block sign-in for this student.
+  Continue?") — entering or staying in an already-destructive status
+  is **not** flagged, matching the actual operator intent. ACTIVE /
+  GRADUATED transitions confirm silently.
+- **Year level segmented control** (1·2·3·4·5) with selection haptic;
+  one tap, all options visible at once.
+- **Promotion lock** switch with plain-English help: "When on, this
+  student stays in the current year level when the school promotes
+  everyone else."
+- **`StudentProfile.promotionLocked`** added to the shared model
+  (`shared/models/profile.dart`). Backend has been returning the
+  field; we were dropping it.
+- **Discard guard** — `PopScope` plus an app-bar `Discard` action
+  appear only when at least one section is dirty; tapping back or
+  Discard confirms before throwing away in-progress edits.
+
+### Added (data layer)
+- **`features/schoolit/application/edit_student_form.dart`** — pure-
+  Dart form state holder. Seeds from a `UserProfile` snapshot, tracks
+  per-section dirtiness, builds **only-dirty-field** patches so a
+  year-level save doesn't re-send the email (which would trigger
+  the backend's email uniqueness check unnecessarily). Client-side
+  validators mirror the backend's regex / length rules so the
+  operator sees errors before the request goes out. Pure-Dart, no
+  Flutter widget imports — fully testable.
+- **22 unit tests** in `test/unit/edit_student_form_test.dart`
+  covering seeding, dirty tracking, patch building (including
+  middle-name nulling on empty), destructive-status detection, and
+  every validator branch (empty fields, bad email, bad student-id
+  characters, length bounds, missing college/program).
+
+### Changed
+- **`StudentDetailScreen` is now read-only with a pencil action.**
+  The previous "Change college" in-line bottom sheet was a single-
+  purpose modal that only let admins reassign dept + program; it's
+  been removed in favour of the full edit surface above, which
+  covers every editable field plus status.
+- **`pubspec.yaml` — `timezone: ^0.9.4` → `^0.11.0`.** Required by
+  `flutter_local_notifications ^21.0.0`; the previous constraint
+  combination wouldn't resolve at all (`pub get` failed with
+  "version solving failed"). The bump is the version
+  `flutter_local_notifications` author requires.
+
+### Added (v1.36.0)
+- **Event window reminders.** Notifies the user when an event's
   check-in or sign-out window opens, aligned to the backend's
   `check_in_opens_at` / `sign_out_opens_at` thresholds (Asia/Manila).
   Up to five scheduled fires per event in scope (10-min lead + open for

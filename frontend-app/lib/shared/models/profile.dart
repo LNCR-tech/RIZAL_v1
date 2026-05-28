@@ -10,6 +10,7 @@ class StudentProfile {
     this.programId,
     this.yearLevel,
     this.studentStatus,
+    this.promotionLocked = false,
     this.isFaceRegistered = false,
     this.registrationComplete = false,
   });
@@ -22,6 +23,12 @@ class StudentProfile {
   final int? programId;
   final int? yearLevel;
   final String? studentStatus;
+
+  /// When `true`, the backend keeps this student in their current
+  /// `year_level` when the school promotes everyone else at year-end.
+  /// Editable by campus admins.
+  final bool promotionLocked;
+
   final bool isFaceRegistered;
   final bool registrationComplete;
 
@@ -34,6 +41,7 @@ class StudentProfile {
         programId: asInt(j['program_id']),
         yearLevel: asInt(j['year_level']),
         studentStatus: asStr(j['student_status']),
+        promotionLocked: asBool(j['promotion_locked']),
         isFaceRegistered: asBool(j['is_face_registered']),
         registrationComplete: asBool(j['registration_complete']),
       );
