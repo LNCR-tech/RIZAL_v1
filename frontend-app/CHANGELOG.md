@@ -11,6 +11,41 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 ## [Unreleased]
 
 ### Added
+- **Event window reminders (v1.36.0).** Notifies the user when an event's
+  check-in or sign-out window opens, aligned to the backend's
+  `check_in_opens_at` / `sign_out_opens_at` thresholds (Asia/Manila).
+  Up to five scheduled fires per event in scope (10-min lead + open for
+  check-in; 10-min lead + open + closing-soon for sign-out), driven by
+  `flutter_local_notifications.zonedSchedule` with
+  `AndroidScheduleMode.exactAllowWhileIdle`. A new `EventPhaseBanner`
+  (`features/events/presentation/widgets/event_phase_banner.dart`)
+  mounts above `NearbyEventBanner` on student Home and surfaces the
+  active phase (gradient card, pulsing dot, 30-second tick). New
+  `eventWindowRemindersProvider` toggle in Account → Notifications,
+  default ON.
+- **Settings.** "Event window reminders" tile sits beside "Nearby
+  event check-in" in Account → Notifications. Independent toggles —
+  the existing location-based prompt is unchanged.
+
+### Changed
+- `lib/main.dart` initializes the `timezone` database +
+  `Asia/Manila` as the local TZ at boot, matching
+  `backend/app/services/event_time_status.py:DEFAULT_EVENT_TIMEZONE`.
+- `geofence_background.dart` extended **additively**: shared
+  `FlutterLocalNotificationsPlugin` instance is exposed via
+  `GeofenceBackground.notifications`; new `event_window` Android
+  channel registered alongside the existing `nearby_checkin` channel
+  (unchanged); `_dispatch` now accepts both
+  `checkin:<id>` (legacy geofence) and `checkin:<id>:<action>` (new
+  event-window) payload forms. Existing
+  `nearbyGeofenceCallback` / `pendingCheckInProvider` /
+  `NearbyEventBanner` behavior is unchanged.
+- Android manifest gains `USE_EXACT_ALARM` +
+  `SCHEDULE_EXACT_ALARM` permissions (required by
+  `flutter_local_notifications` on Android 12+ for
+  `exactAllowWhileIdle`).
+
+### Added
 - **Student profile shows college and program.** The Profile screen
   (`features/student/presentation/profile_screen.dart`) is split into
   two cards along a clean axis — **Academics** on top (Program,
@@ -67,6 +102,42 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
   Android OAuth client in the Cloud project that owns
   `AURA_GOOGLE_WEB_CLIENT_ID`. Package name `com.aura.aura_app`.
   No Flutter or backend code change required.
+
+### Added (event editor — location search)
+- **Search a place to set the event geofence centre.** The "Where"
+  section of the event editor
+  (`features/schoolit/presentation/event_editor_screen.dart`) gains a
+  search field above the map: type *"Dapitan City"*, *"Main Library"*,
+  or any free-text query and pick from a dropdown of matches — the map
+  pans to that point and the geofence pin moves there. Tap-the-map
+  remains as the always-works fallback (the hint now reads "Or tap the
+  map to set the centre."). If the venue field is empty when a result
+  is picked, it's seeded with the result's short name; a venue the
+  user already typed is never overwritten.
+- **Inline result dropdown with the right motion.** `AnimatedSize`
+  (240 ms `AppMotion.easeOut`, top-aligned) pushes content down rather
+  than overlay, so the form stays scrollable and works on small
+  phones. Inner `AnimatedSwitcher` (180 ms) cross-fades between
+  *searching* / *no matches* / *results* states with stable
+  `ValueKey`s so transitions don't restart. Result rows stagger in via
+  the existing `staggered()` helper (50 ms cadence). Each row is a
+  `Pressable` — scale-0.97 press feedback + selection haptic come for
+  free. Reduced motion fully honored.
+- **New `core/services/geocoding_service.dart`.** Thin client over the
+  public OSM Nominatim endpoint
+  (`https://nominatim.openstreetmap.org`). Sets a descriptive
+  `User-Agent` per Nominatim's usage policy; the 450 ms UI debounce
+  keeps a single typing user safely under the ≤1 req/sec limit.
+  Errors collapse to an empty list so the UI renders "no matches"
+  rather than a crash. Static `parseResult` exposed for unit tests;
+  provider mirrors the existing `geolocationServiceProvider` pattern.
+  *Caveat:* fine for a single IT admin creating occasional events;
+  swap to a self-hosted Nominatim or a commercial geocoder if Aura
+  ever needs burst usage.
+- 8 unit tests in `test/unit/geocoding_service_test.dart` lock in the
+  parser contract (string/numeric lat-lon, missing/malformed fields,
+  primary/secondary split) + the no-network short-circuit on empty
+  queries.
 
 ## [1.35.2] - 2026-05-28
 

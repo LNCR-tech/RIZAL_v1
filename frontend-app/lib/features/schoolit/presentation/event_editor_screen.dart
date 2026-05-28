@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/geolocation_service.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -13,6 +16,8 @@ import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/widgets/aura_button.dart';
 import '../../../core/widgets/aura_card.dart';
 import '../../../core/widgets/aura_text_field.dart';
+import '../../../core/widgets/pressable.dart';
+import '../../../core/widgets/rise_in.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../shared/models/event.dart';
 import '../../../shared/utils/formatting.dart';
@@ -363,8 +368,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
           const SectionHeader(title: 'Who can attend'),
           if (_hasGovContext) ...[
             const _SectionHint(
-              text:
-                  'Limit this event to your officers, or open it up to '
+              text: 'Limit this event to your officers, or open it up to '
                   'students you choose.',
             ),
             const SizedBox(height: AppSpacing.x12),
@@ -375,8 +379,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
             const SizedBox(height: AppSpacing.x12),
           ] else ...[
             const _SectionHint(
-              text:
-                  'Pick the year levels invited. Leave empty to invite '
+              text: 'Pick the year levels invited. Leave empty to invite '
                   'every year.',
             ),
             const SizedBox(height: AppSpacing.x12),
@@ -399,8 +402,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
           // ── Timing ────────────────────────────────────────────
           const SectionHeader(title: 'Timing'),
           const _SectionHint(
-            text:
-                'When check-in opens, when late starts, and how long '
+            text: 'When check-in opens, when late starts, and how long '
                 'sign-out stays open.',
           ),
           const SizedBox(height: AppSpacing.x12),
@@ -409,10 +411,9 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
               children: [
                 _MinuteStepper(
                   title: 'Check-in opens',
-                  subtitle:
-                      _earlyCheckIn == 0
-                          ? 'Exactly at start time'
-                          : '$_earlyCheckIn minutes before start',
+                  subtitle: _earlyCheckIn == 0
+                      ? 'Exactly at start time'
+                      : '$_earlyCheckIn minutes before start',
                   value: _earlyCheckIn,
                   min: 0,
                   max: 120,
@@ -451,8 +452,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
           // ── Where ─────────────────────────────────────────────
           const SectionHeader(title: 'Where'),
           const _SectionHint(
-            text:
-                'Optional. When on, students have to be inside the '
+            text: 'Optional. When on, students have to be inside the '
                 'circle to check in.',
           ),
           const SizedBox(height: AppSpacing.x12),
@@ -466,8 +466,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Require location',
-                              style: textTheme.titleLarge),
+                          Text('Require location', style: textTheme.titleLarge),
                           Text(
                             'Block check-ins outside the circle',
                             style: textTheme.bodySmall
@@ -487,8 +486,27 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const SizedBox(height: AppSpacing.x16),
+                            _LocationSearchField(
+                              onPick: (result) {
+                                setState(() {
+                                  _geoLat = result.latitude;
+                                  _geoLng = result.longitude;
+                                });
+                                _mapController.move(
+                                    LatLng(result.latitude, result.longitude),
+                                    16);
+                                // Convenience: if the venue field is empty,
+                                // seed it with the picked place's short name.
+                                // Doesn't overwrite a venue the user already
+                                // typed.
+                                if (_location.text.trim().isEmpty) {
+                                  _location.text = result.primaryName;
+                                }
+                              },
+                            ),
                             const SizedBox(height: AppSpacing.x12),
-                            Text('Tap the map to set the centre.',
+                            Text('Or tap the map to set the centre.',
                                 style: textTheme.bodySmall
                                     ?.copyWith(color: t.textMuted)),
                             const SizedBox(height: AppSpacing.x8),
@@ -500,8 +518,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
                                 child: FlutterMap(
                                   mapController: _mapController,
                                   options: MapOptions(
-                                    initialCenter: LatLng(
-                                        _geoLat ?? 14.5995,
+                                    initialCenter: LatLng(_geoLat ?? 14.5995,
                                         _geoLng ?? 120.9842),
                                     initialZoom: 16,
                                     onTap: (_, p) => setState(() {
@@ -513,8 +530,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
                                     TileLayer(
                                       urlTemplate:
                                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                      userAgentPackageName:
-                                          'com.aura.aura_app',
+                                      userAgentPackageName: 'com.aura.aura_app',
                                     ),
                                     if (_geoLat != null && _geoLng != null) ...[
                                       CircleLayer(
@@ -846,8 +862,7 @@ class _MinuteStepper extends StatelessWidget {
             icon: Icons.remove_rounded,
             enabled: canDec,
             tooltip: 'Decrease',
-            onPressed: () =>
-                onChanged((value - step).clamp(min, max).toInt()),
+            onPressed: () => onChanged((value - step).clamp(min, max).toInt()),
           ),
           SizedBox(
             width: 56,
@@ -872,8 +887,7 @@ class _MinuteStepper extends StatelessWidget {
             icon: Icons.add_rounded,
             enabled: canInc,
             tooltip: 'Increase',
-            onPressed: () =>
-                onChanged((value + step).clamp(min, max).toInt()),
+            onPressed: () => onChanged((value + step).clamp(min, max).toInt()),
           ),
         ],
       ),
@@ -936,6 +950,327 @@ class _ErrorText extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Location search (Nominatim) — type a place, pick from a dropdown, the
+// outer editor moves the map + pin to that point. Lives inline because
+// it's only used here and reads context the parent already provides.
+// ─────────────────────────────────────────────────────────────────────
+
+class _LocationSearchField extends ConsumerStatefulWidget {
+  const _LocationSearchField({required this.onPick});
+
+  /// Fires when the user taps a result row. The outer editor pans the map
+  /// and updates the geofence centre — this widget never touches state
+  /// outside its own dropdown.
+  final ValueChanged<GeocodeResult> onPick;
+
+  @override
+  ConsumerState<_LocationSearchField> createState() =>
+      _LocationSearchFieldState();
+}
+
+class _LocationSearchFieldState extends ConsumerState<_LocationSearchField> {
+  // Field uses AuraTextField (no onChanged exposed by design), so we
+  // listen to the controller for debounce. Both the controller and the
+  // debounce timer are owned + disposed by this state.
+  static const _debounceMs = 450;
+
+  final _controller = TextEditingController();
+  Timer? _debounce;
+  List<GeocodeResult> _results = const [];
+  bool _searching = false;
+  String _lastQueried = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller
+      ..removeListener(_onTextChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final q = _controller.text.trim();
+    _debounce?.cancel();
+    if (q.isEmpty) {
+      if (_results.isNotEmpty || _searching || _lastQueried.isNotEmpty) {
+        setState(() {
+          _results = const [];
+          _searching = false;
+          _lastQueried = '';
+        });
+      }
+      return;
+    }
+    _debounce = Timer(
+      const Duration(milliseconds: _debounceMs),
+      () => _runSearch(q),
+    );
+  }
+
+  Future<void> _runSearch(String q) async {
+    if (q == _lastQueried) return;
+    setState(() => _searching = true);
+    final svc = ref.read(geocodingServiceProvider);
+    final results = await svc.search(q);
+    if (!mounted) return;
+    setState(() {
+      _searching = false;
+      _results = results;
+      _lastQueried = q;
+    });
+  }
+
+  void _pick(GeocodeResult r) {
+    widget.onPick(r);
+    // Replace the field with the short name so the user sees what they
+    // picked. Suppress the listener's "new query" branch by stashing
+    // _lastQueried up-front.
+    _lastQueried = r.primaryName;
+    _controller.value = TextEditingValue(
+      text: r.primaryName,
+      selection: TextSelection.collapsed(offset: r.primaryName.length),
+    );
+    setState(() {
+      _results = const [];
+      _searching = false;
+    });
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+
+    Widget? suffix;
+    if (_searching) {
+      suffix = Padding(
+        padding: const EdgeInsets.all(12),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(t.accentDark),
+          ),
+        ),
+      );
+    } else if (_controller.text.isNotEmpty) {
+      suffix = IconButton(
+        tooltip: 'Clear',
+        icon: const Icon(Icons.close_rounded, size: 18),
+        onPressed: () => _controller.clear(),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AuraTextField(
+          label: 'Search a place',
+          controller: _controller,
+          hint: 'e.g. Dapitan City, Main Library',
+          prefixIcon: Icons.search_rounded,
+          suffix: suffix,
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) {
+            _debounce?.cancel();
+            final q = _controller.text.trim();
+            if (q.isNotEmpty) _runSearch(q);
+          },
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 240),
+          curve: AppMotion.easeOut,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: AppMotion.easeOut,
+            switchOutCurve: AppMotion.easeOut,
+            child: _buildResults(t, textTheme),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResults(AppTokens t, TextTheme textTheme) {
+    // No active query → render nothing (collapses the AnimatedSize).
+    if (_controller.text.trim().isEmpty) {
+      return const SizedBox.shrink(key: ValueKey('search:empty'));
+    }
+    if (_searching && _results.isEmpty) {
+      return Padding(
+        key: const ValueKey('search:loading'),
+        padding: const EdgeInsets.only(top: AppSpacing.x8),
+        child: _LocationResultsCard(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                vertical: AppSpacing.x16, horizontal: AppSpacing.x16),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(t.textMuted),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.x12),
+                Text('Searching…',
+                    style:
+                        textTheme.bodyMedium?.copyWith(color: t.textSecondary)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (_results.isEmpty) {
+      return Padding(
+        key: const ValueKey('search:none'),
+        padding: const EdgeInsets.only(top: AppSpacing.x8),
+        child: _LocationResultsCard(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.x16),
+            child: Row(
+              children: [
+                Icon(Icons.search_off_rounded, size: 18, color: t.textMuted),
+                const SizedBox(width: AppSpacing.x8),
+                Expanded(
+                  child: Text(
+                    "No matches for '$_lastQueried'.",
+                    style:
+                        textTheme.bodyMedium?.copyWith(color: t.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      key: ValueKey('search:results:$_lastQueried:${_results.length}'),
+      padding: const EdgeInsets.only(top: AppSpacing.x8),
+      child: _LocationResultsCard(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: staggered([
+            for (var i = 0; i < _results.length; i++) ...[
+              _LocationResultRow(
+                key: ValueKey(
+                    '${_results[i].latitude},${_results[i].longitude}'),
+                result: _results[i],
+                onTap: () => _pick(_results[i]),
+              ),
+              if (i < _results.length - 1)
+                Divider(height: 1, color: t.border, indent: 60),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Surface-alt card with subtle border that wraps the results dropdown.
+/// Matches the visual weight of the outer `_geoRequired` card without
+/// stealing focus.
+class _LocationResultsCard extends StatelessWidget {
+  const _LocationResultsCard({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surfaceAlt,
+        borderRadius: AppRadii.rControl,
+        border: Border.all(color: t.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+  }
+}
+
+/// One result row: 32 dp pin chip + primary name + postal trail. Wrapped
+/// in [Pressable] for scale-on-tap feedback + selection haptic.
+class _LocationResultRow extends StatelessWidget {
+  const _LocationResultRow({
+    super.key,
+    required this.result,
+    required this.onTap,
+  });
+
+  final GeocodeResult result;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final secondary = result.secondaryLine;
+
+    return Pressable(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.x16, vertical: AppSpacing.x12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: t.accent.withOpacity(0.16),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.place_rounded, size: 18, color: t.accentDark),
+            ),
+            const SizedBox(width: AppSpacing.x12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    result.primaryName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyLarge,
+                  ),
+                  if (secondary != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      secondary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          textTheme.bodySmall?.copyWith(color: t.textSecondary),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
