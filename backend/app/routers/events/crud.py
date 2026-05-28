@@ -3,6 +3,7 @@
 from fastapi import Header
 
 from .shared import *  # noqa: F403
+from .shared import _resolve_governance_event_write_unit_and_scope  # noqa: F811 (Pylance resolution for wildcard import)
 
 router = APIRouter()
 
