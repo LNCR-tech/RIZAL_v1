@@ -129,11 +129,12 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
       _earlyCheckIn = e.earlyCheckInMinutes;
       _lateThreshold = e.lateThresholdMinutes;
       _signOutGrace = e.signOutGraceMinutes;
-    } else if (_hasGovContext) {
-      // Sensible default for a governance officer creating a new event:
-      // their unit is the audience. They can flip it off to broaden.
-      _officersOnly = true;
     }
+    // New events start with `_officersOnly = false` (field default) regardless
+    // of governance context — the audience defaults to all students, the
+    // officer can flip the switch on to narrow it. Previously this branch
+    // defaulted to officers-only on for governance officers, which surprised
+    // people creating school-wide events from a governance unit.
   }
 
   @override

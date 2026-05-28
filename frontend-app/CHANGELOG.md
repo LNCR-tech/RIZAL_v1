@@ -139,6 +139,17 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
   primary/secondary split) + the no-network short-circuit on empty
   queries.
 
+### Changed
+- **Event editor "Officers only" defaults to OFF, even in a governance
+  context.** New events created from a governance unit used to start
+  with `Officers only = true` (`_EventEditorScreenState.initState`),
+  which surprised officers who actually wanted a school-wide event and
+  had to remember to flip the switch off. The default is now OFF
+  regardless of context — audience starts as "all students" (year-level
+  chips visible), and the officer can flip the switch on to narrow it.
+  Editing an existing event still reads the saved `isOfficersOnly`
+  flag from the backend (unchanged).
+
 ## [1.35.2] - 2026-05-28
 
 ### Added
