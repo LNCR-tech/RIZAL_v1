@@ -245,10 +245,27 @@ class LivenessChecker:
         # The model was exported with this input contract and confirmed by local tests:
         # real-face score 0.9997 with raw 0-255, 0.0119 with ImageNet-normalized inputs.
         crop_bgr = np.asarray(crop, dtype=np.uint8)[:, :, ::-1]
+
+        # Pre-cap the crop before the final resize to 80x80.
+        # MiniFASNet output is always 80x80; passing a 2000+ px crop to cv2.resize
+        # costs CPU time with no accuracy benefit. Cap at face_liveness_crop_max_dimension
+        # (default 640 px) using a fast single-step resize.
+        max_crop_dim = int(getattr(self.settings, "face_liveness_crop_max_dimension", 640))
+        if max_crop_dim > 0:
+            ch, cw = crop_bgr.shape[:2]
+            if ch > max_crop_dim or cw > max_crop_dim:
+                scale = max_crop_dim / max(ch, cw)
+                crop_bgr = cv2.resize(
+                    crop_bgr,
+                    (max(1, int(round(cw * scale))), max(1, int(round(ch * scale)))),
+                    interpolation=cv2.INTER_AREA,
+                )
+
         resized = cv2.resize(crop_bgr, (input_width, input_height))
         model_input = resized.astype(np.float32)
         model_input = np.transpose(model_input, (2, 0, 1))
         model_input = np.expand_dims(model_input, axis=0)
+
 
         logits = self._session.run(
             [self._output_name],

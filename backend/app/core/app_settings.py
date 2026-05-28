@@ -33,6 +33,16 @@ class BackendAppSettings:
     allow_liveness_bypass_when_model_missing: bool = False
     anti_spoof_scale: float = 2.7
     anti_spoof_model_path: str = ""
+    # Maximum pixel dimension (width or height) for images entering the face
+    # pipeline. Frames larger than this are downscaled proportionally before
+    # detection. SCRFD runs at 640x640 internally, so values above ~1280 px
+    # give zero accuracy gain but add significant decode and memory cost.
+    # Set to 0 to disable downscaling.
+    face_max_input_dimension: int = 1280
+    # Maximum pixel dimension for the liveness crop passed to MiniFASNet.
+    # MiniFASNet resizes its input to 80x80; pre-capping the crop at 640 px
+    # avoids passing a multi-megapixel slice to cv2.resize.
+    face_liveness_crop_max_dimension: int = 640
     geo_max_allowed_accuracy_m: float = 30.0
     geo_max_travel_speed_mps: float = 60.0
 

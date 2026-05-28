@@ -144,6 +144,8 @@ class Settings:
     allow_liveness_bypass_when_model_missing: bool
     anti_spoof_scale: float
     anti_spoof_model_path: str
+    face_max_input_dimension: int
+    face_liveness_crop_max_dimension: int
     geo_max_allowed_accuracy_m: float
     geo_max_travel_speed_mps: float
     event_status_sync_enabled: bool
@@ -303,6 +305,16 @@ def get_settings() -> Settings:
         allow_liveness_bypass_when_model_missing=APP_SETTINGS.allow_liveness_bypass_when_model_missing,
         anti_spoof_scale=APP_SETTINGS.anti_spoof_scale,
         anti_spoof_model_path=APP_SETTINGS.anti_spoof_model_path,
+        face_max_input_dimension=_as_int(
+            os.getenv("FACE_MAX_INPUT_DIMENSION"),
+            APP_SETTINGS.face_max_input_dimension,
+            "FACE_MAX_INPUT_DIMENSION",
+        ),
+        face_liveness_crop_max_dimension=_as_int(
+            os.getenv("FACE_LIVENESS_CROP_MAX_DIMENSION"),
+            APP_SETTINGS.face_liveness_crop_max_dimension,
+            "FACE_LIVENESS_CROP_MAX_DIMENSION",
+        ),
         geo_max_allowed_accuracy_m=APP_SETTINGS.geo_max_allowed_accuracy_m,
         geo_max_travel_speed_mps=APP_SETTINGS.geo_max_travel_speed_mps,
         event_status_sync_enabled=APP_SETTINGS.event_status_sync_enabled,

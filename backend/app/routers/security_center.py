@@ -343,7 +343,11 @@ def check_face_liveness(
     enforce_rate_limit(build_face_rule(), f"{user_identity(current_user)}:face-liveness", request=request)
     face_service.ensure_face_runtime_ready(mode="mfa", context="security_face_liveness")
     image_bytes = face_service.decode_base64_image(payload.image_base64)
-    rgb_image = face_service.load_rgb_from_bytes(image_bytes)
+    settings = get_settings()
+    rgb_image = face_service.load_rgb_from_bytes(
+        image_bytes,
+        max_dimension=settings.face_max_input_dimension,
+    )
     liveness = face_service.check_liveness(rgb_image, mode="mfa")
     return SecurityFaceLivenessResponse(**liveness.to_dict())
 

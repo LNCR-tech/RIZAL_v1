@@ -199,8 +199,14 @@ class FaceRecognitionService:
             ) from exc
 
     @staticmethod
-    def load_rgb_from_bytes(image_bytes: bytes) -> np.ndarray:
-        """Open raw image bytes and convert them into an RGB NumPy array."""
+    def load_rgb_from_bytes(image_bytes: bytes, *, max_dimension: int = 0) -> np.ndarray:
+        """Open raw image bytes and convert them into an RGB NumPy array.
+
+        If *max_dimension* is positive and the image is larger in either
+        dimension, it is downscaled proportionally using cv2 INTER_AREA
+        (optimal quality-to-speed ratio for downscaling; ~5-8x faster than
+        PIL LANCZOS).  The default ``0`` disables downscaling.
+        """
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except (UnidentifiedImageError, OSError) as exc:
@@ -208,7 +214,26 @@ class FaceRecognitionService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Uploaded file is not a valid image.",
             ) from exc
-        return np.asarray(image, dtype=np.uint8)
+
+        arr = np.asarray(image, dtype=np.uint8)
+
+        if max_dimension > 0:
+            h, w = arr.shape[:2]
+            if w > max_dimension or h > max_dimension:
+                scale = max_dimension / max(w, h)
+                new_w = max(1, int(round(w * scale)))
+                new_h = max(1, int(round(h * scale)))
+                try:
+                    import cv2 as _cv2
+                    arr = _cv2.resize(arr, (new_w, new_h), interpolation=_cv2.INTER_AREA)
+                except ImportError:
+                    # cv2 unavailable — fall back to PIL resize (slower but correct)
+                    arr = np.asarray(
+                        image.resize((new_w, new_h), Image.BILINEAR),
+                        dtype=np.uint8,
+                    )
+
+        return arr
 
     @staticmethod
     def compute_image_sha256(image_bytes: bytes) -> str:
@@ -397,7 +422,10 @@ class FaceRecognitionService:
         """Detect all faces in one probe image and return per-face liveness and embeddings."""
         self.ensure_face_runtime_ready(mode=mode, context="face_analysis")
         engine = get_engine(mode)
-        rgb_image = self.load_rgb_from_bytes(image_bytes)
+        rgb_image = self.load_rgb_from_bytes(
+            image_bytes,
+            max_dimension=self.settings.face_max_input_dimension,
+        )
         face_crops = engine.detect(rgb_image)
         if not face_crops:
             raise HTTPException(
