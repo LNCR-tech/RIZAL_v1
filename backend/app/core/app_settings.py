@@ -28,7 +28,7 @@ class BackendAppSettings:
     face_warmup_on_startup: bool = True
     face_embedding_dim: int = 512
     face_embedding_dtype: str = "float32"
-    liveness_threshold: float = 0.85
+    liveness_threshold: float = 0.45
     public_attendance_liveness_threshold: float = 0.92
     allow_liveness_bypass_when_model_missing: bool = False
     anti_spoof_scale: float = 2.7
