@@ -87,3 +87,4 @@ push_changes.ps1
 # Misc local
 .agent/
 test-results/
+.resume/
