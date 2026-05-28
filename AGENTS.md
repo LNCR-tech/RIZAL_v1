@@ -9,6 +9,14 @@
 - When git merging, ensure that ONLY the `pilot` branch has the `seeder/` folder. It MUST NOT be present in `preproduction` or `production` branches.
 - **frontend-app/ is READ-ONLY — do NOT edit any file inside `frontend-app/`. It is the APK source and can only be reviewed. Only `backend/` files may be edited.**
 
+## Pre-Fix Discovery Rule (MANDATORY — applies to ALL fixes)
+
+- **Before implementing ANY fix, change, or suggestion, ALWAYS grep/search the entire codebase first.**
+- Search for existing logic, functions, endpoints, services, models, or utilities that already solve or partially solve the problem.
+- If existing code already handles the requirement, use or extend it — do NOT create a duplicate or propose changes that are already covered.
+- This applies to: endpoints, services, utilities, models, schemas, frontend components, configs, and anything else.
+- Only propose creating new code if a thorough search confirms nothing existing satisfies the requirement.
+
 ## Endpoint Discovery Rule (MANDATORY)
 
 - **Before suggesting a new endpoint or modifying an existing one, ALWAYS grep/search the entire `backend/` codebase first to check if a suitable endpoint already exists.**
