@@ -9,7 +9,7 @@ longer populates them.  This migration:
   2. Makes both columns nullable so old rows are safe and new inserts work.
 
 Revision ID: 0021
-Revises: bfdc12357b0c
+Revises: 0020_drop_event_members_only
 Create Date: 2026-05-28
 """
 
@@ -17,7 +17,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0021"
-down_revision = "bfdc12357b0c"
+down_revision = "0020_drop_event_members_only"
 branch_labels = None
 depends_on = None
 
