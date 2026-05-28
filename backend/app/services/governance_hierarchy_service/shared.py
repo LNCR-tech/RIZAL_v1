@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -2015,8 +2015,6 @@ def update_governance_member(
             permission_codes=payload.permission_codes,
             target_label="members",
         )
-
-    previous_user_id = governance_member.user_id
 
     if "user_id" in payload_fields_set and payload.user_id is not None and payload.user_id != governance_member.user_id:
         duplicate_member = (
