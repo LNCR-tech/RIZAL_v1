@@ -109,13 +109,23 @@ def create_event(
             required=event.geo_required,
         )
 
-        resolved_governance_unit, scoped_department_ids, scoped_program_ids = (
-            _resolve_governance_event_write_unit_and_scope(
-                db,
-                current_user=current_user,
-                governance_context=governance_context,
+        # Only resolve the governance unit when the caller explicitly passed
+        # governance_context (officers-only toggle ON).  When it is None
+        # (toggle OFF) we must NOT call the resolver because it falls back to
+        # querying all the officer's managed units and would incorrectly stamp
+        # governance_unit_id even though the user wants an open event.
+        if governance_context is not None:
+            resolved_governance_unit, scoped_department_ids, scoped_program_ids = (
+                _resolve_governance_event_write_unit_and_scope(
+                    db,
+                    current_user=current_user,
+                    governance_context=governance_context,
+                )
             )
-        )
+        else:
+            resolved_governance_unit = None
+            scoped_department_ids = []
+            scoped_program_ids = []
         school_settings = _get_school_settings(db, school_id=school_id)
         (
             default_early_check_in_minutes,
