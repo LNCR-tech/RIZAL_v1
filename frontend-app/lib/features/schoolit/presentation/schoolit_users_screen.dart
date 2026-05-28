@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/widgets/aura_button.dart';
 import '../../../core/widgets/aura_card.dart';
@@ -12,10 +14,12 @@ import '../../../core/widgets/rise_in.dart';
 import '../../../core/widgets/states.dart';
 import '../../../shared/models/profile.dart';
 import '../application/schoolit_providers.dart';
+import '../application/student_filter.dart';
 import '../data/schoolit_repository.dart';
 import 'add_student_screen.dart';
 import 'import_students_screen.dart';
 import 'student_detail_screen.dart';
+import 'widgets/student_filter_bar.dart';
 
 /// Small dialog to capture a college name (create or rename).
 Future<String?> _promptCollegeName(BuildContext context,
@@ -42,8 +46,9 @@ Future<String?> _promptCollegeName(BuildContext context,
   );
 }
 
-/// Users tab — browse students **by college** (department); search jumps to a
-/// flat result list. Tap a college to manage its students.
+/// Users tab — browse students **by college** (department) by default;
+/// typing in the search field cross-fades to a **flat results list**
+/// with the full filter bar. Tap a college to manage its students.
 class SchoolItUsersScreen extends ConsumerStatefulWidget {
   const SchoolItUsersScreen({super.key});
 
@@ -55,6 +60,18 @@ class SchoolItUsersScreen extends ConsumerStatefulWidget {
 class _SchoolItUsersScreenState extends ConsumerState<SchoolItUsersScreen> {
   static const _pad =
       EdgeInsets.fromLTRB(AppSpacing.x20, AppSpacing.x24, AppSpacing.x20, 120);
+
+  final _query = TextEditingController();
+  StudentFilter _filter = const StudentFilter();
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  bool get _searchActive =>
+      _query.text.trim().isNotEmpty || _filter.isActive;
 
   Future<void> _addCollege() async {
     final name =
@@ -77,7 +94,9 @@ class _SchoolItUsersScreenState extends ConsumerState<SchoolItUsersScreen> {
     if (!mounted || name == null || name.trim().isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(schoolItRepositoryProvider).renameDepartment(id, name.trim());
+      await ref
+          .read(schoolItRepositoryProvider)
+          .renameDepartment(id, name.trim());
       ref.invalidate(departmentsProvider);
       messenger
           .showSnackBar(const SnackBar(content: Text('College renamed.')));
@@ -123,6 +142,7 @@ class _SchoolItUsersScreenState extends ConsumerState<SchoolItUsersScreen> {
     final textTheme = Theme.of(context).textTheme;
     final studentsAsync = ref.watch(studentsProvider);
     final depts = ref.watch(departmentsProvider).valueOrNull ?? [];
+    final programs = ref.watch(programsProvider).valueOrNull ?? [];
 
     Widget header(int total) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,7 +167,20 @@ class _SchoolItUsersScreenState extends ConsumerState<SchoolItUsersScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.x24),
+            const SizedBox(height: AppSpacing.x16),
+            _SchoolItSearchField(
+              controller: _query,
+              onChanged: (_) => setState(() {}),
+            ),
+            if (_searchActive) ...[
+              const SizedBox(height: AppSpacing.x12),
+              StudentFilterBar(
+                filter: _filter,
+                onChanged: (f) => setState(() => _filter = f),
+                programs: programs,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.x16),
           ],
         );
 
@@ -171,63 +204,219 @@ class _SchoolItUsersScreenState extends ConsumerState<SchoolItUsersScreen> {
           ],
         ),
         data: (students) {
-          final counts = <int, int>{};
-          var unassigned = 0;
-          for (final s in students) {
-            if (s.studentProfile == null) continue; // students only
-            final did = s.studentProfile?.departmentId;
-            if (did == null) {
-              unassigned++;
-            } else {
-              counts[did] = (counts[did] ?? 0) + 1;
-            }
-          }
-          final colleges = <Widget>[
-            for (final d in depts)
-              _CollegeCard(
-                name: d.name,
-                count: counts[d.id] ?? 0,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) =>
-                        CollegeStudentsScreen(deptId: d.id, deptName: d.name))),
-                onEdit: () => _renameCollege(d.id, d.name),
-                onDelete: () => _deleteCollege(d.id, d.name),
-              ),
-            if (unassigned > 0)
-              _CollegeCard(
-                name: 'Unassigned',
-                count: unassigned,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const CollegeStudentsScreen(
-                        deptId: null, deptName: 'Unassigned'))),
-              ),
-          ];
+          final allStudents =
+              students.where((u) => u.studentProfile != null).toList();
+          final total = allStudents.length;
+          final reduce =
+              MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
           return ListView(
             padding: _pad,
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              header(students.length),
-              if (colleges.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 40),
-                  child: EmptyState(
-                    icon: Icons.account_balance_outlined,
-                    title: 'No colleges yet',
-                    message: 'Add departments, then students will group here.',
-                  ),
-                )
-              else
-                ...staggered([
-                  for (final c in colleges)
-                    Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.x12),
-                        child: c),
-                ]),
+              header(total),
+              AnimatedSwitcher(
+                duration: reduce
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                switchInCurve: AppMotion.easeOut,
+                transitionBuilder: (child, anim) {
+                  // Scale 0.97 → 1.0 + fade (never scale(0) — emil).
+                  return FadeTransition(
+                    opacity: anim,
+                    child: ScaleTransition(
+                      scale:
+                          Tween<double>(begin: 0.97, end: 1.0).animate(anim),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _searchActive
+                    ? _FlatResults(
+                        key: const ValueKey('flat'),
+                        students: allStudents,
+                        filter: _filter.copyWith(query: _query.text),
+                        depts: depts,
+                        progs: programs,
+                      )
+                    : _CollegesGrid(
+                        key: const ValueKey('grid'),
+                        students: allStudents,
+                        depts: depts,
+                        onOpen: (id, name) => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CollegeStudentsScreen(
+                                deptId: id, deptName: name),
+                          ),
+                        ),
+                        onEdit: _renameCollege,
+                        onDelete: _deleteCollege,
+                      ),
+              ),
             ],
           );
         },
       ),
+    );
+  }
+}
+
+// ─── Search field (reusable) ─────────────────────────────────────────────
+class _SchoolItSearchField extends StatelessWidget {
+  const _SchoolItSearchField({
+    required this.controller,
+    required this.onChanged,
+    this.hint = 'Search by name, email, or student no.',
+  });
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: Icon(Icons.search_rounded, size: 20, color: t.textSecondary),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear search',
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              ),
+      ),
+    );
+  }
+}
+
+// ─── Colleges grid (default view) ────────────────────────────────────────
+class _CollegesGrid extends StatelessWidget {
+  const _CollegesGrid({
+    super.key,
+    required this.students,
+    required this.depts,
+    required this.onOpen,
+    required this.onEdit,
+    required this.onDelete,
+  });
+  final List<UserProfile> students;
+  final List<dynamic> depts; // Department, but we don't need to import here
+  final void Function(int? id, String name) onOpen;
+  final Future<void> Function(int id, String name) onEdit;
+  final Future<void> Function(int id, String name) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = <int, int>{};
+    var unassigned = 0;
+    for (final s in students) {
+      final did = s.studentProfile?.departmentId;
+      if (did == null) {
+        unassigned++;
+      } else {
+        counts[did] = (counts[did] ?? 0) + 1;
+      }
+    }
+
+    final colleges = <Widget>[
+      for (final d in depts)
+        _CollegeCard(
+          name: d.name as String,
+          count: counts[d.id as int] ?? 0,
+          onTap: () => onOpen(d.id as int, d.name as String),
+          onEdit: () => onEdit(d.id as int, d.name as String),
+          onDelete: () => onDelete(d.id as int, d.name as String),
+        ),
+      if (unassigned > 0)
+        _CollegeCard(
+          name: 'Unassigned',
+          count: unassigned,
+          onTap: () => onOpen(null, 'Unassigned'),
+        ),
+    ];
+
+    if (colleges.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 40),
+        child: EmptyState(
+          icon: Icons.account_balance_outlined,
+          title: 'No colleges yet',
+          message: 'Add departments, then students will group here.',
+        ),
+      );
+    }
+
+    return Column(
+      children: staggered([
+        for (final c in colleges)
+          Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.x12),
+              child: c),
+      ]),
+    );
+  }
+}
+
+// ─── Flat results view (when searching/filtering at top level) ───────────
+class _FlatResults extends StatelessWidget {
+  const _FlatResults({
+    super.key,
+    required this.students,
+    required this.filter,
+    required this.depts,
+    required this.progs,
+  });
+  final List<UserProfile> students;
+  final StudentFilter filter;
+  final List<dynamic> depts;
+  final List<dynamic> progs;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final results = filter.apply(students);
+    final deptMap = {for (final d in depts) d.id as int: d.name as String};
+    final progMap = {for (final p in progs) p.id as int: p.name as String};
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.x12),
+          child: Text(
+            '${results.length} of ${students.length} students',
+            style: AppTypography.mono(
+                size: 12, weight: FontWeight.w600, color: t.textMuted),
+          ),
+        ),
+        if (results.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 40),
+            child: EmptyState(
+              icon: Icons.search_off_rounded,
+              title: 'No matches',
+              message: 'Try a different search, or clear some filters.',
+            ),
+          )
+        else
+          for (final u in results)
+            Padding(
+              key: ValueKey(u.id),
+              padding: const EdgeInsets.only(bottom: AppSpacing.x12),
+              child: StudentCard(
+                user: u,
+                department: deptMap[u.studentProfile?.departmentId],
+                program: progMap[u.studentProfile?.programId],
+              ),
+            ),
+      ],
     );
   }
 }
@@ -297,7 +486,8 @@ class _CollegeCard extends StatelessWidget {
   }
 }
 
-/// Students within one college (department), with search + add.
+/// Students within one college (department), with combined search +
+/// filter chips.
 class CollegeStudentsScreen extends ConsumerStatefulWidget {
   const CollegeStudentsScreen(
       {super.key, required this.deptId, required this.deptName});
@@ -311,6 +501,7 @@ class CollegeStudentsScreen extends ConsumerStatefulWidget {
 
 class _CollegeStudentsScreenState extends ConsumerState<CollegeStudentsScreen> {
   final _query = TextEditingController();
+  StudentFilter _filter = const StudentFilter();
 
   @override
   void dispose() {
@@ -379,14 +570,24 @@ class _CollegeStudentsScreenState extends ConsumerState<CollegeStudentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     final studentsAsync = ref.watch(studentsProvider);
     final deptMap = {
-      for (final d in ref.watch(departmentsProvider).valueOrNull ?? []) d.id: d.name
+      for (final d in ref.watch(departmentsProvider).valueOrNull ?? [])
+        d.id: d.name
     };
-    final progMap = {
-      for (final p in ref.watch(programsProvider).valueOrNull ?? []) p.id: p.name
-    };
-    final q = _query.text.trim().toLowerCase();
+    final allProgs =
+        ref.watch(programsProvider).valueOrNull ?? const [];
+    final progMap = {for (final p in allProgs) p.id: p.name};
+    // Programs available to filter by — limit to the ones in this college so
+    // the dropdown doesn't show offerings from other departments.
+    final collegeProgs = widget.deptId == null
+        ? allProgs
+        : allProgs
+            .where((p) =>
+                p.departmentIds.isEmpty ||
+                p.departmentIds.contains(widget.deptId))
+            .toList();
 
     return AppScaffold(
       title: widget.deptName,
@@ -414,13 +615,10 @@ class _CollegeStudentsScreenState extends ConsumerState<CollegeStudentsScreen> {
               .where((u) =>
                   u.studentProfile != null &&
                   u.studentProfile?.departmentId == widget.deptId)
-              .where((u) {
-            if (q.isEmpty) return true;
-            final sp = u.studentProfile;
-            return u.displayName.toLowerCase().contains(q) ||
-                (u.email ?? '').toLowerCase().contains(q) ||
-                (sp?.studentNumber ?? '').toLowerCase().contains(q);
-          }).toList();
+              .toList();
+          final results = _filter
+              .copyWith(query: _query.text)
+              .apply(inCollege);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -433,9 +631,10 @@ class _CollegeStudentsScreenState extends ConsumerState<CollegeStudentsScreen> {
                       label: 'Manual Add',
                       icon: Icons.person_add_alt_1_rounded,
                       variant: AuraButtonVariant.tonal,
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) =>
-                              AddStudentScreen(departmentId: widget.deptId))),
+                      onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => AddStudentScreen(
+                                  departmentId: widget.deptId))),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.x12),
@@ -444,33 +643,52 @@ class _CollegeStudentsScreenState extends ConsumerState<CollegeStudentsScreen> {
                       label: 'Bulk Import',
                       icon: Icons.upload_file_rounded,
                       variant: AuraButtonVariant.tonal,
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const ImportStudentsScreen())),
+                      onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const ImportStudentsScreen())),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.x16),
-              TextField(
+              _SchoolItSearchField(
                 controller: _query,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'Search this college',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
+                hint: 'Search this college',
+              ),
+              const SizedBox(height: AppSpacing.x12),
+              StudentFilterBar(
+                filter: _filter,
+                onChanged: (f) => setState(() => _filter = f),
+                programs: List.castFrom(collegeProgs),
+              ),
+              const SizedBox(height: AppSpacing.x8),
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Text(
+                  '${results.length} of ${inCollege.length} students',
+                  style: AppTypography.mono(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: t.textMuted),
                 ),
               ),
               const SizedBox(height: AppSpacing.x16),
-              if (inCollege.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 40),
+              if (results.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 40),
                   child: EmptyState(
-                    icon: Icons.people_outline_rounded,
-                    title: 'No students',
-                    message: 'Tap "Add student" to enroll one here.',
+                    icon: inCollege.isEmpty
+                        ? Icons.people_outline_rounded
+                        : Icons.search_off_rounded,
+                    title: inCollege.isEmpty ? 'No students' : 'No matches',
+                    message: inCollege.isEmpty
+                        ? 'Tap "Manual Add" to enroll one here.'
+                        : 'Try a different search, or clear some filters.',
                   ),
                 )
               else
-                for (final u in inCollege)
+                for (final u in results)
                   Padding(
                     key: ValueKey(u.id),
                     padding: const EdgeInsets.only(bottom: AppSpacing.x12),
@@ -489,7 +707,8 @@ class _CollegeStudentsScreenState extends ConsumerState<CollegeStudentsScreen> {
 }
 
 class StudentCard extends StatelessWidget {
-  const StudentCard({super.key, required this.user, this.department, this.program});
+  const StudentCard(
+      {super.key, required this.user, this.department, this.program});
   final UserProfile user;
   final String? department;
   final String? program;
