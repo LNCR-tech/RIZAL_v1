@@ -24,6 +24,7 @@ import '../auth/presentation/change_password_screen.dart';
 import '../auth/presentation/security_screen.dart';
 import '../auth/presentation/update_face_screen.dart';
 import '../events/application/auto_checkin_controller.dart';
+import '../events/application/event_window_reminders_controller.dart';
 import '../gather/presentation/gather_screen.dart';
 import '../governance/application/governance_providers.dart';
 import '../help/presentation/help_center_screen.dart';
@@ -58,6 +59,7 @@ class AccountTab extends ConsumerWidget {
     final betaNav = ref.watch(betaNavProvider);
     final autoCheckIn = ref.watch(autoCheckInProvider);
     final autoCheckFull = ref.watch(autoCheckFullProvider);
+    final eventWindowReminders = ref.watch(eventWindowRemindersProvider);
     final govAccess = ref.watch(governanceAccessProvider).valueOrNull;
     final branding = ref.watch(appBrandingProvider);
 
@@ -272,6 +274,16 @@ class AccountTab extends ConsumerWidget {
               title: 'Inbox',
               subtitle: 'Reminders, results, system messages',
               onTap: () => _push(context, const NotificationsScreen()),
+            ),
+            _BetaSwitchTile(
+              icon: Icons.alarm_rounded,
+              iconColor: _indigo,
+              title: 'Event window reminders',
+              subtitle:
+                  'Notify me when check-in or sign-out opens for events on my schedule.',
+              value: eventWindowReminders,
+              onChanged: (v) =>
+                  ref.read(eventWindowRemindersProvider.notifier).set(v),
             ),
             _BetaSwitchTile(
               icon: Icons.location_on_rounded,

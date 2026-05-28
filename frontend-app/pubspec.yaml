@@ -1,7 +1,7 @@
 name: aura_app
 description: "Aura (RIZAL) — school attendance & governance. Flutter client for Android & iOS."
 publish_to: "none"
-version: 1.35.2+79
+version: 1.36.0+80
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -72,6 +72,11 @@ dependencies:
     path: third_party/liquid_glass_renderer
   liquid_glass_widgets: ^0.12.3
   flutter_local_notifications: ^21.0.0
+  # Required by flutter_local_notifications.zonedSchedule for Asia/Manila
+  # event-window reminders (transitively bundled, made explicit so
+  # tz.initializeTimeZones / tz.getLocation imports resolve cleanly).
+  # Must match flutter_local_notifications 21's transitive constraint.
+  timezone: ^0.11.0
   native_geofence: ^1.2.2
 
   # Google OAuth sign-in. Needs AURA_GOOGLE_WEB_CLIENT_ID at run-time and

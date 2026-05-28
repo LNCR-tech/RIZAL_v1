@@ -11,6 +11,32 @@ fixes bump the patch, and **1.0.0** lands when all four workspaces ship.
 ## [Unreleased]
 
 ### Added
+- **Event window reminders (v1.36.0).** Notifies the user when an event's
+  check-in or sign-out window opens, aligned to the backend's
+  `check_in_opens_at` / `sign_out_opens_at` thresholds (Asia/Manila).
+  Up to five scheduled fires per event in scope (10-min lead + open for
+  check-in; 10-min lead + open + closing-soon for sign-out), driven by
+  `flutter_local_notifications.zonedSchedule` with
+  `AndroidScheduleMode.exactAllowWhileIdle`. New `EventPhaseBanner`
+  (`features/events/presentation/widgets/event_phase_banner.dart`) mounts
+  above `NearbyEventBanner` on student Home and surfaces the active
+  phase (gradient card, pulsing dot, 30-second tick). New
+  `eventWindowRemindersProvider` toggle in Account → Notifications,
+  default ON.
+  - `lib/main.dart` initializes the IANA `timezone` database and sets
+    `Asia/Manila` as the local TZ at boot, matching
+    `backend/app/services/event_time_status.py:DEFAULT_EVENT_TIMEZONE`.
+  - `geofence_background.dart` extended **additively**: shared
+    `FlutterLocalNotificationsPlugin` instance exposed via
+    `GeofenceBackground.notifications`; new `event_window` Android
+    channel registered alongside the existing `nearby_checkin` channel
+    (unchanged); `_dispatch` now accepts both `checkin:<id>` (legacy
+    geofence) and `checkin:<id>:<action>` (new event-window) payloads.
+    Existing `nearbyGeofenceCallback` / `pendingCheckInProvider` /
+    `NearbyEventBanner` behavior is preserved.
+  - Android manifest gains `USE_EXACT_ALARM` + `SCHEDULE_EXACT_ALARM`
+    permissions (required by `flutter_local_notifications` on
+    Android 12+ for `exactAllowWhileIdle`).
 - **Campus admin can edit a student.** New
   `features/schoolit/presentation/edit_student_screen.dart` pushed from a
   pencil action in the student detail screen's app bar. Two independent

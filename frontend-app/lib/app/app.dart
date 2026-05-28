@@ -7,6 +7,7 @@ import '../core/theme/app_branding_controller.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/motion_controller.dart';
 import '../core/theme/theme_controller.dart';
+import '../features/events/application/event_window_sync.dart';
 import '../features/events/application/geofence_background.dart';
 import 'router.dart';
 
@@ -26,6 +27,9 @@ class AuraApp extends ConsumerWidget {
     // Keep the background geofence check-in alive for the session (notification
     // init + tap routing + geofence sync) — gated by the Nearby check-in toggle.
     ref.watch(geofenceBackgroundProvider);
+    // Time-based event window reminders (check-in / sign-out opens) — gated
+    // by the Event window reminders toggle.
+    ref.watch(eventWindowSyncProvider);
 
     return MaterialApp.router(
       title: branding.resolvedAppName(),

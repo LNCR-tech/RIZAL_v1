@@ -13,8 +13,10 @@ import '../../../core/widgets/states.dart';
 import '../../attendance/presentation/attendance_screen.dart';
 import '../../events/application/events_providers.dart';
 import '../../events/application/geofence_background.dart';
+import '../../events/application/pending_attendance_action.dart';
 import '../../events/presentation/event_detail_screen.dart';
 import '../../events/presentation/widgets/event_card.dart';
+import '../../events/presentation/widgets/event_phase_banner.dart';
 import '../../events/presentation/widgets/nearby_event_banner.dart';
 import '../application/student_providers.dart';
 
@@ -38,6 +40,10 @@ class StudentHomeScreen extends ConsumerWidget {
     ref.listen<int?>(pendingCheckInProvider, (_, id) async {
       if (id == null) return;
       ref.read(pendingCheckInProvider.notifier).state = null;
+      // Clear the action hint so it doesn't leak into the next route.
+      // AttendanceScreen infers action from event state, so reading the
+      // hint here is informational; the clear is the load-bearing bit.
+      ref.read(pendingAttendanceActionProvider.notifier).state = null;
       try {
         final event = await ref.read(eventDetailProvider(id).future);
         if (context.mounted) {
@@ -88,6 +94,7 @@ class StudentHomeScreen extends ConsumerWidget {
         padding: _pad,
         physics: const AlwaysScrollableScrollPhysics(),
         children: staggered([
+          const EventPhaseBanner(),
           const NearbyEventBanner(),
           Row(
             children: [

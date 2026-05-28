@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../shared/models/event.dart';
 import 'auto_checkin_controller.dart';
 import 'events_providers.dart';
+import 'pending_attendance_action.dart';
 
 const _channelId = 'nearby_checkin';
 const _channelName = 'Event check-in';
@@ -67,6 +68,15 @@ class GeofenceBackground {
   /// Called (main isolate) when a check-in notification is tapped.
   static void Function(int eventId)? onCheckIn;
 
+  /// Called (main isolate) when an event-window notification is tapped, with
+  /// the requested attendance action ("checkin" or "signout"). Optional —
+  /// the geofence-only flow leaves this null.
+  static void Function(int eventId, String action)? onAttendanceAction;
+
+  /// Shared FlutterLocalNotificationsPlugin instance — the event-window
+  /// scheduler uses this so we don't double-initialize the plugin.
+  static FlutterLocalNotificationsPlugin get notifications => _notifications;
+
   static Future<void> initNotifications() async {
     if (_notifReady) return;
     _notifReady = true;
@@ -74,10 +84,22 @@ class GeofenceBackground {
       settings: _initSettings,
       onDidReceiveNotificationResponse: (r) => _dispatch(r.payload),
     );
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    final android = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.requestNotificationsPermission();
+    // Pre-register the event-window channel so it appears in Android
+    // settings even before the first scheduled fire. The legacy
+    // nearby_checkin channel is created implicitly when the geofence
+    // callback first posts to it — left untouched.
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'event_window',
+        'Event window reminders',
+        description:
+            'Reminders when check-in or sign-out opens for events you can attend.',
+        importance: Importance.high,
+      ),
+    );
     // Cold start: app launched by tapping a notification.
     final launch = await _notifications.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp ?? false) {
@@ -87,8 +109,18 @@ class GeofenceBackground {
 
   static void _dispatch(String? payload) {
     if (payload == null || !payload.startsWith(_payloadPrefix)) return;
-    final id = int.tryParse(payload.substring(_payloadPrefix.length));
-    if (id != null) onCheckIn?.call(id);
+    final rest = payload.substring(_payloadPrefix.length);
+    // Accept both "checkin:<id>" (legacy geofence) and
+    // "checkin:<id>:checkin" / "checkin:<id>:signout" (event-window
+    // reminders). The geofence flow only needs the id; the action hint is
+    // surfaced via the sibling [pendingAttendanceActionProvider].
+    final colonIdx = rest.indexOf(':');
+    final idPart = colonIdx == -1 ? rest : rest.substring(0, colonIdx);
+    final actionPart = colonIdx == -1 ? null : rest.substring(colonIdx + 1);
+    final id = int.tryParse(idPart);
+    if (id == null) return;
+    onCheckIn?.call(id);
+    if (actionPart != null) onAttendanceAction?.call(id, actionPart);
   }
 
   /// Register one OS geofence per ongoing geofenced event (replacing any prior).
@@ -134,6 +166,11 @@ final pendingCheckInProvider = StateProvider<int?>((ref) => null);
 final geofenceBackgroundProvider = Provider<void>((ref) {
   GeofenceBackground.onCheckIn =
       (id) => ref.read(pendingCheckInProvider.notifier).state = id;
+  GeofenceBackground.onAttendanceAction = (id, action) {
+    ref.read(pendingCheckInProvider.notifier).state = id;
+    ref.read(pendingAttendanceActionProvider.notifier).state =
+        attendanceActionFromString(action);
+  };
   GeofenceBackground.initNotifications();
 
   if (!ref.watch(autoCheckInProvider)) {
