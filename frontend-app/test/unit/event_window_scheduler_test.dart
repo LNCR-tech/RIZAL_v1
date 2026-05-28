@@ -4,14 +4,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+DateTime _pht(int hour, int minute) {
+  final utcHour = hour - 8;
+  if (utcHour >= 0) {
+    return DateTime.utc(2026, 5, 28, utcHour, minute);
+  }
+  return DateTime.utc(2026, 5, 27, utcHour + 24, minute);
+}
+
 EventTimeStatus _status({
-  required DateTime checkInOpensAt,
-  required DateTime signOutOpensAt,
-  required DateTime effectiveSignOutClosesAt,
+  required int checkInOpensAtHour,
+  required int checkInOpensAtMinute,
+  required int signOutOpensAtHour,
+  required int signOutOpensAtMinute,
+  required int effectiveSignOutClosesAtHour,
+  required int effectiveSignOutClosesAtMinute,
   String status = 'before_check_in',
   bool overrideActive = false,
   DateTime? currentTime,
 }) {
+  final checkInOpensAt = _pht(checkInOpensAtHour, checkInOpensAtMinute);
+  final signOutOpensAt = _pht(signOutOpensAtHour, signOutOpensAtMinute);
+  final effectiveSignOutClosesAt =
+      _pht(effectiveSignOutClosesAtHour, effectiveSignOutClosesAtMinute);
   return EventTimeStatus(
     eventStatus: status,
     currentTime: currentTime,
@@ -38,9 +53,12 @@ void main() {
     test('full schedule for a future event with all slots in the future', () {
       // Event at 08:00, ends at 10:00.
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 8, 0),
-        signOutOpensAt: DateTime(2026, 5, 28, 10, 0),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 10, 30),
+        checkInOpensAtHour: 8,
+        checkInOpensAtMinute: 0,
+        signOutOpensAtHour: 10,
+        signOutOpensAtMinute: 0,
+        effectiveSignOutClosesAtHour: 10,
+        effectiveSignOutClosesAtMinute: 30,
       );
       final slots = computeWindowFireTimes(eventId: 1, snapshot: s, now: now);
       expect(slots.map((s) => s.phase), [
@@ -59,9 +77,12 @@ void main() {
     test('skips past slots', () {
       // Check-in opened at 06:55, sign-out at 10:00.
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 6, 55),
-        signOutOpensAt: DateTime(2026, 5, 28, 10, 0),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 10, 30),
+        checkInOpensAtHour: 6,
+        checkInOpensAtMinute: 55,
+        signOutOpensAtHour: 10,
+        signOutOpensAtMinute: 0,
+        effectiveSignOutClosesAtHour: 10,
+        effectiveSignOutClosesAtMinute: 30,
       );
       final slots = computeWindowFireTimes(eventId: 1, snapshot: s, now: now);
       // checkInLead (06:45) and checkInOpen (06:55) are past. Skipped.
@@ -75,9 +96,12 @@ void main() {
     test('skips signOutLead when it would collapse onto checkInOpensAt', () {
       // Very short event: 08:00–08:05.
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 8, 0),
-        signOutOpensAt: DateTime(2026, 5, 28, 8, 5),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 8, 25),
+        checkInOpensAtHour: 8,
+        checkInOpensAtMinute: 0,
+        signOutOpensAtHour: 8,
+        signOutOpensAtMinute: 5,
+        effectiveSignOutClosesAtHour: 8,
+        effectiveSignOutClosesAtMinute: 25,
       );
       final slots = computeWindowFireTimes(eventId: 1, snapshot: s, now: now);
       expect(slots.map((s) => s.phase).contains(SchedulePhase.signOutLead),
@@ -87,9 +111,12 @@ void main() {
     test('skips closingSoon when grace window is shorter than 10 minutes', () {
       // sign-out open at 10:00, closes at 10:05 → closingSoon at 09:55 < open.
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 8, 0),
-        signOutOpensAt: DateTime(2026, 5, 28, 10, 0),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 10, 5),
+        checkInOpensAtHour: 8,
+        checkInOpensAtMinute: 0,
+        signOutOpensAtHour: 10,
+        signOutOpensAtMinute: 0,
+        effectiveSignOutClosesAtHour: 10,
+        effectiveSignOutClosesAtMinute: 5,
       );
       final slots = computeWindowFireTimes(eventId: 1, snapshot: s, now: now);
       expect(
@@ -100,9 +127,12 @@ void main() {
     test('skips entire event when override is active and snapshot is stale',
         () {
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 8, 0),
-        signOutOpensAt: DateTime(2026, 5, 28, 10, 0),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 10, 30),
+        checkInOpensAtHour: 8,
+        checkInOpensAtMinute: 0,
+        signOutOpensAtHour: 10,
+        signOutOpensAtMinute: 0,
+        effectiveSignOutClosesAtHour: 10,
+        effectiveSignOutClosesAtMinute: 30,
         overrideActive: true,
         currentTime: now.subtract(const Duration(minutes: 5)),
       );
@@ -112,9 +142,12 @@ void main() {
 
     test('stable notification ids: baseOffset + eventId*10 + phase index', () {
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 8, 0),
-        signOutOpensAt: DateTime(2026, 5, 28, 10, 0),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 10, 30),
+        checkInOpensAtHour: 8,
+        checkInOpensAtMinute: 0,
+        signOutOpensAtHour: 10,
+        signOutOpensAtMinute: 0,
+        effectiveSignOutClosesAtHour: 10,
+        effectiveSignOutClosesAtMinute: 30,
       );
       final slots = computeWindowFireTimes(eventId: 42, snapshot: s, now: now);
       expect(slots.first.notificationId, 100420); // 100000 + 42*10 + 0
@@ -124,9 +157,12 @@ void main() {
     test('skips checkInLead when within 10 min of checkInOpensAt', () {
       // Check-in opens 07:05 → lead would be 06:55 which is past.
       final s = _status(
-        checkInOpensAt: DateTime(2026, 5, 28, 7, 5),
-        signOutOpensAt: DateTime(2026, 5, 28, 10, 0),
-        effectiveSignOutClosesAt: DateTime(2026, 5, 28, 10, 30),
+        checkInOpensAtHour: 7,
+        checkInOpensAtMinute: 5,
+        signOutOpensAtHour: 10,
+        signOutOpensAtMinute: 0,
+        effectiveSignOutClosesAtHour: 10,
+        effectiveSignOutClosesAtMinute: 30,
       );
       final slots = computeWindowFireTimes(eventId: 1, snapshot: s, now: now);
       expect(slots.first.phase, SchedulePhase.checkInOpen);
