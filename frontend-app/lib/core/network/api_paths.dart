@@ -39,6 +39,12 @@ class Api {
   static String importStatus(String jobId) =>
       '$prefix/admin/import-status/$jobId';
 
+  /// Strip every invalid row from a previewed manifest and flip
+  /// `can_commit` to true so the remaining valid rows can be imported.
+  /// Used by the "Skip invalid rows" action on the bulk-import screen.
+  static String importRemoveInvalid(String previewToken) =>
+      '$prefix/admin/import-preview-errors/$previewToken/remove-invalid';
+
   // Notifications
   static const String notificationsInbox = '$prefix/notifications/inbox/me';
   static const String notificationPrefs = '$prefix/notifications/preferences/me';

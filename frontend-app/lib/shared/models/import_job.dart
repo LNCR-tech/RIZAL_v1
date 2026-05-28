@@ -1,20 +1,61 @@
 import '../utils/json.dart';
 
 class ImportPreviewRow {
-  const ImportPreviewRow({required this.row, this.status = '', this.errors = const []});
+  const ImportPreviewRow({
+    required this.row,
+    this.status = '',
+    this.errors = const [],
+    this.suggestions = const [],
+    this.rowData = const {},
+  });
   final int row;
   final String status; // valid | failed
   final List<String> errors;
 
+  /// Backend-supplied actionable hints (e.g. "Use an existing department
+  /// name exactly as listed in the system."). Empty for valid rows.
+  final List<String> suggestions;
+
+  /// The raw cell values keyed by header (Student_ID, Email, etc.) so the
+  /// preview can show the offending student in-place instead of just a
+  /// row number. Empty when the backend didn't return it.
+  final Map<String, String> rowData;
+
   bool get isValid => status == 'valid';
 
-  factory ImportPreviewRow.fromJson(Map<String, dynamic> j) => ImportPreviewRow(
-        row: asInt(j['row']) ?? 0,
-        status: asStr(j['status']) ?? '',
-        errors: j['errors'] is List
-            ? (j['errors'] as List).map((e) => e.toString()).toList()
-            : const [],
-      );
+  /// Best-effort label for the row in UI lists — uses Student_ID + name
+  /// when available, falls back to "Row N".
+  String get displayLabel {
+    final id = rowData['Student_ID'] ?? '';
+    final last = rowData['Last Name'] ?? '';
+    final first = rowData['First Name'] ?? '';
+    final name = [first, last].where((s) => s.trim().isNotEmpty).join(' ').trim();
+    if (id.isNotEmpty && name.isNotEmpty) return '$id · $name';
+    if (id.isNotEmpty) return id;
+    if (name.isNotEmpty) return name;
+    return 'Row $row';
+  }
+
+  factory ImportPreviewRow.fromJson(Map<String, dynamic> j) {
+    final raw = j['row_data'];
+    final data = <String, String>{};
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        if (k != null && v != null) data[k.toString()] = v.toString();
+      });
+    }
+    return ImportPreviewRow(
+      row: asInt(j['row']) ?? 0,
+      status: asStr(j['status']) ?? '',
+      errors: j['errors'] is List
+          ? (j['errors'] as List).map((e) => e.toString()).toList()
+          : const [],
+      suggestions: j['suggestions'] is List
+          ? (j['suggestions'] as List).map((e) => e.toString()).toList()
+          : const [],
+      rowData: data,
+    );
+  }
 }
 
 class ImportPreview {

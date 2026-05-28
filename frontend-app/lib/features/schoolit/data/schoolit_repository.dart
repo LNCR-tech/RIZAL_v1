@@ -175,6 +175,14 @@ class SchoolItRepository {
     return (data is Map ? asStr(data['job_id']) : null) ?? '';
   }
 
+  /// Strip invalid rows from a previewed manifest. Returns a new
+  /// [ImportPreview] reflecting the cleaned state — `canCommit` becomes
+  /// true and only valid rows remain.
+  Future<ImportPreview> removeInvalidPreviewRows(String previewToken) async {
+    final r = await _client.post(Api.importRemoveInvalid(previewToken));
+    return ImportPreview.fromJson((r.data as Map).cast<String, dynamic>());
+  }
+
   Future<ImportJobStatus> importStatus(String jobId) async {
     final r = await _client.get(Api.importStatus(jobId));
     return ImportJobStatus.fromJson((r.data as Map).cast<String, dynamic>());
