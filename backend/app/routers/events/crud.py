@@ -424,11 +424,20 @@ def update_event(
                 school_id=school_id,
                 event_type_id=event_type_id,
             )
-        _, scoped_department_ids, scoped_program_ids = _resolve_governance_event_write_unit_and_scope(
+        resolved_gov_unit_update, scoped_department_ids, scoped_program_ids = _resolve_governance_event_write_unit_and_scope(
             db,
             current_user=current_user,
             governance_context=governance_context,
         )
+        # Sync governance_unit_id with the toggle state:
+        # - governance_context sent   → set governance_unit_id (officers-only ON)
+        # - governance_context omitted → clear governance_unit_id (officers-only OFF)
+        # Admins/campus_admins are skipped — their governance resolution returns None
+        # and we must not silently wipe a unit set by a governance officer.
+        if not has_any_role(current_user, ["admin", "campus_admin"]):
+            db_event.governance_unit_id = (
+                resolved_gov_unit_update.id if resolved_gov_unit_update else None
+            )
 
         if event_update.year_levels is not None:
             new_targets = _build_targets_from_year_levels(

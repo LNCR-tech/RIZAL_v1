@@ -7,3 +7,4 @@
 - for every changes made do git add -A, git commit -m. you decide whatever commit message to say. then git push
 - if a git push doesn't work, git pull --rebase and fix if there are any merge conflicts, ask the user which one to pick, then git push again
 - When git merging, ensure that ONLY the `pilot` branch has the `seeder/` folder. It MUST NOT be present in `preproduction` or `production` branches.
+- **frontend-app/ is READ-ONLY — do NOT edit any file inside `frontend-app/`. It is the APK source and can only be reviewed. Only `backend/` files may be edited.**

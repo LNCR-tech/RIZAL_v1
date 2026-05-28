@@ -255,3 +255,16 @@ POST /api/events/
 
 - [`year-level-event-targeting.md`](year-level-event-targeting.md) — detailed targeting model internals
 - [`docs/frontend/governance-officers-only-event.md`](../../docs/frontend/governance-officers-only-event.md) — Flutter UI implementation guide for the Officers Only toggle
+
+---
+
+## Updating Events — Officers Only Toggle (`PATCH /api/events/{id}`)
+
+When a governance officer edits an event, `governance_unit_id` is now **re-evaluated** on every PATCH:
+
+| `governance_context` query param | Effect on `governance_unit_id` |
+|---|---|
+| `?governance_context=SSG` | Stamped to the officer's SSG unit — event stays officers-only |
+| *(omitted)* | Cleared to `null` — event is no longer officers-only |
+
+> **Bug fix:** Previously `governance_unit_id` was never updated on PATCH, so toggling "Officers only" off had no effect in the database. Now omitting `governance_context` on a PATCH by a governance officer explicitly removes the restriction.
