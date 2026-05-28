@@ -24,7 +24,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column("schools", "subscription_start", nullable=True)
+    # On a fresh database (CI / new install) subscription_start was never
+    # created by the baseline migration, so guard the ALTER with a column check.
+    op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'schools' AND column_name = 'subscription_start'
+            ) THEN
+                ALTER TABLE schools ALTER COLUMN subscription_start DROP NOT NULL;
+            END IF;
+        END
+        $$;
+    """)
 
 
 def downgrade() -> None:
