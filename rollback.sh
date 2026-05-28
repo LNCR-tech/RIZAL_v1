@@ -12,6 +12,7 @@ ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
 ASSISTANT_HEALTHCHECK_URL="${ASSISTANT_HEALTHCHECK_URL:-http://18.142.190.113:8500/health}"
 LOCAL_LLM_HEALTHCHECK_URL="${LOCAL_LLM_HEALTHCHECK_URL:-http://127.0.0.1:8091/v1/models}"
+LOG_DIR="${LOG_DIR:-${DEPLOY_DIR}/.deploy/logs}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
 DB_SERVICE="${DB_SERVICE:-db}"
 
@@ -70,6 +71,10 @@ wait_for_health() {
 }
 
 cd "${DEPLOY_DIR}" || fail "DEPLOY_DIR does not exist: ${DEPLOY_DIR}"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/rollback-$(date -u +%Y%m%dT%H%M%SZ).log}"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+log "writing rollback log to ${LOG_FILE}"
 
 if [ -z "${TARGET_REVISION}" ] && [ -f .deploy/previous_revision ]; then
   TARGET_REVISION="$(cat .deploy/previous_revision)"
@@ -113,7 +118,7 @@ start_svc() {
     fi
   done
   if [ -n "${svc_list}" ]; then
-    compose up -d --remove-orphans ${svc_list}
+    compose up -d --force-recreate --remove-orphans ${svc_list}
   fi
 }
 

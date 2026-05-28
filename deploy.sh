@@ -6,12 +6,14 @@ set -Eeuo pipefail
 
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/aura}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+DEPLOY_SHA="${DEPLOY_SHA:-}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://18.142.190.113:8001/health}"
 ASSISTANT_HEALTHCHECK_URL="${ASSISTANT_HEALTHCHECK_URL:-http://18.142.190.113:8500/health}"
 LOCAL_LLM_HEALTHCHECK_URL="${LOCAL_LLM_HEALTHCHECK_URL:-http://127.0.0.1:8091/v1/models}"
 BACKUP_DIR="${BACKUP_DIR:-${DEPLOY_DIR}/backups}"
+LOG_DIR="${LOG_DIR:-${DEPLOY_DIR}/.deploy/logs}"
 LOCK_FILE="${LOCK_FILE:-/tmp/aura-production-deploy.lock}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-backend}"
 DB_SERVICE="${DB_SERVICE:-db}"
@@ -112,6 +114,14 @@ command -v docker >/dev/null || fail "docker is not installed"
 docker compose version >/dev/null || fail "docker compose plugin is not installed"
 
 cd "${DEPLOY_DIR}" || fail "DEPLOY_DIR does not exist: ${DEPLOY_DIR}"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/deploy-$(date -u +%Y%m%dT%H%M%SZ).log}"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+log "writing deploy log to ${LOG_FILE}"
+log "requested branch: ${DEPLOY_BRANCH}"
+if [ -n "${DEPLOY_SHA}" ]; then
+  log "requested revision: ${DEPLOY_SHA}"
+fi
 
 if [ ! -f "${ENV_FILE}" ]; then
   fail "${ENV_FILE} is missing. Copy .env.production.example to ${ENV_FILE} and fill in real secrets on the VPS."
@@ -149,12 +159,38 @@ trap rollback_on_error ERR
 
 log "fetching ${DEPLOY_BRANCH}"
 git fetch origin "${DEPLOY_BRANCH}"
-if git show-ref --verify --quiet "refs/heads/${DEPLOY_BRANCH}"; then
-  git checkout "${DEPLOY_BRANCH}"
+if [ -n "${DEPLOY_SHA}" ]; then
+  git cat-file -e "${DEPLOY_SHA}^{commit}" || fail "DEPLOY_SHA is not present after fetch: ${DEPLOY_SHA}"
+  TARGET_REVISION="${DEPLOY_SHA}"
 else
-  git checkout -b "${DEPLOY_BRANCH}" "origin/${DEPLOY_BRANCH}"
+  TARGET_REVISION="origin/${DEPLOY_BRANCH}"
 fi
-git pull --ff-only origin "${DEPLOY_BRANCH}"
+RESOLVED_TARGET_REVISION="$(git rev-parse "${TARGET_REVISION}")"
+if [ "${PREVIOUS_REVISION}" = "${RESOLVED_TARGET_REVISION}" ]; then
+  printf '%s\n' "${PREVIOUS_REVISION}" > .deploy/current_revision
+  log "already deployed: ${PREVIOUS_REVISION}"
+  log "no code changes found; leaving existing containers untouched"
+  compose ps || true
+  if wait_for_health "${HEALTHCHECK_URL}" 3 2; then
+    log "existing backend deployment is healthy"
+  else
+    log "WARNING: existing backend health probe failed, but no new revision was deployed"
+  fi
+  if [ "${DEPLOY_SCOPE}" = "backend-assistant" ] || [ "${DEPLOY_SCOPE}" = "full" ]; then
+    if wait_for_health "${ASSISTANT_HEALTHCHECK_URL}" 3 2; then
+      log "existing assistant deployment is healthy"
+    else
+      log "WARNING: existing assistant health probe failed, but no new revision was deployed"
+    fi
+  fi
+  log "deployment complete: ${PREVIOUS_REVISION}"
+  exit 0
+fi
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  log "WARNING: local tracked changes exist in ${DEPLOY_DIR}; deployment will reset them to ${RESOLVED_TARGET_REVISION}"
+fi
+git checkout -B "${DEPLOY_BRANCH}" "${RESOLVED_TARGET_REVISION}"
+git reset --hard "${RESOLVED_TARGET_REVISION}"
 NEW_REVISION="$(git rev-parse HEAD)"
 printf '%s\n' "${NEW_REVISION}" > .deploy/current_revision
 log "deploying revision: ${NEW_REVISION}"
