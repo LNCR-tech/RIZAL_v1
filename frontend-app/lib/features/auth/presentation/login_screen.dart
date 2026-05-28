@@ -471,7 +471,9 @@ class _Footer extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
 
-    return Row(
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Pressable(
@@ -507,6 +509,7 @@ class _Footer extends StatelessWidget {
           ),
         ),
       ],
+    ),
     );
   }
 }
