@@ -78,6 +78,8 @@ void main() {
         260,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.ensureVisible(find.text('Save changes'));
+      await tester.pump();
       await tester.tap(find.text('Save changes'));
       await tester.pump();
 

@@ -8,7 +8,9 @@ import 'package:aura_app/core/theme/beta_controller.dart';
 import 'package:aura_app/features/events/application/events_providers.dart';
 import 'package:aura_app/features/events/application/geofence_background.dart';
 import 'package:aura_app/features/events/data/events_repository.dart';
+import 'package:aura_app/features/governance/application/governance_providers.dart';
 import 'package:aura_app/features/schoolit/presentation/event_editor_screen.dart';
+import 'package:aura_app/shared/models/governance.dart';
 import 'package:aura_app/features/student/application/student_providers.dart';
 import 'package:aura_app/shared/models/analytics.dart';
 import 'package:aura_app/shared/models/event.dart';
@@ -96,19 +98,11 @@ const _studentSession = SessionState(
     firstName: 'E2E',
     lastName: 'Student',
     schoolName: 'Test University',
+    faceReferenceEnrolled: true,
   ),
 );
 
 const _signedOutSession = SessionState(status: SessionStatus.unauthenticated);
-
-final _sampleEvent = AppEvent(
-  id: 1,
-  name: 'E2E Orientation',
-  location: 'Main Hall',
-  status: 'upcoming',
-  startDatetime: DateTime.now().add(const Duration(days: 7)),
-  endDatetime: DateTime.now().add(const Duration(days: 7, hours: 2)),
-);
 
 const _sampleProfile = UserProfile(
   id: 1,
@@ -135,15 +129,20 @@ List<Override> _appOverrides(SessionState session) => [
       splashGateProvider.overrideWith(() => ReadySplashGate()),
       betaNavProvider.overrideWith(() => FixedBetaNavController()),
       geofenceBackgroundProvider.overrideWith((ref) {}),
+      tokenStoreProvider.overrideWithValue(NoopTokenStore()),
+      governanceAccessProvider
+          .overrideWith((ref) async => const GovernanceAccess()),
       myProfileProvider.overrideWith((ref) async => _sampleProfile),
       studentReportProvider.overrideWith((ref) async => _sampleReport),
-      scheduleEventsProvider.overrideWith((ref) async => [_sampleEvent]),
+      scheduleEventsProvider
+          .overrideWith((ref) async => const <AppEvent>[]),
       ongoingEventsProvider.overrideWith((ref) async => const <AppEvent>[]),
     ];
 
 Future<void> _pumpAuraApp(
   WidgetTester tester, {
   required SessionState session,
+  Finder? waitFor,
 }) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
@@ -162,9 +161,28 @@ Future<void> _pumpAuraApp(
     ),
   );
   await tester.pump();
-  for (var i = 0; i < 4; i++) {
-    await tester.pump(const Duration(milliseconds: 250));
+  if (waitFor != null) {
+    await _pumpUntilFound(tester, waitFor, attempts: 80);
+  } else {
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
   }
+}
+
+Future<void> _pumpUntilFound(
+  WidgetTester tester,
+  Finder finder, {
+  String? reason,
+  int attempts = 100,
+}) async {
+  for (var i = 0; i < attempts; i++) {
+    await tester.pump(const Duration(milliseconds: 250));
+    if (finder.evaluate().isNotEmpty) {
+      return;
+    }
+  }
+  fail('Timed out waiting for ${reason ?? finder.toString()}');
 }
 
 Finder _bottomNavTab(String label) => find.byKey(ValueKey('bottom-nav-$label'));
@@ -174,9 +192,11 @@ void main() {
 
   testWidgets('signed-out app lands on login and exposes login controls',
       (tester) async {
-    await _pumpAuraApp(tester, session: _signedOutSession);
-
-    expect(find.text('Welcome back'), findsOneWidget);
+    await _pumpAuraApp(
+      tester,
+      session: _signedOutSession,
+      waitFor: find.text('Welcome back'),
+    );
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
 
@@ -190,9 +210,11 @@ void main() {
   });
 
   testWidgets('student shell supports primary tab navigation', (tester) async {
-    await _pumpAuraApp(tester, session: _studentSession);
-
-    expect(find.text('Hi, E2E'), findsOneWidget);
+    await _pumpAuraApp(
+      tester,
+      session: _studentSession,
+      waitFor: find.text('Hi, E2E'),
+    );
     expect(_bottomNavTab('Home'), findsOneWidget);
     expect(_bottomNavTab('Schedule'), findsOneWidget);
     expect(_bottomNavTab('Scan'), findsOneWidget);
@@ -257,6 +279,8 @@ void main() {
       260,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(find.text('Save changes'));
+    await tester.pump();
     await tester.tap(find.text('Save changes'));
     await tester.pump(const Duration(milliseconds: 500));
 

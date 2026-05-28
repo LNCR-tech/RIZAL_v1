@@ -1,5 +1,6 @@
 import 'package:aura_app/app/app.dart';
 import 'package:aura_app/app/splash_gate.dart';
+import 'package:aura_app/core/auth/session_controller.dart';
 import 'package:aura_app/core/auth/token_store.dart';
 import 'package:aura_app/core/theme/beta_controller.dart';
 import 'package:aura_app/features/events/application/geofence_background.dart';
@@ -107,6 +108,18 @@ void main() {
       await tester.pump();
       await tester.ensureVisible(find.text('Sign in'));
       await tester.tap(find.text('Sign in'));
+
+      // The seeded test student has no face reference, so the router
+      // redirects to RegisterFaceScreen. Bypass it programmatically.
+      await _pumpUntilFound(
+        tester,
+        find.text('Set up your face'),
+        reason: 'face registration gate after login',
+      );
+      final faceCtx = tester.element(find.text('Set up your face'));
+      await ProviderScope.containerOf(faceCtx)
+          .read(sessionControllerProvider.notifier)
+          .markFaceRegistered();
 
       await _pumpUntilFound(
         tester,

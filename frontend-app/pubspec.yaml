@@ -48,7 +48,7 @@ dependencies:
   # ML Kit on-device face detection — feeds face contours into the liveness
   # plugin and gives us multi-face frames for the kiosk. Bundles ~20MB of
   # native libs on Android (acceptable for an attendance product).
-  google_mlkit_face_detection: ^0.12.0
+  google_mlkit_face_detection: ^0.13.2
   # YUV→RGB→JPEG encoding for kiosk POSTs when the camera is in image-stream
   # mode (we can't call takePicture concurrently with a live stream on
   # Android). Pure-Dart and runs inside `compute()` so the camera thread is
@@ -91,14 +91,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # integration_test is intentionally NOT listed: there are no
-  # integration_test/ tests in this project, and including it leaks the
-  # `dev.flutter.plugins.integration_test.IntegrationTestPlugin` reference
-  # into GeneratedPluginRegistrant.java which breaks `flutter build apk
-  # --release` ("package dev.flutter.plugins.integration_test does not
-  # exist"). Re-add when an integration_test/ directory actually appears.
-  # integration_test:
-  #   sdk: flutter
+  # Required by frontend-app/integration_test/ and the mobile-e2e CI job.
+  integration_test:
+    sdk: flutter
   flutter_lints: ^4.0.0
 
 flutter:
