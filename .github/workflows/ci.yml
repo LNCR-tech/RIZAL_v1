@@ -156,7 +156,7 @@ jobs:
     name: E2E Playwright
     needs: [backend-tests, frontend-tests, assistant-tests]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/pilot'
+    if: github.ref == 'refs/heads/pilot' || github.ref == 'refs/heads/integrate/pilot-merge'
     services:
       postgres:
         image: pgvector/pgvector:pg15
